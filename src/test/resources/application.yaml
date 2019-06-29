@@ -1,0 +1,4 @@
+raoa:
+  import:
+    media: /media
+    repository: /media/repository
