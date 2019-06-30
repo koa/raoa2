@@ -47,7 +47,8 @@ public class DirectoryImporter implements Importer {
         .flatMap(
             imageDir -> {
               try {
-                return Files.list(imageDir);
+                if (Files.isDirectory(imageDir)) return Files.list(imageDir);
+                else return Stream.empty();
               } catch (IOException e) {
                 throw new RuntimeException("Cannot list directory " + imageDir, e);
               }

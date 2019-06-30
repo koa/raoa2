@@ -2,6 +2,8 @@ package ch.bergturbenthal.raoa.importer.domain.service.impl;
 
 import ch.bergturbenthal.raoa.importer.domain.service.GitAccess;
 import ch.bergturbenthal.raoa.importer.domain.service.Updater;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
@@ -15,9 +17,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
+import lombok.Cleanup;
 import lombok.ToString;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.dircache.*;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
@@ -99,21 +102,65 @@ public class BareGitAccess implements GitAccess {
   @Override
   public Updater createUpdater() {
     try {
-      final Map<String, FileEntry> commitEntries = new HashMap<>();
+      final DirCache dirCache;
+      final DirCacheBuilder builder;
       final Optional<Ref> masterRef = findMasterRef();
-      final RevTree tree = readTree(masterRef.get());
-      Map<ObjectId, String> alreadyExistingFiles = new HashMap<>();
-      try (ObjectReader reader = repository.newObjectReader()) {
-        TreeWalk tw = new TreeWalk(repository, reader);
-        tw.reset(tree);
-        tw.setRecursive(true);
+      if (masterRef.isEmpty()) {
+        log.warn("No Master found at " + repository);
+        return new Updater() {
+          @Override
+          public boolean importFile(final Path file, final String name) throws IOException {
+            return false;
+          }
 
-        while (tw.next()) {
-          final FileMode fileMode = tw.getFileMode();
-          final String pathString = tw.getPathString();
-          final ObjectId objectId = tw.getObjectId(0);
-          commitEntries.put(pathString, new FileEntry(fileMode, objectId));
-          alreadyExistingFiles.put(objectId, pathString);
+          @Override
+          public boolean commit() {
+            return false;
+          }
+        };
+      }
+      Map<ObjectId, String> alreadyExistingFiles = new HashMap<>();
+      if (repository.isBare()) {
+        final RevTree tree = readTree(masterRef.get());
+        dirCache = DirCache.newInCore();
+
+        builder = dirCache.builder();
+
+        try (ObjectReader reader = repository.newObjectReader()) {
+
+          TreeWalk tw = new TreeWalk(repository, reader);
+
+          tw.reset(tree);
+          tw.setRecursive(true);
+
+          while (tw.next()) {
+            final String pathString = tw.getPathString();
+            final ObjectId objectId = tw.getObjectId(0);
+            alreadyExistingFiles.put(objectId, pathString);
+            final DirCacheEntry dirCacheEntry = new DirCacheEntry(pathString);
+            dirCacheEntry.setObjectId(objectId);
+            dirCacheEntry.setFileMode(tw.getFileMode());
+            builder.add(dirCacheEntry);
+          }
+        }
+      } else {
+        dirCache = repository.lockDirCache();
+
+        builder = dirCache.builder();
+
+        try (ObjectReader reader = repository.newObjectReader()) {
+
+          TreeWalk tw = new TreeWalk(repository, reader);
+
+          tw.addTree(new DirCacheBuildIterator(builder));
+          tw.setRecursive(true);
+
+          while (tw.next()) {
+            final String pathString = tw.getPathString();
+            final ObjectId objectId = tw.getObjectId(0);
+            alreadyExistingFiles.put(objectId, pathString);
+            builder.add(tw.getTree(0, DirCacheIterator.class).getDirCacheEntry());
+          }
         }
       }
 
@@ -132,25 +179,33 @@ public class BareGitAccess implements GitAccess {
               log.info("File " + file + " already imported as " + existingFileName + " -> merging");
               return true;
             }
-            final FileEntry existingEntry = commitEntries.get(name);
-            if (existingEntry == null || !existingEntry.getBlob().equals(newFileId)) {
-              commitEntries.put(name, new FileEntry(FileMode.REGULAR_FILE, newFileId));
-              alreadyExistingFiles.put(newFileId, name);
-              modified = true;
-            }
+            final DirCacheEntry newEntry = new DirCacheEntry(name);
+            newEntry.setFileMode(FileMode.REGULAR_FILE);
+            newEntry.setObjectId(newFileId);
+            builder.add(newEntry);
+            modified = true;
           }
           return true;
         }
 
         @Override
         public synchronized boolean commit() {
-          if (!modified) return true;
+          if (!modified) {
+            if (!repository.isBare()) dirCache.unlock();
+            return true;
+          }
+          builder.finish();
           try (final ObjectInserter objectInserter = repository.newObjectInserter()) {
+            if (!repository.isBare()) {
+              // update index
+              dirCache.write();
+              if (!dirCache.commit()) return false;
+            }
+
             final Optional<Ref> currentMasterRef = findMasterRef();
-            final TreeFormatter treeFormatter = new TreeFormatter(commitEntries.size());
-            commitEntries.forEach(
-                (key, value) -> treeFormatter.append(key, value.getMode(), value.getBlob()));
-            final ObjectId treeId = treeFormatter.insertTo(objectInserter);
+            if (currentMasterRef.isEmpty()) return false;
+
+            final ObjectId treeId = dirCache.writeTree(objectInserter);
             final CommitBuilder commit = new CommitBuilder();
             final PersonIdent author = new PersonIdent("raoa-importer", "photos@teamkoenig.ch");
             commit.setAuthor(author);
@@ -180,6 +235,19 @@ public class BareGitAccess implements GitAccess {
               case FORCED:
               case NEW:
               case RENAMED:
+                if (!repository.isBare())
+                  // checkout index
+                  try (ObjectReader reader = repository.newObjectReader()) {
+                    final File workTree = repository.getWorkTree();
+                    for (int i = 0; i < dirCache.getEntryCount(); i++) {
+                      final DirCacheEntry dirCacheEntry = dirCache.getEntry(i);
+                      if (dirCacheEntry == null) continue;
+                      final File file = new File(workTree, dirCacheEntry.getPathString());
+                      if (file.exists()) continue;
+                      @Cleanup final FileOutputStream outputStream = new FileOutputStream(file);
+                      reader.open(dirCacheEntry.getObjectId()).copyTo(outputStream);
+                    }
+                  }
                 log.info("Commit successful " + repository.getDirectory());
                 return true;
             }
@@ -191,14 +259,9 @@ public class BareGitAccess implements GitAccess {
           }
         }
       };
+
     } catch (IOException ex) {
       throw new RuntimeException("Cannot read master branch", ex);
     }
-  }
-
-  @Value
-  private static class FileEntry {
-    private FileMode mode;
-    private AnyObjectId blob;
   }
 }

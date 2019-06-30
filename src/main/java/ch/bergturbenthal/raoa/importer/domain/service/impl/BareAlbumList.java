@@ -26,13 +26,11 @@ import org.xml.sax.SAXException;
 @Slf4j
 public class BareAlbumList implements AlbumList {
   private static final Collection<String> IMPORTING_TYPES =
-      new HashSet<>(Arrays.asList("image/jpeg", "image/tiff", "application/mp4"));
+      new HashSet<>(Arrays.asList("image/jpeg", "image/tiff", "application/mp4", "video/mp4"));
   private final SortedMap<Instant, Path> autoaddIndex;
   private final Map<Path, GitAccess> repositories;
-  private Path directory;
 
   public BareAlbumList(Path directory) {
-    this.directory = directory;
 
     repositories =
         listSubdirs(directory)
