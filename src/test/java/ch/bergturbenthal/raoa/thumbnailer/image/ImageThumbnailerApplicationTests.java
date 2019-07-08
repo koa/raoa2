@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.importer.thumbnailer.image;
+package ch.bergturbenthal.raoa.thumbnailer.image;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
