@@ -179,6 +179,7 @@ public class BareGitAccess implements GitAccess {
               log.info("File " + file + " already imported as " + existingFileName + " -> merging");
               return true;
             }
+            alreadyExistingFiles.put(newFileId, name);
             final DirCacheEntry newEntry = new DirCacheEntry(name);
             newEntry.setFileMode(FileMode.REGULAR_FILE);
             newEntry.setObjectId(newFileId);
@@ -190,72 +191,75 @@ public class BareGitAccess implements GitAccess {
 
         @Override
         public synchronized boolean commit() {
-          if (!modified) {
-            if (!repository.isBare()) dirCache.unlock();
-            return true;
-          }
-          builder.finish();
-          try (final ObjectInserter objectInserter = repository.newObjectInserter()) {
-            if (!repository.isBare()) {
-              // update index
-              dirCache.write();
-              if (!dirCache.commit()) return false;
+          try {
+            if (!modified) {
+              return true;
             }
+            builder.finish();
+            try (final ObjectInserter objectInserter = repository.newObjectInserter()) {
+              if (!repository.isBare()) {
+                // update index
+                dirCache.write();
+                if (!dirCache.commit()) return false;
+              }
 
-            final Optional<Ref> currentMasterRef = findMasterRef();
-            if (currentMasterRef.isEmpty()) return false;
+              final Optional<Ref> currentMasterRef = findMasterRef();
+              if (currentMasterRef.isEmpty()) return false;
 
-            final ObjectId treeId = dirCache.writeTree(objectInserter);
-            final CommitBuilder commit = new CommitBuilder();
-            final PersonIdent author = new PersonIdent("raoa-importer", "photos@teamkoenig.ch");
-            commit.setAuthor(author);
-            commit.setCommitter(author);
-            commit.setParentIds(currentMasterRef.get().getObjectId());
-            commit.setTreeId(treeId);
-            final ObjectId commitId = objectInserter.insert(commit);
+              final ObjectId treeId = dirCache.writeTree(objectInserter);
+              final CommitBuilder commit = new CommitBuilder();
+              final PersonIdent author = new PersonIdent("raoa-importer", "photos@teamkoenig.ch");
+              commit.setAuthor(author);
+              commit.setCommitter(author);
+              commit.setParentIds(currentMasterRef.get().getObjectId());
+              commit.setTreeId(treeId);
+              final ObjectId commitId = objectInserter.insert(commit);
 
-            objectInserter.flush();
+              objectInserter.flush();
 
-            RevCommit revCommit = repository.parseCommit(commitId);
-            RefUpdate ru = repository.updateRef(Constants.HEAD);
-            ru.setNewObjectId(commitId);
-            ru.setRefLogMessage("auto import" + revCommit.getShortMessage(), false);
-            ru.setExpectedOldObjectId(masterRef.get().getObjectId());
-            switch (ru.update()) {
-              case NOT_ATTEMPTED:
-              case LOCK_FAILURE:
-              case REJECTED_OTHER_REASON:
-              case REJECTED_MISSING_OBJECT:
-              case IO_FAILURE:
-              case REJECTED_CURRENT_BRANCH:
-              case REJECTED:
-                return false;
-              case NO_CHANGE:
-              case FAST_FORWARD:
-              case FORCED:
-              case NEW:
-              case RENAMED:
-                if (!repository.isBare())
-                  // checkout index
-                  try (ObjectReader reader = repository.newObjectReader()) {
-                    final File workTree = repository.getWorkTree();
-                    for (int i = 0; i < dirCache.getEntryCount(); i++) {
-                      final DirCacheEntry dirCacheEntry = dirCache.getEntry(i);
-                      if (dirCacheEntry == null) continue;
-                      final File file = new File(workTree, dirCacheEntry.getPathString());
-                      if (file.exists()) continue;
-                      @Cleanup final FileOutputStream outputStream = new FileOutputStream(file);
-                      reader.open(dirCacheEntry.getObjectId()).copyTo(outputStream);
+              RevCommit revCommit = repository.parseCommit(commitId);
+              RefUpdate ru = repository.updateRef(Constants.HEAD);
+              ru.setNewObjectId(commitId);
+              ru.setRefLogMessage("auto import" + revCommit.getShortMessage(), false);
+              ru.setExpectedOldObjectId(masterRef.get().getObjectId());
+              switch (ru.update()) {
+                case NOT_ATTEMPTED:
+                case LOCK_FAILURE:
+                case REJECTED_OTHER_REASON:
+                case REJECTED_MISSING_OBJECT:
+                case IO_FAILURE:
+                case REJECTED_CURRENT_BRANCH:
+                case REJECTED:
+                  return false;
+                case NO_CHANGE:
+                case FAST_FORWARD:
+                case FORCED:
+                case NEW:
+                case RENAMED:
+                  if (!repository.isBare())
+                    // checkout index
+                    try (ObjectReader reader = repository.newObjectReader()) {
+                      final File workTree = repository.getWorkTree();
+                      for (int i = 0; i < dirCache.getEntryCount(); i++) {
+                        final DirCacheEntry dirCacheEntry = dirCache.getEntry(i);
+                        if (dirCacheEntry == null) continue;
+                        final File file = new File(workTree, dirCacheEntry.getPathString());
+                        if (file.exists()) continue;
+                        @Cleanup final FileOutputStream outputStream = new FileOutputStream(file);
+                        reader.open(dirCacheEntry.getObjectId()).copyTo(outputStream);
+                      }
                     }
-                  }
-                log.info("Commit successful " + repository.getDirectory());
-                return true;
-            }
+                  log.info("Commit successful " + repository.getDirectory());
+                  return true;
+              }
 
-            return false;
-          } catch (IOException e) {
-            log.warn("Cannot finish commit", e);
-            return false;
+              return false;
+            } catch (IOException e) {
+              log.warn("Cannot finish commit", e);
+              return false;
+            }
+          } finally {
+            if (!repository.isBare()) dirCache.unlock();
           }
         }
       };
