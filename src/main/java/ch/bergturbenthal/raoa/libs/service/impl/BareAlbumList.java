@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.Value;
@@ -30,8 +31,9 @@ import org.xml.sax.SAXException;
 public class BareAlbumList implements AlbumList {
   private static final Collection<String> IMPORTING_TYPES =
       new HashSet<>(Arrays.asList("image/jpeg", "image/tiff", "application/mp4", "video/mp4"));
-  private final SortedMap<Instant, Path> autoaddIndex;
-  private final Map<Path, GitAccess> repositories;
+  private final Map<Path, UUID> repositoryIds = new ConcurrentHashMap<>();
+  private final SortedMap<Instant, UUID> autoaddIndex;
+  private final Map<UUID, GitAccess> repositories;
 
   public BareAlbumList(Properties properties) {
 
@@ -39,7 +41,7 @@ public class BareAlbumList implements AlbumList {
         listSubdirs(properties.getRepository().toPath())
             .collect(
                 Collectors.toMap(
-                    p -> p,
+                    this::idOfRepository,
                     p -> {
                       try {
                         return BareGitAccess.accessOf(p);
@@ -52,7 +54,7 @@ public class BareAlbumList implements AlbumList {
             .flatMap(e -> e.getValue().readAutoadd().map(t -> new AutoaddEntry(t, e.getKey())))
             .collect(
                 Collectors.toMap(
-                    AutoaddEntry::getTime, AutoaddEntry::getPath, (a, b) -> b, TreeMap::new));
+                    AutoaddEntry::getTime, AutoaddEntry::getId, (a, b) -> b, TreeMap::new));
   }
 
   private static Stream<Path> listSubdirs(Path dir) {
@@ -60,11 +62,16 @@ public class BareAlbumList implements AlbumList {
       return Files.list(dir)
           .filter(e -> Files.isDirectory(e))
           .flatMap(
-              d -> {
+              d -> {;
                 if (d.getFileName().toString().endsWith(".git")) {
                   return Stream.of(d);
                 } else {
-                  return listSubdirs(d);
+                  final Path dotGitDir = d.resolve(".git");
+                  if (Files.isDirectory(dotGitDir)) {
+                    return Stream.of(dotGitDir);
+                  } else {
+                    return listSubdirs(d);
+                  }
                 }
               });
     } catch (IOException e) {
@@ -73,10 +80,14 @@ public class BareAlbumList implements AlbumList {
     return Stream.empty();
   }
 
+  private UUID idOfRepository(Path path) {
+    return repositoryIds.computeIfAbsent(path, k -> UUID.randomUUID());
+  }
+
   @Override
   public FileImporter createImporter() {
     return new FileImporter() {
-      private final Map<Path, Updater> pendingUpdaters = new HashMap<>();
+      private final Map<UUID, Updater> pendingUpdaters = new HashMap<>();
 
       @Override
       public synchronized boolean importFile(final Path file) throws IOException {
@@ -103,10 +114,10 @@ public class BareAlbumList implements AlbumList {
           final String targetFilename = prefix + "-" + file.getFileName().toString();
           return albumOf(createTimestamp)
               .map(
-                  repositoryPath -> {
-                    log.info("Import " + file + " to " + repositoryPath);
+                  repositoryId -> {
+                    log.info("Import " + file + " to " + repositoryId);
                     return pendingUpdaters.computeIfAbsent(
-                        repositoryPath, k -> repositories.get(k).createUpdater());
+                        repositoryId, k -> repositories.get(k).createUpdater());
                   })
               .map(
                   foundRepository -> {
@@ -141,12 +152,16 @@ public class BareAlbumList implements AlbumList {
 
   @Override
   public Stream<FoundAlbum> listAlbums() {
-    return repositories.entrySet().stream()
-        .map(e -> new FoundAlbum(e.getValue().getName(), e.getValue()));
+    return repositories.entrySet().stream().map(e -> new FoundAlbum(e.getKey(), e.getValue()));
   }
 
-  private Optional<Path> albumOf(final Instant timestamp) {
-    final SortedMap<Instant, Path> headMap = autoaddIndex.headMap(timestamp);
+  @Override
+  public Optional<GitAccess> getAlbum(final UUID albumId) {
+    return Optional.ofNullable(repositories.get(albumId));
+  }
+
+  private Optional<UUID> albumOf(final Instant timestamp) {
+    final SortedMap<Instant, UUID> headMap = autoaddIndex.headMap(timestamp);
     if (headMap.isEmpty()) return Optional.empty();
     return Optional.of(autoaddIndex.get(headMap.lastKey()));
   }
@@ -154,6 +169,6 @@ public class BareAlbumList implements AlbumList {
   @Value
   private static class AutoaddEntry {
     private Instant time;
-    private Path path;
+    private UUID id;
   }
 }
