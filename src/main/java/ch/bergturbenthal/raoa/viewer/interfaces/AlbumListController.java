@@ -2,13 +2,11 @@ package ch.bergturbenthal.raoa.viewer.interfaces;
 
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
+import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.FileCache;
 import ch.bergturbenthal.raoa.viewer.service.FileCacheManager;
 import ch.bergturbenthal.raoa.viewer.service.ThumbnailManager;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -56,19 +54,22 @@ public class AlbumListController {
   private final Map<UUID, FileCache<ObjectId>> fileCaches = new ConcurrentHashMap<>();
   private final ThumbnailManager thumbnailManager;
   private final FileCache<UUID> imageZipCache;
+  private final ViewerProperties viewerProperties;
 
   public AlbumListController(
       final AlbumList albumList,
       final FileCacheManager fileCacheManager,
-      final ThumbnailManager thumbnailManager) {
+      final ThumbnailManager thumbnailManager,
+      final ViewerProperties viewerProperties) {
     this.albumList = albumList;
     this.fileCacheManager = fileCacheManager;
     this.thumbnailManager = thumbnailManager;
     imageZipCache =
         fileCacheManager.createCache("album-zip", this::imageZip, uuid -> uuid.toString() + ".zip");
+    this.viewerProperties = viewerProperties;
   }
 
-  private Mono<File> imageZip(UUID album) {
+  private Mono<File> imageZip(UUID album, File targetDir) {
 
     final FileCache<ObjectId> thumbnailCache = thumbnailCache(album);
     return Mono.justOrEmpty(albumList.getAlbum(album))
@@ -80,28 +81,45 @@ public class AlbumListController {
                 throw new RuntimeException("Cannot list files of album " + album, e);
               }
             })
-        .flatMap(entry -> thumbnailCache.take(entry.getFileId()).map(f -> Tuples.of(entry, f)), 10)
-        .collectList()
         .flatMap(
-            fileList -> {
+            entry -> thumbnailCache.take(entry.getFileId()).map(f -> Tuples.of(entry, f)),
+            viewerProperties.getConcurrentThumbnailers())
+        .log("input")
+        .collect(
+            () -> {
               try {
-                final File tempFile = File.createTempFile(album.toString(), ".zip");
-                {
-                  @Cleanup
-                  final ZipOutputStream zipOutputStream =
-                      new ZipOutputStream(new FileOutputStream(tempFile));
-                  for (Tuple2<GitAccess.GitFileEntry, File> fileEntry : fileList) {
-                    zipOutputStream.putNextEntry(new ZipEntry(fileEntry.getT1().getNameString()));
-                    @Cleanup
-                    final FileInputStream fileInputStream = new FileInputStream(fileEntry.getT2());
-                    IOUtils.copy(fileInputStream, zipOutputStream);
-                  }
-                }
-                return Mono.just(tempFile);
-              } catch (IOException e) {
-                return Mono.error(e);
+                final File tempFile = new File(targetDir, UUID.randomUUID().toString());
+                final ZipOutputStream zipOutputStream =
+                    new ZipOutputStream(new FileOutputStream(tempFile));
+                return Tuples.of(tempFile, zipOutputStream);
+              } catch (FileNotFoundException e) {
+                throw new RuntimeException("Cannot init file", e);
               }
-            });
+            },
+            (Tuple2<File, ZipOutputStream> t, Tuple2<GitAccess.GitFileEntry, File> file) -> {
+              try {
+                final File outputFile = t.getT1();
+                final ZipOutputStream outputStream = t.getT2();
+                synchronized (outputFile) {
+                  outputStream.putNextEntry(new ZipEntry(file.getT1().getNameString()));
+                  @Cleanup
+                  final FileInputStream fileInputStream = new FileInputStream(file.getT2());
+                  IOUtils.copy(fileInputStream, outputStream);
+                }
+              } catch (IOException e) {
+                throw new RuntimeException("Cannot append " + file.getT2() + " to " + t.getT1());
+              }
+            })
+        .map(
+            t -> {
+              try {
+                t.getT2().close();
+              } catch (IOException e) {
+                throw new RuntimeException("Cannot close " + t.getT1(), e);
+              }
+              return t.getT1();
+            })
+        .log("Output");
   }
 
   private FileCache<ObjectId> thumbnailCache(UUID album) {
@@ -117,12 +135,13 @@ public class AlbumListController {
                     if (!cacheDir.exists()) cacheDir.mkdirs();
                     return fileCacheManager.<ObjectId>createCache(
                         "thumbnail-" + album,
-                        objectId -> {
+                        (objectId, targetDir) -> {
                           try {
                             return thumbnailManager.takeThumbnail(
                                 objectId,
                                 gitAccess.readObject(objectId).orElseThrow(),
-                                MediaType.IMAGE_JPEG);
+                                MediaType.IMAGE_JPEG,
+                                targetDir);
                           } catch (IOException e) {
                             throw new RuntimeException("Cannot create thumbnail", e);
                           }

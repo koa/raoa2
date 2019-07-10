@@ -151,9 +151,19 @@
                     </execution>
                 </executions>
                 <configuration>
+                    <from>
+                        <image>docker.io/library/openjdk:11-slim</image>
+                    </from>
                     <to>
                         <image>docker.io/koa1/raoa-viewer:${version}</image>
                     </to>
+                    <container>
+                        <jvmFlags>
+                            <jvmFlag>-XX:+HeapDumpOnOutOfMemoryError</jvmFlag>
+                            <jvmFlag>-XX:HeapDumpPath=/dumps/</jvmFlag>
+                            <jvmFlag>-XX:+ExitOnOutOfMemoryError</jvmFlag>
+                        </jvmFlags>
+                    </container>
                 </configuration>
             </plugin>
         </plugins>

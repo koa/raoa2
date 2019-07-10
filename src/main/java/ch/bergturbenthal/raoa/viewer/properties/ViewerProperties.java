@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class ViewerProperties {
   private File cacheDir;
   private String thumbnailerService = "raoa-thumbnailer";
+  private int concurrentThumbnailers = 40;
 
   public ViewerProperties() throws IOException {
     cacheDir = File.createTempFile("cache", "tmp");

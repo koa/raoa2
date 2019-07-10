@@ -10,12 +10,14 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Slf4j
 @SpringBootApplication
 @EnableConfigurationProperties(ViewerProperties.class)
 @Import(RaoaLibConfiguration.class)
 @ComponentScan(basePackageClasses = {RemoteThumbnailManager.class, AlbumListController.class})
+@EnableScheduling
 public class RaoaViewerApplication {
 
   public static void main(String[] args) {

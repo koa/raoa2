@@ -7,6 +7,7 @@ import java.io.File;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -24,7 +25,7 @@ public class DefaultFileCacheManager implements FileCacheManager {
   @Override
   public <K> FileCache<K> createCache(
       final String cacheId,
-      final Function<K, Mono<File>> objectCreator,
+      final BiFunction<K, File, Mono<File>> objectCreator,
       final Function<K, String> filenameGenerator) {
 
     final FileCache<K> fileCache =
@@ -47,11 +48,9 @@ public class DefaultFileCacheManager implements FileCacheManager {
                                 objectId,
                                 k ->
                                     objectCreator
-                                        .apply(k)
+                                        .apply(k, cacheDir)
                                         .map(
                                             createdFile -> {
-                                              if (!alreadyCachedFile.getParentFile().exists())
-                                                alreadyCachedFile.getParentFile().mkdirs();
                                               createdFile.renameTo(alreadyCachedFile);
                                               return alreadyCachedFile;
                                             })
