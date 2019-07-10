@@ -1,0 +1,13 @@
+spring:
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            raoa-thumbnailer:
+              - uri: http://thumbnailer.lkw.teamkoenig.ch/
+    kubernetes:
+      enabled: false
+raoa:
+  media: /media
+  repository: /tmp/photos
