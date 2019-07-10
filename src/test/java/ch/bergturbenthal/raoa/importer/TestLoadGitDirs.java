@@ -1,7 +1,5 @@
 package ch.bergturbenthal.raoa.importer;
 
-import ch.bergturbenthal.raoa.importer.domain.service.FileImporter;
-import ch.bergturbenthal.raoa.importer.domain.service.impl.BareAlbumList;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

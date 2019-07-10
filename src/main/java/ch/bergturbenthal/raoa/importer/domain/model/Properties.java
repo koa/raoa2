@@ -11,5 +11,4 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 public class Properties {
   @NonNull private Path media;
-  @NonNull private Path repository;
 }

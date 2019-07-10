@@ -1,7 +1,8 @@
 package ch.bergturbenthal.raoa.importer.domain.service.impl;
 
-import ch.bergturbenthal.raoa.importer.domain.service.FileImporter;
 import ch.bergturbenthal.raoa.importer.domain.service.Importer;
+import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.libs.service.FileImporter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,6 +18,11 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class DirectoryImporter implements Importer {
+  private final AlbumList albumList;
+
+  public DirectoryImporter(final AlbumList albumList) {
+    this.albumList = albumList;
+  }
 
   private static String humanReadableByteCount(long bytes, boolean si) {
     int unit = si ? 1000 : 1024;
@@ -29,7 +35,6 @@ public class DirectoryImporter implements Importer {
   @Override
   public void importDirectories(final Path src, final Path target) throws IOException {
     Instant startTime = Instant.now();
-    final BareAlbumList albumList = new BareAlbumList(target);
     final FileImporter importer = albumList.createImporter();
     Collection<Path> importedFiles = new ArrayList<>();
     LongAdder totalSize = new LongAdder();
