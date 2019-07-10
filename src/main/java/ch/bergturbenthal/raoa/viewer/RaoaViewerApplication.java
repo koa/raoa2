@@ -8,6 +8,8 @@ import ch.bergturbenthal.raoa.viewer.service.ThumbnailManager;
 import ch.bergturbenthal.raoa.viewer.service.impl.RemoteThumbnailManager;
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectLoader;
@@ -31,55 +33,62 @@ import reactor.util.function.Tuples;
 public class RaoaViewerApplication {
 
   public static void main(String[] args) {
-    final ConfigurableApplicationContext applicationContext =
-        SpringApplication.run(RaoaViewerApplication.class, args);
-    final AlbumList albumList = applicationContext.getBean(AlbumList.class);
-    final ThumbnailManager thumbnailManager = applicationContext.getBean(ThumbnailManager.class);
+    try (final ConfigurableApplicationContext applicationContext =
+        SpringApplication.run(RaoaViewerApplication.class, args)) {
+      final AlbumList albumList = applicationContext.getBean(AlbumList.class);
+      final ThumbnailManager thumbnailManager = applicationContext.getBean(ThumbnailManager.class);
 
-    final Long fileCount =
-        Flux.fromStream(albumList.listAlbums())
-            .map(AlbumList.FoundAlbum::getAccess)
-            .flatMap(
-                gitAccess -> {
-                  try {
-                    return Flux.fromIterable(gitAccess.listFiles(PathSuffixFilter.create(".JPG")))
-                        .map(e -> Tuples.of(gitAccess, e));
-                  } catch (IOException ex) {
-                    return Flux.error(ex);
-                  }
-                })
-            .flatMap(
-                e -> {
-                  try {
-                    final GitAccess gitAccess = e.getT1();
-                    final GitAccess.GitFileEntry fileEntry = e.getT2();
-                    final Optional<ObjectLoader> optionalObjectLoader =
-                        gitAccess.readObject(fileEntry.getFileId());
-                    if (optionalObjectLoader.isPresent()) {
-                      return thumbnailManager
-                          .takeThumbnail(
-                              fileEntry.getFileId(),
-                              optionalObjectLoader.get(),
-                              MediaType.IMAGE_JPEG)
-                          .map(f -> Tuples.of(fileEntry.getNameString(), f))
-                          .onErrorResume(
-                              ex -> {
-                                log.warn("Cannot convert file " + fileEntry.getNameString(), ex);
-                                return Mono.empty();
-                              });
+      Instant startTime = Instant.now();
+      final Long fileCount =
+          Flux.fromStream(albumList.listAlbums())
+              .map(AlbumList.FoundAlbum::getAccess)
+              .flatMap(
+                  gitAccess -> {
+                    try {
+                      return Flux.fromIterable(gitAccess.listFiles(PathSuffixFilter.create(".JPG")))
+                          .map(e -> Tuples.of(gitAccess, e));
+                    } catch (IOException ex) {
+                      return Flux.error(ex);
                     }
-                    return Mono.empty();
-                  } catch (IOException ex) {
-                    return Mono.error(ex);
-                  }
-                })
-            .doOnNext(
-                e -> {
-                  e.getT2().renameTo(new File("/tmp", e.getT1()));
-                  log.info("Translated " + e.getT1());
-                })
-            .count()
-            .block();
-    log.info("Processed " + fileCount + " files");
+                  })
+              .flatMap(
+                  e -> {
+                    try {
+                      final GitAccess gitAccess = e.getT1();
+                      final GitAccess.GitFileEntry fileEntry = e.getT2();
+                      final Optional<ObjectLoader> optionalObjectLoader =
+                          gitAccess.readObject(fileEntry.getFileId());
+                      if (optionalObjectLoader.isPresent()) {
+                        return thumbnailManager
+                            .takeThumbnail(
+                                fileEntry.getFileId(),
+                                optionalObjectLoader.get(),
+                                MediaType.IMAGE_JPEG)
+                            .map(f -> Tuples.of(fileEntry.getNameString(), f))
+                            .onErrorResume(
+                                ex -> {
+                                  log.warn("Cannot convert file " + fileEntry.getNameString(), ex);
+                                  return Mono.empty();
+                                });
+                      }
+                      return Mono.empty();
+                    } catch (IOException ex) {
+                      return Mono.error(ex);
+                    }
+                  })
+              .doOnNext(
+                  e -> {
+                    e.getT2().renameTo(new File("/tmp", e.getT1()));
+                    log.info("Translated " + e.getT1());
+                  })
+              .count()
+              .block();
+      Instant endTime = Instant.now();
+      final Duration executeDuration = Duration.between(startTime, endTime);
+      log.info("Processed " + fileCount + " files");
+      log.info("Used " + executeDuration.getSeconds() + "s");
+      double filesPerSecond = fileCount * 1000.0 / executeDuration.toMillis();
+      log.info("Speed: " + filesPerSecond + " Files/s");
+    }
   }
 }

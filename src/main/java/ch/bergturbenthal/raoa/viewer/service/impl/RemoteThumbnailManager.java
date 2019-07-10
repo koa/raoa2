@@ -107,49 +107,90 @@ public class RemoteThumbnailManager implements ThumbnailManager {
         .flatMap(
             uri ->
                 webClient
-                    .post()
-                    .uri(uri.resolve("thumbnail"))
-                    .contentType(mediaType)
-                    .contentLength(objectLoader.getSize())
-                    .accept(MediaType.IMAGE_JPEG)
-                    .body(
-                        BodyInserters.fromResource(
-                            createResourceFromObjectLoader(id, objectLoader, mediaType)))
+                    .get()
+                    .uri(uri.resolve("token"))
                     .exchange()
                     .flatMap(
-                        clientResponse -> {
-                          final HttpStatus statusCode = clientResponse.statusCode();
-                          log.info("Status: " + statusCode);
-                          if (statusCode == HttpStatus.OK)
-                            return clientResponse
-                                .body(BodyExtractors.toDataBuffers())
-                                .collect(
-                                    () -> {
-                                      try {
-                                        return File.createTempFile(id.name(), ".tmp");
-                                      } catch (IOException e) {
-                                        throw new RuntimeException("Cannot create temp file", e);
-                                      }
-                                    },
-                                    (file, dataBuffer) -> {
-                                      try (final FileOutputStream outputStream =
-                                          new FileOutputStream(file, true)) {
-                                        @Cleanup
-                                        final InputStream input = dataBuffer.asInputStream(true);
-                                        IOUtils.copy(input, outputStream);
-                                      } catch (IOException e) {
-                                        throw new RuntimeException(
-                                            "Cannot write response to file", e);
-                                      }
-                                    })
-                                .doFinally(signalType -> blockUntil.remove(uri));
-                          else if (statusCode == HttpStatus.NOT_ACCEPTABLE) {
+                        tokenClientResponse -> {
+                          log.info("Token take response: " + tokenClientResponse.statusCode());
+                          if (tokenClientResponse.statusCode().value() != 200) {
+                            log.warn("Invalid token response: " + tokenClientResponse.statusCode());
                             blockUntil.put(uri, Instant.now().plusSeconds(1));
                             return takeThumbnail(id, objectLoader, mediaType);
                           } else {
-                            return Mono.empty();
-                            // return Mono.error(
-                            //    new IOException("Unexpected Http response: " + statusCode));
+                            return tokenClientResponse
+                                .bodyToMono(String.class)
+                                .map(Optional::of)
+                                .defaultIfEmpty(Optional.empty())
+                                // .log("Token")
+                                .flatMap(
+                                    token -> {
+                                      if (token.isEmpty()) {
+                                        blockUntil.put(uri, Instant.now().plusSeconds(1));
+                                        return takeThumbnail(id, objectLoader, mediaType);
+
+                                      } else
+                                        return webClient
+                                            .post()
+                                            .uri(uri.resolve("thumbnail?token=" + token.get()))
+                                            .contentType(mediaType)
+                                            .contentLength(objectLoader.getSize())
+                                            .accept(MediaType.IMAGE_JPEG)
+                                            .body(
+                                                BodyInserters.fromResource(
+                                                    createResourceFromObjectLoader(
+                                                        id, objectLoader, mediaType)))
+                                            .exchange()
+                                            .flatMap(
+                                                clientResponse -> {
+                                                  final HttpStatus statusCode =
+                                                      clientResponse.statusCode();
+                                                  log.info("Status: " + statusCode);
+                                                  if (statusCode == HttpStatus.OK)
+                                                    return clientResponse
+                                                        .body(BodyExtractors.toDataBuffers())
+                                                        .collect(
+                                                            () -> {
+                                                              try {
+                                                                return File.createTempFile(
+                                                                    id.name(), ".tmp");
+                                                              } catch (IOException e) {
+                                                                throw new RuntimeException(
+                                                                    "Cannot create temp file", e);
+                                                              }
+                                                            },
+                                                            (file, dataBuffer) -> {
+                                                              try (final FileOutputStream
+                                                                  outputStream =
+                                                                      new FileOutputStream(
+                                                                          file, true)) {
+                                                                @Cleanup
+                                                                final InputStream input =
+                                                                    dataBuffer.asInputStream(true);
+                                                                IOUtils.copy(input, outputStream);
+                                                              } catch (IOException e) {
+                                                                throw new RuntimeException(
+                                                                    "Cannot write response to file",
+                                                                    e);
+                                                              }
+                                                            })
+                                                        .doFinally(
+                                                            signalType -> blockUntil.remove(uri));
+                                                  else if (statusCode
+                                                      == HttpStatus.NOT_ACCEPTABLE) {
+                                                    blockUntil.put(
+                                                        uri, Instant.now().plusSeconds(1));
+                                                    return takeThumbnail(
+                                                        id, objectLoader, mediaType);
+                                                  } else {
+                                                    return Mono.empty();
+                                                    // return Mono.error(
+                                                    //    new IOException("Unexpected Http response:
+                                                    // " +
+                                                    // statusCode));
+                                                  }
+                                                });
+                                    });
                           }
                         }));
   }
