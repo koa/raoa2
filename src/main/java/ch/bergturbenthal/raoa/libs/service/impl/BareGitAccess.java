@@ -5,6 +5,7 @@ import ch.bergturbenthal.raoa.libs.service.Updater;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -14,6 +15,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import lombok.Cleanup;
 import lombok.ToString;
@@ -32,10 +35,29 @@ import org.joda.time.format.ISODateTimeFormat;
 @ToString
 public class BareGitAccess implements GitAccess {
 
-  private final Repository repository;
+  private final Supplier<Repository> repository;
 
-  public BareGitAccess(final Path path) throws IOException {
-    repository = new FileRepositoryBuilder().setGitDir(path.toFile()).readEnvironment().build();
+  public BareGitAccess(final Path path) {
+    AtomicReference<WeakReference<Repository>> loadedRepository = new AtomicReference<>();
+    Object lock = new Object();
+    repository =
+        () -> {
+          synchronized (lock) {
+            final WeakReference<Repository> repositoryWeakReference = loadedRepository.get();
+            if (repositoryWeakReference != null) {
+              final Repository cachedRepository = repositoryWeakReference.get();
+              if (cachedRepository != null) return cachedRepository;
+            }
+            try {
+              Repository newRepository =
+                  new FileRepositoryBuilder().setGitDir(path.toFile()).readEnvironment().build();
+              loadedRepository.set(new WeakReference<>(newRepository));
+              return newRepository;
+            } catch (IOException e) {
+              throw new RuntimeException("Cannot load repository " + path, e);
+            }
+          }
+        };
   }
 
   public static BareGitAccess accessOf(Path path) throws IOException {
@@ -46,8 +68,8 @@ public class BareGitAccess implements GitAccess {
   public Collection<GitFileEntry> listFiles(TreeFilter filter) throws IOException {
     final Optional<RevTree> revTree = masterTree();
     if (revTree.isEmpty()) return Collections.emptyList();
-    try (ObjectReader objectReader = repository.newObjectReader()) {
-      TreeWalk tw = new TreeWalk(repository, objectReader);
+    try (ObjectReader objectReader = repository.get().newObjectReader()) {
+      TreeWalk tw = new TreeWalk(repository.get(), objectReader);
       tw.setFilter(filter);
       tw.reset(new ObjectId[] {revTree.get().getId()});
       tw.setRecursive(true);
@@ -65,7 +87,7 @@ public class BareGitAccess implements GitAccess {
   @Override
   public Optional<ObjectLoader> readObject(AnyObjectId objectId) throws IOException {
     try {
-      return Optional.of(repository.getObjectDatabase().open(objectId));
+      return Optional.of(repository.get().getObjectDatabase().open(objectId));
     } catch (MissingObjectException ex) {
       return Optional.empty();
     }
@@ -77,11 +99,11 @@ public class BareGitAccess implements GitAccess {
     final Optional<RevTree> revTree = masterTree();
     if (revTree.isPresent()) {
       final RevTree tree = revTree.get();
-      final TreeWalk treeWalk = TreeWalk.forPath(repository, filename, tree);
+      final TreeWalk treeWalk = TreeWalk.forPath(repository.get(), filename, tree);
       if (treeWalk == null) return Optional.empty();
       final ObjectId objectId = treeWalk.getObjectId(0);
       final ObjectLoader objectLoader =
-          repository.getObjectDatabase().open(objectId, Constants.OBJ_BLOB);
+          repository.get().getObjectDatabase().open(objectId, Constants.OBJ_BLOB);
 
       return Optional.of(objectLoader);
 
@@ -95,12 +117,12 @@ public class BareGitAccess implements GitAccess {
   }
 
   private RevTree readTree(final Ref ref) throws IOException {
-    final RevCommit revCommit = repository.parseCommit(ref.getObjectId());
+    final RevCommit revCommit = repository.get().parseCommit(ref.getObjectId());
     return revCommit.getTree();
   }
 
   private Optional<Ref> findMasterRef() throws IOException {
-    final RefDatabase refDatabase = repository.getRefDatabase();
+    final RefDatabase refDatabase = repository.get().getRefDatabase();
     return Optional.ofNullable(refDatabase.findRef("master"));
   }
 
@@ -149,15 +171,15 @@ public class BareGitAccess implements GitAccess {
         };
       }
       Map<ObjectId, String> alreadyExistingFiles = new HashMap<>();
-      if (repository.isBare()) {
+      if (repository.get().isBare()) {
         final RevTree tree = readTree(masterRef.get());
         dirCache = DirCache.newInCore();
 
         builder = dirCache.builder();
 
-        try (ObjectReader reader = repository.newObjectReader()) {
+        try (ObjectReader reader = repository.get().newObjectReader()) {
 
-          TreeWalk tw = new TreeWalk(repository, reader);
+          TreeWalk tw = new TreeWalk(repository.get(), reader);
 
           tw.reset(tree);
           tw.setRecursive(true);
@@ -173,13 +195,13 @@ public class BareGitAccess implements GitAccess {
           }
         }
       } else {
-        dirCache = repository.lockDirCache();
+        dirCache = repository.get().lockDirCache();
 
         builder = dirCache.builder();
 
-        try (ObjectReader reader = repository.newObjectReader()) {
+        try (ObjectReader reader = repository.get().newObjectReader()) {
 
-          TreeWalk tw = new TreeWalk(repository, reader);
+          TreeWalk tw = new TreeWalk(repository.get(), reader);
 
           tw.addTree(new DirCacheBuildIterator(builder));
           tw.setRecursive(true);
@@ -199,7 +221,7 @@ public class BareGitAccess implements GitAccess {
         @Override
         public synchronized boolean importFile(final Path file, final String name)
             throws IOException {
-          try (final ObjectInserter objectInserter = repository.newObjectInserter()) {
+          try (final ObjectInserter objectInserter = repository.get().newObjectInserter()) {
             final ObjectId newFileId =
                 objectInserter.insert(
                     Constants.OBJ_BLOB, Files.size(file), Files.newInputStream(file));
@@ -225,8 +247,8 @@ public class BareGitAccess implements GitAccess {
               return true;
             }
             builder.finish();
-            try (final ObjectInserter objectInserter = repository.newObjectInserter()) {
-              if (!repository.isBare()) {
+            try (final ObjectInserter objectInserter = repository.get().newObjectInserter()) {
+              if (!repository.get().isBare()) {
                 // update index
                 dirCache.write();
                 if (!dirCache.commit()) return false;
@@ -246,8 +268,8 @@ public class BareGitAccess implements GitAccess {
 
               objectInserter.flush();
 
-              RevCommit revCommit = repository.parseCommit(commitId);
-              RefUpdate ru = repository.updateRef(Constants.HEAD);
+              RevCommit revCommit = repository.get().parseCommit(commitId);
+              RefUpdate ru = repository.get().updateRef(Constants.HEAD);
               ru.setNewObjectId(commitId);
               ru.setRefLogMessage("auto import" + revCommit.getShortMessage(), false);
               ru.setExpectedOldObjectId(masterRef.get().getObjectId());
@@ -265,10 +287,10 @@ public class BareGitAccess implements GitAccess {
                 case FORCED:
                 case NEW:
                 case RENAMED:
-                  if (!repository.isBare())
+                  if (!repository.get().isBare())
                     // checkout index
-                    try (ObjectReader reader = repository.newObjectReader()) {
-                      final File workTree = repository.getWorkTree();
+                    try (ObjectReader reader = repository.get().newObjectReader()) {
+                      final File workTree = repository.get().getWorkTree();
                       for (int i = 0; i < dirCache.getEntryCount(); i++) {
                         final DirCacheEntry dirCacheEntry = dirCache.getEntry(i);
                         if (dirCacheEntry == null) continue;
@@ -278,7 +300,7 @@ public class BareGitAccess implements GitAccess {
                         reader.open(dirCacheEntry.getObjectId()).copyTo(outputStream);
                       }
                     }
-                  log.info("Commit successful " + repository.getDirectory());
+                  log.info("Commit successful " + repository.get().getDirectory());
                   return true;
               }
 
@@ -288,7 +310,7 @@ public class BareGitAccess implements GitAccess {
               return false;
             }
           } finally {
-            if (!repository.isBare()) dirCache.unlock();
+            if (!repository.get().isBare()) dirCache.unlock();
           }
         }
       };
@@ -300,11 +322,11 @@ public class BareGitAccess implements GitAccess {
 
   @Override
   public String getName() {
-    if (repository.isBare()) {
-      final String filename = repository.getDirectory().getName();
+    if (repository.get().isBare()) {
+      final String filename = repository.get().getDirectory().getName();
       return filename.substring(0, filename.length() - 4);
     } else {
-      return repository.getWorkTree().getName();
+      return repository.get().getWorkTree().getName();
     }
   }
 }

@@ -9,7 +9,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 // @Validated
 public class Properties {
   // @NonNull
-  private File media;
-  // @NonNull
   private File repository;
 }
