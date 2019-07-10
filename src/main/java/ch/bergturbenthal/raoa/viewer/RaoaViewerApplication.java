@@ -1,38 +1,26 @@
 package ch.bergturbenthal.raoa.viewer;
 
 import ch.bergturbenthal.raoa.libs.RaoaLibConfiguration;
-import ch.bergturbenthal.raoa.libs.service.AlbumList;
-import ch.bergturbenthal.raoa.libs.service.GitAccess;
+import ch.bergturbenthal.raoa.viewer.interfaces.AlbumListController;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
-import ch.bergturbenthal.raoa.viewer.service.ThumbnailManager;
 import ch.bergturbenthal.raoa.viewer.service.impl.RemoteThumbnailManager;
-import java.io.File;
-import java.io.IOException;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jgit.lib.ObjectLoader;
-import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.util.function.Tuples;
 
 @Slf4j
 @SpringBootApplication
 @EnableConfigurationProperties(ViewerProperties.class)
 @Import(RaoaLibConfiguration.class)
-@ComponentScan(basePackageClasses = RemoteThumbnailManager.class)
+@ComponentScan(basePackageClasses = {RemoteThumbnailManager.class, AlbumListController.class})
 public class RaoaViewerApplication {
 
   public static void main(String[] args) {
+    SpringApplication.run(RaoaViewerApplication.class, args);
+    /*
     try (final ConfigurableApplicationContext applicationContext =
         SpringApplication.run(RaoaViewerApplication.class, args)) {
       final AlbumList albumList = applicationContext.getBean(AlbumList.class);
@@ -90,5 +78,6 @@ public class RaoaViewerApplication {
       double filesPerSecond = fileCount * 1000.0 / executeDuration.toMillis();
       log.info("Speed: " + filesPerSecond + " Files/s");
     }
+    */
   }
 }

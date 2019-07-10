@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="de" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>RAoA</title>
+</head>
+<body>
+<ul>
+    <li th:each="entry : ${entries}">
+        <img th:src="@{'/album/'+${albumId}+'/'+${entry.fileId.name()}}">
+        [[${entry.nameString}]]
+    </li>
+</ul>
+</body>
+</html>

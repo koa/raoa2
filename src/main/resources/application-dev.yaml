@@ -8,6 +8,13 @@ spring:
               - uri: http://thumbnailer.lkw.teamkoenig.ch/
     kubernetes:
       enabled: false
+  security:
+    user:
+      name: user
+      password: 1234
 raoa:
   media: /media
   repository: /tmp/photos
+  viewer:
+    cache-dir: /tmp/cache
+

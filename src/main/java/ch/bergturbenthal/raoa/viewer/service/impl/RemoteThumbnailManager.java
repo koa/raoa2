@@ -112,7 +112,7 @@ public class RemoteThumbnailManager implements ThumbnailManager {
                     .exchange()
                     .flatMap(
                         tokenClientResponse -> {
-                          log.info("Token take response: " + tokenClientResponse.statusCode());
+                          // log.info("Token take response: " + tokenClientResponse.statusCode());
                           if (tokenClientResponse.statusCode().value() != 200) {
                             log.warn("Invalid token response: " + tokenClientResponse.statusCode());
                             blockUntil.put(uri, Instant.now().plusSeconds(1));
@@ -145,7 +145,7 @@ public class RemoteThumbnailManager implements ThumbnailManager {
                                                 clientResponse -> {
                                                   final HttpStatus statusCode =
                                                       clientResponse.statusCode();
-                                                  log.info("Status: " + statusCode);
+                                                  // ölog.info("Status: " + statusCode);
                                                   if (statusCode == HttpStatus.OK)
                                                     return clientResponse
                                                         .body(BodyExtractors.toDataBuffers())
