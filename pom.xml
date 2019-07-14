@@ -70,6 +70,11 @@
             <artifactId>spring-cloud-starter-kubernetes</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.graphql-java</groupId>
+            <artifactId>graphql-java-spring-boot-starter-webmvc</artifactId>
+            <version>1.0</version>
+        </dependency>
+        <dependency>
             <groupId>ch.bergturbenthal.raoa</groupId>
             <artifactId>libs</artifactId>
             <version>0.0.1-SNAPSHOT</version>

@@ -1,0 +1,15 @@
+type Query {
+    albumById(id: ID): Album
+    listAlbums: [Album]
+}
+
+type Album {
+    id: ID!
+    name: String
+    entries: [AlbumEntry]!
+}
+
+type AlbumEntry {
+    id: ID!
+    name: String
+}

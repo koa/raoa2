@@ -7,8 +7,7 @@
 <body>
 <ul>
     <li th:each="entry : ${entries}">
-        <img th:src="@{'/album/'+${albumId}+'/'+${entry.fileId.name()}}">
-        [[${entry.nameString}]]
+        <a th:href="@{'/album/'+${albumId}+'/'+${entry.fileId.name()}}">[[${entry.nameString}]]</a>
     </li>
 </ul>
 </body>
