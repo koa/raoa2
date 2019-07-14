@@ -33,7 +33,7 @@ public class DirectoryImporter implements Importer {
   }
 
   @Override
-  public void importDirectories(final Path src, final Path target) throws IOException {
+  public void importDirectories(final Path src) throws IOException {
     Instant startTime = Instant.now();
     final FileImporter importer = albumList.createImporter();
     Collection<Path> importedFiles = new ArrayList<>();

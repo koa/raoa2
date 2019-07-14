@@ -79,6 +79,11 @@
             <artifactId>libs</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+            <version>5.4.0.201906121030-r</version>
+        </dependency>
     </dependencies>
 
     <dependencyManagement>
