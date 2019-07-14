@@ -8,11 +8,13 @@ import ch.bergturbenthal.raoa.libs.service.Updater;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.Value;
@@ -31,30 +33,60 @@ import org.xml.sax.SAXException;
 public class BareAlbumList implements AlbumList {
   private static final Collection<String> IMPORTING_TYPES =
       new HashSet<>(Arrays.asList("image/jpeg", "image/tiff", "application/mp4", "video/mp4"));
-  private final Map<Path, UUID> repositoryIds = new ConcurrentHashMap<>();
-  private final SortedMap<Instant, UUID> autoaddIndex;
-  private final Map<UUID, GitAccess> repositories;
+  public static final Duration MAX_REPOSITORY_CACHE_TIME = Duration.ofMinutes(5);
+  private final Supplier<SortedMap<Instant, UUID>> autoaddIndex;
+  private final Supplier<Map<UUID, GitAccess>> repositories;
+  private Properties properties;
 
   public BareAlbumList(Properties properties) {
+    this.properties = properties;
 
+    final AtomicReference<Map<UUID, GitAccess>> cachedRepositories = new AtomicReference<>();
+    final AtomicReference<SortedMap<Instant, UUID>> cachedIndex = new AtomicReference<>();
+    final AtomicReference<Instant> lastScanTime = new AtomicReference<>(Instant.MIN);
+    final Object repositoryScanLock = new Object();
     repositories =
-        listSubdirs(properties.getRepository().toPath())
-            .collect(
-                Collectors.toMap(
-                    this::idOfRepository,
-                    p -> {
-                      try {
-                        return BareGitAccess.accessOf(p);
-                      } catch (IOException e) {
-                        throw new RuntimeException("Cannot open repository of " + p, e);
-                      }
-                    }));
+        () -> {
+          synchronized (repositoryScanLock) {
+            final Map<UUID, GitAccess> cachedValue = cachedRepositories.get();
+            if (cachedValue != null
+                && Duration.between(Instant.now(), lastScanTime.get())
+                    .minus(MAX_REPOSITORY_CACHE_TIME)
+                    .isNegative()) return cachedValue;
+
+            final Map<UUID, GitAccess> newValue =
+                listSubdirs(this.properties.getRepository().toPath())
+                    .map(
+                        p -> {
+                          try {
+                            return BareGitAccess.accessOf(p);
+                          } catch (IOException e) {
+                            throw new RuntimeException("Cannot open repository of " + p, e);
+                          }
+                        })
+                    .filter(p -> p.getMetadata() != null)
+                    .filter(p -> p.getMetadata().getAlbumId() != null)
+                    .collect(Collectors.toMap(p -> p.getMetadata().getAlbumId(), p -> p));
+            lastScanTime.set(Instant.now());
+            cachedRepositories.set(newValue);
+            cachedIndex.set(null);
+            return newValue;
+          }
+        };
     autoaddIndex =
-        repositories.entrySet().stream()
-            .flatMap(e -> e.getValue().readAutoadd().map(t -> new AutoaddEntry(t, e.getKey())))
-            .collect(
-                Collectors.toMap(
-                    AutoaddEntry::getTime, AutoaddEntry::getId, (a, b) -> b, TreeMap::new));
+        () -> {
+          final SortedMap<Instant, UUID> cachedValue = cachedIndex.get();
+          if (cachedValue != null) return cachedValue;
+          final TreeMap<Instant, UUID> newValue =
+              repositories.get().entrySet().stream()
+                  .flatMap(
+                      e -> e.getValue().readAutoadd().map(t -> new AutoaddEntry(t, e.getKey())))
+                  .collect(
+                      Collectors.toMap(
+                          AutoaddEntry::getTime, AutoaddEntry::getId, (a, b) -> b, TreeMap::new));
+          cachedIndex.set(newValue);
+          return newValue;
+        };
   }
 
   private static Stream<Path> listSubdirs(Path dir) {
@@ -78,10 +110,6 @@ public class BareAlbumList implements AlbumList {
       log.error("Cannot access directory " + dir, e);
     }
     return Stream.empty();
-  }
-
-  private UUID idOfRepository(Path path) {
-    return repositoryIds.computeIfAbsent(path, k -> UUID.randomUUID());
   }
 
   @Override
@@ -117,7 +145,7 @@ public class BareAlbumList implements AlbumList {
                   repositoryId -> {
                     log.info("Import " + file + " to " + repositoryId);
                     return pendingUpdaters.computeIfAbsent(
-                        repositoryId, k -> repositories.get(k).createUpdater());
+                        repositoryId, k -> repositories.get().get(k).createUpdater());
                   })
               .map(
                   foundRepository -> {
@@ -152,18 +180,19 @@ public class BareAlbumList implements AlbumList {
 
   @Override
   public Stream<FoundAlbum> listAlbums() {
-    return repositories.entrySet().stream().map(e -> new FoundAlbum(e.getKey(), e.getValue()));
+    return repositories.get().entrySet().stream()
+        .map(e -> new FoundAlbum(e.getKey(), e.getValue()));
   }
 
   @Override
   public Optional<GitAccess> getAlbum(final UUID albumId) {
-    return Optional.ofNullable(repositories.get(albumId));
+    return Optional.ofNullable(repositories.get().get(albumId));
   }
 
   private Optional<UUID> albumOf(final Instant timestamp) {
-    final SortedMap<Instant, UUID> headMap = autoaddIndex.headMap(timestamp);
+    final SortedMap<Instant, UUID> headMap = autoaddIndex.get().headMap(timestamp);
     if (headMap.isEmpty()) return Optional.empty();
-    return Optional.of(autoaddIndex.get(headMap.lastKey()));
+    return Optional.of(autoaddIndex.get().get(headMap.lastKey()));
   }
 
   @Value

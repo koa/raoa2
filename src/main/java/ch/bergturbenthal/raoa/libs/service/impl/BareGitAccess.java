@@ -1,7 +1,10 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
+import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -16,6 +19,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import lombok.Cleanup;
@@ -30,19 +34,29 @@ import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.joda.time.format.ISODateTimeFormat;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
 @Slf4j
 @ToString
 public class BareGitAccess implements GitAccess {
 
+  static {
+    final ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().build();
+    albumMetaRader = objectMapper.readerFor(AlbumMeta.class);
+    albumMetaWriter = objectMapper.writerFor(AlbumMeta.class);
+  }
+
   private final Supplier<Repository> repository;
+  private final Supplier<AlbumMeta> albumMetaSupplier;
+  private static ObjectWriter albumMetaWriter;
+  private static com.fasterxml.jackson.databind.ObjectReader albumMetaRader;
 
   public BareGitAccess(final Path path) {
-    AtomicReference<WeakReference<Repository>> loadedRepository = new AtomicReference<>();
-    Object lock = new Object();
+    final AtomicReference<WeakReference<Repository>> loadedRepository = new AtomicReference<>();
+    final Object repositoryLock = new Object();
     repository =
         () -> {
-          synchronized (lock) {
+          synchronized (repositoryLock) {
             final WeakReference<Repository> repositoryWeakReference = loadedRepository.get();
             if (repositoryWeakReference != null) {
               final Repository cachedRepository = repositoryWeakReference.get();
@@ -55,6 +69,56 @@ public class BareGitAccess implements GitAccess {
               return newRepository;
             } catch (IOException e) {
               throw new RuntimeException("Cannot load repository " + path, e);
+            }
+          }
+        };
+    Consumer<AlbumMeta> metaUpdater =
+        newMetadata -> {
+          try {
+
+            final File tempFile = File.createTempFile("metadata", ".json");
+            albumMetaWriter.writeValue(tempFile, newMetadata);
+            final Updater updater = createUpdater();
+            updater.importFile(tempFile.toPath(), ".raoa.json");
+            updater.commit("Metadata updated");
+            tempFile.delete();
+          } catch (IOException e) {
+            throw new RuntimeException("Cannot update metdata", e);
+          }
+        };
+    final AtomicReference<AlbumMeta> currentAlbumMeta = new AtomicReference<>();
+    albumMetaSupplier =
+        () -> {
+          final AlbumMeta cachedValue = currentAlbumMeta.get();
+          if (cachedValue != null) return cachedValue;
+          synchronized (currentAlbumMeta) {
+            final AlbumMeta cachedValue2 = currentAlbumMeta.get();
+            if (cachedValue2 != null) return cachedValue2;
+            try {
+              final Optional<ObjectLoader> optionalObjectLoader = readObject(".raoa.json");
+              if (optionalObjectLoader.isPresent()) {
+                final ObjectLoader objectLoader = optionalObjectLoader.orElseThrow();
+                @Cleanup final ObjectStream stream = objectLoader.openStream();
+                final AlbumMeta data = albumMetaRader.readValue(stream);
+                if (data.getAlbumId() == null) {
+                  final AlbumMeta updatedMeta = data.toBuilder().albumId(UUID.randomUUID()).build();
+
+                  currentAlbumMeta.set(updatedMeta);
+                  return updatedMeta;
+                } else {
+                  currentAlbumMeta.set(data);
+                  return data;
+                }
+              } else {
+                final String name = createName();
+                final UUID uuid = UUID.randomUUID();
+                final AlbumMeta albumMeta =
+                    AlbumMeta.builder().albumId(uuid).albumTitle(name).build();
+                currentAlbumMeta.set(albumMeta);
+                return albumMeta;
+              }
+            } catch (IOException e) {
+              throw new RuntimeException("Cannot load metadata");
             }
           }
         };
@@ -168,6 +232,11 @@ public class BareGitAccess implements GitAccess {
           public boolean commit() {
             return false;
           }
+
+          @Override
+          public boolean commit(final String message) {
+            return false;
+          }
         };
       }
       Map<ObjectId, String> alreadyExistingFiles = new HashMap<>();
@@ -241,7 +310,12 @@ public class BareGitAccess implements GitAccess {
         }
 
         @Override
-        public synchronized boolean commit() {
+        public boolean commit() {
+          return commit(null);
+        }
+
+        @Override
+        public synchronized boolean commit(String message) {
           try {
             if (!modified) {
               return true;
@@ -260,6 +334,7 @@ public class BareGitAccess implements GitAccess {
               final ObjectId treeId = dirCache.writeTree(objectInserter);
               final CommitBuilder commit = new CommitBuilder();
               final PersonIdent author = new PersonIdent("raoa-importer", "photos@teamkoenig.ch");
+              if (message != null) commit.setMessage(message);
               commit.setAuthor(author);
               commit.setCommitter(author);
               commit.setParentIds(currentMasterRef.get().getObjectId());
@@ -322,11 +397,20 @@ public class BareGitAccess implements GitAccess {
 
   @Override
   public String getName() {
+    return getMetadata().getAlbumTitle();
+  }
+
+  private String createName() {
     if (repository.get().isBare()) {
       final String filename = repository.get().getDirectory().getName();
       return filename.substring(0, filename.length() - 4);
     } else {
       return repository.get().getWorkTree().getName();
     }
+  }
+
+  @Override
+  public AlbumMeta getMetadata() {
+    return albumMetaSupplier.get();
   }
 }

@@ -7,4 +7,6 @@ public interface Updater {
   boolean importFile(Path file, String name) throws IOException;
 
   boolean commit();
+
+  boolean commit(String message);
 }

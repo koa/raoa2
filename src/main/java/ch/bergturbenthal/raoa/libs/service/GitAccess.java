@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.libs.service;
 
+import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
@@ -24,6 +25,8 @@ public interface GitAccess {
   Updater createUpdater();
 
   String getName();
+
+  AlbumMeta getMetadata();
 
   @Value
   class GitFileEntry {
