@@ -4,10 +4,13 @@ import ch.bergturbenthal.raoa.libs.RaoaLibConfiguration;
 import ch.bergturbenthal.raoa.viewer.interfaces.AlbumListController;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.impl.RemoteThumbnailManager;
+import graphql.schema.*;
+import java.time.Instant;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -81,5 +84,30 @@ public class RaoaViewerApplication {
       log.info("Speed: " + filesPerSecond + " Files/s");
     }
     */
+  }
+
+  @Bean
+  public GraphQLScalarType graphQlDateTimeScalar() {
+    return GraphQLScalarType.newScalar()
+        .name("DateTime")
+        .coercing(
+            new Coercing<Instant, String>() {
+              @Override
+              public String serialize(final Object dataFetcherResult)
+                  throws CoercingSerializeException {
+                return ((Instant) dataFetcherResult).toString();
+              }
+
+              @Override
+              public Instant parseValue(final Object input) throws CoercingParseValueException {
+                return Instant.parse((CharSequence) input);
+              }
+
+              @Override
+              public Instant parseLiteral(final Object input) throws CoercingParseLiteralException {
+                return Instant.parse((CharSequence) input);
+              }
+            })
+        .build();
   }
 }

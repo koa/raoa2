@@ -3,12 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <title>RAoA</title>
+
 </head>
 <body>
+<input type="file" id="filepicker" name="fileList" webkitdirectory multiple/>
+<ul id="listing"></ul>
 <ul>
     <li th:each="entry : ${entries}">
         <a th:href="@{'/album/'+${albumId}+'/'+${entry.fileId.name()}}">[[${entry.nameString}]]</a>
     </li>
 </ul>
+<script>
+    document.getElementById("filepicker").addEventListener("change", function (event) {
+        let output = document.getElementById("listing");
+        let files = event.target.files;
+
+        for (let i = 0; i < files.length; i++) {
+            let item = document.createElement("li");
+            item.innerHTML = files[i].webkitRelativePath;
+            output.appendChild(item);
+        }
+        ;
+    }, false);
+</script>
 </body>
 </html>

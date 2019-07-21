@@ -10,7 +10,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.servlet.http.HttpServletResponse;
@@ -50,10 +49,8 @@ public class AlbumListController {
             PathSuffixFilter.create(".JPEG")
           });
   private final AlbumList albumList;
-  private final FileCacheManager fileCacheManager;
-  private final Map<UUID, FileCache<ObjectId>> fileCaches = new ConcurrentHashMap<>();
-  private final ThumbnailManager thumbnailManager;
   private final ViewerProperties viewerProperties;
+  private final FileCache<CacheKey> thumbnailCache;
 
   public AlbumListController(
       final AlbumList albumList,
@@ -61,39 +58,29 @@ public class AlbumListController {
       final ThumbnailManager thumbnailManager,
       final ViewerProperties viewerProperties) {
     this.albumList = albumList;
-    this.fileCacheManager = fileCacheManager;
-    this.thumbnailManager = thumbnailManager;
     this.viewerProperties = viewerProperties;
-  }
 
-  private FileCache<ObjectId> thumbnailCache(UUID album) {
-
-    return fileCaches.computeIfAbsent(
-        album,
-        (UUID k) -> {
-          final Optional<GitAccess> access = albumList.getAlbum(k);
-          return access
-              .map(
-                  gitAccess -> {
-                    final File cacheDir = new File("/tmp", gitAccess.getName());
-                    if (!cacheDir.exists()) cacheDir.mkdirs();
-                    return fileCacheManager.<ObjectId>createCache(
-                        "thumbnail-" + album,
-                        (objectId, targetDir) -> {
-                          try {
-                            return thumbnailManager.takeThumbnail(
-                                objectId,
-                                gitAccess.readObject(objectId).orElseThrow(),
-                                MediaType.IMAGE_JPEG,
-                                targetDir);
-                          } catch (IOException e) {
-                            throw new RuntimeException("Cannot create thumbnail", e);
-                          }
-                        },
-                        id -> id.name() + ".jpg");
-                  })
-              .orElseThrow();
-        });
+    thumbnailCache =
+        fileCacheManager.createCache(
+            "thumbnails",
+            (CacheKey k, File targetDir) -> {
+              final Optional<GitAccess> access = albumList.getAlbum(k.getAlbum());
+              return access
+                  .map(
+                      gitAccess -> {
+                        try {
+                          return thumbnailManager.takeThumbnail(
+                              k.getFile(),
+                              gitAccess.readObject(k.getFile()).orElseThrow(),
+                              MediaType.IMAGE_JPEG,
+                              targetDir);
+                        } catch (IOException e) {
+                          throw new RuntimeException("Cannot create thumbnail", e);
+                        }
+                      })
+                  .orElse(Mono.empty());
+            },
+            cacheKey -> cacheKey.getAlbum().toString() + "-" + cacheKey.getFile().name() + ".jpg");
   }
 
   @GetMapping("album")
@@ -130,7 +117,7 @@ public class AlbumListController {
       @PathVariable("albumId") UUID albumId, @PathVariable("imageId") String fileId) {
     final ObjectId objectId = ObjectId.fromString(fileId);
     final Mono<FileSystemResource> resourceMono =
-        thumbnailCache(albumId).take(objectId).map(FileSystemResource::new);
+        thumbnailCache.take(new CacheKey(albumId, objectId)).map(FileSystemResource::new);
     final Mono<String> filenameMono =
         Mono.justOrEmpty(
             albumList
@@ -160,7 +147,6 @@ public class AlbumListController {
   @GetMapping("album-zip/{albumId}")
   public void generateZip(@PathVariable("albumId") UUID album, HttpServletResponse response)
       throws IOException {
-    final FileCache<ObjectId> thumbnailCache = thumbnailCache(album);
     final GitAccess gitAccess = albumList.getAlbum(album).orElseThrow();
     final String filename = gitAccess.getName() + ".zip";
 
@@ -181,13 +167,22 @@ public class AlbumListController {
     for (Tuple2<GitAccess.GitFileEntry, File> fileData :
         Flux.fromIterable(gitAccess.listFiles(IMAGE_FILE_FILTER))
             .flatMap(
-                entry -> thumbnailCache.take(entry.getFileId()).map(f -> Tuples.of(entry, f)),
+                entry ->
+                    thumbnailCache
+                        .take(new CacheKey(album, entry.getFileId()))
+                        .map(f -> Tuples.of(entry, f)),
                 viewerProperties.getConcurrentThumbnailers())
             .toIterable()) {
       zipOutputStream.putNextEntry(new ZipEntry(fileData.getT1().getNameString()));
       @Cleanup final FileInputStream fileInputStream = new FileInputStream(fileData.getT2());
       IOUtils.copy(fileInputStream, zipOutputStream);
     }
+  }
+
+  @Value
+  private static class CacheKey {
+    private UUID album;
+    private ObjectId file;
   }
 
   @Value
