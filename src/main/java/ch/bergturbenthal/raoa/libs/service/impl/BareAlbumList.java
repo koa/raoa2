@@ -1,11 +1,13 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
+import ch.bergturbenthal.raoa.libs.model.AlbumEntryKey;
 import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.FileImporter;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -25,21 +27,38 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.sax.BodyContentHandler;
+import org.eclipse.jgit.lib.ObjectId;
+import org.ehcache.Cache;
+import org.ehcache.CacheManager;
+import org.ehcache.config.builders.CacheConfigurationBuilder;
+import org.ehcache.config.builders.CacheManagerBuilder;
+import org.ehcache.config.builders.ResourcePoolsBuilder;
+import org.ehcache.spi.serialization.Serializer;
+import org.ehcache.spi.serialization.SerializerException;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
 
 @Slf4j
 @Service
 public class BareAlbumList implements AlbumList {
+  public static final Duration MAX_REPOSITORY_CACHE_TIME = Duration.ofMinutes(5);
   private static final Collection<String> IMPORTING_TYPES =
       new HashSet<>(Arrays.asList("image/jpeg", "image/tiff", "application/mp4", "video/mp4"));
-  public static final Duration MAX_REPOSITORY_CACHE_TIME = Duration.ofMinutes(5);
   private final Supplier<SortedMap<Instant, UUID>> autoaddIndex;
   private final Supplier<Map<UUID, GitAccess>> repositories;
   private Properties properties;
 
   public BareAlbumList(Properties properties) {
     this.properties = properties;
+
+    final CacheManager cacheManager = CacheManagerBuilder.newCacheManagerBuilder().build();
+    cacheManager.init();
+    final Cache<AlbumEntryKey, Metadata> metadataCache =
+        cacheManager.createCache(
+            "metadata",
+            CacheConfigurationBuilder.newCacheConfigurationBuilder(
+                    AlbumEntryKey.class, Metadata.class, ResourcePoolsBuilder.heap(20000))
+                .withKeySerializer(new AlbumEntryKeySerializer()));
 
     final AtomicReference<Map<UUID, GitAccess>> cachedRepositories = new AtomicReference<>();
     final AtomicReference<SortedMap<Instant, UUID>> cachedIndex = new AtomicReference<>();
@@ -54,19 +73,25 @@ public class BareAlbumList implements AlbumList {
                     .minus(MAX_REPOSITORY_CACHE_TIME)
                     .isNegative()) return cachedValue;
 
-            final Map<UUID, GitAccess> newValue =
+            final Stream<BareGitAccess> bareGitAccessStream =
                 listSubdirs(this.properties.getRepository().toPath())
                     .map(
                         p -> {
                           try {
-                            return BareGitAccess.accessOf(p);
+                            return BareGitAccess.accessOf(p, metadataCache);
                           } catch (IOException e) {
                             throw new RuntimeException("Cannot open repository of " + p, e);
                           }
                         })
                     .filter(p -> p.getMetadata() != null)
-                    .filter(p -> p.getMetadata().getAlbumId() != null)
-                    .collect(Collectors.toMap(p -> p.getMetadata().getAlbumId(), p -> p));
+                    .filter(p -> p.getMetadata().getAlbumId() != null);
+            final Map<UUID, GitAccess> newValue =
+                bareGitAccessStream.collect(
+                    HashMap::new,
+                    (hashMap, bareGitAccess) ->
+                        hashMap.put(bareGitAccess.getMetadata().getAlbumId(), bareGitAccess),
+                    HashMap::putAll);
+
             lastScanTime.set(Instant.now());
             cachedRepositories.set(newValue);
             cachedIndex.set(null);
@@ -143,7 +168,11 @@ public class BareAlbumList implements AlbumList {
           return albumOf(createTimestamp)
               .map(
                   repositoryId -> {
-                    log.info("Import " + file + " to " + repositoryId);
+                    log.info(
+                        "Import "
+                            + file
+                            + " to "
+                            + getAlbum(repositoryId).map(GitAccess::getName).orElse("not found"));
                     return pendingUpdaters.computeIfAbsent(
                         repositoryId, k -> repositories.get().get(k).createUpdater());
                   })
@@ -199,5 +228,34 @@ public class BareAlbumList implements AlbumList {
   private static class AutoaddEntry {
     private Instant time;
     private UUID id;
+  }
+
+  private static class AlbumEntryKeySerializer implements Serializer<AlbumEntryKey> {
+    @Override
+    public ByteBuffer serialize(final AlbumEntryKey object) throws SerializerException {
+      final ByteBuffer buffer = ByteBuffer.allocate(52);
+      buffer.putLong(object.getAlbum().getMostSignificantBits());
+      buffer.putLong(object.getAlbum().getLeastSignificantBits());
+      object.getEntry().copyRawTo(buffer);
+      return buffer;
+    }
+
+    @Override
+    public AlbumEntryKey read(final ByteBuffer binary)
+        throws ClassNotFoundException, SerializerException {
+      final long msb = binary.getLong();
+      final long lsb = binary.getLong();
+      final UUID albumId = new UUID(msb, lsb);
+      byte[] buffer = new byte[20];
+      binary.get(buffer);
+      final ObjectId entryId = ObjectId.fromRaw(buffer);
+      return new AlbumEntryKey(albumId, entryId);
+    }
+
+    @Override
+    public boolean equals(final AlbumEntryKey object, final ByteBuffer binary)
+        throws ClassNotFoundException, SerializerException {
+      return object.equals(read(binary));
+    }
   }
 }

@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.Optional;
 import java.util.stream.Stream;
 import lombok.Value;
+import org.apache.tika.metadata.Metadata;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
@@ -27,6 +28,8 @@ public interface GitAccess {
   String getName();
 
   AlbumMeta getMetadata();
+
+  Optional<Metadata> entryMetdata(AnyObjectId entryId) throws IOException;
 
   @Value
   class GitFileEntry {

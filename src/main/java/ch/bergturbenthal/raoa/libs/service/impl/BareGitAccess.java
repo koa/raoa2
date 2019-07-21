@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
+import ch.bergturbenthal.raoa.libs.model.AlbumEntryKey;
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
@@ -25,6 +26,11 @@ import java.util.stream.Stream;
 import lombok.Cleanup;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tika.exception.TikaException;
+import org.apache.tika.io.TikaInputStream;
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.sax.BodyContentHandler;
 import org.eclipse.jgit.dircache.*;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.lib.*;
@@ -33,12 +39,17 @@ import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.ehcache.Cache;
 import org.joda.time.format.ISODateTimeFormat;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
+import org.xml.sax.SAXException;
 
 @Slf4j
 @ToString
 public class BareGitAccess implements GitAccess {
+
+  private static ObjectWriter albumMetaWriter;
+  private static com.fasterxml.jackson.databind.ObjectReader albumMetaRader;
 
   static {
     final ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().build();
@@ -48,10 +59,10 @@ public class BareGitAccess implements GitAccess {
 
   private final Supplier<Repository> repository;
   private final Supplier<AlbumMeta> albumMetaSupplier;
-  private static ObjectWriter albumMetaWriter;
-  private static com.fasterxml.jackson.databind.ObjectReader albumMetaRader;
+  private Cache<AlbumEntryKey, Metadata> metadataCache;
 
-  public BareGitAccess(final Path path) {
+  public BareGitAccess(final Path path, final Cache<AlbumEntryKey, Metadata> metadataCache) {
+    this.metadataCache = metadataCache;
     final AtomicReference<WeakReference<Repository>> loadedRepository = new AtomicReference<>();
     final Object repositoryLock = new Object();
     repository =
@@ -124,8 +135,9 @@ public class BareGitAccess implements GitAccess {
         };
   }
 
-  public static BareGitAccess accessOf(Path path) throws IOException {
-    return new BareGitAccess(path);
+  public static BareGitAccess accessOf(
+      Path path, final Cache<AlbumEntryKey, Metadata> metadataCache) throws IOException {
+    return new BareGitAccess(path, metadataCache);
   }
 
   @Override
@@ -412,5 +424,32 @@ public class BareGitAccess implements GitAccess {
   @Override
   public AlbumMeta getMetadata() {
     return albumMetaSupplier.get();
+  }
+
+  @Override
+  public Optional<Metadata> entryMetdata(final AnyObjectId entryId) throws IOException {
+    final AlbumEntryKey cacheKey =
+        new AlbumEntryKey(getMetadata().getAlbumId(), entryId.toObjectId());
+    final Metadata cachedValue = metadataCache.get(cacheKey);
+    if (cachedValue != null) return Optional.of(cachedValue);
+    return readObject(entryId)
+        .map(
+            loader -> {
+              try {
+                final File tempFile = File.createTempFile(entryId.name(), ".tmp");
+                try (final FileOutputStream outputStream = new FileOutputStream(tempFile)) {
+                  loader.copyTo(outputStream);
+                }
+                AutoDetectParser parser = new AutoDetectParser();
+                BodyContentHandler handler = new BodyContentHandler();
+                Metadata metadata = new Metadata();
+                final TikaInputStream inputStream = TikaInputStream.get(tempFile);
+                parser.parse(inputStream, handler, metadata);
+                metadataCache.put(cacheKey, metadata);
+                return metadata;
+              } catch (IOException | SAXException | TikaException e) {
+                throw new RuntimeException("Cannot read metadata of " + entryId, e);
+              }
+            });
   }
 }
