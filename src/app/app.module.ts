@@ -7,6 +7,7 @@ import {HttpClientModule} from '@angular/common/http';
 import {AlbumListComponent} from './components/album-list/album-list.component';
 import {RouterModule, Routes} from '@angular/router';
 import {AlbumContentComponent} from './components/album-content/album-content.component';
+import {AngularResizedEventModule} from 'angular-resize-event';
 
 // import { MatPasswordStrengthModule } from '@angular-material-extensions/core';
 
@@ -26,6 +27,7 @@ const appRouter: Routes = [
     GraphQLModule,
     HttpClientModule,
     RouterModule.forRoot(appRouter, {enableTracing: false}),
+    AngularResizedEventModule
     // MatPasswordStrengthModule
   ],
   providers: [],

@@ -19,6 +19,7 @@ type AlbumEntry {
   name: String
   targetHeight: Int
   targetWidth: Int
+  thumbnailUri: String
   width: Int
 }
 

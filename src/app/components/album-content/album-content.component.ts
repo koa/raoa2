@@ -1,7 +1,9 @@
-import {Component, ElementRef, OnInit} from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {ActivatedRoute, ParamMap, Router} from '@angular/router';
 import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
+import {ResizedEvent} from 'angular-resize-event';
+import {DomSanitizer, SafeUrl} from '@angular/platform-browser';
 
 interface QueryResult {
   albumById: AlbumById;
@@ -13,6 +15,8 @@ interface AlbumById {
 
 interface AlbumEntry {
   id: string;
+  name: string;
+  thumbnailUri: string;
   targetWidth: number;
   targetHeight: number;
   created: string;
@@ -21,6 +25,7 @@ interface AlbumEntry {
 interface Shape {
   width: number;
   entry: AlbumEntry;
+  thumbnail: SafeUrl;
 }
 
 interface TableRow {
@@ -43,20 +48,20 @@ export class AlbumContentComponent implements OnInit {
   constructor(private route: ActivatedRoute,
               private router: Router,
               private apollo: Apollo,
-              private element: ElementRef) {
+              private sanitizer: DomSanitizer) {
   }
 
     ngOnInit() {
       this.route.paramMap.subscribe((params: ParamMap) => {
-        console.log('data: ' + params.get('id'));
+        const albumId = params.get('id');
           return this.apollo.watchQuery({
               query: gql`query AlbumContent($albumId: ID) {albumById(id: $albumId){
                   entries{
-                      id, targetWidth, targetHeight, created
+                      id, name, thumbnailUri, targetWidth, targetHeight, created
                   }
               }
               }
-              `, variables: {albumId: params.get('id')}
+              `, variables: {albumId}
           }).valueChanges.subscribe(result => {
             console.log('Result: ' + result);
             this.loading = result.loading;
@@ -65,7 +70,7 @@ export class AlbumContentComponent implements OnInit {
             if (!this.loading && !this.error && qr != null) {
               const minWidth = 4;
               this.resultRows = [];
-              const sortedEntries: AlbumEntry[] = qr.albumById.entries.sort();
+              const sortedEntries: AlbumEntry[] = qr.albumById.entries.sort((e1, e2) => e1.created.localeCompare(e2.created));
               let currentRowContent: AlbumEntry[] = [];
 
               for (const entry of sortedEntries) {
@@ -77,7 +82,8 @@ export class AlbumContentComponent implements OnInit {
                     currentRowContent.map(e => {
                       return {
                         width: (e.targetWidth / e.targetHeight * rowHeight),
-                        entry
+                        entry: e,
+                        thumbnail: this.sanitizer.bypassSecurityTrustUrl(e.thumbnailUri)
                       };
                     });
                   const items = {height: rowHeight, shapes};
@@ -92,19 +98,24 @@ export class AlbumContentComponent implements OnInit {
       });
     }
 
-  resize(event: UIEvent) {
-    const targetWidth: number = event.target.innerWidth;
-    this.width = targetWidth;
+  resized(event: ResizedEvent) {
+    this.width = event.newWidth;
+    this.recalculateComponents();
+  }
+
+  private recalculateComponents() {
     this.resultRows = this.resultRows.map(currentRowContent => {
-      const currentWidth = currentRowContent.shapes.map(e => e.entry).map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0);
+      const currentWidth = currentRowContent.shapes
+        .map(e => e.entry)
+        .map(e => e.targetWidth / e.targetHeight)
+        .reduce((sum, current) => sum + current, 0);
       const rowHeight = this.width / currentWidth;
       const shapes: Shape[] =
-        currentRowContent.shapes.map(e => e.entry).map(e => {
-          return {
-            width: (e.targetWidth / e.targetHeight * rowHeight),
-            entry: e
-          };
-        });
+        currentRowContent.shapes.map(e => ({
+          width: e.entry.targetWidth / e.entry.targetHeight * rowHeight,
+          entry: e.entry,
+          thumbnail: e.thumbnail
+        }));
       return {height: rowHeight, shapes};
     });
   }

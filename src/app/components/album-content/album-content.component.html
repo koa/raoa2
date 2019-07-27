@@ -4,8 +4,9 @@
 <div *ngIf="error">
   Error :(
 </div>
-<div #albumListContainer (resize)="resize($event)" *ngIf="resultRows" style="width: 100%">
+<div #albumListContainer (resized)="resized($event)" *ngIf="resultRows" style="width: 100%">
   <div *ngFor="let row of resultRows">
-    <img *ngFor="let shape of row.shapes" [height]="row.height" [width]="shape.width" src="favicon.ico"/>
+    <img *ngFor="let shape of row.shapes" [alt]="shape.entry.name" [height]="row.height" [src]="shape.thumbnail"
+         [width]="shape.width"/>
   </div>
 </div>
