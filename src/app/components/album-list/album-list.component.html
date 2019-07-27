@@ -1,0 +1,11 @@
+<div *ngIf="loading">
+  Loading...
+</div>
+<div *ngIf="error">
+  Error :(
+</div>
+<div *ngIf="albums">
+  <div *ngFor="let album of albums">
+    <a [routerLink]="['/album', album.id]">{{album.name}}: {{album.entryCount}}</a>
+  </div>
+</div>
