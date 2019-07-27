@@ -17,6 +17,9 @@ type AlbumEntry {
     name: String
     contentType: String
     created: DateTime
+    thumbnailUri: String
     width: Int
     height: Int
+    targetWidth: Int
+    targetHeight: Int
 }

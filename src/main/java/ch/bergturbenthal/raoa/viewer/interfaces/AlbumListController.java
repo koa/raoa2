@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.servlet.http.HttpServletResponse;
@@ -23,10 +24,7 @@ import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
-import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+import org.springframework.http.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -138,6 +136,8 @@ public class AlbumListController {
             t -> {
               final HttpHeaders headers = new HttpHeaders();
               headers.setContentType(MediaType.IMAGE_JPEG);
+              headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+              headers.setETag("\"" + fileId + "\"");
               headers.setContentDisposition(
                   ContentDisposition.builder("attachment").filename(t.getT1()).build());
               return new HttpEntity<>(t.getT2(), headers);

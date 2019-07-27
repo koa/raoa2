@@ -18,7 +18,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @Slf4j
 @SpringBootApplication
 @EnableConfigurationProperties(ViewerProperties.class)
-@Import(RaoaLibConfiguration.class)
+@Import({RaoaLibConfiguration.class, SecurityConfiguration.class})
 @ComponentScan(basePackageClasses = {RemoteThumbnailManager.class, AlbumListController.class})
 @EnableScheduling
 public class RaoaViewerApplication {
