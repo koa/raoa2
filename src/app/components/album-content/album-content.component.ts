@@ -4,7 +4,8 @@ import {ActivatedRoute, ParamMap, Router} from '@angular/router';
 import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
 import {ResizedEvent} from 'angular-resize-event';
-import {DomSanitizer, SafeUrl} from '@angular/platform-browser';
+import {DomSanitizer} from '@angular/platform-browser';
+import {Lightbox} from 'ngx-lightbox';
 
 
 interface QueryResult {
@@ -28,7 +29,8 @@ interface AlbumEntry {
 interface Shape {
   width: number;
   entry: AlbumEntry;
-  thumbnail: SafeUrl;
+  entryIndex: number;
+  thumbnail: string;
 }
 
 interface TableRow {
@@ -41,7 +43,7 @@ interface TableRow {
   selector: 'app-album-content',
   templateUrl: './album-content.component.html',
   styleUrls: ['./album-content.component.css'],
-  //changeDetection: ChangeDetectionStrategy.OnPush
+  // changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AlbumContentComponent implements OnInit {
   resultRows: TableRow[];
@@ -55,7 +57,8 @@ export class AlbumContentComponent implements OnInit {
   constructor(private route: ActivatedRoute,
               private router: Router,
               private apollo: Apollo,
-              private sanitizer: DomSanitizer) {
+              private sanitizer: DomSanitizer,
+              private lightbox: Lightbox) {
   }
 
     ngOnInit() {
@@ -85,32 +88,41 @@ export class AlbumContentComponent implements OnInit {
     }
 
   resized(event: ResizedEvent) {
-    this.width = event.newWidth - 0;
+    this.width = event.newWidth;
     this.recalculateComponents();
+  }
+
+  openImage(entryIndex: number) {
+    const album = this.sortedEntries.map(e => ({
+      src: e.thumbnailUri,
+      caption: e.name,
+      thumb: e.thumbnailUri,
+    }));
+    this.lightbox.open(album, entryIndex, {disableScrolling: true, centerVertically: true});
   }
 
   private redistributeEntries() {
     let currentRowContent: AlbumEntry[] = [];
-    for (const entry of this.sortedEntries) {
+    for (let index = 0; index < this.sortedEntries.length; index++) {
+      const entry = this.sortedEntries[index];
       currentRowContent.push(entry);
       const currentWidth = currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0);
       if (currentWidth >= this.minWidth) {
+        const startIndex = index - currentRowContent.length + 1;
         const rowHeight = this.width / currentWidth;
         const shapes: Shape[] =
-          currentRowContent.map(e => {
-            return {
-              width: (e.targetWidth / e.targetHeight * rowHeight),
-              entry: e,
-              thumbnail: this.sanitizer.bypassSecurityTrustUrl(e.thumbnailUri)
-            };
-          });
+          currentRowContent.map((e, i) => ({
+            width: (e.targetWidth / e.targetHeight * rowHeight),
+            entry: e,
+            thumbnail: (e.thumbnailUri),
+            entryIndex: i + startIndex
+          }));
         const items = {height: rowHeight, shapes};
         // console.log('Row: ' + items);
         this.resultRows.push(items);
         currentRowContent = [];
       }
     }
-    console.log('Row count: ' + this.resultRows.length);
     this.recalculateComponents();
   }
 
@@ -125,6 +137,7 @@ export class AlbumContentComponent implements OnInit {
         currentRowContent.shapes.map(e => ({
           width: e.entry.targetWidth / e.entry.targetHeight * rowHeight,
           entry: e.entry,
+          entryIndex: e.entryIndex,
           thumbnail: e.thumbnail
         }));
 

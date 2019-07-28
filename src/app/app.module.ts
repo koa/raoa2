@@ -12,7 +12,7 @@ import {ScrollDispatchModule} from '@angular/cdk/scrolling';
 import {ScrollingModule as ExperimentalScrollingModule} from '@angular/cdk-experimental/scrolling';
 import {MatSidenavModule, MatToolbarModule} from '@angular/material';
 import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
-
+import {LightboxModule} from 'ngx-lightbox';
 // import { MatPasswordStrengthModule } from '@angular-material-extensions/core';
 
 const appRouter: Routes = [
@@ -37,6 +37,7 @@ const appRouter: Routes = [
     MatToolbarModule,
     MatSidenavModule,
     BrowserAnimationsModule,
+    LightboxModule,
     // MatPasswordStrengthModule
   ],
   providers: [],
