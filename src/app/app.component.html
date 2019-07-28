@@ -1,8 +1,10 @@
 <!--The content below is only a placeholder and can be replaced.-->
-<div style="text-align:center">
-  <h1>
-    Welcome to {{ title }}!
-  </h1>
-</div>
-<h2>List of albums</h2>
-<router-outlet></router-outlet>
+<mat-toolbar class="application-header" color="primary">
+  <span>{{title}}</span>
+</mat-toolbar>
+<mat-sidenav-container class="application-container">-->
+  <mat-sidenav mode="side" opened>Sidenav content</mat-sidenav>
+  <mat-sidenav-content>
+    <router-outlet></router-outlet>
+  </mat-sidenav-content>
+</mat-sidenav-container>

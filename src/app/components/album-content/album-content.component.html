@@ -1,12 +1,19 @@
+<h2>{{title}}</h2>
 <div *ngIf="loading">
   Loading...
 </div>
 <div *ngIf="error">
   Error :(
 </div>
-<div #albumListContainer (resized)="resized($event)" *ngIf="resultRows" style="width: 100%">
-  <div *ngFor="let row of resultRows">
-    <img *ngFor="let shape of row.shapes" [alt]="shape.entry.name" [height]="row.height" [src]="shape.thumbnail"
-         [width]="shape.width"/>
+<cdk-virtual-scroll-viewport (resized)="resized($event)" *ngIf="resultRows" autosize class="gallery-row-scrolling">
+  <div *cdkVirtualFor="let row of resultRows" class="gallery-row">
+    <img *ngFor="let shape of row.shapes" [alt]="shape.entry.name" [height]="row.height"
+         [src]="shape.thumbnail"
+         [width]="shape.width" class="gallery-cell"/>
   </div>
-</div>
+</cdk-virtual-scroll-viewport>
+<!--<div *ngFor="let row of resultRows" style="height: 30px">
+  {{ row.shapes.length}}
+  <img *ngFor="let shape of row.shapes" [alt]="shape.entry.name" [height]="row.height" [src]="shape.thumbnail"
+       [width]="shape.width"/>
+</div>-->

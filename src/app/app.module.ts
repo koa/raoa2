@@ -8,6 +8,10 @@ import {AlbumListComponent} from './components/album-list/album-list.component';
 import {RouterModule, Routes} from '@angular/router';
 import {AlbumContentComponent} from './components/album-content/album-content.component';
 import {AngularResizedEventModule} from 'angular-resize-event';
+import {ScrollDispatchModule} from '@angular/cdk/scrolling';
+import {ScrollingModule as ExperimentalScrollingModule} from '@angular/cdk-experimental/scrolling';
+import {MatSidenavModule, MatToolbarModule} from '@angular/material';
+import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
 
 // import { MatPasswordStrengthModule } from '@angular-material-extensions/core';
 
@@ -27,7 +31,12 @@ const appRouter: Routes = [
     GraphQLModule,
     HttpClientModule,
     RouterModule.forRoot(appRouter, {enableTracing: false}),
-    AngularResizedEventModule
+    AngularResizedEventModule,
+    ScrollDispatchModule,
+    ExperimentalScrollingModule,
+    MatToolbarModule,
+    MatSidenavModule,
+    BrowserAnimationsModule,
     // MatPasswordStrengthModule
   ],
   providers: [],

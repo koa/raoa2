@@ -1,0 +1,26 @@
+.gallery-row {
+  white-space: nowrap;
+  display: flex;
+}
+
+.gallery-row-scrolling {
+  grid-row-start: 2;
+  grid-column-start: 1;
+}
+
+.gallery-cell {
+
+}
+
+:host {
+  height: 100%;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 100%;
+  grid-template-rows: min-content 1fr;
+}
+
+:host h2 {
+  grid-row-start: 1;
+  grid-column-start: 1;
+}

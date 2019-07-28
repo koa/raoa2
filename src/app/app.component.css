@@ -1,0 +1,26 @@
+mat-sidenav-container {
+  grid-area: content;
+}
+
+.application-header {
+  grid-area: head;
+}
+
+.application-container {
+  grid-area: content;
+}
+
+mat-sidenav {
+  grid-area: nav;
+}
+
+router-outlet {
+}
+
+:host {
+  height: 100vh;
+  display: grid;
+  grid-template-areas: "head" "content";
+  grid-template-columns: 1fr;
+  grid-template-rows: fit-content(1em) 1fr;
+}
