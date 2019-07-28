@@ -101,6 +101,10 @@ export class AlbumContentComponent implements OnInit {
     this.lightbox.open(album, entryIndex, {disableScrolling: true, centerVertically: true});
   }
 
+  trustUrl(urlString: string) {
+    return this.sanitizer.bypassSecurityTrustUrl(urlString);
+  }
+
   private redistributeEntries() {
     let currentRowContent: AlbumEntry[] = [];
     for (let index = 0; index < this.sortedEntries.length; index++) {
