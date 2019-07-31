@@ -19,11 +19,10 @@ public class Query implements GraphQLQueryResolver {
   }
 
   public Iterable<Album> listAlbums() {
-    return () ->
-        albumList
-            .listAlbums()
-            .map(AlbumList.FoundAlbum::getAlbumId)
-            .map(this::getAlbumById)
-            .iterator();
+    return albumList
+        .listAlbums()
+        .map(AlbumList.FoundAlbum::getAlbumId)
+        .map(this::getAlbumById)
+        .toIterable();
   }
 }

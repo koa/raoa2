@@ -11,6 +11,7 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
   @Override
   protected void configure(HttpSecurity http) throws Exception {
     http.csrf().disable();
+    http.headers().cacheControl().disable();
     http.authorizeRequests().antMatchers("/graphql").permitAll().and();
   }
 }

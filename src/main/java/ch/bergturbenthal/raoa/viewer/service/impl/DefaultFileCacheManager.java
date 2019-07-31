@@ -12,11 +12,13 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.unit.DataSize;
 import reactor.core.publisher.Mono;
 
+@Slf4j
 @Service
 public class DefaultFileCacheManager implements FileCacheManager {
   private final ViewerProperties properties;
@@ -36,9 +38,10 @@ public class DefaultFileCacheManager implements FileCacheManager {
     return (FileCache<K>)
         existingCaches.computeIfAbsent(
             cacheId,
-            name ->
-                new FileCacheEntry<>(
-                    new File(properties.getCacheDir(), name), filenameGenerator, objectCreator));
+            name -> {
+              return new FileCacheEntry<>(
+                  new File(properties.getCacheDir(), name), filenameGenerator, objectCreator);
+            });
   }
 
   @Scheduled(fixedDelay = 60 * 1000)
@@ -133,7 +136,7 @@ public class DefaultFileCacheManager implements FileCacheManager {
             return Mono.just(existingEntryFile);
           }
         } else {
-          existingEntry
+          return existingEntry
               .getCachedFile()
               .flatMap(
                   f -> {
@@ -144,6 +147,7 @@ public class DefaultFileCacheManager implements FileCacheManager {
       }
 
       final File targetFilename = new File(cacheDir, filenameGenerator.apply(objectId));
+      // log.info("Cache: "+objectId+" -> "+targetFilename);
       if (targetFilename.exists() && validate.test(targetFilename)) {
         return cacheEntries
             .computeIfAbsent(
