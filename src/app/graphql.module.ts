@@ -3,8 +3,10 @@ import {APOLLO_OPTIONS, ApolloModule} from 'apollo-angular';
 import {HttpLink, HttpLinkModule} from 'apollo-angular-link-http';
 import {InMemoryCache} from 'apollo-cache-inmemory';
 
-const uri = 'http://localhost:8080/graphql'; // <-- add the URL of the GraphQL server here
 export function createApollo(httpLink: HttpLink) {
+  const host = window.location.host;
+  const protocol = window.location.protocol;
+  const uri = host === 'localhost:4200' ? 'http://localhost:8080/graphql' : protocol + '//' + host + '/graphql';
   return {
     link: httpLink.create({uri}),
     cache: new InMemoryCache(),

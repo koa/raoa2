@@ -80,7 +80,9 @@ export class AlbumContentComponent implements OnInit {
             if (!this.loading && !this.error && qr != null) {
               this.title = qr.albumById.name;
               this.resultRows = [];
-              this.sortedEntries = qr.albumById.entries.sort((e1, e2) => e1.created.localeCompare(e2.created));
+              this.sortedEntries = qr.albumById.entries
+                .filter(e => e.created != null)
+                .sort((e1, e2) => e1.created.localeCompare(e2.created));
               this.redistributeEntries();
             }
           });

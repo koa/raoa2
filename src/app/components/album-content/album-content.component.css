@@ -13,14 +13,9 @@
 }
 
 :host {
-  height: 100%;
-  margin: 0;
+  height: 100vh;
   display: grid;
-  grid-template-columns: 100%;
-  grid-template-rows: min-content 1fr;
-}
-
-:host h2 {
-  grid-row-start: 1;
-  grid-column-start: 1;
+  grid-template-areas: "head" "content";
+  grid-template-columns: 1fr;
+  grid-template-rows: fit-content(1em) 1fr;
 }

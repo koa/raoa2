@@ -1,4 +1,6 @@
-<h2>{{title}}</h2>
+<mat-toolbar class="application-header" color="primary">
+  <span>{{title}}</span>
+</mat-toolbar>
 <div *ngIf="loading">
   Loading...
 </div>
@@ -13,8 +15,3 @@
          class="gallery-cell"/>
   </div>
 </cdk-virtual-scroll-viewport>
-<!--<div *ngFor="let row of resultRows" style="height: 30px">
-  {{ row.shapes.length}}
-  <img *ngFor="let shape of row.shapes" [alt]="shape.entry.name" [height]="row.height" [src]="shape.thumbnail"
-       [width]="shape.width"/>
-</div>-->
