@@ -1,12 +1,17 @@
 package ch.bergturbenthal.raoa.libs.service;
 
-import java.io.IOException;
+import java.io.Closeable;
 import java.nio.file.Path;
+import reactor.core.publisher.Mono;
 
-public interface Updater {
-  boolean importFile(Path file, String name) throws IOException;
+public interface Updater extends Closeable {
+  Mono<Boolean> importFile(Path file, String name);
 
-  boolean commit();
+  Mono<Boolean> importFile(Path file, String name, boolean replaceIfExists);
 
-  boolean commit(String message);
+  Mono<Boolean> commit();
+
+  Mono<Boolean> commit(String message);
+
+  void close();
 }

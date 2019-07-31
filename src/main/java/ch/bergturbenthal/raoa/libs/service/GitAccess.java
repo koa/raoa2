@@ -1,11 +1,7 @@
 package ch.bergturbenthal.raoa.libs.service;
 
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
-import java.io.IOException;
 import java.time.Instant;
-import java.util.Collection;
-import java.util.Optional;
-import java.util.stream.Stream;
 import lombok.Value;
 import org.apache.tika.metadata.Metadata;
 import org.eclipse.jgit.lib.AnyObjectId;
@@ -13,23 +9,25 @@ import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface GitAccess {
-  Collection<GitFileEntry> listFiles(TreeFilter filter) throws IOException;
+  Flux<GitFileEntry> listFiles(TreeFilter filter);
 
-  Optional<ObjectLoader> readObject(AnyObjectId fileId) throws IOException;
+  Mono<ObjectLoader> readObject(AnyObjectId fileId);
 
-  Optional<ObjectLoader> readObject(String filename) throws IOException;
+  Mono<ObjectLoader> readObject(String filename);
 
-  Stream<Instant> readAutoadd();
+  Flux<Instant> readAutoadd();
 
-  Updater createUpdater();
+  Mono<Updater> createUpdater();
 
-  String getName();
+  Mono<String> getName();
 
-  AlbumMeta getMetadata();
+  Mono<AlbumMeta> getMetadata();
 
-  Optional<Metadata> entryMetdata(AnyObjectId entryId) throws IOException;
+  Mono<Metadata> entryMetdata(AnyObjectId entryId);
 
   @Value
   class GitFileEntry {

@@ -6,8 +6,11 @@ import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.FileImporter;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
-import java.io.IOException;
+import java.io.*;
+import java.net.URLEncoder;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -15,10 +18,8 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.exception.TikaException;
@@ -33,99 +34,103 @@ import org.ehcache.CacheManager;
 import org.ehcache.config.builders.CacheConfigurationBuilder;
 import org.ehcache.config.builders.CacheManagerBuilder;
 import org.ehcache.config.builders.ResourcePoolsBuilder;
+import org.ehcache.config.units.EntryUnit;
+import org.ehcache.config.units.MemoryUnit;
 import org.ehcache.spi.serialization.Serializer;
 import org.ehcache.spi.serialization.SerializerException;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
 @Slf4j
 @Service
 public class BareAlbumList implements AlbumList {
   public static final Duration MAX_REPOSITORY_CACHE_TIME = Duration.ofMinutes(5);
+  public static final Duration MAX_AUTOINDEX_CACHE_TIME = Duration.ofMinutes(1);
+  public static final Charset CHARSET = StandardCharsets.UTF_8;
+  public static final Pattern SPLIT_PATTERN = Pattern.compile(Pattern.quote(" "));
   private static final Collection<String> IMPORTING_TYPES =
       new HashSet<>(Arrays.asList("image/jpeg", "image/tiff", "application/mp4", "video/mp4"));
-  private final Supplier<SortedMap<Instant, UUID>> autoaddIndex;
-  private final Supplier<Map<UUID, GitAccess>> repositories;
+  private final Mono<SortedMap<Instant, UUID>> autoaddIndex;
+  private final Mono<Map<UUID, GitAccess>> repositories;
+  private final Scheduler ioScheduler;
   private Properties properties;
 
   public BareAlbumList(Properties properties) {
     this.properties = properties;
+    ConcurrencyLimiter limiter = new ConcurrencyLimiter();
 
-    final CacheManager cacheManager = CacheManagerBuilder.newCacheManagerBuilder().build();
+    final CacheManager cacheManager =
+        CacheManagerBuilder.newCacheManagerBuilder()
+            .with(CacheManagerBuilder.persistence(properties.getMetadataCache()))
+            .build();
     cacheManager.init();
+
     final Cache<AlbumEntryKey, Metadata> metadataCache =
         cacheManager.createCache(
             "metadata",
             CacheConfigurationBuilder.newCacheConfigurationBuilder(
-                    AlbumEntryKey.class, Metadata.class, ResourcePoolsBuilder.heap(20000))
-                .withKeySerializer(new AlbumEntryKeySerializer()));
+                    AlbumEntryKey.class,
+                    Metadata.class,
+                    ResourcePoolsBuilder.newResourcePoolsBuilder()
+                        .heap(2000, EntryUnit.ENTRIES)
+                        .disk(3, MemoryUnit.GB, true))
+                .withKeySerializer(new AlbumEntryKeySerializer())
+                .withValueSerializer(new MetadataSerializer()));
 
-    final AtomicReference<Map<UUID, GitAccess>> cachedRepositories = new AtomicReference<>();
-    final AtomicReference<SortedMap<Instant, UUID>> cachedIndex = new AtomicReference<>();
-    final AtomicReference<Instant> lastScanTime = new AtomicReference<>(Instant.MIN);
-    final Object repositoryScanLock = new Object();
+    ioScheduler = Schedulers.newElastic("io-scheduler");
+    final Scheduler processScheduler = Schedulers.newElastic("process");
     repositories =
-        () -> {
-          synchronized (repositoryScanLock) {
-            final Map<UUID, GitAccess> cachedValue = cachedRepositories.get();
-            if (cachedValue != null
-                && Duration.between(Instant.now(), lastScanTime.get())
-                    .minus(MAX_REPOSITORY_CACHE_TIME)
-                    .isNegative()) return cachedValue;
-
-            final Stream<BareGitAccess> bareGitAccessStream =
-                listSubdirs(this.properties.getRepository().toPath())
-                    .map(
-                        p -> {
-                          try {
-                            return BareGitAccess.accessOf(p, metadataCache);
-                          } catch (IOException e) {
-                            throw new RuntimeException("Cannot open repository of " + p, e);
-                          }
-                        })
-                    .filter(p -> p.getMetadata() != null)
-                    .filter(p -> p.getMetadata().getAlbumId() != null);
-            final Map<UUID, GitAccess> newValue =
-                bareGitAccessStream.collect(
-                    HashMap::new,
-                    (hashMap, bareGitAccess) ->
-                        hashMap.put(bareGitAccess.getMetadata().getAlbumId(), bareGitAccess),
-                    HashMap::putAll);
-
-            lastScanTime.set(Instant.now());
-            cachedRepositories.set(newValue);
-            cachedIndex.set(null);
-            return newValue;
-          }
-        };
+        listSubdirs(this.properties.getRepository().toPath())
+            .subscribeOn(ioScheduler)
+            .publishOn(processScheduler, 5)
+            .<GitAccess>map(
+                p ->
+                    BareGitAccess.accessOf(
+                        p, metadataCache, ioScheduler, processScheduler, limiter))
+            .flatMap(p -> p.getMetadata().map(m -> Tuples.of(p, m)))
+            .filter(t1 -> t1.getT2().getAlbumId() != null)
+            .collectMap(t -> t.getT2().getAlbumId(), Tuple2::getT1)
+            .cache(MAX_REPOSITORY_CACHE_TIME);
     autoaddIndex =
-        () -> {
-          final SortedMap<Instant, UUID> cachedValue = cachedIndex.get();
-          if (cachedValue != null) return cachedValue;
-          final TreeMap<Instant, UUID> newValue =
-              repositories.get().entrySet().stream()
-                  .flatMap(
-                      e -> e.getValue().readAutoadd().map(t -> new AutoaddEntry(t, e.getKey())))
-                  .collect(
-                      Collectors.toMap(
-                          AutoaddEntry::getTime, AutoaddEntry::getId, (a, b) -> b, TreeMap::new));
-          cachedIndex.set(newValue);
-          return newValue;
-        };
+        repositories
+            .flatMap(
+                reps -> {
+                  final Mono<SortedMap<Instant, UUID>> collect =
+                      Flux.fromIterable(reps.entrySet())
+                          .flatMap(
+                              e ->
+                                  e.getValue()
+                                      .readAutoadd()
+                                      .map(t -> new AutoaddEntry(t, e.getKey())))
+                          .collect(
+                              Collectors.toMap(
+                                  AutoaddEntry::getTime,
+                                  AutoaddEntry::getId,
+                                  (a, b) -> b,
+                                  TreeMap::new));
+                  return collect;
+                })
+            .cache(MAX_AUTOINDEX_CACHE_TIME);
   }
 
-  private static Stream<Path> listSubdirs(Path dir) {
+  private static Flux<Path> listSubdirs(Path dir) {
     try {
-      return Files.list(dir)
-          .filter(e -> Files.isDirectory(e))
+      return Flux.fromIterable(Files.list(dir).collect(Collectors.toList()))
+          .filter(e -> Files.isReadable(e) && Files.isExecutable(e) && Files.isDirectory(e))
           .flatMap(
-              d -> {;
+              d -> {
                 if (d.getFileName().toString().endsWith(".git")) {
-                  return Stream.of(d);
+                  return Flux.just(d);
                 } else {
                   final Path dotGitDir = d.resolve(".git");
                   if (Files.isDirectory(dotGitDir)) {
-                    return Stream.of(dotGitDir);
+                    return Flux.just(dotGitDir);
                   } else {
                     return listSubdirs(d);
                   }
@@ -134,94 +139,113 @@ public class BareAlbumList implements AlbumList {
     } catch (IOException e) {
       log.error("Cannot access directory " + dir, e);
     }
-    return Stream.empty();
+    return Flux.empty();
   }
 
   @Override
   public FileImporter createImporter() {
     return new FileImporter() {
-      private final Map<UUID, Updater> pendingUpdaters = new HashMap<>();
+      private final Map<UUID, Mono<Updater>> pendingUpdaters =
+          Collections.synchronizedMap(new HashMap<>());
 
       @Override
-      public synchronized boolean importFile(final Path file) throws IOException {
-        try {
-          AutoDetectParser parser = new AutoDetectParser();
-          BodyContentHandler handler = new BodyContentHandler();
-          Metadata metadata = new Metadata();
-          final TikaInputStream inputStream = TikaInputStream.get(file);
-          parser.parse(inputStream, handler, metadata);
-          if (!IMPORTING_TYPES.contains(metadata.get(Metadata.CONTENT_TYPE))) {
-            log.info("Unsupported content type: " + metadata.get(Metadata.CONTENT_TYPE));
-            return false;
-          }
-          final Date createDate = metadata.getDate(TikaCoreProperties.CREATED);
-          if (createDate == null) {
-            log.info("No creation timestamp");
-            return false;
-          }
-          final Instant createTimestamp = createDate.toInstant();
-
-          final String prefix =
-              DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
-                  .format(createTimestamp.atZone(ZoneId.systemDefault()));
-          final String targetFilename = prefix + "-" + file.getFileName().toString();
-          return albumOf(createTimestamp)
-              .map(
-                  repositoryId -> {
-                    log.info(
-                        "Import "
-                            + file
-                            + " to "
-                            + getAlbum(repositoryId).map(GitAccess::getName).orElse("not found"));
-                    return pendingUpdaters.computeIfAbsent(
-                        repositoryId, k -> repositories.get().get(k).createUpdater());
-                  })
-              .map(
-                  foundRepository -> {
-                    try {
-                      return foundRepository.importFile(file, targetFilename);
-                    } catch (IOException e) {
-                      log.warn("Cannot import file " + file, e);
-                      return false;
-                    }
-                  })
-              .orElse(false);
-
-        } catch (TikaException | SAXException e) {
-          log.warn("Cannot access file " + file, e);
-          return false;
+      public void close() {
+        for (Updater updater :
+            Flux.fromIterable(pendingUpdaters.keySet())
+                .map(k -> Optional.ofNullable(pendingUpdaters.remove(k)))
+                .filter(Optional::isPresent)
+                .flatMap(Optional::get)
+                .toIterable()) {
+          updater.close();
         }
       }
 
+      public Mono<Boolean> importFile(final Path file) {
+        return repositories
+            .flatMap(
+                reps -> {
+                  try {
+                    AutoDetectParser parser = new AutoDetectParser();
+                    BodyContentHandler handler = new BodyContentHandler();
+                    Metadata metadata = new Metadata();
+                    final TikaInputStream inputStream = TikaInputStream.get(file);
+                    parser.parse(inputStream, handler, metadata);
+                    if (!IMPORTING_TYPES.contains(metadata.get(Metadata.CONTENT_TYPE))) {
+                      log.info("Unsupported content type: " + metadata.get(Metadata.CONTENT_TYPE));
+                      return Mono.just(false);
+                    }
+                    final Date createDate = metadata.getDate(TikaCoreProperties.CREATED);
+                    if (createDate == null) {
+                      log.info("No creation timestamp");
+                      return Mono.just(false);
+                    }
+                    final Instant createTimestamp = createDate.toInstant();
+
+                    final String prefix =
+                        DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
+                            .format(createTimestamp.atZone(ZoneId.systemDefault()));
+                    final String targetFilename = prefix + "-" + file.getFileName().toString();
+                    return albumOf(createTimestamp)
+                        .flatMap(
+                            repositoryId -> {
+                              getAlbum(repositoryId)
+                                  .flatMap(GitAccess::getName)
+                                  .defaultIfEmpty("not found")
+                                  .subscribe(name -> log.info("Import " + file + " to " + name));
+                              return pendingUpdaters.computeIfAbsent(
+                                  repositoryId, k -> reps.get(k).createUpdater().cache());
+                            })
+                        .flatMap(
+                            updater ->
+                                updater
+                                    .importFile(file, targetFilename)
+                                    .onErrorResume(
+                                        e -> {
+                                          log.warn("Cannot import file " + file, e);
+                                          return Mono.just(false);
+                                        }))
+                        .defaultIfEmpty(false);
+
+                  } catch (TikaException | SAXException | IOException e) {
+                    log.warn("Cannot access file " + file, e);
+                    return Mono.just(false);
+                  }
+                })
+            .subscribeOn(ioScheduler);
+      }
+
       @Override
-      public synchronized boolean commitAll() {
-        try {
-          return pendingUpdaters.values().stream()
-              .map(Updater::commit)
-              .reduce((b1, b2) -> b1 && b2)
-              .orElse(true);
-        } finally {
-          pendingUpdaters.clear();
-        }
+      public Mono<Boolean> commitAll() {
+        return Flux.fromIterable(pendingUpdaters.values())
+            .flatMap(m -> m)
+            .flatMap(Updater::commit)
+            .reduce((b1, b2) -> b1 && b2)
+            .defaultIfEmpty(Boolean.TRUE)
+            .doFinally(signal -> pendingUpdaters.clear());
       }
     };
   }
 
   @Override
-  public Stream<FoundAlbum> listAlbums() {
-    return repositories.get().entrySet().stream()
+  public Flux<FoundAlbum> listAlbums() {
+    return repositories
+        .flatMapIterable(Map::entrySet)
         .map(e -> new FoundAlbum(e.getKey(), e.getValue()));
   }
 
   @Override
-  public Optional<GitAccess> getAlbum(final UUID albumId) {
-    return Optional.ofNullable(repositories.get().get(albumId));
+  public Mono<GitAccess> getAlbum(final UUID albumId) {
+    return repositories
+        .map(reps -> Optional.ofNullable(reps.get(albumId)))
+        .filter(Optional::isPresent)
+        .map(Optional::get);
   }
 
-  private Optional<UUID> albumOf(final Instant timestamp) {
-    final SortedMap<Instant, UUID> headMap = autoaddIndex.get().headMap(timestamp);
-    if (headMap.isEmpty()) return Optional.empty();
-    return Optional.of(autoaddIndex.get().get(headMap.lastKey()));
+  private Mono<UUID> albumOf(final Instant timestamp) {
+    return autoaddIndex
+        .map(i -> i.headMap(timestamp))
+        .filter(t -> !t.isEmpty())
+        .map(t -> t.get(t.lastKey()));
   }
 
   @Value
@@ -233,16 +257,16 @@ public class BareAlbumList implements AlbumList {
   private static class AlbumEntryKeySerializer implements Serializer<AlbumEntryKey> {
     @Override
     public ByteBuffer serialize(final AlbumEntryKey object) throws SerializerException {
-      final ByteBuffer buffer = ByteBuffer.allocate(52);
+      final ByteBuffer buffer = ByteBuffer.allocate(36);
       buffer.putLong(object.getAlbum().getMostSignificantBits());
       buffer.putLong(object.getAlbum().getLeastSignificantBits());
       object.getEntry().copyRawTo(buffer);
+      buffer.rewind();
       return buffer;
     }
 
     @Override
-    public AlbumEntryKey read(final ByteBuffer binary)
-        throws ClassNotFoundException, SerializerException {
+    public AlbumEntryKey read(final ByteBuffer binary) throws SerializerException {
       final long msb = binary.getLong();
       final long lsb = binary.getLong();
       final UUID albumId = new UUID(msb, lsb);
@@ -254,6 +278,62 @@ public class BareAlbumList implements AlbumList {
 
     @Override
     public boolean equals(final AlbumEntryKey object, final ByteBuffer binary)
+        throws ClassNotFoundException, SerializerException {
+      return object.equals(read(binary));
+    }
+  }
+
+  private class MetadataSerializer implements Serializer<Metadata> {
+    @Override
+    public ByteBuffer serialize(final Metadata object) throws SerializerException {
+      final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+      final PrintWriter printWriter =
+          new PrintWriter(new OutputStreamWriter(byteArrayOutputStream, CHARSET));
+      for (String keyName : object.names()) {
+        final String[] values = object.getValues(keyName);
+        if (values.length > 0) {
+          printWriter.print(URLEncoder.encode(keyName, CHARSET));
+          for (String value : values) {
+            printWriter.print(' ');
+            printWriter.print(URLEncoder.encode(value, CHARSET));
+          }
+          printWriter.println();
+        }
+      }
+      printWriter.close();
+      return ByteBuffer.wrap(byteArrayOutputStream.toByteArray());
+    }
+
+    @Override
+    public Metadata read(final ByteBuffer binary)
+        throws ClassNotFoundException, SerializerException {
+      final Metadata metadata = new Metadata();
+      final BufferedReader bufferedReader =
+          new BufferedReader(
+              new InputStreamReader(new ByteArrayInputStream(binary.array()), CHARSET));
+      try {
+        while (true) {
+          final String line = bufferedReader.readLine();
+          if (line == null) break;
+          final String[] parts = SPLIT_PATTERN.split(line);
+          String key = parts[0];
+          if (parts.length < 2) {
+            metadata.add(key, "");
+            continue;
+          }
+          for (int i = 1; i < parts.length; i++) {
+            String value = parts[i];
+            metadata.add(key, value);
+          }
+        }
+        return metadata;
+      } catch (IOException e) {
+        throw new SerializerException("Cannot read data", e);
+      }
+    }
+
+    @Override
+    public boolean equals(final Metadata object, final ByteBuffer binary)
         throws ClassNotFoundException, SerializerException {
       return object.equals(read(binary));
     }

@@ -1,17 +1,17 @@
 package ch.bergturbenthal.raoa.libs.service;
 
-import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Stream;
 import lombok.Value;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface AlbumList {
 
   FileImporter createImporter();
 
-  Stream<FoundAlbum> listAlbums();
+  Flux<FoundAlbum> listAlbums();
 
-  Optional<GitAccess> getAlbum(UUID albumId);
+  Mono<GitAccess> getAlbum(UUID albumId);
 
   @Value
   class FoundAlbum {

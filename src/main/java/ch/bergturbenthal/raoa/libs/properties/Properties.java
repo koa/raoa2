@@ -10,4 +10,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class Properties {
   // @NonNull
   private File repository;
+  private File metadataCache;
 }
