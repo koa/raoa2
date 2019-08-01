@@ -6,11 +6,9 @@ import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.FileImporter;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
+import ch.bergturbenthal.raoa.libs.service.impl.cache.AlbumEntryKeySerializer;
+import ch.bergturbenthal.raoa.libs.service.impl.cache.MetadataSerializer;
 import java.io.*;
-import java.net.URLEncoder;
-import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -28,7 +26,6 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.sax.BodyContentHandler;
-import org.eclipse.jgit.lib.ObjectId;
 import org.ehcache.Cache;
 import org.ehcache.CacheManager;
 import org.ehcache.config.builders.CacheConfigurationBuilder;
@@ -36,8 +33,6 @@ import org.ehcache.config.builders.CacheManagerBuilder;
 import org.ehcache.config.builders.ResourcePoolsBuilder;
 import org.ehcache.config.units.EntryUnit;
 import org.ehcache.config.units.MemoryUnit;
-import org.ehcache.spi.serialization.Serializer;
-import org.ehcache.spi.serialization.SerializerException;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
 import reactor.core.publisher.Flux;
@@ -52,7 +47,6 @@ import reactor.util.function.Tuples;
 public class BareAlbumList implements AlbumList {
   public static final Duration MAX_REPOSITORY_CACHE_TIME = Duration.ofMinutes(5);
   public static final Duration MAX_AUTOINDEX_CACHE_TIME = Duration.ofMinutes(1);
-  public static final Charset CHARSET = StandardCharsets.UTF_8;
   public static final Pattern SPLIT_PATTERN = Pattern.compile(Pattern.quote(" "));
   private static final Collection<String> IMPORTING_TYPES =
       new HashSet<>(Arrays.asList("image/jpeg", "image/tiff", "application/mp4", "video/mp4"));
@@ -63,7 +57,7 @@ public class BareAlbumList implements AlbumList {
 
   public BareAlbumList(Properties properties) {
     this.properties = properties;
-    ConcurrencyLimiter limiter = new ConcurrencyLimiter();
+    ConcurrencyLimiter limiter = new ConcurrencyLimiter(properties);
 
     final CacheManager cacheManager =
         CacheManagerBuilder.newCacheManagerBuilder()
@@ -252,90 +246,5 @@ public class BareAlbumList implements AlbumList {
   private static class AutoaddEntry {
     private Instant time;
     private UUID id;
-  }
-
-  private static class AlbumEntryKeySerializer implements Serializer<AlbumEntryKey> {
-    @Override
-    public ByteBuffer serialize(final AlbumEntryKey object) throws SerializerException {
-      final ByteBuffer buffer = ByteBuffer.allocate(36);
-      buffer.putLong(object.getAlbum().getMostSignificantBits());
-      buffer.putLong(object.getAlbum().getLeastSignificantBits());
-      object.getEntry().copyRawTo(buffer);
-      buffer.rewind();
-      return buffer;
-    }
-
-    @Override
-    public AlbumEntryKey read(final ByteBuffer binary) throws SerializerException {
-      final long msb = binary.getLong();
-      final long lsb = binary.getLong();
-      final UUID albumId = new UUID(msb, lsb);
-      byte[] buffer = new byte[20];
-      binary.get(buffer);
-      final ObjectId entryId = ObjectId.fromRaw(buffer);
-      return new AlbumEntryKey(albumId, entryId);
-    }
-
-    @Override
-    public boolean equals(final AlbumEntryKey object, final ByteBuffer binary)
-        throws ClassNotFoundException, SerializerException {
-      return object.equals(read(binary));
-    }
-  }
-
-  private class MetadataSerializer implements Serializer<Metadata> {
-    @Override
-    public ByteBuffer serialize(final Metadata object) throws SerializerException {
-      final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-      final PrintWriter printWriter =
-          new PrintWriter(new OutputStreamWriter(byteArrayOutputStream, CHARSET));
-      for (String keyName : object.names()) {
-        final String[] values = object.getValues(keyName);
-        if (values.length > 0) {
-          printWriter.print(URLEncoder.encode(keyName, CHARSET));
-          for (String value : values) {
-            printWriter.print(' ');
-            printWriter.print(URLEncoder.encode(value, CHARSET));
-          }
-          printWriter.println();
-        }
-      }
-      printWriter.close();
-      return ByteBuffer.wrap(byteArrayOutputStream.toByteArray());
-    }
-
-    @Override
-    public Metadata read(final ByteBuffer binary)
-        throws ClassNotFoundException, SerializerException {
-      final Metadata metadata = new Metadata();
-      final BufferedReader bufferedReader =
-          new BufferedReader(
-              new InputStreamReader(new ByteArrayInputStream(binary.array()), CHARSET));
-      try {
-        while (true) {
-          final String line = bufferedReader.readLine();
-          if (line == null) break;
-          final String[] parts = SPLIT_PATTERN.split(line);
-          String key = parts[0];
-          if (parts.length < 2) {
-            metadata.add(key, "");
-            continue;
-          }
-          for (int i = 1; i < parts.length; i++) {
-            String value = parts[i];
-            metadata.add(key, value);
-          }
-        }
-        return metadata;
-      } catch (IOException e) {
-        throw new SerializerException("Cannot read data", e);
-      }
-    }
-
-    @Override
-    public boolean equals(final Metadata object, final ByteBuffer binary)
-        throws ClassNotFoundException, SerializerException {
-      return object.equals(read(binary));
-    }
   }
 }
