@@ -1,25 +1,32 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
+import ch.bergturbenthal.raoa.libs.properties.Properties;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
+@Service
 @Slf4j
 public class ConcurrencyLimiter {
   private static final Object CONTEXT_KEY = new Object();
-  private int maxConcurrency = 10;
+  private final Properties properties;
   private AtomicInteger currentRunningCount = new AtomicInteger(0);
   private Queue<Supplier<Boolean>> pendingSubscriptions = new ConcurrentLinkedDeque<>();
   private AtomicInteger counter = new AtomicInteger(0);
 
+  public ConcurrencyLimiter(final Properties properties) {
+    this.properties = properties;
+  }
+
   public <T> Mono<T> limit(Mono<T> input) {
 
     int currentIndex = counter.incrementAndGet();
-    AtomicBoolean started = new AtomicBoolean(false);
+    AtomicBoolean ownsSlot = new AtomicBoolean(false);
     return input
         .subscriberContext(c -> c.put(CONTEXT_KEY, ""))
         .delaySubscription(
@@ -29,7 +36,7 @@ public class ConcurrencyLimiter {
                     // log.info("Looped");
                     sink.success(Boolean.TRUE);
                   } else if (tryTakeToken()) {
-                    started.set(true);
+                    ownsSlot.set(true);
                     sink.success(Boolean.TRUE);
                   } else {
                     // log.info(currentIndex + " Put to queue " + describeState());
@@ -37,7 +44,7 @@ public class ConcurrencyLimiter {
                         () -> {
                           if (tryTakeToken()) {
                             // log.info(currentIndex + " Started from queue " + describeState());
-                            started.set(true);
+                            ownsSlot.set(true);
                             sink.success(Boolean.TRUE);
                             return true;
                           }
@@ -47,10 +54,10 @@ public class ConcurrencyLimiter {
                 }))
         .doFinally(
             signal -> {
-              if (started.get()) currentRunningCount.decrementAndGet();
+              if (ownsSlot.get()) currentRunningCount.decrementAndGet();
               // log.info(                  currentIndex + " Released: " + signal + ", " + started +
               // ", " + describeState());
-              while (currentRunningCount.get() < maxConcurrency) {
+              while (currentRunningCount.get() < properties.getMaxConcurrent()) {
                 final Supplier<Boolean> taken = pendingSubscriptions.poll();
                 if (taken == null) break;
                 if (!taken.get()) {
@@ -67,7 +74,7 @@ public class ConcurrencyLimiter {
     return "("
         + currentRunningCount.get()
         + "/"
-        + maxConcurrency
+        + properties.getMaxConcurrent()
         + "), queue: "
         + pendingSubscriptions.size();
   }
@@ -75,7 +82,7 @@ public class ConcurrencyLimiter {
   private boolean tryTakeToken() {
     while (true) {
       final int currentCount = currentRunningCount.get();
-      if (currentCount >= maxConcurrency) return false;
+      if (currentCount >= properties.getMaxConcurrent()) return false;
       if (currentRunningCount.compareAndSet(currentCount, currentCount + 1)) return true;
     }
   }
