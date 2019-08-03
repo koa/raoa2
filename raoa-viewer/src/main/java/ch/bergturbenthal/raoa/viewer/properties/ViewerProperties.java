@@ -16,6 +16,7 @@ public class ViewerProperties {
   private int concurrentThumbnailers = 40;
   private DataSize defaultCacheSize = DataSize.ofMegabytes(100);
   private Map<String, DataSize> cacheSize = Collections.emptyMap();
+  private boolean enableAuthentication = true;
 
   public ViewerProperties() throws IOException {
     cacheDir = File.createTempFile("cache", "tmp");
