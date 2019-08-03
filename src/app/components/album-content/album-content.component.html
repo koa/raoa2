@@ -11,7 +11,7 @@
   <div *cdkVirtualFor="let row of resultRows" class="gallery-row">
     <img *ngFor="let shape of row.shapes" [alt]="shape.entry.name" [height]="row.height"
          (click)="openImage(shape.entryIndex)"
-         [src]="trustUrl(shape.thumbnail)" [width]="shape.width"
+         [src]="createUrl(row, shape)" [width]="shape.width"
          class="gallery-cell"/>
   </div>
 </cdk-virtual-scroll-viewport>

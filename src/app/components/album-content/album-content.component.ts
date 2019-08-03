@@ -53,12 +53,20 @@ export class AlbumContentComponent implements OnInit {
   sortedEntries: AlbumEntry[];
   minWidth = 5;
   title: string;
+  scales: number[];
 
   constructor(private route: ActivatedRoute,
               private router: Router,
               private apollo: Apollo,
               private sanitizer: DomSanitizer,
               private lightbox: Lightbox) {
+    let size = 1600;
+    const scales = [];
+    while (size > 50) {
+      scales.push(size);
+      size = Math.round(size * 0.5);
+    }
+    this.scales = scales.reverse();
   }
 
     ngOnInit() {
@@ -149,5 +157,19 @@ export class AlbumContentComponent implements OnInit {
 
       return {height: rowHeight, shapes};
     });
+  }
+
+  findScale(maxLength: number) {
+    for (length of this.scales) {
+      if (maxLength < length) {
+        return length;
+      }
+    }
+    return 1600;
+  }
+
+  createUrl(row: TableRow, shape: Shape) {
+    const maxLength = this.findScale(Math.max(shape.width, row.height));
+    return this.trustUrl(shape.thumbnail + '?maxLength=' + maxLength);
   }
 }
