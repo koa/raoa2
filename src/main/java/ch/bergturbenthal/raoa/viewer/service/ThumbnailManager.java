@@ -7,5 +7,6 @@ import org.springframework.http.MediaType;
 import reactor.core.publisher.Mono;
 
 public interface ThumbnailManager {
-  Mono<File> takeThumbnail(ObjectId id, ObjectLoader reader, MediaType mediaType, File targetDir);
+  Mono<File> takeThumbnail(
+      ObjectId id, ObjectLoader reader, MediaType mediaType, int maxLength, File targetDir);
 }

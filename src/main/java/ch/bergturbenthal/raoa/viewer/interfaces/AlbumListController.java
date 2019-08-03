@@ -26,10 +26,7 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
@@ -69,9 +66,19 @@ public class AlbumListController {
                   .flatMap(
                       loader ->
                           thumbnailManager.takeThumbnail(
-                              k.getFile(), loader, MediaType.IMAGE_JPEG, targetDir));
+                              k.getFile(),
+                              loader,
+                              MediaType.IMAGE_JPEG,
+                              k.getMaxLength(),
+                              targetDir));
             },
-            cacheKey -> cacheKey.getAlbum().toString() + "-" + cacheKey.getFile().name() + ".jpg");
+            cacheKey ->
+                cacheKey.getAlbum().toString()
+                    + "-"
+                    + cacheKey.getFile().name()
+                    + "-"
+                    + cacheKey.getMaxLength()
+                    + ".jpg");
   }
 
   @GetMapping("album")
@@ -100,10 +107,14 @@ public class AlbumListController {
 
   @GetMapping("album/{albumId}/{imageId}")
   public @ResponseBody Mono<HttpEntity<Resource>> takeThumbnail(
-      @PathVariable("albumId") UUID albumId, @PathVariable("imageId") String fileId) {
+      @PathVariable("albumId") UUID albumId,
+      @PathVariable("imageId") String fileId,
+      @RequestParam(name = "maxLength", defaultValue = "1600") int maxLength) {
     final ObjectId objectId = ObjectId.fromString(fileId);
     final Mono<FileSystemResource> resourceMono =
-        thumbnailCache.take(new CacheKey(albumId, objectId)).map(FileSystemResource::new);
+        thumbnailCache
+            .take(new CacheKey(albumId, objectId, maxLength))
+            .map(FileSystemResource::new);
     final Mono<String> filenameMono =
         albumList
             .getAlbum(albumId)
@@ -151,7 +162,7 @@ public class AlbumListController {
             .flatMap(
                 entry ->
                     thumbnailCache
-                        .take(new CacheKey(album, entry.getFileId()))
+                        .take(new CacheKey(album, entry.getFileId(), 1600))
                         .map(f -> Tuples.of(entry, f)),
                 viewerProperties.getConcurrentThumbnailers())
             .toIterable()) {
@@ -165,6 +176,7 @@ public class AlbumListController {
   private static class CacheKey {
     private UUID album;
     private ObjectId file;
+    private int maxLength;
   }
 
   @Value

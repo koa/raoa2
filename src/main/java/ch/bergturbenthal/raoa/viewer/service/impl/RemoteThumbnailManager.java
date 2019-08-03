@@ -109,6 +109,7 @@ public class RemoteThumbnailManager implements ThumbnailManager {
       final ObjectId id,
       final ObjectLoader objectLoader,
       MediaType mediaType,
+      final int maxLength,
       File targetDir,
       int remainingCount) {
     return selectAvailableEndpoint(mediaType)
@@ -127,7 +128,7 @@ public class RemoteThumbnailManager implements ThumbnailManager {
                           log.warn("Invalid token response: " + tokenClientResponse.statusCode());
                           blockUntil.put(uri, Instant.now().plusSeconds(1));
                           return doTakeThumbnail(
-                              id, objectLoader, mediaType, targetDir, remainingCount);
+                              id, objectLoader, mediaType, maxLength, targetDir, remainingCount);
                         } else {
                           return tokenClientResponse
                               .bodyToMono(String.class)
@@ -140,89 +141,102 @@ public class RemoteThumbnailManager implements ThumbnailManager {
                                       blockUntil.put(uri, Instant.now().plusSeconds(10));
                                       log.info("Blocked, retry later");
                                       return doTakeThumbnail(
-                                          id, objectLoader, mediaType, targetDir, remainingCount);
+                                          id,
+                                          objectLoader,
+                                          mediaType,
+                                          maxLength,
+                                          targetDir,
+                                          remainingCount);
 
-                                    } else ;
-                                    return webClient
-                                        .post()
-                                        .uri(
-                                            UriComponentsBuilder.fromUri(uri)
-                                                .path("thumbnail")
-                                                .queryParam("token", token.get())
-                                                .build(Collections.emptyMap()))
-                                        .contentType(mediaType)
-                                        .contentLength(objectLoader.getSize())
-                                        .accept(MediaType.IMAGE_JPEG)
-                                        .body(
-                                            BodyInserters.fromResource(
-                                                createResourceFromObjectLoader(
-                                                    id, objectLoader, mediaType)))
-                                        .exchange()
-                                        .flatMap(
-                                            clientResponse -> {
-                                              final HttpStatus statusCode =
-                                                  clientResponse.statusCode();
-                                              // ölog.info("Status: " + statusCode);
-                                              if (statusCode == HttpStatus.OK) {
-                                                return clientResponse
-                                                    .body(BodyExtractors.toDataBuffers())
-                                                    .collect(
-                                                        () ->
-                                                            new File(
-                                                                targetDir,
-                                                                UUID.randomUUID().toString()),
-                                                        (file, dataBuffer) -> {
-                                                          try (final FileOutputStream outputStream =
-                                                              new FileOutputStream(file, true)) {
-                                                            @Cleanup
-                                                            final InputStream input =
-                                                                dataBuffer.asInputStream(true);
-                                                            IOUtils.copy(input, outputStream);
-                                                          } catch (IOException e) {
-                                                            throw new RuntimeException(
-                                                                "Cannot write response to file", e);
-                                                          }
-                                                        })
-                                                    .doFinally(
-                                                        signalType -> blockUntil.remove(uri));
-                                                //                                              }
-                                                // else if (statusCode == HttpStatus.NOT_ACCEPTABLE)
-                                                // {
-                                                //
-                                                // blockUntil.put(uri,
-                                                // Instant.now().plusSeconds(10));
-                                                //
-                                                // log.info("blocked 2 on " + uri + ", try later");
-                                                //
-                                                // return doTakeThumbnail(
-                                                //
-                                                //  id,
-                                                //
-                                                //  objectLoader,
-                                                //
-                                                //  mediaType,
-                                                //
-                                                //  targetDir,
-                                                //
-                                                //  remainingCount);
-                                              } else {
-                                                if (remainingCount == 0) {
-                                                  log.error("Cannot transform file " + statusCode);
-                                                  clientResponse
-                                                      .bodyToMono(String.class)
-                                                      .subscribe(t -> log.info("Content: " + t));
-                                                  return Mono.empty();
+                                    } else
+                                      return webClient
+                                          .post()
+                                          .uri(
+                                              UriComponentsBuilder.fromUri(uri)
+                                                  .path("thumbnail")
+                                                  .queryParam("token", token.get())
+                                                  .queryParam("size", maxLength)
+                                                  .build(Collections.emptyMap()))
+                                          .contentType(mediaType)
+                                          .contentLength(objectLoader.getSize())
+                                          .accept(MediaType.IMAGE_JPEG)
+                                          .body(
+                                              BodyInserters.fromResource(
+                                                  createResourceFromObjectLoader(
+                                                      id, objectLoader, mediaType)))
+                                          .exchange()
+                                          .flatMap(
+                                              clientResponse -> {
+                                                final HttpStatus statusCode =
+                                                    clientResponse.statusCode();
+                                                // ölog.info("Status: " + statusCode);
+                                                if (statusCode == HttpStatus.OK) {
+                                                  return clientResponse
+                                                      .body(BodyExtractors.toDataBuffers())
+                                                      .collect(
+                                                          () ->
+                                                              new File(
+                                                                  targetDir,
+                                                                  UUID.randomUUID().toString()),
+                                                          (file, dataBuffer) -> {
+                                                            try (final FileOutputStream
+                                                                outputStream =
+                                                                    new FileOutputStream(
+                                                                        file, true)) {
+                                                              @Cleanup
+                                                              final InputStream input =
+                                                                  dataBuffer.asInputStream(true);
+                                                              IOUtils.copy(input, outputStream);
+                                                            } catch (IOException e) {
+                                                              throw new RuntimeException(
+                                                                  "Cannot write response to file",
+                                                                  e);
+                                                            }
+                                                          })
+                                                      .doFinally(
+                                                          signalType -> blockUntil.remove(uri));
+                                                  //                                              }
+                                                  // else if (statusCode ==
+                                                  // HttpStatus.NOT_ACCEPTABLE)
+                                                  // {
+                                                  //
+                                                  // blockUntil.put(uri,
+                                                  // Instant.now().plusSeconds(10));
+                                                  //
+                                                  // log.info("blocked 2 on " + uri + ", try
+                                                  // later");
+                                                  //
+                                                  // return doTakeThumbnail(
+                                                  //
+                                                  //  id,
+                                                  //
+                                                  //  objectLoader,
+                                                  //
+                                                  //  mediaType,
+                                                  //
+                                                  //  targetDir,
+                                                  //
+                                                  //  remainingCount);
                                                 } else {
-                                                  log.info("Error " + statusCode + " retrying");
-                                                  return doTakeThumbnail(
-                                                      id,
-                                                      objectLoader,
-                                                      mediaType,
-                                                      targetDir,
-                                                      remainingCount - 1);
+                                                  if (remainingCount == 0) {
+                                                    log.error(
+                                                        "Cannot transform file " + statusCode);
+                                                    clientResponse
+                                                        .bodyToMono(String.class)
+                                                        .subscribe(t -> log.info("Content: " + t));
+                                                    return Mono.empty();
+                                                  } else {
+                                                    log.info("Error " + statusCode + " retrying");
+                                                    return doTakeThumbnail(
+                                                        id,
+                                                        objectLoader,
+                                                        mediaType,
+                                                        maxLength,
+                                                        targetDir,
+                                                        remainingCount - 1);
+                                                  }
                                                 }
-                                              }
-                                            });
+                                              });
                                   });
                         }
                       });
@@ -333,8 +347,9 @@ public class RemoteThumbnailManager implements ThumbnailManager {
       final ObjectId id,
       final ObjectLoader reader,
       final MediaType mediaType,
+      final int maxLength,
       final File targetDir) {
-    return doTakeThumbnail(id, reader, mediaType, targetDir, 10);
+    return doTakeThumbnail(id, reader, mediaType, maxLength, targetDir, 10);
   }
 
   @Value
