@@ -1,0 +1,21 @@
+.gallery-row {
+  white-space: nowrap;
+  display: flex;
+}
+
+.gallery-row-scrolling {
+  grid-row-start: 2;
+  grid-column-start: 1;
+}
+
+.gallery-cell {
+  cursor: pointer;
+}
+
+:host {
+  height: 100vh;
+  display: grid;
+  grid-template-areas: "head" "content";
+  grid-template-columns: 1fr;
+  grid-template-rows: fit-content(1em) 1fr;
+}

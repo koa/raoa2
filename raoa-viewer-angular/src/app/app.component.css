@@ -1,0 +1,19 @@
+mat-sidenav-container {
+  grid-area: content;
+}
+
+.application-header {
+  grid-area: head;
+}
+
+.application-container {
+  grid-area: content;
+}
+
+mat-sidenav {
+  grid-area: nav;
+}
+
+router-outlet {
+}
+
