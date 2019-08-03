@@ -1,0 +1,25 @@
+scalar DateTime
+
+type Query {
+    albumById(id: ID): Album
+    listAlbums: [Album]
+}
+
+type Album {
+    id: ID!
+    name: String
+    entries: [AlbumEntry]!
+    entryCount: Int
+}
+
+type AlbumEntry {
+    id: ID!
+    name: String
+    contentType: String
+    created: DateTime
+    thumbnailUri: String
+    width: Int
+    height: Int
+    targetWidth: Int
+    targetHeight: Int
+}
