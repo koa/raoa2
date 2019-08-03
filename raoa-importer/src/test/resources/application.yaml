@@ -1,0 +1,8 @@
+raoa:
+  import:
+    media: /media
+    repository: /media/repository
+spring:
+  cloud:
+    discovery:
+      enabled: false
