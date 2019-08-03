@@ -8,8 +8,9 @@
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>libs</artifactId>
+    <artifactId>raoa-libs</artifactId>
     <version>0.0.1-SNAPSHOT</version>
+    <name>Raoa Libraries</name>
 
     <properties>
         <java.version>11</java.version>

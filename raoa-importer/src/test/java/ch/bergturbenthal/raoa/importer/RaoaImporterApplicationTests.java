@@ -1,11 +1,11 @@
 package ch.bergturbenthal.raoa.importer;
 
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class RaoaImporterApplicationTests {
+public class RaoaImporterApplicationTests {
 
   @Test
-  void contextLoads() {}
+  public void contextLoads() {}
 }
