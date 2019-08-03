@@ -1,18 +1,19 @@
 package ch.bergturbenthal.raoa.libs.service.impl.cache;
 
-import ch.bergturbenthal.raoa.libs.service.impl.BareAlbumList;
 import java.io.*;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
 import org.apache.tika.metadata.Metadata;
 import org.ehcache.spi.serialization.Serializer;
 import org.ehcache.spi.serialization.SerializerException;
 
 public class MetadataSerializer implements Serializer<Metadata> {
   private static final Charset CHARSET = StandardCharsets.UTF_8;
+  private static final Pattern SPLIT_PATTERN = Pattern.compile(Pattern.quote(" "));
 
   @Override
   public ByteBuffer serialize(final Metadata object) throws SerializerException {
@@ -44,7 +45,7 @@ public class MetadataSerializer implements Serializer<Metadata> {
       while (true) {
         final String line = bufferedReader.readLine();
         if (line == null) break;
-        final String[] parts = BareAlbumList.SPLIT_PATTERN.split(line);
+        final String[] parts = SPLIT_PATTERN.split(line);
         String key = URLDecoder.decode(parts[0], CHARSET);
         if (parts.length < 2) {
           metadata.add(key, "");

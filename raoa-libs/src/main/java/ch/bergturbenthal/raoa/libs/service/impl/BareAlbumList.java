@@ -16,7 +16,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +46,6 @@ import reactor.util.function.Tuples;
 public class BareAlbumList implements AlbumList {
   public static final Duration MAX_REPOSITORY_CACHE_TIME = Duration.ofMinutes(5);
   public static final Duration MAX_AUTOINDEX_CACHE_TIME = Duration.ofMinutes(1);
-  public static final Pattern SPLIT_PATTERN = Pattern.compile(Pattern.quote(" "));
   private static final Collection<String> IMPORTING_TYPES =
       new HashSet<>(Arrays.asList("image/jpeg", "image/tiff", "application/mp4", "video/mp4"));
   private final Mono<SortedMap<Instant, UUID>> autoaddIndex;
