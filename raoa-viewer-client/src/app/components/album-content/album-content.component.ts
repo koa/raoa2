@@ -108,7 +108,6 @@ export class AlbumContentComponent implements OnInit {
   }
 
 
-
   openImage(entryIndex: number) {
     this.dialog.open(ShowImageDialogComponent, {
       width: '100vw',
@@ -128,25 +127,9 @@ export class AlbumContentComponent implements OnInit {
     return this.sanitizer.bypassSecurityTrustUrl(urlString);
   }
 
-  private redistributeEntries() {
-    let currentRowContent: AlbumEntry[] = [];
-    for (let index = 0; index < this.sortedEntries.length; index++) {
-      const entry = this.sortedEntries[index];
-      currentRowContent.push(entry);
-      const currentWidth = currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0);
-      if (currentWidth >= this.minWidth) {
-        this.resultRows.push(this.createItems(index, currentRowContent, currentWidth));
-        currentRowContent = [];
-      }
-    }
-    if (currentRowContent.length > 0) {
-      this.resultRows.push(this.createItems(
-        this.sortedEntries.length - 1,
-        currentRowContent,
-        currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0))
-      );
-    }
-    this.recalculateComponents();
+  zoomIn() {
+    this.minWidth *= 0.7;
+    this.redistributeEntries();
   }
 
   private createItems(index: number, currentRowContent: AlbumEntry[], currentWidth) {
@@ -193,6 +176,33 @@ export class AlbumContentComponent implements OnInit {
   createUrl(row: TableRow, shape: Shape) {
     const maxLength = this.findScale(Math.max(shape.width, row.height));
     return this.trustUrl(shape.thumbnail + '?maxLength=' + maxLength);
+  }
+
+  zoomOut() {
+    this.minWidth /= 0.7;
+    this.redistributeEntries();
+  }
+
+  private redistributeEntries() {
+    this.resultRows = [];
+    let currentRowContent: AlbumEntry[] = [];
+    for (let index = 0; index < this.sortedEntries.length; index++) {
+      const entry = this.sortedEntries[index];
+      currentRowContent.push(entry);
+      const currentWidth = currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0);
+      if (currentWidth >= this.minWidth) {
+        this.resultRows.push(this.createItems(index, currentRowContent, currentWidth));
+        currentRowContent = [];
+      }
+    }
+    if (currentRowContent.length > 0) {
+      this.resultRows.push(this.createItems(
+        this.sortedEntries.length - 1,
+        currentRowContent,
+        currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0))
+      );
+    }
+    this.recalculateComponents();
   }
 }
 
