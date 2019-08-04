@@ -63,8 +63,8 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
         <dependency>
-            <groupId>ch.bergturbenthal.raoa</groupId>
-            <artifactId>libs</artifactId>
+            <groupId>ch.bergturbenthal.raoa2</groupId>
+            <artifactId>raoa-libs</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>

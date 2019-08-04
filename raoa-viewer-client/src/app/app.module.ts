@@ -6,13 +6,12 @@ import {GraphQLModule} from './graphql.module';
 import {HttpClientModule} from '@angular/common/http';
 import {AlbumListComponent} from './components/album-list/album-list.component';
 import {RouterModule, Routes} from '@angular/router';
-import {AlbumContentComponent} from './components/album-content/album-content.component';
+import {AlbumContentComponent, ShowImageDialogComponent} from './components/album-content/album-content.component';
 import {AngularResizedEventModule} from 'angular-resize-event';
 import {ScrollDispatchModule} from '@angular/cdk/scrolling';
 import {ScrollingModule as ExperimentalScrollingModule} from '@angular/cdk-experimental/scrolling';
-import {MatSidenavModule, MatToolbarModule} from '@angular/material';
+import {MatButtonModule, MatDialogModule, MatIconModule, MatSidenavModule, MatToolbarModule} from '@angular/material';
 import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
-import {LightboxModule} from 'ngx-lightbox';
 // import { MatPasswordStrengthModule } from '@angular-material-extensions/core';
 
 const appRouter: Routes = [
@@ -24,7 +23,8 @@ const appRouter: Routes = [
   declarations: [
     AppComponent,
     AlbumListComponent,
-    AlbumContentComponent
+    AlbumContentComponent,
+    ShowImageDialogComponent
   ],
   imports: [
     BrowserModule,
@@ -37,11 +37,14 @@ const appRouter: Routes = [
     MatToolbarModule,
     MatSidenavModule,
     BrowserAnimationsModule,
-    LightboxModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatIconModule,
     // MatPasswordStrengthModule
   ],
   providers: [],
-  bootstrap: [AppComponent]
+  bootstrap: [AppComponent],
+  entryComponents: [ShowImageDialogComponent]
 })
 export class AppModule {
 }

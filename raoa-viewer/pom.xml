@@ -78,8 +78,8 @@
             <scope>runtime</scope>
         </dependency>
         <dependency>
-            <groupId>ch.bergturbenthal.raoa</groupId>
-            <artifactId>libs</artifactId>
+            <groupId>ch.bergturbenthal.raoa2</groupId>
+            <artifactId>raoa-libs</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
@@ -147,7 +147,7 @@
                         <image>docker.io/library/openjdk:11-slim</image>
                     </from>
                     <to>
-                        <image>docker.io/koa1/raoa-viewer:${version}</image>
+                        <image>docker.io/koa1/raoa-viewer:${project.version}</image>
                     </to>
                     <container>
                         <jvmFlags>

@@ -1,11 +1,11 @@
 // import {FixedSizeVirtualScrollStrategy, VIRTUAL_SCROLL_STRATEGY} from '@angular/cdk/scrolling';
-import {Component, OnInit} from '@angular/core';
+import {Component, Inject, OnInit} from '@angular/core';
 import {ActivatedRoute, ParamMap, Router} from '@angular/router';
 import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
 import {ResizedEvent} from 'angular-resize-event';
 import {DomSanitizer} from '@angular/platform-browser';
-import {Lightbox} from 'ngx-lightbox';
+import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from '@angular/material';
 
 
 interface QueryResult {
@@ -38,6 +38,11 @@ interface TableRow {
   shapes: Shape[];
 }
 
+interface DialogData {
+  currentIndex: number;
+  sortedEntries: AlbumEntry[];
+}
+
 
 @Component({
   selector: 'app-album-content',
@@ -59,7 +64,7 @@ export class AlbumContentComponent implements OnInit {
               private router: Router,
               private apollo: Apollo,
               private sanitizer: DomSanitizer,
-              private lightbox: Lightbox) {
+              private dialog: MatDialog) {
     let size = 1600;
     const scales = [];
     while (size > 50) {
@@ -102,13 +107,21 @@ export class AlbumContentComponent implements OnInit {
     this.recalculateComponents();
   }
 
+
+
   openImage(entryIndex: number) {
-    const album = this.sortedEntries.map(e => ({
-      src: e.thumbnailUri,
-      caption: e.name,
-      thumb: e.thumbnailUri,
-    }));
-    this.lightbox.open(album, entryIndex, {disableScrolling: true, centerVertically: true});
+    this.dialog.open(ShowImageDialogComponent, {
+      width: '100vw',
+      height: '100vh',
+      maxWidth: '100vw',
+      maxHeight: '100vh',
+      hasBackdrop: true,
+      data: {
+        currentIndex: entryIndex, sortedEntries:
+        this.sortedEntries
+      }
+    })
+    ;
   }
 
   trustUrl(urlString: string) {
@@ -122,22 +135,31 @@ export class AlbumContentComponent implements OnInit {
       currentRowContent.push(entry);
       const currentWidth = currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0);
       if (currentWidth >= this.minWidth) {
-        const startIndex = index - currentRowContent.length + 1;
-        const rowHeight = this.width / currentWidth;
-        const shapes: Shape[] =
-          currentRowContent.map((e, i) => ({
-            width: (e.targetWidth / e.targetHeight * rowHeight),
-            entry: e,
-            thumbnail: (e.thumbnailUri),
-            entryIndex: i + startIndex
-          }));
-        const items = {height: rowHeight, shapes};
-        // console.log('Row: ' + items);
-        this.resultRows.push(items);
+        this.resultRows.push(this.createItems(index, currentRowContent, currentWidth));
         currentRowContent = [];
       }
     }
+    if (currentRowContent.length > 0) {
+      this.resultRows.push(this.createItems(
+        this.sortedEntries.length - 1,
+        currentRowContent,
+        currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0))
+      );
+    }
     this.recalculateComponents();
+  }
+
+  private createItems(index: number, currentRowContent: AlbumEntry[], currentWidth) {
+    const startIndex = index - currentRowContent.length + 1;
+    const rowHeight = this.width / currentWidth;
+    const shapes: Shape[] =
+      currentRowContent.map((e, i) => ({
+        width: (e.targetWidth / e.targetHeight * rowHeight),
+        entry: e,
+        thumbnail: (e.thumbnailUri),
+        entryIndex: i + startIndex
+      }));
+    return {height: rowHeight, shapes};
   }
 
   private recalculateComponents() {
@@ -171,5 +193,58 @@ export class AlbumContentComponent implements OnInit {
   createUrl(row: TableRow, shape: Shape) {
     const maxLength = this.findScale(Math.max(shape.width, row.height));
     return this.trustUrl(shape.thumbnail + '?maxLength=' + maxLength);
+  }
+}
+
+@Component({
+  selector: 'app-show-image-dialog',
+  templateUrl: 'show-image-dialog.html',
+  styleUrls: ['./show-image-dialog.css'],
+})
+export class ShowImageDialogComponent {
+  public currentIndex = 0;
+  public supportShare: boolean;
+
+  constructor(
+    public dialogRef: MatDialogRef<ShowImageDialogComponent>,
+    @Inject(MAT_DIALOG_DATA) public data: DialogData) {
+    this.currentIndex = data.currentIndex;
+    let hackNavi: any;
+    hackNavi = window.navigator;
+    this.supportShare = hackNavi.share !== undefined;
+  }
+
+  onNoClick(): void {
+    this.dialogRef.close();
+  }
+
+  close() {
+    this.dialogRef.close();
+  }
+
+  left() {
+    if (this.currentIndex > 0) {
+      this.currentIndex -= 1;
+    }
+  }
+
+  right() {
+    if (this.currentIndex < this.data.sortedEntries.length - 1) {
+      this.currentIndex += 1;
+    }
+  }
+
+  share() {
+    let hackNavi: any;
+    hackNavi = window.navigator;
+    if (hackNavi.share) {
+      hackNavi.share({
+        title: this.data.sortedEntries[this.currentIndex].name,
+        text: 'Shared Photo of RAoA',
+        url: this.data.sortedEntries[this.currentIndex].thumbnailUri
+      });
+    } else {
+      console.log('Share not supported by this browser');
+    }
   }
 }
