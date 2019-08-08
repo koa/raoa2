@@ -94,6 +94,16 @@ export class AlbumContentComponent implements OnInit {
               this.resultRows = [];
               this.sortedEntries = qr.albumById.entries
                 .filter(e => e.created != null)
+                .map(e => {
+                  return {
+                    name: e.name,
+                    entryUri: this.fixUrl(e.entryUri),
+                    targetHeight: e.targetHeight,
+                    targetWidth: e.targetWidth,
+                    created: e.created,
+                    id: e.id
+                  };
+                })
                 .sort((e1, e2) => e1.created.localeCompare(e2.created));
               this.redistributeEntries();
             }
@@ -124,6 +134,13 @@ export class AlbumContentComponent implements OnInit {
 
   trustUrl(urlString: string) {
     return this.sanitizer.bypassSecurityTrustUrl(urlString);
+  }
+
+  fixUrl(urlString: string) {
+    const url: URL = new URL(urlString);
+    url.protocol = window.location.protocol;
+    //  url.port = window.location.port;
+    return url.href;
   }
 
   zoomIn() {

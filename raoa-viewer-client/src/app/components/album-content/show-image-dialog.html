@@ -1,5 +1,5 @@
 <!--<h2 mat-dialog-title>{{data.sortedEntries[data.currentIndex].name}}</h2>-->
-<mat-dialog-content [style.backgroundImage]="'url('+data.sortedEntries[currentIndex].entryUri+'/thumbnail)'"
+<mat-dialog-content [style.backgroundImage]="'url('+data.sortedEntries[currentIndex].entryUri+'/thumbnail'+')'"
                     (window:keydown.arrowLeft)="left()"
                     (window:keydown.arrowRight)="right()"
                     class="showImage">

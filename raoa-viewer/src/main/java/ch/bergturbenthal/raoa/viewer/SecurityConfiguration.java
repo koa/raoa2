@@ -8,7 +8,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
 
 @Configuration
 @EnableWebSecurity
@@ -27,7 +26,11 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
     http.headers().cacheControl().disable();
     if (properties.isEnableAuthentication())
       http.authorizeRequests()
-          .requestMatchers(new NegatedRequestMatcher(EndpointRequest.toAnyEndpoint()))
+          .antMatchers("/manifest.webmanifest", "/assets/icons/*.png", "/*.js")
+          .permitAll()
+          .requestMatchers(EndpointRequest.toAnyEndpoint())
+          .permitAll()
+          .anyRequest()
           .authenticated()
           .and()
           .oauth2Login()
