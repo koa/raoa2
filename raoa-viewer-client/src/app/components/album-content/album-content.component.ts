@@ -20,7 +20,7 @@ interface AlbumById {
 interface AlbumEntry {
   id: string;
   name: string;
-  thumbnailUri: string;
+  entryUri: string;
   targetWidth: number;
   targetHeight: number;
   created: string;
@@ -30,7 +30,6 @@ interface Shape {
   width: number;
   entry: AlbumEntry;
   entryIndex: number;
-  thumbnail: string;
 }
 
 interface TableRow {
@@ -81,7 +80,7 @@ export class AlbumContentComponent implements OnInit {
               query: gql`query AlbumContent($albumId: ID) {albumById(id: $albumId){
                   name
                   entries{
-                      id, name, thumbnailUri, targetWidth, targetHeight, created
+                      id, name, entryUri, targetWidth, targetHeight, created
                   }
               }
               }
@@ -132,17 +131,9 @@ export class AlbumContentComponent implements OnInit {
     this.redistributeEntries();
   }
 
-  private createItems(index: number, currentRowContent: AlbumEntry[], currentWidth) {
-    const startIndex = index - currentRowContent.length + 1;
-    const rowHeight = this.width / currentWidth;
-    const shapes: Shape[] =
-      currentRowContent.map((e, i) => ({
-        width: (e.targetWidth / e.targetHeight * rowHeight),
-        entry: e,
-        thumbnail: (e.thumbnailUri),
-        entryIndex: i + startIndex
-      }));
-    return {height: rowHeight, shapes};
+  createUrl(row: TableRow, shape: Shape) {
+    const maxLength = this.findScale(Math.max(shape.width, row.height));
+    return this.trustUrl(shape.entry.entryUri + '/thumbnail?maxLength=' + maxLength);
   }
 
   private recalculateComponents() {
@@ -157,7 +148,6 @@ export class AlbumContentComponent implements OnInit {
           width: e.entry.targetWidth / e.entry.targetHeight * rowHeight,
           entry: e.entry,
           entryIndex: e.entryIndex,
-          thumbnail: e.thumbnail
         }));
 
       return {height: rowHeight, shapes};
@@ -173,9 +163,17 @@ export class AlbumContentComponent implements OnInit {
     return 1600;
   }
 
-  createUrl(row: TableRow, shape: Shape) {
-    const maxLength = this.findScale(Math.max(shape.width, row.height));
-    return this.trustUrl(shape.thumbnail + '?maxLength=' + maxLength);
+  private createItems(index: number, currentRowContent: AlbumEntry[], currentWidth) {
+    const startIndex = index - currentRowContent.length + 1;
+    const rowHeight = this.width / currentWidth;
+    const shapes: Shape[] =
+      currentRowContent.map((e, i) => ({
+        width: (e.targetWidth / e.targetHeight * rowHeight),
+        entry: e,
+        uri: (e.entryUri),
+        entryIndex: i + startIndex
+      }));
+    return {height: rowHeight, shapes};
   }
 
   zoomOut() {
@@ -251,10 +249,33 @@ export class ShowImageDialogComponent {
       hackNavi.share({
         title: this.data.sortedEntries[this.currentIndex].name,
         text: 'Shared Photo of RAoA',
-        url: this.data.sortedEntries[this.currentIndex].thumbnailUri
+        url: this.data.sortedEntries[this.currentIndex].entryUri + '/original'
       });
     } else {
       console.log('Share not supported by this browser');
     }
+  }
+
+  download() {
+
+    const entry = this.data.sortedEntries[this.currentIndex];
+    const entryUri = entry.entryUri + '/original';
+    const filename = entry.name;
+
+    fetch(entryUri).then(r => ({
+      filename,
+      data: r.blob()
+    })).then(res => {
+      console.log('start download:', res);
+      const url = window.URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      document.body.appendChild(a);
+      a.setAttribute('style', 'display: none');
+      a.href = url;
+      a.download = res.filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove(); // remove the element
+    });
   }
 }

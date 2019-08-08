@@ -32,7 +32,7 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
         .toFuture();
   }
 
-  public String getThumbnailUri(AlbumEntry entry) {
+  public String getEntryUri(AlbumEntry entry) {
     RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
     final String contextPath;
     if (requestAttributes instanceof ServletRequestAttributes) {
@@ -45,6 +45,14 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
     return contextPath + "/rest/album/" + entry.getAlbum().getId().toString() + "/" + entry.getId();
   }
 
+  public String getThumbnailUri(AlbumEntry entry) {
+    return getEntryUri(entry) + "/thumbnail";
+  }
+
+  public String getOriginalUri(AlbumEntry entry) {
+    return getEntryUri(entry) + "/original";
+  }
+
   public CompletableFuture<Instant> getCreated(AlbumEntry entry) {
     return extractMetadataInstant(entry, TikaCoreProperties.CREATED).toFuture();
   }
@@ -55,6 +63,26 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
 
   public CompletableFuture<Integer> getHeight(AlbumEntry entry) {
     return extractInteger(entry, TIFF.IMAGE_LENGTH).toFuture();
+  }
+
+  public CompletableFuture<String> getCameraModel(AlbumEntry entry) {
+    return extractMetadataProperty(entry, TIFF.EQUIPMENT_MODEL).toFuture();
+  }
+
+  public CompletableFuture<String> getCameraManufacturer(AlbumEntry entry) {
+    return extractMetadataProperty(entry, TIFF.EQUIPMENT_MAKE).toFuture();
+  }
+
+  public CompletableFuture<Integer> getFocalLength(AlbumEntry entry) {
+    return extractInteger(entry, TIFF.FOCAL_LENGTH).toFuture();
+  }
+
+  public CompletableFuture<Double> getFNumber(AlbumEntry entry) {
+    return extractDouble(entry, TIFF.F_NUMBER).toFuture();
+  }
+
+  private Mono<Double> extractDouble(final AlbumEntry entry, final Property property) {
+    return extractMetadataValue(entry, m -> m.get(property)).map(Double::valueOf);
   }
 
   public CompletableFuture<Integer> getTargetWidth(AlbumEntry entry) {

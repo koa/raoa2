@@ -17,9 +17,15 @@ type AlbumEntry {
     name: String
     contentType: String
     created: DateTime
+    entryUri: String
     thumbnailUri: String
+    originalUri: String
     width: Int
     height: Int
     targetWidth: Int
     targetHeight: Int
+    cameraModel: String
+    cameraManufacturer: String
+    focalLength: Int
+    fNumber: Float
 }

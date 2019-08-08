@@ -6,6 +6,7 @@ import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.FileCache;
 import ch.bergturbenthal.raoa.viewer.service.FileCacheManager;
 import ch.bergturbenthal.raoa.viewer.service.ThumbnailManager;
+import ch.bergturbenthal.raoa.viewer.service.impl.GitBlobRessource;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -105,7 +106,7 @@ public class AlbumListController {
         .map(variables -> new ModelAndView("list-album", variables));
   }
 
-  @GetMapping("album/{albumId}/{imageId}")
+  @GetMapping("album/{albumId}/{imageId}/thumbnail")
   public @ResponseBody Mono<HttpEntity<Resource>> takeThumbnail(
       @PathVariable("albumId") UUID albumId,
       @PathVariable("imageId") String fileId,
@@ -134,6 +135,29 @@ public class AlbumListController {
               // headers.setContentDisposition(
               //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
               return new HttpEntity<>(t.getT2(), headers);
+            });
+  }
+
+  @GetMapping("album/{albumId}/{imageId}/original")
+  public @ResponseBody Mono<HttpEntity<Resource>> takeOriginal(
+      @PathVariable("albumId") UUID albumId, @PathVariable("imageId") String fileId) {
+
+    final Mono<GitAccess> access = albumList.getAlbum(albumId);
+    final ObjectId entryId = ObjectId.fromString(fileId);
+    return Mono.zip(
+            access
+                .flatMap(gitAccess -> gitAccess.entryMetdata(entryId))
+                .map(m -> m.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE)),
+            access.flatMap(gitAccess -> gitAccess.readObject(entryId)))
+        .map(
+            t -> {
+              final MediaType mediaType = MediaType.parseMediaType(t.getT1());
+              final GitBlobRessource resource = new GitBlobRessource(t.getT2(), mediaType, entryId);
+              final HttpHeaders headers = new HttpHeaders();
+              headers.setContentType(mediaType);
+              headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+              headers.setETag("\"" + entryId.name() + "\"");
+              return new HttpEntity<>(resource, headers);
             });
   }
 
