@@ -43,6 +43,7 @@
   "navigationUrls": [
     "/",
     "/albums/*",
-    "/requestAccess"
+    "/requestAccess",
+    "/admin/*"
   ]
 }

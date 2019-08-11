@@ -49,9 +49,10 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   @Override
   public Mono<Boolean> canUserAccessToAlbum(final SecurityContext context, final UUID album) {
     return currentUser(context)
-        .filter(u -> u.getVisibleAlbums() != null)
-        .map(User::getVisibleAlbums)
-        .map(a -> a.contains(album))
+        .map(
+            u ->
+                u.isSuperuser()
+                    || (u.getVisibleAlbums() != null && u.getVisibleAlbums().contains(album)))
         .defaultIfEmpty(false);
   }
 
@@ -65,28 +66,29 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   public Mono<User> currentUser(final SecurityContext context) {
     return currentAuthentication(context)
         .map(
-            authenticationId -> {
-              return userManager
-                  .findUserForAuthentication(authenticationId)
-                  .switchIfEmpty(
-                      Mono.defer(
-                          () -> {
-                            if (viewerProperties.getSuperuser().equals(authenticationId.getId())) {
-                              return Mono.just(
-                                  User.builder()
-                                      .authentications(Collections.singleton(authenticationId))
-                                      .id(virtualSuperuserId)
-                                      .superuser(true)
-                                      .userData(
-                                          readPersonalUserData(context)
-                                              .toBuilder()
-                                              .comment("superuser created by config")
-                                              .build())
-                                      .build());
+            authenticationId ->
+                userManager
+                    .findUserForAuthentication(authenticationId)
+                    .switchIfEmpty(
+                        Mono.defer(
+                            () -> {
+                              if (viewerProperties
+                                  .getSuperuser()
+                                  .equals(authenticationId.getId())) {
+                                return Mono.just(
+                                    User.builder()
+                                        .authentications(Collections.singleton(authenticationId))
+                                        .id(virtualSuperuserId)
+                                        .superuser(true)
+                                        .userData(
+                                            readPersonalUserData(context)
+                                                .toBuilder()
+                                                .comment("superuser created by config")
+                                                .build())
+                                        .build());
 
-                            } else return Mono.empty();
-                          }));
-            })
+                              } else return Mono.empty();
+                            })))
         .orElse(Mono.empty());
   }
 

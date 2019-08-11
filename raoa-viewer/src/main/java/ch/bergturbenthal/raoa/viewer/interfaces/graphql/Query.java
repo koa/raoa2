@@ -7,15 +7,12 @@ import ch.bergturbenthal.raoa.viewer.model.graphql.AuthenticationState;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.PersonalUserData;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import com.coxautodev.graphql.tools.GraphQLQueryResolver;
-import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -35,20 +32,20 @@ public class Query implements GraphQLQueryResolver {
     return new Album(albumId);
   }
 
-  public Iterable<Album> listAlbums() {
+  public CompletableFuture<List<Album>> listAlbums() {
     final SecurityContext context = SecurityContextHolder.getContext();
-    final Authentication authentication = context.getAuthentication();
-    final Object principal = authentication.getPrincipal();
-    if (principal instanceof OidcUser) {
-      final String authorizedParty = ((OidcUser) principal).getAuthorizedParty();
-      final OidcUserInfo userInfo = ((OidcUser) principal).getUserInfo();
 
-    } else return Collections.emptyList();
-    return albumList
-        .listAlbums()
-        .map(AlbumList.FoundAlbum::getAlbumId)
-        .map(this::getAlbumById)
-        .toIterable();
+    return authorizationManager
+        .currentUser(context)
+        .flatMapMany(
+            user ->
+                albumList
+                    .listAlbums()
+                    .map(AlbumList.FoundAlbum::getAlbumId)
+                    .filter(id -> user.isSuperuser() || user.getVisibleAlbums().contains(id))
+                    .map(this::getAlbumById))
+        .collectList()
+        .toFuture();
   }
 
   public CompletableFuture<AuthenticationInformation> authenticationState() {

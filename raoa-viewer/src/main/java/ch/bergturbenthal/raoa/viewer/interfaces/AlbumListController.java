@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.viewer.interfaces;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
+import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.FileCache;
 import ch.bergturbenthal.raoa.viewer.service.FileCacheManager;
 import ch.bergturbenthal.raoa.viewer.service.ThumbnailManager;
@@ -26,6 +27,8 @@ import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
@@ -48,14 +51,17 @@ public class AlbumListController {
   private final AlbumList albumList;
   private final ViewerProperties viewerProperties;
   private final FileCache<CacheKey> thumbnailCache;
+  private final AuthorizationManager authorizationManager;
 
   public AlbumListController(
       final AlbumList albumList,
       final FileCacheManager fileCacheManager,
       final ThumbnailManager thumbnailManager,
-      final ViewerProperties viewerProperties) {
+      final ViewerProperties viewerProperties,
+      final AuthorizationManager authorizationManager) {
     this.albumList = albumList;
     this.viewerProperties = viewerProperties;
+    this.authorizationManager = authorizationManager;
 
     thumbnailCache =
         fileCacheManager.createCache(
@@ -84,23 +90,33 @@ public class AlbumListController {
 
   @GetMapping("album")
   public Mono<ModelAndView> listAlbums() {
-    final Mono<List<AlbumListEntry>> albumList =
-        this.albumList
-            .listAlbums()
-            .flatMap(f -> f.getAccess().getName().map(n -> new AlbumListEntry(f.getAlbumId(), n)))
-            .collectSortedList(Comparator.comparing(AlbumListEntry::getName));
-    return albumList.map(
-        l -> new ModelAndView("list-albums", Collections.singletonMap("albums", l)));
+    final SecurityContext securityContext = SecurityContextHolder.getContext();
+    return authorizationManager
+        .currentUser(securityContext)
+        .flatMap(
+            u ->
+                this.albumList
+                    .listAlbums()
+                    .filter(
+                        a ->
+                            u.isSuperuser()
+                                || (u.getVisibleAlbums() == null
+                                    || u.getVisibleAlbums().contains(a.getAlbumId())))
+                    .flatMap(
+                        f ->
+                            f.getAccess().getName().map(n -> new AlbumListEntry(f.getAlbumId(), n)))
+                    .collectSortedList(Comparator.comparing(AlbumListEntry::getName)))
+        .map(l -> new ModelAndView("list-albums", Collections.singletonMap("albums", l)));
   }
 
   @GetMapping("album/{albumId}")
   public Mono<ModelAndView> listAlbumContent(@PathVariable("albumId") UUID albumId) {
-    return albumList
-        .getAlbum(albumId)
-        .flatMapMany(
-            a -> {
-              return a.listFiles(IMAGE_FILE_FILTER);
-            })
+    final SecurityContext securityContext = SecurityContextHolder.getContext();
+    return authorizationManager
+        .canUserAccessToAlbum(securityContext, albumId)
+        .filter(t -> t)
+        .flatMap(t -> albumList.getAlbum(albumId))
+        .flatMapMany(a -> a.listFiles(IMAGE_FILE_FILTER))
         .collectList()
         .map(files -> Map.of("entries", files, "albumId", albumId))
         .map(variables -> new ModelAndView("list-album", variables));
@@ -112,20 +128,24 @@ public class AlbumListController {
       @PathVariable("imageId") String fileId,
       @RequestParam(name = "maxLength", defaultValue = "1600") int maxLength) {
     final ObjectId objectId = ObjectId.fromString(fileId);
-    final Mono<FileSystemResource> resourceMono =
-        thumbnailCache
-            .take(new CacheKey(albumId, objectId, maxLength))
-            .map(FileSystemResource::new);
-    final Mono<String> filenameMono =
-        albumList
-            .getAlbum(albumId)
-            .flatMap(
-                g ->
-                    g.listFiles(IMAGE_FILE_FILTER)
-                        .filter(e -> e.getFileId().name().equals(fileId))
-                        .singleOrEmpty())
-            .map(GitAccess.GitFileEntry::getNameString);
-    return Mono.zip(filenameMono, resourceMono)
+    final SecurityContext securityContext = SecurityContextHolder.getContext();
+    return authorizationManager
+        .canUserAccessToAlbum(securityContext, albumId)
+        .filter(t -> t)
+        .flatMap(
+            t ->
+                Mono.zip(
+                    albumList
+                        .getAlbum(albumId)
+                        .flatMap(
+                            g ->
+                                g.listFiles(IMAGE_FILE_FILTER)
+                                    .filter(e -> e.getFileId().name().equals(fileId))
+                                    .singleOrEmpty())
+                        .map(GitAccess.GitFileEntry::getNameString),
+                    thumbnailCache
+                        .take(new CacheKey(albumId, objectId, maxLength))
+                        .map(FileSystemResource::new)))
         .map(
             t -> {
               final HttpHeaders headers = new HttpHeaders();
@@ -144,11 +164,17 @@ public class AlbumListController {
 
     final Mono<GitAccess> access = albumList.getAlbum(albumId);
     final ObjectId entryId = ObjectId.fromString(fileId);
-    return Mono.zip(
-            access
-                .flatMap(gitAccess -> gitAccess.entryMetdata(entryId))
-                .map(m -> m.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE)),
-            access.flatMap(gitAccess -> gitAccess.readObject(entryId)))
+    final SecurityContext securityContext = SecurityContextHolder.getContext();
+    return authorizationManager
+        .canUserAccessToAlbum(securityContext, albumId)
+        .filter(t -> t)
+        .flatMap(
+            t ->
+                Mono.zip(
+                    access
+                        .flatMap(gitAccess -> gitAccess.entryMetdata(entryId))
+                        .map(m -> m.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE)),
+                    access.flatMap(gitAccess -> gitAccess.readObject(entryId))))
         .map(
             t -> {
               final MediaType mediaType = MediaType.parseMediaType(t.getT1());
@@ -164,13 +190,20 @@ public class AlbumListController {
   @GetMapping("album-zip/{albumId}")
   public void generateZip(@PathVariable("albumId") UUID album, HttpServletResponse response)
       throws IOException {
-    final Mono<GitAccess> gitAccess = albumList.getAlbum(album).cache();
-    final String filename = gitAccess.flatMap(GitAccess::getName).map(n -> n + ".zip").block();
+    final SecurityContext securityContext = SecurityContextHolder.getContext();
+    final Mono<GitAccess> gitAccess =
+        authorizationManager
+            .canUserAccessToAlbum(securityContext, album)
+            .filter(t -> t)
+            .flatMap(t -> albumList.getAlbum(album).cache());
+    final Optional<String> optionalFilename =
+        gitAccess.flatMap(GitAccess::getName).map(n -> n + ".zip").blockOptional();
+    if (optionalFilename.isEmpty()) return;
 
     final HttpHeaders headers = new HttpHeaders();
     headers.setContentType(MediaType.parseMediaType("application/zip"));
     headers.setContentDisposition(
-        ContentDisposition.builder("attachment").filename(filename).build());
+        ContentDisposition.builder("attachment").filename(optionalFilename.get()).build());
 
     headers.forEach(
         (header, values) -> {
