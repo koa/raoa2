@@ -25,6 +25,8 @@ public interface GitAccess {
 
   Mono<String> getName();
 
+  Mono<String> getFullPath();
+
   Mono<AlbumMeta> getMetadata();
 
   Mono<Metadata> entryMetdata(AnyObjectId entryId);

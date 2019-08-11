@@ -1,6 +1,20 @@
 {
   "$schema": "./node_modules/@angular/service-worker/config/schema.json",
   "index": "/index.html",
+  "dataGroups": [
+    {
+      "name": "online",
+      "cacheConfig": {
+        "strategy": "freshness"
+      },
+      "urls": [
+        "/graphiql",
+        "/login",
+        "/oauth2",
+        "/graphql"
+      ]
+    }
+  ],
   "assetGroups": [
     {
       "name": "app",
@@ -25,5 +39,10 @@
         ]
       }
     }
+  ],
+  "navigationUrls": [
+    "/",
+    "/albums/*",
+    "/requestAccess"
   ]
 }

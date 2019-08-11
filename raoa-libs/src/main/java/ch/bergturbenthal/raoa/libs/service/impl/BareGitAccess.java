@@ -45,6 +45,7 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.xml.sax.SAXException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoSink;
 import reactor.core.scheduler.Scheduler;
 import reactor.util.function.Tuples;
 
@@ -67,16 +68,19 @@ public class BareGitAccess implements GitAccess {
   private final ConcurrencyLimiter limiter;
   Map<AlbumEntryKey, Mono<Metadata>> pendingMetdataLoad =
       Collections.synchronizedMap(new HashMap<>());
+  private Path relativePath;
   private Scheduler ioScheduler;
   private Scheduler processScheduler;
   private Cache<AlbumEntryKey, Metadata> metadataCache;
 
   public BareGitAccess(
       final Path path,
+      final Path relativePath,
       final Cache<AlbumEntryKey, Metadata> metadataCache,
       Scheduler ioScheduler,
       final Scheduler processScheduler,
       final ConcurrencyLimiter limiter) {
+    this.relativePath = relativePath;
     this.limiter = limiter;
     this.metadataCache = metadataCache;
 
@@ -84,17 +88,25 @@ public class BareGitAccess implements GitAccess {
         limiter
             .limit(
                 Mono.<Repository>create(
-                    sink -> {
-                      try {
-                        sink.success(
-                            new FileRepositoryBuilder()
-                                .setGitDir(path.toFile())
-                                .readEnvironment()
-                                .build());
-                      } catch (IOException e1) {
-                        sink.error(new RuntimeException("Cannot load repository " + path, e1));
-                      }
-                    }))
+                    sink ->
+                        sink.onCancel(
+                            ioScheduler.schedule(
+                                () -> {
+                                  try {
+                                    sink.success(
+                                        new FileRepositoryBuilder()
+                                            .setGitDir(path.toFile())
+                                            .readEnvironment()
+                                            .build());
+                                  } catch (IOException e1) {
+                                    sink.error(
+                                        new RuntimeException("Cannot load repository " + path, e1));
+                                  } catch (Exception e) {
+                                    sink.error(e);
+                                  } finally {
+                                    sink.success();
+                                  }
+                                }))))
             .cache(REPOSITORY_CACHE_TIME);
     this.ioScheduler = ioScheduler;
     this.processScheduler = processScheduler;
@@ -114,31 +126,28 @@ public class BareGitAccess implements GitAccess {
             throw new RuntimeException(e);
           }
         };
+
     albumMetaSupplier =
         limiter
             .limit(
                 readObject(".raoa.json")
                     .flatMap(
-                        l -> {
-                          try {
-                            return Mono.just(l.openStream())
-                                .subscribeOn(ioScheduler)
-                                .publishOn(processScheduler);
-                          } catch (MissingObjectException e) {
-                            return Mono.empty();
-                          } catch (IOException e) {
-                            return Mono.error(e);
-                          }
-                        })
-                    .flatMap(
-                        stream -> {
-                          try (stream) {
-                            return Mono.just(albumMetaRader.<AlbumMeta>readValue(stream))
-                                .subscribeOn(ioScheduler);
-                          } catch (IOException e) {
-                            return Mono.error(e);
-                          }
-                        }))
+                        l ->
+                            Mono.create(
+                                (MonoSink<AlbumMeta> sink) ->
+                                    sink.onCancel(
+                                        ioScheduler.schedule(
+                                            () -> {
+                                              try (final ObjectStream src = l.openStream()) {
+                                                sink.success(albumMetaRader.readValue(src));
+                                              } catch (MissingObjectException e) {
+                                                sink.success();
+                                              } catch (IOException e) {
+                                                sink.error(e);
+                                              } finally {
+                                                sink.success();
+                                              }
+                                            })))))
             .publishOn(processScheduler)
             .map(
                 data -> {
@@ -166,11 +175,13 @@ public class BareGitAccess implements GitAccess {
 
   public static BareGitAccess accessOf(
       Path path,
+      final Path relativePath,
       final Cache<AlbumEntryKey, Metadata> metadataCache,
       Scheduler ioScheduler,
       final Scheduler processScheduler,
       final ConcurrencyLimiter limiter) {
-    return new BareGitAccess(path, metadataCache, ioScheduler, processScheduler, limiter);
+    return new BareGitAccess(
+        path, relativePath, metadataCache, ioScheduler, processScheduler, limiter);
   }
 
   @Override
@@ -240,39 +251,57 @@ public class BareGitAccess implements GitAccess {
     return repository
         .map(Repository::getObjectDatabase)
         .flatMap(
-            db -> {
-              try {
-                return Mono.just(db.open(objectId)).subscribeOn(ioScheduler);
-              } catch (MissingObjectException ex) {
-                return Mono.empty();
-              } catch (IOException e) {
-                return Mono.error(e);
-              }
-            });
+            db ->
+                Mono.create(
+                    (MonoSink<ObjectLoader> sink) ->
+                        sink.onCancel(
+                            ioScheduler.schedule(
+                                () -> {
+                                  try {
+                                    sink.success(db.open(objectId));
+                                  } catch (MissingObjectException ex) {
+                                    sink.success();
+                                  } catch (IOException e) {
+                                    sink.error(e);
+                                  } finally {
+                                    sink.success();
+                                  }
+                                }))))
+    // .log("read " + objectId)
+    ;
   }
 
   @Override
   public Mono<ObjectLoader> readObject(String filename) {
     return Mono.zip(repository, masterTree())
         .flatMap(
-            t -> {
-              try {
-                final Repository rep = t.getT1();
-                final RevTree tree = t.getT2();
-                final TreeWalk treeWalk = TreeWalk.forPath(rep, filename, tree);
-                if (treeWalk == null) return Mono.empty();
-                final ObjectId objectId = treeWalk.getObjectId(0);
-                final ObjectLoader objectLoader =
-                    rep.getObjectDatabase().open(objectId, Constants.OBJ_BLOB);
-
-                return Mono.just(objectLoader);
-              } catch (MissingObjectException e) {
-                return Mono.empty();
-              } catch (IOException e) {
-                return Mono.error(e);
-              }
-            })
-        .subscribeOn(ioScheduler)
+            t ->
+                Mono.create(
+                    (MonoSink<ObjectLoader> sink) ->
+                        sink.onCancel(
+                            ioScheduler.schedule(
+                                () -> {
+                                  try {
+                                    final Repository rep = t.getT1();
+                                    final RevTree tree = t.getT2();
+                                    final TreeWalk treeWalk = TreeWalk.forPath(rep, filename, tree);
+                                    if (treeWalk == null) {
+                                      sink.success();
+                                      return;
+                                    }
+                                    final ObjectId objectId = treeWalk.getObjectId(0);
+                                    final ObjectLoader objectLoader =
+                                        rep.getObjectDatabase().open(objectId, Constants.OBJ_BLOB);
+                                    sink.success(objectLoader);
+                                  } catch (MissingObjectException e) {
+                                    sink.success();
+                                  } catch (IOException e) {
+                                    sink.error(e);
+                                  } finally {
+                                    sink.success();
+                                  }
+                                }))))
+        // .log("read " + filename)
         .publishOn(processScheduler);
   }
 
@@ -283,14 +312,21 @@ public class BareGitAccess implements GitAccess {
   private Mono<RevTree> readTree(final Ref ref) {
     return repository
         .flatMap(
-            r -> {
-              try {
-                return Mono.just(r.parseCommit(ref.getObjectId()));
-              } catch (IOException e) {
-                return Mono.error(e);
-              }
-            })
-        .subscribeOn(ioScheduler)
+            r ->
+                Mono.create(
+                    (MonoSink<RevCommit> monoSink) -> {
+                      monoSink.onCancel(
+                          ioScheduler.schedule(
+                              () -> {
+                                try {
+                                  monoSink.success(r.parseCommit(ref.getObjectId()));
+                                } catch (IOException e) {
+                                  monoSink.error(e);
+                                } finally {
+                                  monoSink.success();
+                                }
+                              }));
+                    }))
         .publishOn(processScheduler)
         .map(RevCommit::getTree);
   }
@@ -299,25 +335,29 @@ public class BareGitAccess implements GitAccess {
     return repository
         .map(Repository::getRefDatabase)
         .flatMap(
-            db -> {
-              try {
-                return Mono.just(db.findRef("master"));
-              } catch (IOException e) {
-                return Mono.error(e);
-              }
-            })
-        .subscribeOn(ioScheduler)
+            db ->
+                Mono.create(
+                    (MonoSink<Ref> sink) -> {
+                      sink.onCancel(
+                          ioScheduler.schedule(
+                              () -> {
+                                try {
+                                  sink.success(db.findRef("master"));
+                                } catch (IOException e) {
+                                  sink.error(e);
+                                } finally {
+                                  sink.success();
+                                }
+                              }));
+                    }))
         .publishOn(processScheduler);
   }
 
   @Override
   public Flux<Instant> readAutoadd() {
     CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
-
     return readObject(".autoadd")
         .map(ObjectLoader::getBytes)
-        .subscribeOn(ioScheduler)
-        .publishOn(processScheduler)
         .map(ByteBuffer::wrap)
         .map(
             b1 -> {
@@ -340,238 +380,261 @@ public class BareGitAccess implements GitAccess {
         rep ->
             findMasterRef()
                 .flatMap(r -> readTree(r).map(t -> Tuples.of(r, t)))
-                .map(
-                    t -> {
-                      final Ref masterRef = t.getT1();
-                      final RevTree tree = t.getT2();
-                      Map<ObjectId, String> alreadyExistingFiles =
-                          Collections.synchronizedMap(new HashMap<>());
-                      final DirCache dirCache;
-                      final DirCacheBuilder builder;
-                      final boolean isBareRepository = rep.isBare();
-                      final Function<ObjectReader, TreeWalk> treeWalkSupplier;
-                      final Function<TreeWalk, DirCacheEntry> dirCacheEntryCreator;
-                      Set<String> replacedFiles = Collections.synchronizedSet(new HashSet<>());
-                      try {
-                        if (isBareRepository) {
-                          dirCache = DirCache.newInCore();
+                .flatMap(
+                    t ->
+                        Mono.create(
+                            (MonoSink<Updater> sink) ->
+                                sink.onCancel(
+                                    ioScheduler.schedule(
+                                        () -> {
+                                          final Ref masterRef = t.getT1();
+                                          final RevTree tree = t.getT2();
+                                          try {
+                                            sink.success(createUpdater(rep, masterRef, tree));
+                                          } finally {
+                                            sink.success();
+                                          }
+                                        })))));
+  }
 
-                          builder = dirCache.builder();
-                          treeWalkSupplier =
-                              (reader) -> {
-                                try {
-                                  TreeWalk tw = new TreeWalk(rep, reader);
+  public Updater createUpdater(final Repository rep, final Ref masterRef, final RevTree tree) {
+    Map<ObjectId, String> alreadyExistingFiles = Collections.synchronizedMap(new HashMap<>());
+    final DirCache dirCache;
+    final DirCacheBuilder builder;
+    final boolean isBareRepository = rep.isBare();
+    final Function<ObjectReader, TreeWalk> treeWalkSupplier;
+    final Function<TreeWalk, DirCacheEntry> dirCacheEntryCreator;
+    Set<String> replacedFiles = Collections.synchronizedSet(new HashSet<>());
+    try {
+      if (isBareRepository) {
+        dirCache = DirCache.newInCore();
 
-                                  tw.reset(tree);
-                                  tw.setRecursive(true);
-                                  return tw;
-                                } catch (IOException e) {
-                                  throw new RuntimeException("Cannot create tree-walk", e);
+        builder = dirCache.builder();
+        treeWalkSupplier =
+            (reader) -> {
+              try {
+                TreeWalk tw = new TreeWalk(rep, reader);
+
+                tw.reset(tree);
+                tw.setRecursive(true);
+                return tw;
+              } catch (IOException e) {
+                throw new RuntimeException("Cannot create tree-walk", e);
+              }
+            };
+        dirCacheEntryCreator =
+            tw -> {
+              final DirCacheEntry dirCacheEntry = new DirCacheEntry(tw.getPathString());
+              dirCacheEntry.setObjectId(tw.getObjectId(0));
+              dirCacheEntry.setFileMode(tw.getFileMode());
+              return dirCacheEntry;
+            };
+
+      } else {
+        dirCache = rep.lockDirCache();
+
+        builder = dirCache.builder();
+        treeWalkSupplier =
+            reader -> {
+              TreeWalk tw = new TreeWalk(rep, reader);
+
+              tw.addTree(new DirCacheBuildIterator(builder));
+              tw.setRecursive(true);
+              return tw;
+            };
+        dirCacheEntryCreator = tw -> tw.getTree(0, DirCacheIterator.class).getDirCacheEntry();
+      }
+      try (ObjectReader reader = rep.newObjectReader()) {
+        TreeWalk tw = treeWalkSupplier.apply(reader);
+        while (tw.next()) {
+          alreadyExistingFiles.put(tw.getObjectId(0), tw.getPathString());
+        }
+      }
+    } catch (IOException e) {
+      throw new RuntimeException("Cannot prepare updater", e);
+    }
+    return new Updater() {
+      private boolean modified = false;
+
+      @Override
+      public void close() {
+        dirCache.unlock();
+      }
+
+      @Override
+      public Mono<Boolean> importFile(final Path file, final String name) {
+        return importFile(file, name, false);
+      }
+
+      @Override
+      public synchronized Mono<Boolean> importFile(
+          final Path file, final String name, boolean replaceIfExists) {
+        if (replaceIfExists) replacedFiles.add(name);
+        return Mono.<Boolean>create(
+                booleanMonoSink ->
+                    booleanMonoSink.onCancel(
+                        ioScheduler.schedule(
+                            () -> {
+                              try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
+                                final ObjectId newFileId =
+                                    objectInserter.insert(
+                                        Constants.OBJ_BLOB,
+                                        Files.size(file),
+                                        Files.newInputStream(file));
+                                final String existingFileName = alreadyExistingFiles.get(newFileId);
+                                if (existingFileName != null) {
+                                  log.info(
+                                      "File "
+                                          + file
+                                          + " already imported as "
+                                          + existingFileName
+                                          + " -> merging");
+                                } else {
+                                  alreadyExistingFiles.put(newFileId, name);
+                                  final DirCacheEntry newEntry = new DirCacheEntry(name);
+                                  newEntry.setFileMode(FileMode.REGULAR_FILE);
+                                  newEntry.setObjectId(newFileId);
+                                  builder.add(newEntry);
+                                  modified = true;
                                 }
-                              };
-                          dirCacheEntryCreator =
-                              tw -> {
-                                final DirCacheEntry dirCacheEntry =
-                                    new DirCacheEntry(tw.getPathString());
-                                dirCacheEntry.setObjectId(tw.getObjectId(0));
-                                dirCacheEntry.setFileMode(tw.getFileMode());
-                                return dirCacheEntry;
-                              };
+                                booleanMonoSink.success(Boolean.TRUE);
+                              } catch (IOException e) {
+                                booleanMonoSink.error(e);
+                              }
+                            })))
+            .publishOn(processScheduler);
+      }
 
-                        } else {
-                          dirCache = rep.lockDirCache();
+      @Override
+      public Mono<Boolean> commit() {
+        return commit(null);
+      }
 
-                          builder = dirCache.builder();
-                          treeWalkSupplier =
-                              reader -> {
-                                TreeWalk tw = new TreeWalk(rep, reader);
+      @Override
+      public Mono<Boolean> commit(String message) {
 
-                                tw.addTree(new DirCacheBuildIterator(builder));
-                                tw.setRecursive(true);
-                                return tw;
-                              };
-                          dirCacheEntryCreator =
-                              tw -> {
-                                final DirCacheEntry dirCacheEntry =
-                                    tw.getTree(0, DirCacheIterator.class).getDirCacheEntry();
-                                return dirCacheEntry;
-                              };
-                        }
-                        try (ObjectReader reader = rep.newObjectReader()) {
-                          TreeWalk tw = treeWalkSupplier.apply(reader);
-                          while (tw.next()) {
-                            alreadyExistingFiles.put(tw.getObjectId(0), tw.getPathString());
+        return findMasterRef()
+            .flatMap(currentMasterRef -> exectueCommit(message, currentMasterRef))
+            .defaultIfEmpty(Boolean.FALSE)
+            .doFinally(
+                signal -> {
+                  if (!isBareRepository) dirCache.unlock();
+                });
+      }
+
+      Mono<Boolean> exectueCommit(final String message, final Ref currentMasterRef) {
+        if (!modified) {
+          return Mono.just(false);
+        }
+        return Mono.create(
+            (MonoSink<Boolean> sink) -> {
+              sink.onCancel(
+                  ioScheduler.schedule(
+                      () -> {
+                        try {
+
+                          try (ObjectReader reader = rep.newObjectReader()) {
+                            TreeWalk tw = treeWalkSupplier.apply(reader);
+                            while (tw.next()) {
+                              if (!replacedFiles.contains(tw.getPathString()))
+                                builder.add(dirCacheEntryCreator.apply(tw));
+                            }
                           }
+                          builder.finish();
+                          if (!isBareRepository) {
+                            // update index
+                            dirCache.write();
+                            if (!dirCache.commit()) {
+                              sink.success(false);
+                              return;
+                            }
+                          }
+                        } catch (IOException e) {
+                          log.warn("Cannot prepare commit", e);
+                          sink.success(false);
+                          return;
                         }
-                      } catch (IOException e) {
-                        throw new RuntimeException("Cannot prepare updater", e);
-                      }
-                      return new Updater() {
-                        private boolean modified = false;
+                        try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
 
-                        @Override
-                        public void close() {
-                          dirCache.unlock();
+                          final ObjectId treeId = dirCache.writeTree(objectInserter);
+                          final CommitBuilder commit = new CommitBuilder();
+                          final PersonIdent author =
+                              new PersonIdent("raoa-importer", "photos@teamkoenig.ch");
+                          if (message != null) commit.setMessage(message);
+                          commit.setAuthor(author);
+                          commit.setCommitter(author);
+                          commit.setParentIds(currentMasterRef.getObjectId());
+                          commit.setTreeId(treeId);
+                          final ObjectId commitId = objectInserter.insert(commit);
+
+                          objectInserter.flush();
+
+                          RevCommit revCommit = rep.parseCommit(commitId);
+                          RefUpdate ru = rep.updateRef(Constants.HEAD);
+                          ru.setNewObjectId(commitId);
+                          ru.setRefLogMessage("auto import" + revCommit.getShortMessage(), false);
+                          ru.setExpectedOldObjectId(masterRef.getObjectId());
+                          switch (ru.update()) {
+                            case NOT_ATTEMPTED:
+                            case LOCK_FAILURE:
+                            case REJECTED_OTHER_REASON:
+                            case REJECTED_MISSING_OBJECT:
+                            case IO_FAILURE:
+                            case REJECTED_CURRENT_BRANCH:
+                            case REJECTED:
+                              return;
+
+                            case NO_CHANGE:
+                            case FAST_FORWARD:
+                            case FORCED:
+                            case NEW:
+                            case RENAMED:
+                              if (!isBareRepository)
+                                // checkout index
+                                try (ObjectReader reader = rep.newObjectReader()) {
+                                  final File workTree = rep.getWorkTree();
+                                  for (int i = 0; i < dirCache.getEntryCount(); i++) {
+                                    final DirCacheEntry dirCacheEntry = dirCache.getEntry(i);
+                                    if (dirCacheEntry == null) continue;
+                                    final File file =
+                                        new File(workTree, dirCacheEntry.getPathString());
+                                    if (replacedFiles.contains(dirCacheEntry.getPathString()))
+                                      file.delete();
+                                    if (file.exists()) continue;
+                                    @Cleanup
+                                    final FileOutputStream outputStream =
+                                        new FileOutputStream(file);
+                                    reader.open(dirCacheEntry.getObjectId()).copyTo(outputStream);
+                                  }
+                                }
+                              log.info("Commit successful " + rep.getDirectory());
+                              sink.success(true);
+                          }
+                        } catch (IOException e) {
+                          log.warn("Cannot finish commit", e);
+                        } finally {
+                          sink.success(false);
                         }
-
-                        @Override
-                        public Mono<Boolean> importFile(final Path file, final String name) {
-                          return importFile(file, name, false);
-                        }
-
-                        @Override
-                        public synchronized Mono<Boolean> importFile(
-                            final Path file, final String name, boolean replaceIfExists) {
-                          if (replaceIfExists) replacedFiles.add(name);
-                          return Mono.<Boolean>create(
-                                  booleanMonoSink -> {
-                                    try (final ObjectInserter objectInserter =
-                                        rep.newObjectInserter()) {
-                                      final ObjectId newFileId =
-                                          objectInserter.insert(
-                                              Constants.OBJ_BLOB,
-                                              Files.size(file),
-                                              Files.newInputStream(file));
-                                      final String existingFileName =
-                                          alreadyExistingFiles.get(newFileId);
-                                      if (existingFileName != null) {
-                                        log.info(
-                                            "File "
-                                                + file
-                                                + " already imported as "
-                                                + existingFileName
-                                                + " -> merging");
-                                      } else {
-                                        alreadyExistingFiles.put(newFileId, name);
-                                        final DirCacheEntry newEntry = new DirCacheEntry(name);
-                                        newEntry.setFileMode(FileMode.REGULAR_FILE);
-                                        newEntry.setObjectId(newFileId);
-                                        builder.add(newEntry);
-                                        modified = true;
-                                      }
-                                      booleanMonoSink.success(Boolean.TRUE);
-                                    } catch (IOException e) {
-                                      booleanMonoSink.error(e);
-                                    }
-                                  })
-                              .subscribeOn(ioScheduler)
-                              .publishOn(processScheduler);
-                        }
-
-                        @Override
-                        public Mono<Boolean> commit() {
-                          return commit(null);
-                        }
-
-                        @Override
-                        public Mono<Boolean> commit(String message) {
-
-                          return findMasterRef()
-                              .map(
-                                  currentMasterRef -> {
-                                    try {
-                                      if (!modified) {
-                                        return false;
-                                      }
-                                      try (ObjectReader reader = rep.newObjectReader()) {
-                                        TreeWalk tw = treeWalkSupplier.apply(reader);
-                                        while (tw.next()) {
-                                          if (!replacedFiles.contains(tw.getPathString()))
-                                            builder.add(dirCacheEntryCreator.apply(tw));
-                                        }
-                                      }
-                                      builder.finish();
-                                      if (!isBareRepository) {
-                                        // update index
-                                        dirCache.write();
-                                        if (!dirCache.commit()) return false;
-                                      }
-                                    } catch (IOException e) {
-                                      log.warn("Cannot prepare commit", e);
-                                      return false;
-                                    }
-                                    try (final ObjectInserter objectInserter =
-                                        rep.newObjectInserter()) {
-
-                                      final ObjectId treeId = dirCache.writeTree(objectInserter);
-                                      final CommitBuilder commit = new CommitBuilder();
-                                      final PersonIdent author =
-                                          new PersonIdent("raoa-importer", "photos@teamkoenig.ch");
-                                      if (message != null) commit.setMessage(message);
-                                      commit.setAuthor(author);
-                                      commit.setCommitter(author);
-                                      commit.setParentIds(currentMasterRef.getObjectId());
-                                      commit.setTreeId(treeId);
-                                      final ObjectId commitId = objectInserter.insert(commit);
-
-                                      objectInserter.flush();
-
-                                      RevCommit revCommit = rep.parseCommit(commitId);
-                                      RefUpdate ru = rep.updateRef(Constants.HEAD);
-                                      ru.setNewObjectId(commitId);
-                                      ru.setRefLogMessage(
-                                          "auto import" + revCommit.getShortMessage(), false);
-                                      ru.setExpectedOldObjectId(masterRef.getObjectId());
-                                      switch (ru.update()) {
-                                        case NOT_ATTEMPTED:
-                                        case LOCK_FAILURE:
-                                        case REJECTED_OTHER_REASON:
-                                        case REJECTED_MISSING_OBJECT:
-                                        case IO_FAILURE:
-                                        case REJECTED_CURRENT_BRANCH:
-                                        case REJECTED:
-                                          return false;
-                                        case NO_CHANGE:
-                                        case FAST_FORWARD:
-                                        case FORCED:
-                                        case NEW:
-                                        case RENAMED:
-                                          if (!isBareRepository)
-                                            // checkout index
-                                            try (ObjectReader reader = rep.newObjectReader()) {
-                                              final File workTree = rep.getWorkTree();
-                                              for (int i = 0; i < dirCache.getEntryCount(); i++) {
-                                                final DirCacheEntry dirCacheEntry =
-                                                    dirCache.getEntry(i);
-                                                if (dirCacheEntry == null) continue;
-                                                final File file =
-                                                    new File(
-                                                        workTree, dirCacheEntry.getPathString());
-                                                if (replacedFiles.contains(
-                                                    dirCacheEntry.getPathString())) file.delete();
-                                                if (file.exists()) continue;
-                                                @Cleanup
-                                                final FileOutputStream outputStream =
-                                                    new FileOutputStream(file);
-                                                reader
-                                                    .open(dirCacheEntry.getObjectId())
-                                                    .copyTo(outputStream);
-                                              }
-                                            }
-                                          log.info("Commit successful " + rep.getDirectory());
-                                          return true;
-                                      }
-
-                                      return false;
-                                    } catch (IOException e) {
-                                      log.warn("Cannot finish commit", e);
-                                      return false;
-                                    }
-                                  })
-                              .defaultIfEmpty(Boolean.FALSE)
-                              .doFinally(
-                                  signal -> {
-                                    if (!isBareRepository) dirCache.unlock();
-                                  })
-                              .subscribeOn(ioScheduler);
-                        }
-                      };
-                    }));
+                      }));
+            });
+      }
+    };
   }
 
   @Override
   public Mono<String> getName() {
     return getMetadata().map(AlbumMeta::getAlbumTitle);
+  }
+
+  @Override
+  public Mono<String> getFullPath() {
+    final String pathString = relativePath.toString();
+    return repository.map(
+        r -> {
+          if (r.isBare() && pathString.endsWith(".git"))
+            return pathString.substring(0, pathString.length() - 4);
+          else return pathString;
+        });
   }
 
   private Mono<String> createName() {
