@@ -1,5 +1,5 @@
 <!--<h2 mat-dialog-title>{{data.sortedEntries[data.currentIndex].name}}</h2>-->
-<mat-dialog-content [style.backgroundImage]="'url('+data.sortedEntries[currentIndex].thumbnailUri+')'"
+<mat-dialog-content [style.backgroundImage]="'url('+data.sortedEntries[currentIndex].entryUri+'/thumbnail'+')'"
                     (window:keydown.arrowLeft)="left()"
                     (window:keydown.arrowRight)="right()"
                     class="showImage">
@@ -11,6 +11,9 @@
 
     </div>
     <div>
+      <button mat-icon-button>
+        <mat-icon (click)="download()">save_alt</mat-icon>
+      </button>
       <button *ngIf="supportShare" mat-icon-button>
         <mat-icon (click)="share()">share</mat-icon>
       </button>

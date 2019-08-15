@@ -6,7 +6,8 @@ import {InMemoryCache} from 'apollo-cache-inmemory';
 export function createApollo(httpLink: HttpLink) {
   const host = window.location.host;
   const protocol = window.location.protocol;
-  const uri = host === 'localhost:4200' ? 'http://localhost:8080/graphql' : protocol + '//' + host + '/graphql';
+  const uri = protocol + '//' + host + '/graphql';
+
   return {
     link: httpLink.create({uri}),
     cache: new InMemoryCache(),

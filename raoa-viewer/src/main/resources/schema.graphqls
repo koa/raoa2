@@ -3,6 +3,16 @@ scalar DateTime
 type Query {
     albumById(id: ID): Album
     listAlbums: [Album]
+    authenticationState: AuthenticationInformation
+}
+type Mutation{
+    requestAccess(comment: String): RequestAccessResult
+}
+
+
+
+type AccessRequest{
+    reason: String
 }
 
 type Album {
@@ -17,9 +27,43 @@ type AlbumEntry {
     name: String
     contentType: String
     created: DateTime
+    entryUri: String
     thumbnailUri: String
+    originalUri: String
     width: Int
     height: Int
     targetWidth: Int
     targetHeight: Int
+    cameraModel: String
+    cameraManufacturer: String
+    focalLength: Int
+    fNumber: Float
+}
+
+type AuthenticationInformation{
+    state: AuthenticationState
+    email: String
+    name: String
+    picture: String
+
+}
+
+enum AuthenticationState {
+    UNKNOWN, AUTHENTICATED, AUTHORIZATION_REQUESTED, AUTHORIZED
+}
+
+type RequestAccessResult{
+    ok: Boolean
+    result: RequestAccessResultCode
+
+}
+enum RequestAccessResultCode{
+    OK, NOT_LOGGED_IN, ALREADY_ACCEPTED
+}
+
+
+type UserInfo{
+    email: String
+    name: String
+    picture: String
 }

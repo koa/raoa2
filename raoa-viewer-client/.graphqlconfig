@@ -1,6 +1,6 @@
 {
   "name": "Untitled GraphQL Schema",
-  "schemaPath": "schema.graphql",
+  "schemaPath": "../raoa-viewer/src/main/resources/schema.graphqls",
   "extensions": {
     "endpoints": {
       "Local Development Endpoint": {

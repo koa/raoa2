@@ -10,13 +10,27 @@ import {AlbumContentComponent, ShowImageDialogComponent} from './components/albu
 import {AngularResizedEventModule} from 'angular-resize-event';
 import {ScrollDispatchModule} from '@angular/cdk/scrolling';
 import {ScrollingModule as ExperimentalScrollingModule} from '@angular/cdk-experimental/scrolling';
-import {MatButtonModule, MatDialogModule, MatIconModule, MatSidenavModule, MatToolbarModule} from '@angular/material';
+import {
+  MatButtonModule,
+  MatCardModule,
+  MatDialogModule,
+  MatFormFieldModule,
+  MatIconModule,
+  MatInputModule,
+  MatSidenavModule,
+  MatToolbarModule
+} from '@angular/material';
 import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
+import {ServiceWorkerModule} from '@angular/service-worker';
+import {environment} from '../environments/environment';
+import {RequestAccessComponent} from './components/request-access/request-access.component';
+import {FormsModule} from "@angular/forms";
 // import { MatPasswordStrengthModule } from '@angular-material-extensions/core';
 
 const appRouter: Routes = [
   {path: '', component: AlbumListComponent},
-  {path: 'album/:id', component: AlbumContentComponent}
+  {path: 'album/:id', component: AlbumContentComponent},
+  {path: 'requestAccess', component: RequestAccessComponent}
 ];
 
 @NgModule({
@@ -24,7 +38,8 @@ const appRouter: Routes = [
     AppComponent,
     AlbumListComponent,
     AlbumContentComponent,
-    ShowImageDialogComponent
+    ShowImageDialogComponent,
+    RequestAccessComponent
   ],
   imports: [
     BrowserModule,
@@ -40,6 +55,11 @@ const appRouter: Routes = [
     MatDialogModule,
     MatButtonModule,
     MatIconModule,
+    ServiceWorkerModule.register('ngsw-worker.js', {enabled: environment.production}),
+    MatFormFieldModule,
+    MatCardModule,
+    MatInputModule,
+    FormsModule,
     // MatPasswordStrengthModule
   ],
   providers: [],

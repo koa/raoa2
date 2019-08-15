@@ -2,9 +2,11 @@ package ch.bergturbenthal.raoa.viewer.service.impl;
 
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.ThumbnailManager;
-import java.io.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
-import java.net.URL;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -245,61 +247,7 @@ public class RemoteThumbnailManager implements ThumbnailManager {
 
   private Resource createResourceFromObjectLoader(
       final ObjectId id, final ObjectLoader objectLoader, final MediaType mediaType) {
-    return new Resource() {
-
-      @Override
-      public InputStream getInputStream() throws IOException {
-        return objectLoader.openStream();
-      }
-
-      @Override
-      public boolean exists() {
-        return true;
-      }
-
-      @Override
-      public URL getURL() throws IOException {
-        throw new IOException("URL not defined");
-      }
-
-      @Override
-      public URI getURI() throws IOException {
-        throw new IOException("URL not defined");
-      }
-
-      @Override
-      public File getFile() throws IOException {
-        throw new FileNotFoundException();
-      }
-
-      @Override
-      public long contentLength() throws IOException {
-        return objectLoader.getSize();
-      }
-
-      @Override
-      public long lastModified() throws IOException {
-        return System.currentTimeMillis();
-      }
-
-      @Override
-      public Resource createRelative(final String relativePath) throws IOException {
-        throw new IOException();
-      }
-
-      @Override
-      public String getFilename() {
-        if (mediaType.equals(MediaType.IMAGE_JPEG)) {
-          return id.toString() + ".jpg";
-        }
-        return null;
-      }
-
-      @Override
-      public String getDescription() {
-        return id.toString();
-      }
-    };
+    return new GitBlobRessource(objectLoader, mediaType, id);
   }
 
   private Mono<URI> selectAvailableEndpoint(final MediaType mediaType) {

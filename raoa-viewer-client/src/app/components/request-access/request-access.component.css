@@ -1,0 +1,7 @@
+mat-card {
+  /*max-width: 40em;*/
+}
+
+mat-card-content mat-form-field {
+  width: 100%;
+}
