@@ -30,6 +30,7 @@ import {AcceptRegistrationsComponent} from './components/accept-registrations/ac
 import {HeadlineDirective} from './directive/headline.directive';
 import {TitleOnlyHeaderComponent} from './components/title-only-header/title-only-header.component';
 import {RequestAccessHeaderComponent} from './components/request-access-header/request-access-header.component';
+import {AlbumContentHeaderComponent} from './components/album-content-header/album-content-header.component';
 // import { MatPasswordStrengthModule } from '@angular-material-extensions/core';
 
 const appRouter: Routes = [
@@ -48,7 +49,8 @@ const appRouter: Routes = [
     AcceptRegistrationsComponent,
     HeadlineDirective,
     TitleOnlyHeaderComponent,
-    RequestAccessHeaderComponent
+    RequestAccessHeaderComponent,
+    AlbumContentHeaderComponent
   ],
   imports: [
     BrowserModule,
@@ -74,7 +76,7 @@ const appRouter: Routes = [
   ],
   providers: [],
   bootstrap: [AppComponent],
-  entryComponents: [ShowImageDialogComponent, TitleOnlyHeaderComponent, RequestAccessHeaderComponent]
+  entryComponents: [ShowImageDialogComponent, TitleOnlyHeaderComponent, RequestAccessHeaderComponent, AlbumContentHeaderComponent]
 })
 export class AppModule {
 
