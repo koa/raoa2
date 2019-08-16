@@ -5,9 +5,18 @@ import {Router} from '@angular/router';
 
 interface AuthenticationState {
   state: string;
+  user: UserData;
+}
+
+interface UserData {
+  info: UserInfo;
+}
+
+interface UserInfo {
   name: string;
   picture: string;
   email: string;
+
 }
 
 interface GraphQlResponseData {
@@ -40,7 +49,12 @@ export class RequestAccessComponent implements OnInit {
           query: gql`
               {
                   authenticationState {
-                      state, name, picture, email
+                      state,
+                      user {
+                          info{
+                              email, name, picture
+                          }
+                      }
                   }
               }
           `
@@ -70,7 +84,9 @@ export class RequestAccessComponent implements OnInit {
       mutation: updateRequest,
       variables: {reason: this.reason}
 
+    }).toPromise().then(r => {
+      this.ngOnInit();
     });
-    console.log('Reason: ' + this.reason);
+
   }
 }

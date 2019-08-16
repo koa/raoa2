@@ -1,6 +1,7 @@
 package ch.bergturbenthal.raoa.viewer.service.impl;
 
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AccessRequest;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
@@ -14,6 +15,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
@@ -36,6 +38,7 @@ public class DefaultUserManager implements UserManager {
   private final Mono<UUID> metaIdMono;
   private final ObjectReader userReader;
   private final ObjectReader accessRequestObjectReader;
+  private final ObjectWriter userWriter;
   private ObjectWriter accessRequestObjectWriter;
   private Map<AuthenticationId, Mono<User>> userByAuthenticationCache =
       Collections.synchronizedMap(new HashMap<>());
@@ -52,6 +55,7 @@ public class DefaultUserManager implements UserManager {
     accessRequestObjectReader = objectMapper.readerFor(AccessRequest.class);
 
     userReader = objectMapper.readerFor(User.class);
+    userWriter = objectMapper.writerFor(User.class);
 
     metaIdMono =
         albumList
@@ -101,15 +105,46 @@ public class DefaultUserManager implements UserManager {
   }
 
   @Override
-  public Mono<Boolean> createNewUser(final AuthenticationId baseRequest) {
-    final File file = accessRequestFile(baseRequest);
-    if (file.exists()) {
-      // metaIdMono.flatMap(albumList::getAlbum).map(a ->{
-
-      // });
-      file.delete();
+  public Mono<User> createNewUser(final AuthenticationId baseRequest) {
+    try {
+      final File file = accessRequestFile(baseRequest);
+      if (file.exists()) {
+        final AccessRequest foundRequest = accessRequestObjectReader.readValue(file);
+        final User newUser =
+            User.builder()
+                .userData(foundRequest.getUserData())
+                .superuser(false)
+                .id(UUID.randomUUID())
+                .authentications(Collections.singleton(baseRequest))
+                .visibleAlbums(
+                    foundRequest.getRequestedAlbum() == null
+                        ? Collections.emptySet()
+                        : Collections.singleton(foundRequest.getRequestedAlbum()))
+                .build();
+        final String userFileName = createUserFile(newUser.getId());
+        final File tempFile = File.createTempFile(newUser.getId().toString(), "json");
+        userWriter.writeValue(tempFile, newUser);
+        return metaIdMono
+            .flatMap(albumList::getAlbum)
+            .flatMap(GitAccess::createUpdater)
+            .flatMap(
+                u ->
+                    u.importFile(tempFile.toPath(), userFileName)
+                        .filter(t -> t)
+                        .flatMap(t -> u.commit("created user"))
+                        .filter(t -> t)
+                        .doFinally(
+                            signal -> {
+                              u.close();
+                              tempFile.delete();
+                            }))
+            .map(t -> newUser)
+            .doOnNext(u -> file.delete());
+      }
+      return Mono.empty();
+    } catch (IOException e) {
+      return Mono.error(e);
     }
-    return null;
   }
 
   @Override
@@ -177,18 +212,39 @@ public class DefaultUserManager implements UserManager {
   }
 
   @Override
-  public Collection<User> listUsers() {
-    return null;
+  public Flux<User> listUsers() {
+    return allUsers();
   }
 
   @Override
-  public Collection<User> listUserForAlbum(final UUID albumId) {
-    return null;
+  public Flux<User> listUserForAlbum(final UUID albumId) {
+    return allUsers()
+        .filter(
+            u ->
+                u.isSuperuser()
+                    || (u.getVisibleAlbums() != null && u.getVisibleAlbums().contains(albumId)));
   }
 
   @Override
   public Collection<AccessRequest> listPendingRequests() {
-    return null;
+    final Collection<AccessRequest> ret = new ArrayList<>();
+    final File requestDir = getAccessRequestsDir();
+    if (requestDir.exists()) {
+      try {
+        final Set<AuthenticationId> pendingRequests = new HashSet<>();
+        final File[] files = requestDir.listFiles();
+        if (files != null)
+          for (File file : files) {
+            ret.add(accessRequestObjectReader.readValue(file));
+          }
+        pendingAuthenticationsReference.set(
+            Collections.unmodifiableSet(
+                ret.stream().map(AccessRequest::getAuthenticationId).collect(Collectors.toSet())));
+      } catch (IOException e) {
+        log.warn("Cannot load existing requests", e);
+      }
+    }
+    return ret;
   }
 
   @Override

@@ -12,8 +12,12 @@ const proxyConfig = [{
   target: 'http://localhost:8080/',
   secure: false
 }, {
-  context: '/graphql/rest',
-  target: 'http://localhost:8080/rest/',
+  context: '/logout',
+  target: 'http://localhost:8080/',
+  secure: false
+}, {
+  context: '/rest',
+  target: 'http://localhost:8080/',
   secure: false
 }];
 

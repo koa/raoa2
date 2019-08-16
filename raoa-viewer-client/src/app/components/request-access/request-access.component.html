@@ -1,4 +1,4 @@
-<mat-toolbar class="application-header" color="primary">
+<mat-toolbar *ngIf="authenticationState && authenticationState.state" class="application-header" color="primary">
   <span *ngIf="authenticationState.state==='AUTHENTICATED'">Registrierungsanfrage</span>
   <span *ngIf="authenticationState.state==='AUTHORIZATION_REQUESTED'">Warte auf Bestätigung</span>
   <div>
@@ -16,9 +16,9 @@
 </div>
 <mat-card *ngIf="authenticationState && authenticationState.state">
   <mat-card-header>
-    <img [src]="authenticationState.picture" mat-card-sm-image>
-    <mat-card-title>{{authenticationState.name}}</mat-card-title>
-    <mat-card-subtitle>{{authenticationState.email}}</mat-card-subtitle>
+    <img [src]="authenticationState.user.info.picture" mat-card-sm-image>
+    <mat-card-title>{{authenticationState.user.info.name}}</mat-card-title>
+    <mat-card-subtitle>{{authenticationState.user.info.email}}</mat-card-subtitle>
   </mat-card-header>
   <mat-card-content *ngIf="authenticationState.state==='AUTHENTICATED'"><p>Willst du dich mit diesen Daten bei RAoA
     registrieren?</p>

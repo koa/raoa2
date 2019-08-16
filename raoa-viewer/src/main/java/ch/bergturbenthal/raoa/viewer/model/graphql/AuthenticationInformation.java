@@ -7,7 +7,5 @@ import lombok.Value;
 @Value
 public class AuthenticationInformation {
   private AuthenticationState state;
-  private String name;
-  private String email;
-  private String picture;
+  private UserReference user;
 }
