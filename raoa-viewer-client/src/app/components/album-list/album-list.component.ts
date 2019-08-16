@@ -2,16 +2,9 @@ import {Component, OnInit} from '@angular/core';
 import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
 import {Router} from '@angular/router';
+import {ListAlbumEntry} from '../../interfaces/list-album.entry';
+import {AuthenticationState, AuthenticationStateEnum} from '../../interfaces/authentication.state';
 
-interface ListAlbumEntry {
-  id: string;
-  name: string;
-  entryCount: number;
-}
-
-interface AuthenticationState {
-  state: string;
-}
 
 interface GraphQlResponseData {
   listAlbums: ListAlbumEntry[];
@@ -48,7 +41,7 @@ export class AlbumListComponent implements OnInit {
         // @ts-ignore
         const responseData: GraphQlResponseData = result.data;
         if (responseData) {
-          if (responseData.authenticationState.state === 'AUTHORIZED') {
+          if (responseData.authenticationState.state === AuthenticationStateEnum.AUTHORIZED) {
             this.albums = responseData.listAlbums;
           } else {
             this.router.navigate(['/requestAccess']);
