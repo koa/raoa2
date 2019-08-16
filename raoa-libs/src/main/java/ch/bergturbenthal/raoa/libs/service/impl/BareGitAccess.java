@@ -467,8 +467,7 @@ public class BareGitAccess implements GitAccess {
       }
 
       @Override
-      public synchronized Mono<Boolean> importFile(
-          final Path file, final String name, boolean replaceIfExists) {
+      public Mono<Boolean> importFile(final Path file, final String name, boolean replaceIfExists) {
         if (replaceIfExists) replacedFiles.add(name);
         return Mono.<Boolean>create(
                 booleanMonoSink ->
@@ -481,21 +480,24 @@ public class BareGitAccess implements GitAccess {
                                         Constants.OBJ_BLOB,
                                         Files.size(file),
                                         Files.newInputStream(file));
-                                final String existingFileName = alreadyExistingFiles.get(newFileId);
-                                if (existingFileName != null) {
-                                  log.info(
-                                      "File "
-                                          + file
-                                          + " already imported as "
-                                          + existingFileName
-                                          + " -> merging");
-                                } else {
-                                  alreadyExistingFiles.put(newFileId, name);
-                                  final DirCacheEntry newEntry = new DirCacheEntry(name);
-                                  newEntry.setFileMode(FileMode.REGULAR_FILE);
-                                  newEntry.setObjectId(newFileId);
-                                  builder.add(newEntry);
-                                  modified = true;
+                                synchronized (alreadyExistingFiles) {
+                                  final String existingFileName =
+                                      alreadyExistingFiles.get(newFileId);
+                                  if (existingFileName != null) {
+                                    log.info(
+                                        "File "
+                                            + file
+                                            + " already imported as "
+                                            + existingFileName
+                                            + " -> merging");
+                                  } else {
+                                    alreadyExistingFiles.put(newFileId, name);
+                                    final DirCacheEntry newEntry = new DirCacheEntry(name);
+                                    newEntry.setFileMode(FileMode.REGULAR_FILE);
+                                    newEntry.setObjectId(newFileId);
+                                    builder.add(newEntry);
+                                    modified = true;
+                                  }
                                 }
                                 booleanMonoSink.success(Boolean.TRUE);
                               } catch (IOException e) {

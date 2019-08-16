@@ -21,7 +21,7 @@ public class RaoaImporterApplication {
         SpringApplication.run(RaoaImporterApplication.class, args)) {
       final Importer importer = applicationContext.getBean(Importer.class);
       final Properties properties = applicationContext.getBean(Properties.class);
-      importer.importDirectories(properties.getMedia());
+      importer.importDirectories(properties.getMedia().toPath());
     }
   }
 }

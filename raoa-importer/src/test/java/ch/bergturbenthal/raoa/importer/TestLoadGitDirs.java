@@ -3,6 +3,8 @@ package ch.bergturbenthal.raoa.importer;
 import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.FileImporter;
 import ch.bergturbenthal.raoa.libs.service.impl.BareAlbumList;
+import ch.bergturbenthal.raoa.libs.service.impl.ConcurrencyLimiter;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,7 +17,10 @@ public class TestLoadGitDirs {
   public static void main(String[] args) throws IOException {
     final Properties properties = new Properties();
     properties.setRepository(Path.of("/media", "akoenig", "Transfer HD 8TB").toFile());
-    final BareAlbumList albumList = new BareAlbumList(properties);
+
+    final ConcurrencyLimiter limiter =
+        new ConcurrencyLimiter(properties, new SimpleMeterRegistry());
+    final BareAlbumList albumList = new BareAlbumList(properties, limiter);
 
     final Path dir = Path.of("/media/akoenig/NIKON D500/DCIM/198ND500");
     final FileImporter importer = albumList.createImporter();
