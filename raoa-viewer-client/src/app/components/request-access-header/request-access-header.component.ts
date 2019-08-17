@@ -1,5 +1,5 @@
 import {Component, OnInit} from '@angular/core';
-import {AuthenticationState} from '../../interfaces/authentication.state';
+import {AuthenticationState, AuthenticationStateEnum} from '../../interfaces/authentication.state';
 
 @Component({
   selector: 'app-request-access-header',
@@ -8,6 +8,8 @@ import {AuthenticationState} from '../../interfaces/authentication.state';
 })
 export class RequestAccessHeaderComponent implements OnInit {
   public authenticationState: AuthenticationState;
+  AUTHENTICATED: AuthenticationStateEnum = 'AUTHENTICATED';
+  AUTHORIZATION_REQUESTED: AuthenticationStateEnum = 'AUTHORIZATION_REQUESTED';
 
   constructor() {
   }

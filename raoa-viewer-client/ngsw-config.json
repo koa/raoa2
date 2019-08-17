@@ -10,8 +10,18 @@
       "urls": [
         "/graphiql",
         "/login",
-        "/oauth2",
-        "/graphql"
+        "/oauth2"
+      ]
+    },
+    {
+      "name": "data",
+      "cacheConfig": {
+        "strategy": "performance",
+        "maxAge": "2d"
+      },
+      "urls": [
+        "/graphql",
+        "/rest/**"
       ]
     }
   ],
@@ -24,7 +34,13 @@
           "/favicon.ico",
           "/index.html",
           "/*.css",
-          "/*.js"
+          "/*.js",
+          "/manifest.webmanifest",
+          "/ngsw-worker.js"
+        ],
+        "urls": [
+          "https://fonts.googleapis.com/css?family=Roboto:300,400,500",
+          "https://fonts.googleapis.com/icon?family=Material+Icons"
         ]
       }
     },
@@ -36,13 +52,16 @@
         "files": [
           "/assets/**",
           "/*.(eot|svg|cur|jpg|png|webp|gif|otf|ttf|woff|woff2|ani)"
+        ],
+        "urls": [
+          "https://fonts.gstatic.com/**"
         ]
       }
     }
   ],
   "navigationUrls": [
     "/",
-    "/albums/*",
+    "/album/*",
     "/requestAccess",
     "/admin/*"
   ]

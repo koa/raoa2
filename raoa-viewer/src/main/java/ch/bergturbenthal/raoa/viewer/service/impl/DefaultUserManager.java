@@ -139,7 +139,13 @@ public class DefaultUserManager implements UserManager {
                               tempFile.delete();
                             }))
             .map(t -> newUser)
-            .doOnNext(u -> file.delete());
+            .doOnNext(u -> file.delete())
+            .doFinally(
+                signal -> {
+                  userByIdCache.clear();
+                  userByAuthenticationCache.clear();
+                  allUsersCache.set(null);
+                });
       }
       return Mono.empty();
     } catch (IOException e) {

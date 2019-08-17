@@ -6,7 +6,7 @@ import {HeadlineDirective} from './directive/headline.directive';
 import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
 import {ListAlbumEntry} from './interfaces/list-album.entry';
-import {AuthenticationState, AuthenticationStateEnum} from './interfaces/authentication.state';
+import {AuthenticationState} from './interfaces/authentication.state';
 
 interface GraphQlResponseData {
   listAlbums: ListAlbumEntry[];
@@ -24,9 +24,9 @@ export class AppComponent implements OnDestroy, OnInit {
   @ViewChild(HeadlineDirective, {static: true}) headline: HeadlineDirective;
 
   private mobileQueryListener: () => void;
-  private albums: ListAlbumEntry[];
-  private loading: boolean;
-  private error: any;
+  public albums: ListAlbumEntry[];
+  public loading: boolean;
+  public error: any;
 
   constructor(changeDetectorRef: ChangeDetectorRef,
               media: MediaMatcher,
@@ -62,7 +62,7 @@ export class AppComponent implements OnDestroy, OnInit {
         // @ts-ignore
         const responseData: GraphQlResponseData = result.data;
         if (responseData) {
-          this.frontendBehaviorService.processAuthenticationState(responseData.authenticationState, [AuthenticationStateEnum.AUTHORIZED]);
+          this.frontendBehaviorService.processAuthenticationState(responseData.authenticationState, ['AUTHORIZED']);
           this.albums = responseData.listAlbums;
         } else {
           this.loading = result.loading;

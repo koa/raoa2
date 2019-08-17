@@ -51,7 +51,7 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   @Override
   public Mono<Boolean> canUserAccessToAlbum(final SecurityContext context, final UUID album) {
     return currentUser(context)
-        .log("current user")
+        // .log("current user")
         .map(
             u ->
                 u.isSuperuser()

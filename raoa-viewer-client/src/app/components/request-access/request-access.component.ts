@@ -27,6 +27,9 @@ export class RequestAccessComponent implements OnInit {
   error: any;
   reason: string;
   authenticationState: AuthenticationState;
+  AUTHORIZED: AuthenticationStateEnum = 'AUTHORIZED';
+  AUTHENTICATED: AuthenticationStateEnum = 'AUTHENTICATED';
+  AUTHORIZATION_REQUESTED: AuthenticationStateEnum = 'AUTHORIZATION_REQUESTED';
 
   constructor(private apollo: Apollo,
               private router: Router,
@@ -53,7 +56,7 @@ export class RequestAccessComponent implements OnInit {
         const responseData: GraphQlResponseData = result.data;
         if (responseData) {
           this.frontendBehaviorService.processAuthenticationState(responseData.authenticationState,
-            [AuthenticationStateEnum.AUTHORIZATION_REQUESTED, AuthenticationStateEnum.AUTHENTICATED]);
+            [this.AUTHORIZATION_REQUESTED, this.AUTHENTICATED]);
 
           this.frontendBehaviorService.title = 'Request Access';
           const ref: ViewContainerRef = this.frontendBehaviorService.headline.viewContainerRef;

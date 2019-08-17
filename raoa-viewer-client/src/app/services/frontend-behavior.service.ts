@@ -23,14 +23,14 @@ export class FrontendBehaviorService {
       return;
     }
     switch (state.state) {
-      case AuthenticationStateEnum.UNKNOWN:
+      case 'UNKNOWN':
         window.location.pathname = '/login';
         break;
-      case AuthenticationStateEnum.AUTHORIZED:
+      case 'AUTHORIZED':
         this.router.navigate(['/']);
         break;
-      case AuthenticationStateEnum.AUTHENTICATED:
-      case AuthenticationStateEnum.AUTHORIZATION_REQUESTED:
+      case 'AUTHENTICATED':
+      case 'AUTHORIZATION_REQUESTED':
         this.router.navigate(['/requestAccess']);
         break;
     }

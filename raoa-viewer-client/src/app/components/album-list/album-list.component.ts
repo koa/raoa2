@@ -2,12 +2,11 @@ import {Component, OnInit} from '@angular/core';
 import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
 import {Router} from '@angular/router';
-import {ListAlbumEntry} from '../../interfaces/list-album.entry';
-import {AuthenticationState, AuthenticationStateEnum} from '../../interfaces/authentication.state';
+import {AuthenticationState} from '../../interfaces/authentication.state';
+import {FrontendBehaviorService} from '../../services/frontend-behavior.service';
 
 
 interface GraphQlResponseData {
-  listAlbums: ListAlbumEntry[];
   authenticationState: AuthenticationState;
 }
 
@@ -18,20 +17,19 @@ interface GraphQlResponseData {
 })
 export class AlbumListComponent implements OnInit {
 
-  albums: ListAlbumEntry[];
   loading = true;
   error: any;
 
-  constructor(private apollo: Apollo, private router: Router) {
+  constructor(private apollo: Apollo,
+              private router: Router,
+              private frontendBehaviorService: FrontendBehaviorService
+  ) {
   }
 
     ngOnInit() {
       this.apollo.watchQuery({
           query: gql`
               {
-                  listAlbums {
-                      id, name, entryCount
-                  }
                   authenticationState {
                       state
                   }
@@ -41,11 +39,7 @@ export class AlbumListComponent implements OnInit {
         // @ts-ignore
         const responseData: GraphQlResponseData = result.data;
         if (responseData) {
-          if (responseData.authenticationState.state === AuthenticationStateEnum.AUTHORIZED) {
-            this.albums = responseData.listAlbums;
-          } else {
-            this.router.navigate(['/requestAccess']);
-          }
+          this.frontendBehaviorService.processAuthenticationState(responseData.authenticationState, ['AUTHORIZED']);
         } else {
           this.loading = result.loading;
           this.error = result.errors;

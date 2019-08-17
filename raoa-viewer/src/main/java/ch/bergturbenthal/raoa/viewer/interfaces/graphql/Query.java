@@ -73,7 +73,7 @@ public class Query implements GraphQLQueryResolver {
   }
 
   public CompletableFuture<AuthenticationInformation> authenticationState() {
-    log.info("Query for authentication state");
+    // log.info("Query for authentication state");
 
     return queryContextSupplier
         .createContext()

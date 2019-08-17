@@ -7,7 +7,7 @@ import {ResizedEvent} from 'angular-resize-event';
 import {DomSanitizer} from '@angular/platform-browser';
 import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from '@angular/material';
 import {FrontendBehaviorService} from "../../services/frontend-behavior.service";
-import {AuthenticationState, AuthenticationStateEnum} from "../../interfaces/authentication.state";
+import {AuthenticationState} from "../../interfaces/authentication.state";
 import {AlbumContentHeaderComponent} from "../album-content-header/album-content-header.component";
 
 
@@ -99,7 +99,7 @@ export class AlbumContentComponent implements OnInit {
             this.error = result.errors;
             const qr: QueryResult = result.data as QueryResult;
             if (!this.loading && !this.error && qr != null) {
-              this.frontendBehaviorService.processAuthenticationState(qr.authenticationState, [AuthenticationStateEnum.AUTHORIZED]);
+              this.frontendBehaviorService.processAuthenticationState(qr.authenticationState, ['AUTHORIZED']);
               this.title = qr.albumById.name;
               this.resultRows = [];
               this.sortedEntries = qr.albumById.entries
