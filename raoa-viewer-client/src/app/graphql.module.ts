@@ -9,7 +9,7 @@ export function createApollo(httpLink: HttpLink) {
   const uri = protocol + '//' + host + '/graphql';
 
   return {
-    link: httpLink.create({uri}),
+    link: httpLink.create({uri, method: 'GET'}),
     cache: new InMemoryCache(),
   };
 }

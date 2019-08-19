@@ -40,7 +40,7 @@ export class RequestAccessComponent implements OnInit {
     ngOnInit() {
       this.apollo.watchQuery({
           query: gql`
-              {
+              query userData{
                   authenticationState {
                       state,
                       user {

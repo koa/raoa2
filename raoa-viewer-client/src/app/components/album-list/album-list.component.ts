@@ -22,14 +22,13 @@ export class AlbumListComponent implements OnInit {
 
   constructor(private apollo: Apollo,
               private router: Router,
-              private frontendBehaviorService: FrontendBehaviorService
-  ) {
+              private frontendBehaviorService: FrontendBehaviorService) {
   }
 
     ngOnInit() {
       this.apollo.watchQuery({
           query: gql`
-              {
+              query authenticationState  {
                   authenticationState {
                       state
                   }
