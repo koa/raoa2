@@ -34,8 +34,10 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
     return currentAuthentication(context).isPresent();
   }
 
-  private Optional<AuthenticationId> currentAuthentication(SecurityContext context) {
+  @Override
+  public Optional<AuthenticationId> currentAuthentication(SecurityContext context) {
     final Authentication authentication = context.getAuthentication();
+    if (authentication == null) return Optional.empty();
     final Object principal = authentication.getPrincipal();
     if (principal instanceof OidcUser && authentication instanceof OAuth2AuthenticationToken) {
       final String authorizedClientRegistrationId =
@@ -49,6 +51,7 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   @Override
   public Mono<Boolean> canUserAccessToAlbum(final SecurityContext context, final UUID album) {
     return currentUser(context)
+        // .log("current user")
         .map(
             u ->
                 u.isSuperuser()

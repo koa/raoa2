@@ -4,17 +4,16 @@ import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
-import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
+import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
+import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLResolver;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
 import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -27,68 +26,52 @@ public class AlbumQuery implements GraphQLResolver<Album> {
             PathSuffixFilter.create(".JPG"), PathSuffixFilter.create(".JPEG"),
             PathSuffixFilter.create(".jpg"), PathSuffixFilter.create(".jpeg")
           });
-  private final AuthorizationManager authorizationManager;
+  private final UserManager userManager;
   private final AlbumList albumList;
 
-  public AlbumQuery(final AuthorizationManager authorizationManager, final AlbumList albumList) {
-    this.authorizationManager = authorizationManager;
+  public AlbumQuery(final UserManager userManager, final AlbumList albumList) {
+    this.userManager = userManager;
     this.albumList = albumList;
   }
 
+  public CompletableFuture<List<UserReference>> canAccessedBy(Album album) {
+    if (album.getContext().canUserManageUsers()) {
+      return userManager
+          .listUserForAlbum(album.getId())
+          .map(u -> new UserReference(u.getId(), u.getUserData(), album.getContext()))
+          .collectList()
+          .toFuture();
+    }
+    return CompletableFuture.completedFuture(Collections.emptyList());
+  }
+
   public CompletableFuture<List<AlbumEntry>> getEntries(Album album) {
-    return monoIfUserCanAccessAlbum(
-            SecurityContextHolder.getContext(),
-            album,
-            a ->
-                streamEntries(a)
-                    .map(e -> new AlbumEntry(a, e.getFileId().name(), e.getNameString()))
-                    .collectList())
+    return streamEntries(album)
+        .map(e -> new AlbumEntry(album, e.getFileId().name(), e.getNameString()))
+        .collectList()
         .toFuture();
-  }
-
-  private <T> Mono<T> monoIfUserCanAccessAlbum(
-      SecurityContext context, Album id, Function<Album, Mono<T>> creator) {
-    return authorizationManager
-        .canUserAccessToAlbum(context, id.getId())
-        .filter(t -> t)
-        .flatMap(t -> creator.apply(id));
-  }
-
-  private <T> Mono<T> ifUserCanAccessAlbum(
-      SecurityContext context, Album id, Function<Album, T> creator) {
-    return authorizationManager
-        .canUserAccessToAlbum(context, id.getId())
-        .filter(t -> t)
-        .map(t -> creator.apply(id));
-  }
-
-  private <T> Flux<T> fluxIfUserCanAccessAlbum(
-      SecurityContext context, Album id, Function<Album, Flux<T>> creator) {
-    return authorizationManager
-        .canUserAccessToAlbum(context, id.getId())
-        .filter(t -> t)
-        .flatMapMany(t -> creator.apply(id));
   }
 
   @NotNull
   private Flux<GitAccess.GitFileEntry> streamEntries(final Album album) {
-    return albumList.getAlbum(album.getId()).flatMapMany(e -> e.listFiles(ENTRIES_FILTER));
+    if (album.getContext().canAccessAlbum(album.getId()))
+      return albumList.getAlbum(album.getId()).flatMapMany(e -> e.listFiles(ENTRIES_FILTER));
+    return Flux.empty();
   }
 
   public CompletableFuture<String> getName(Album album) {
-    final SecurityContext context = SecurityContextHolder.getContext();
-    return gitAccessOfAlbum(context, album).flatMap(GitAccess::getName).toFuture();
+    return gitAccessOfAlbum(album).flatMap(GitAccess::getName).toFuture();
   }
 
   @NotNull
-  public Mono<GitAccess> gitAccessOfAlbum(final SecurityContext context, final Album album) {
-    return ifUserCanAccessAlbum(context, album, Album::getId).flatMap(albumList::getAlbum);
+  public Mono<GitAccess> gitAccessOfAlbum(final Album album) {
+    if (album.getContext().canAccessAlbum(album.getId())) {
+      return albumList.getAlbum(album.getId());
+    }
+    return Mono.empty();
   }
 
   public CompletableFuture<Long> getEntryCount(Album album) {
-
-    return monoIfUserCanAccessAlbum(
-            SecurityContextHolder.getContext(), album, a -> streamEntries(a).count())
-        .toFuture();
+    return streamEntries(album).count().toFuture();
   }
 }

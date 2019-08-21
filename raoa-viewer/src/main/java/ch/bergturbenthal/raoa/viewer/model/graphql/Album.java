@@ -6,4 +6,5 @@ import lombok.Value;
 @Value
 public class Album {
   private UUID id;
+  private QueryContext context;
 }

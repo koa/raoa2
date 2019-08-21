@@ -1,15 +1,19 @@
 // import {FixedSizeVirtualScrollStrategy, VIRTUAL_SCROLL_STRATEGY} from '@angular/cdk/scrolling';
-import {Component, Inject, OnInit} from '@angular/core';
+import {Component, ComponentFactoryResolver, Inject, OnInit, ViewContainerRef} from '@angular/core';
 import {ActivatedRoute, ParamMap, Router} from '@angular/router';
 import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
 import {ResizedEvent} from 'angular-resize-event';
 import {DomSanitizer} from '@angular/platform-browser';
 import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from '@angular/material';
+import {FrontendBehaviorService} from "../../services/frontend-behavior.service";
+import {AuthenticationState} from "../../interfaces/authentication.state";
+import {AlbumContentHeaderComponent} from "../album-content-header/album-content-header.component";
 
 
 interface QueryResult {
   albumById: AlbumById;
+  authenticationState: AuthenticationState;
 }
 
 interface AlbumById {
@@ -63,7 +67,9 @@ export class AlbumContentComponent implements OnInit {
               private router: Router,
               private apollo: Apollo,
               private sanitizer: DomSanitizer,
-              private dialog: MatDialog) {
+              private dialog: MatDialog,
+              private frontendBehaviorService: FrontendBehaviorService,
+              private componentFactoryResolver: ComponentFactoryResolver) {
     let size = 1600;
     const scales = [];
     while (size > 50) {
@@ -83,6 +89,9 @@ export class AlbumContentComponent implements OnInit {
                       id, name, entryUri, targetWidth, targetHeight, created
                   }
               }
+                  authenticationState {
+                      state
+                  }
               }
               `, variables: {albumId}
           }).valueChanges.subscribe(result => {
@@ -90,6 +99,7 @@ export class AlbumContentComponent implements OnInit {
             this.error = result.errors;
             const qr: QueryResult = result.data as QueryResult;
             if (!this.loading && !this.error && qr != null) {
+              this.frontendBehaviorService.processAuthenticationState(qr.authenticationState, ['AUTHORIZED']);
               this.title = qr.albumById.name;
               this.resultRows = [];
               this.sortedEntries = qr.albumById.entries
@@ -106,6 +116,14 @@ export class AlbumContentComponent implements OnInit {
                 })
                 .sort((e1, e2) => e1.created.localeCompare(e2.created));
               this.redistributeEntries();
+              const ref: ViewContainerRef = this.frontendBehaviorService.headline.viewContainerRef;
+              ref.clear();
+              const component = ref.createComponent(
+                this.componentFactoryResolver.resolveComponentFactory(AlbumContentHeaderComponent));
+              const headerComponent = component.instance;
+              headerComponent.title = qr.albumById.name;
+              headerComponent.zoomIn = () => this.zoomIn();
+              headerComponent.zoomOut = () => this.zoomOut();
             }
           });
       });
@@ -143,14 +161,14 @@ export class AlbumContentComponent implements OnInit {
     return url.href;
   }
 
-  zoomIn() {
+  zoomIn(): void {
     this.minWidth *= 0.7;
     this.redistributeEntries();
   }
 
   createUrl(row: TableRow, shape: Shape) {
-    const maxLength = this.findScale(Math.max(shape.width, row.height));
-    return this.trustUrl(shape.entry.entryUri + '/thumbnail?maxLength=' + maxLength);
+    // const maxLength = this.findScale(Math.max(shape.width, row.height));
+    return this.trustUrl(shape.entry.entryUri + '/thumbnail');
   }
 
   private recalculateComponents() {

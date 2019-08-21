@@ -1,14 +1,10 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, ComponentFactoryResolver, OnInit, ViewContainerRef} from '@angular/core';
 import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
 import {Router} from '@angular/router';
-
-interface AuthenticationState {
-  state: string;
-  name: string;
-  picture: string;
-  email: string;
-}
+import {FrontendBehaviorService} from '../../services/frontend-behavior.service';
+import {AuthenticationState, AuthenticationStateEnum} from '../../interfaces/authentication.state';
+import {RequestAccessHeaderComponent} from '../request-access-header/request-access-header.component';
 
 interface GraphQlResponseData {
   authenticationState: AuthenticationState;
@@ -29,10 +25,16 @@ const updateRequest = gql`mutation requestAccess($reason: String){
 export class RequestAccessComponent implements OnInit {
   loading = true;
   error: any;
-  authenticationState: AuthenticationState;
   reason: string;
+  authenticationState: AuthenticationState;
+  AUTHORIZED: AuthenticationStateEnum = 'AUTHORIZED';
+  AUTHENTICATED: AuthenticationStateEnum = 'AUTHENTICATED';
+  AUTHORIZATION_REQUESTED: AuthenticationStateEnum = 'AUTHORIZATION_REQUESTED';
 
-  constructor(private apollo: Apollo, private router: Router) {
+  constructor(private apollo: Apollo,
+              private router: Router,
+              private frontendBehaviorService: FrontendBehaviorService,
+              private componentFactoryResolver: ComponentFactoryResolver) {
   }
 
     ngOnInit() {
@@ -40,7 +42,12 @@ export class RequestAccessComponent implements OnInit {
           query: gql`
               {
                   authenticationState {
-                      state, name, picture, email
+                      state,
+                      user {
+                          info{
+                              email, name, picture
+                          }
+                      }
                   }
               }
           `
@@ -48,15 +55,18 @@ export class RequestAccessComponent implements OnInit {
         // @ts-ignore
         const responseData: GraphQlResponseData = result.data;
         if (responseData) {
-          switch (responseData.authenticationState.state) {
-            case 'UNKNOWN':
-              window.location.pathname = '/login';
-              break;
-            case 'AUTHORIZED':
-              this.router.navigate(['/']);
-              break;
-          }
+          this.frontendBehaviorService.processAuthenticationState(responseData.authenticationState,
+            [this.AUTHORIZATION_REQUESTED, this.AUTHENTICATED]);
+
+          this.frontendBehaviorService.title = 'Request Access';
+          const ref: ViewContainerRef = this.frontendBehaviorService.headline.viewContainerRef;
+          ref.clear();
+          const component = ref.createComponent(
+            this.componentFactoryResolver.resolveComponentFactory(RequestAccessHeaderComponent));
+          component.instance.authenticationState = responseData.authenticationState;
           this.authenticationState = responseData.authenticationState;
+
+
           this.loading = result.loading;
         } else {
           this.loading = result.loading;
@@ -70,7 +80,9 @@ export class RequestAccessComponent implements OnInit {
       mutation: updateRequest,
       variables: {reason: this.reason}
 
+    }).toPromise().then(r => {
+      this.ngOnInit();
     });
-    console.log('Reason: ' + this.reason);
+
   }
 }

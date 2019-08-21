@@ -13,14 +13,10 @@
 }
 
 :host {
-  height: 100vh;
+  height: 100%;
   display: grid;
   grid-template-areas: "head" "content";
   grid-template-columns: 1fr;
   grid-template-rows: fit-content(1em) 1fr;
 }
 
-mat-toolbar {
-  display: flex;
-  justify-content: space-between;
-}

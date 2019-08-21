@@ -4,15 +4,34 @@ type Query {
     albumById(id: ID): Album
     listAlbums: [Album]
     authenticationState: AuthenticationInformation
+    listPendingRequests: [RegistrationRequest]
 }
 type Mutation{
     requestAccess(comment: String): RequestAccessResult
+    createUser(id: AuthenticationKey): User
 }
 
-
-
-type AccessRequest{
+type RegistrationRequest{
+    authenticationId: AuthenticationId
     reason: String
+    data: UserInfo
+    requestAlbum: Album
+}
+type AuthenticationId{
+    authority: String
+    id: String
+}
+
+input AuthenticationKey{
+    authority: String
+    id: String
+}
+type User{
+    id: ID!
+    canAccess: [Album]
+    info: UserInfo
+    authentications: [AuthenticationId]
+    canManageUsers: Boolean
 }
 
 type Album {
@@ -20,6 +39,7 @@ type Album {
     name: String
     entries: [AlbumEntry]!
     entryCount: Int
+    canAccessedBy: [User]
 }
 
 type AlbumEntry {
@@ -42,10 +62,7 @@ type AlbumEntry {
 
 type AuthenticationInformation{
     state: AuthenticationState
-    email: String
-    name: String
-    picture: String
-
+    user: User
 }
 
 enum AuthenticationState {

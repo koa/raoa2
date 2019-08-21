@@ -17,6 +17,7 @@ import {
   MatFormFieldModule,
   MatIconModule,
   MatInputModule,
+  MatListModule,
   MatSidenavModule,
   MatToolbarModule
 } from '@angular/material';
@@ -24,7 +25,12 @@ import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
 import {ServiceWorkerModule} from '@angular/service-worker';
 import {environment} from '../environments/environment';
 import {RequestAccessComponent} from './components/request-access/request-access.component';
-import {FormsModule} from "@angular/forms";
+import {FormsModule} from '@angular/forms';
+import {AcceptRegistrationsComponent} from './components/accept-registrations/accept-registrations.component';
+import {HeadlineDirective} from './directive/headline.directive';
+import {TitleOnlyHeaderComponent} from './components/title-only-header/title-only-header.component';
+import {RequestAccessHeaderComponent} from './components/request-access-header/request-access-header.component';
+import {AlbumContentHeaderComponent} from './components/album-content-header/album-content-header.component';
 // import { MatPasswordStrengthModule } from '@angular-material-extensions/core';
 
 const appRouter: Routes = [
@@ -39,7 +45,12 @@ const appRouter: Routes = [
     AlbumListComponent,
     AlbumContentComponent,
     ShowImageDialogComponent,
-    RequestAccessComponent
+    RequestAccessComponent,
+    AcceptRegistrationsComponent,
+    HeadlineDirective,
+    TitleOnlyHeaderComponent,
+    RequestAccessHeaderComponent,
+    AlbumContentHeaderComponent
   ],
   imports: [
     BrowserModule,
@@ -60,11 +71,13 @@ const appRouter: Routes = [
     MatCardModule,
     MatInputModule,
     FormsModule,
+    MatListModule,
     // MatPasswordStrengthModule
   ],
   providers: [],
   bootstrap: [AppComponent],
-  entryComponents: [ShowImageDialogComponent]
+  entryComponents: [ShowImageDialogComponent, TitleOnlyHeaderComponent, RequestAccessHeaderComponent, AlbumContentHeaderComponent]
 })
 export class AppModule {
+
 }
