@@ -3,17 +3,6 @@
   "index": "/index.html",
   "dataGroups": [
     {
-      "name": "online",
-      "cacheConfig": {
-        "strategy": "freshness"
-      },
-      "urls": [
-        "/graphiql",
-        "/login",
-        "/oauth2"
-      ]
-    },
-    {
       "name": "data",
       "cacheConfig": {
         "strategy": "performance",

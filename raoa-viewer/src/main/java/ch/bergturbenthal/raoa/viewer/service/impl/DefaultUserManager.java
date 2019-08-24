@@ -2,6 +2,7 @@ package ch.bergturbenthal.raoa.viewer.service.impl;
 
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
+import ch.bergturbenthal.raoa.libs.service.impl.Limiter;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AccessRequest;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
@@ -39,6 +40,7 @@ public class DefaultUserManager implements UserManager {
   private final ObjectReader userReader;
   private final ObjectReader accessRequestObjectReader;
   private final ObjectWriter userWriter;
+  private final Limiter limiter;
   private ObjectWriter accessRequestObjectWriter;
   private Map<AuthenticationId, Mono<User>> userByAuthenticationCache =
       Collections.synchronizedMap(new HashMap<>());
@@ -47,9 +49,11 @@ public class DefaultUserManager implements UserManager {
   private AtomicReference<Set<AuthenticationId>> pendingAuthenticationsReference =
       new AtomicReference<>(Collections.emptySet());
 
-  public DefaultUserManager(AlbumList albumList, ViewerProperties viewerProperties) {
+  public DefaultUserManager(
+      AlbumList albumList, ViewerProperties viewerProperties, final Limiter limiter) {
     this.albumList = albumList;
     this.viewerProperties = viewerProperties;
+    this.limiter = limiter;
     final ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().indentOutput(true).build();
     accessRequestObjectWriter = objectMapper.writerFor(AccessRequest.class);
     accessRequestObjectReader = objectMapper.readerFor(AccessRequest.class);
@@ -186,6 +190,7 @@ public class DefaultUserManager implements UserManager {
 
   @NotNull
   private Flux<User> loadUsers(final TreeFilter filter) {
+
     return metaIdMono
         .flatMap(albumList::getAlbum)
         .flatMapMany(
@@ -193,15 +198,17 @@ public class DefaultUserManager implements UserManager {
                 a.listFiles(filter)
                     .flatMap(
                         e ->
-                            a.readObject(e.getFileId())
-                                .map(
-                                    loader -> {
-                                      try {
-                                        return userReader.readValue(loader.getBytes());
-                                      } catch (IOException ex) {
-                                        throw new RuntimeException(ex);
-                                      }
-                                    })));
+                            limiter.limit(
+                                a.readObject(e.getFileId())
+                                    .map(
+                                        loader -> {
+                                          try {
+                                            return userReader.readValue(loader.getBytes());
+                                          } catch (IOException ex) {
+                                            throw new RuntimeException(ex);
+                                          }
+                                        }),
+                                "load user ")));
   }
 
   @Override

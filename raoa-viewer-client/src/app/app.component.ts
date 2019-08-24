@@ -46,7 +46,7 @@ export class AppComponent implements OnDestroy, OnInit {
       this.frontendBehaviorService.headline = this.headline;
       this.apollo.watchQuery({
           query: gql`
-              {
+              query getOverview {
                   listAlbums {
                       id, name, entryCount
                   }
@@ -63,11 +63,10 @@ export class AppComponent implements OnDestroy, OnInit {
         const responseData: GraphQlResponseData = result.data;
         if (responseData) {
           this.frontendBehaviorService.processAuthenticationState(responseData.authenticationState, ['AUTHORIZED']);
-          this.albums = responseData.listAlbums;
-        } else {
-          this.loading = result.loading;
-          this.error = result.errors;
+          this.albums = responseData.listAlbums.sort((e1, e2) => e1.name.localeCompare(e2.name));
         }
+        this.loading = result.loading;
+        this.error = result.errors;
       });
     }
 }

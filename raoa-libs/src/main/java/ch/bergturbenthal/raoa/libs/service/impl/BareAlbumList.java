@@ -53,7 +53,7 @@ public class BareAlbumList implements AlbumList {
   private final Scheduler ioScheduler;
   private Properties properties;
 
-  public BareAlbumList(Properties properties, ConcurrencyLimiter limiter) {
+  public BareAlbumList(Properties properties, Limiter limiter) {
     this.properties = properties;
 
     final CacheManager cacheManager =
