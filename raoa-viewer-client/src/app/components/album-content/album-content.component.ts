@@ -1,7 +1,6 @@
 // import {FixedSizeVirtualScrollStrategy, VIRTUAL_SCROLL_STRATEGY} from '@angular/cdk/scrolling';
 import {Component, ComponentFactoryResolver, Inject, OnInit, ViewContainerRef} from '@angular/core';
 import {ActivatedRoute, ParamMap, Router} from '@angular/router';
-import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
 import {ResizedEvent} from 'angular-resize-event';
 import {DomSanitizer} from '@angular/platform-browser';
@@ -9,6 +8,7 @@ import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from '@angular/material';
 import {FrontendBehaviorService} from "../../services/frontend-behavior.service";
 import {AuthenticationState} from "../../interfaces/authentication.state";
 import {AlbumContentHeaderComponent} from "../album-content-header/album-content-header.component";
+import {ApolloService} from "../../services/apollo.service";
 
 
 interface QueryResult {
@@ -65,7 +65,7 @@ export class AlbumContentComponent implements OnInit {
 
   constructor(private route: ActivatedRoute,
               private router: Router,
-              private apollo: Apollo,
+              private apolloService: ApolloService,
               private sanitizer: DomSanitizer,
               private dialog: MatDialog,
               private frontendBehaviorService: FrontendBehaviorService,
@@ -82,7 +82,7 @@ export class AlbumContentComponent implements OnInit {
     ngOnInit() {
       this.route.paramMap.subscribe((params: ParamMap) => {
         const albumId = params.get('id');
-          return this.apollo.watchQuery({
+          return this.apolloService.query().watchQuery({
               query: gql`query AlbumContent($albumId: ID) {albumById(id: $albumId){
                   name
                   entries{

@@ -28,7 +28,7 @@ public class ReactiveLimiter implements Limiter {
 
   @Override
   public <T> Mono<T> limit(final Mono<T> input, final String context) {
-    return limit(input.flux(), context).singleOrEmpty();
+    return limit(input.flux(), context).next();
   }
 
   @Override

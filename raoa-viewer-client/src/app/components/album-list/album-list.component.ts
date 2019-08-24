@@ -1,9 +1,9 @@
 import {Component, OnInit} from '@angular/core';
-import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
 import {Router} from '@angular/router';
 import {AuthenticationState} from '../../interfaces/authentication.state';
 import {FrontendBehaviorService} from '../../services/frontend-behavior.service';
+import {ApolloService} from "../../services/apollo.service";
 
 
 interface GraphQlResponseData {
@@ -20,13 +20,13 @@ export class AlbumListComponent implements OnInit {
   loading = true;
   error: any;
 
-  constructor(private apollo: Apollo,
+  constructor(private apolloService: ApolloService,
               private router: Router,
               private frontendBehaviorService: FrontendBehaviorService) {
   }
 
     ngOnInit() {
-      this.apollo.watchQuery({
+      this.apolloService.query().watchQuery({
           query: gql`
               query authenticationState  {
                   authenticationState {
