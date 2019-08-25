@@ -10,12 +10,9 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import javax.servlet.http.HttpServletRequest;
 import org.apache.tika.metadata.*;
 import org.eclipse.jgit.lib.ObjectId;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestAttributes;
-import org.springframework.web.context.request.ServletRequestAttributes;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -32,16 +29,11 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
   }
 
   public String getEntryUri(AlbumEntry entry) {
-    RequestAttributes requestAttributes = entry.getAlbum().getContext().getRequestAttributes();
-    final String contextPath;
-    if (requestAttributes instanceof ServletRequestAttributes) {
-      HttpServletRequest request = ((ServletRequestAttributes) requestAttributes).getRequest();
-      final String contextPath1 = request.getServletPath();
-
-      final String contextPath2 = request.getRequestURL().toString();
-      contextPath = contextPath2.substring(0, contextPath2.length() - contextPath1.length());
-    } else contextPath = "";
-    return contextPath + "/rest/album/" + entry.getAlbum().getId().toString() + "/" + entry.getId();
+    return entry.getAlbum().getContext().getContexRootPath()
+        + "/rest/album/"
+        + entry.getAlbum().getId().toString()
+        + "/"
+        + entry.getId();
   }
 
   public String getThumbnailUri(AlbumEntry entry) {

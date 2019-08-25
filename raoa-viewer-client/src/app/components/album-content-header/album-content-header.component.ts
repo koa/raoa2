@@ -9,6 +9,7 @@ export class AlbumContentHeaderComponent {
   public title: string;
   public zoomIn: () => void;
   public zoomOut: () => void;
+  public downloadZip: () => void;
 
   constructor() {
   }
