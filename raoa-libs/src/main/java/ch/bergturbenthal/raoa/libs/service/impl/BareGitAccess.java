@@ -369,7 +369,7 @@ public class BareGitAccess implements GitAccess {
                 .flatMap(t -> createAsyncMono(() -> createUpdater(rep, t.getT1(), t.getT2()))));
   }
 
-  public Updater createUpdater(final Repository rep, final Ref masterRef, final RevTree tree) {
+  private Updater createUpdater(final Repository rep, final Ref masterRef, final RevTree tree) {
     Map<ObjectId, String> alreadyExistingFiles = Collections.synchronizedMap(new HashMap<>());
     final DirCache dirCache;
     final DirCacheBuilder builder;
@@ -441,42 +441,33 @@ public class BareGitAccess implements GitAccess {
       @Override
       public Mono<Boolean> importFile(final Path file, final String name, boolean replaceIfExists) {
         if (replaceIfExists) replacedFiles.add(name);
-        return Mono.<Boolean>create(
-                booleanMonoSink ->
-                    booleanMonoSink.onCancel(
-                        ioScheduler.schedule(
-                            () -> {
-                              try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
-                                final ObjectId newFileId =
-                                    objectInserter.insert(
-                                        Constants.OBJ_BLOB,
-                                        Files.size(file),
-                                        Files.newInputStream(file));
-                                synchronized (alreadyExistingFiles) {
-                                  final String existingFileName =
-                                      alreadyExistingFiles.get(newFileId);
-                                  if (existingFileName != null) {
-                                    log.info(
-                                        "File "
-                                            + file
-                                            + " already imported as "
-                                            + existingFileName
-                                            + " -> merging");
-                                  } else {
-                                    alreadyExistingFiles.put(newFileId, name);
-                                    final DirCacheEntry newEntry = new DirCacheEntry(name);
-                                    newEntry.setFileMode(FileMode.REGULAR_FILE);
-                                    newEntry.setObjectId(newFileId);
-                                    builder.add(newEntry);
-                                    modified = true;
-                                  }
-                                }
-                                booleanMonoSink.success(Boolean.TRUE);
-                              } catch (IOException e) {
-                                booleanMonoSink.error(e);
-                              }
-                            })))
-            .publishOn(processScheduler);
+        return createAsyncMono(
+            () -> {
+              try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
+                final ObjectId newFileId =
+                    objectInserter.insert(
+                        Constants.OBJ_BLOB, Files.size(file), Files.newInputStream(file));
+                synchronized (alreadyExistingFiles) {
+                  final String existingFileName = alreadyExistingFiles.get(newFileId);
+                  if (existingFileName != null) {
+                    log.info(
+                        "File "
+                            + file
+                            + " already imported as "
+                            + existingFileName
+                            + " -> merging");
+                  } else {
+                    alreadyExistingFiles.put(newFileId, name);
+                    final DirCacheEntry newEntry = new DirCacheEntry(name);
+                    newEntry.setFileMode(FileMode.REGULAR_FILE);
+                    newEntry.setObjectId(newFileId);
+                    builder.add(newEntry);
+                    modified = true;
+                  }
+                }
+                return true;
+              }
+            });
       }
 
       @Override
