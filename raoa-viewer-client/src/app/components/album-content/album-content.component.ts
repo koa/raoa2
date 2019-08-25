@@ -70,7 +70,8 @@ export class AlbumContentComponent implements OnInit {
               private sanitizer: DomSanitizer,
               private dialog: MatDialog,
               private frontendBehaviorService: FrontendBehaviorService,
-              private componentFactoryResolver: ComponentFactoryResolver) {
+              private componentFactoryResolver: ComponentFactoryResolver
+  ) {
     let size = 1600;
     const scales = [];
     while (size > 50) {
@@ -126,6 +127,29 @@ export class AlbumContentComponent implements OnInit {
               headerComponent.zoomIn = () => this.zoomIn();
               headerComponent.zoomOut = () => this.zoomOut();
               headerComponent.downloadZip = () => this.downloadZip();
+              headerComponent.startSync = () => {
+                headerComponent.syncRunning = true;
+                headerComponent.progressBarMode = 'indeterminate';
+                caches.open('images').then(c => {
+                  const countDivisor = this.sortedEntries.length / 100;
+                  let currentNumber = 0;
+                  headerComponent.progressBarValue = 0;
+                  headerComponent.progressBarMode = 'determinate';
+                  this.sortedEntries.forEach((entry) => {
+
+                    const thumbnailUri = entry.entryUri + '/thumbnail';
+                    c.add(thumbnailUri).then(() => {
+                      currentNumber += 1;
+                      if (currentNumber >= this.sortedEntries.length) {
+                        headerComponent.syncRunning = false;
+                      } else {
+                        headerComponent.progressBarValue = currentNumber / countDivisor;
+                      }
+                    });
+                  });
+
+                });
+              };
             }
           });
       });

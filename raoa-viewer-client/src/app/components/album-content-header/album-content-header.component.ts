@@ -10,6 +10,11 @@ export class AlbumContentHeaderComponent {
   public zoomIn: () => void;
   public zoomOut: () => void;
   public downloadZip: () => void;
+  public startSync: () => void;
+  public syncRunning: boolean;
+  public progressBarMode: 'determinate' | 'indeterminate' | 'buffer' | 'query' = 'indeterminate';
+  public progressBarValue: number;
+
 
   constructor() {
   }
