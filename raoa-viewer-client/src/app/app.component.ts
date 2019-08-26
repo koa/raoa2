@@ -3,10 +3,10 @@ import {MediaMatcher} from '@angular/cdk/layout';
 import {Router} from '@angular/router';
 import {FrontendBehaviorService} from './services/frontend-behavior.service';
 import {HeadlineDirective} from './directive/headline.directive';
-import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
 import {ListAlbumEntry} from './interfaces/list-album.entry';
 import {AuthenticationState} from './interfaces/authentication.state';
+import {ApolloService} from './services/apollo.service';
 
 interface GraphQlResponseData {
   listAlbums: ListAlbumEntry[];
@@ -32,7 +32,7 @@ export class AppComponent implements OnDestroy, OnInit {
               media: MediaMatcher,
               private router: Router,
               private frontendBehaviorService: FrontendBehaviorService,
-              private apollo: Apollo) {
+              private apolloService: ApolloService) {
     this.mobileQuery = media.matchMedia('(max-width: 600px)');
     this.mobileQueryListener = () => changeDetectorRef.detectChanges();
     this.mobileQuery.addListener(this.mobileQueryListener);
@@ -44,9 +44,9 @@ export class AppComponent implements OnDestroy, OnInit {
 
     ngOnInit(): void {
       this.frontendBehaviorService.headline = this.headline;
-      this.apollo.watchQuery({
+      this.apolloService.query().watchQuery({
           query: gql`
-              {
+              query getOverview {
                   listAlbums {
                       id, name, entryCount
                   }
@@ -63,11 +63,10 @@ export class AppComponent implements OnDestroy, OnInit {
         const responseData: GraphQlResponseData = result.data;
         if (responseData) {
           this.frontendBehaviorService.processAuthenticationState(responseData.authenticationState, ['AUTHORIZED']);
-          this.albums = responseData.listAlbums;
-        } else {
-          this.loading = result.loading;
-          this.error = result.errors;
+          this.albums = responseData.listAlbums.sort((e1, e2) => e1.name.localeCompare(e2.name));
         }
+        this.loading = result.loading;
+        this.error = result.errors;
       });
     }
 }

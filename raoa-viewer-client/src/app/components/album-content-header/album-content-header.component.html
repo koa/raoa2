@@ -1,5 +1,13 @@
 <span>{{title}}</span>
 <div>
+  <mat-progress-bar *ngIf="syncRunning" [mode]="progressBarMode" [value]="progressBarValue" color="accent">
+  </mat-progress-bar>
+  <button (click)="startSync()" *ngIf="!syncRunning" mat-icon-button>
+    <mat-icon>sync</mat-icon>
+  </button>
+  <button (click)="downloadZip()" mat-icon-button>
+    <mat-icon>archive</mat-icon>
+  </button>
   <button (click)="zoomIn()" mat-icon-button>
     <mat-icon>zoom_in</mat-icon>
   </button>

@@ -21,4 +21,6 @@ public interface QueryContext {
   boolean canAccessAlbum(UUID albumId);
 
   RequestAttributes getRequestAttributes();
+
+  String getContexRootPath();
 }

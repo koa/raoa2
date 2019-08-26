@@ -1,10 +1,10 @@
 import {Component, ComponentFactoryResolver, OnInit, ViewContainerRef} from '@angular/core';
-import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
 import {Router} from '@angular/router';
 import {FrontendBehaviorService} from '../../services/frontend-behavior.service';
 import {AuthenticationState, AuthenticationStateEnum} from '../../interfaces/authentication.state';
 import {RequestAccessHeaderComponent} from '../request-access-header/request-access-header.component';
+import {ApolloService} from '../../services/apollo.service';
 
 interface GraphQlResponseData {
   authenticationState: AuthenticationState;
@@ -31,16 +31,17 @@ export class RequestAccessComponent implements OnInit {
   AUTHENTICATED: AuthenticationStateEnum = 'AUTHENTICATED';
   AUTHORIZATION_REQUESTED: AuthenticationStateEnum = 'AUTHORIZATION_REQUESTED';
 
-  constructor(private apollo: Apollo,
-              private router: Router,
-              private frontendBehaviorService: FrontendBehaviorService,
-              private componentFactoryResolver: ComponentFactoryResolver) {
+  constructor(
+    private apolloService: ApolloService,
+    private router: Router,
+    private frontendBehaviorService: FrontendBehaviorService,
+    private componentFactoryResolver: ComponentFactoryResolver) {
   }
 
     ngOnInit() {
-      this.apollo.watchQuery({
+      this.apolloService.query().watchQuery({
           query: gql`
-              {
+              query userData{
                   authenticationState {
                       state,
                       user {
@@ -76,7 +77,7 @@ export class RequestAccessComponent implements OnInit {
     }
 
   submitWithReason() {
-    this.apollo.mutate({
+    this.apolloService.update().mutate({
       mutation: updateRequest,
       variables: {reason: this.reason}
 

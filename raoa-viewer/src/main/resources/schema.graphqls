@@ -40,6 +40,7 @@ type Album {
     entries: [AlbumEntry]!
     entryCount: Int
     canAccessedBy: [User]
+    zipDownloadUri: String
 }
 
 type AlbumEntry {

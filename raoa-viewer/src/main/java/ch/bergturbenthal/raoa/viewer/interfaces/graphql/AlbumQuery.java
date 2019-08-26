@@ -34,6 +34,10 @@ public class AlbumQuery implements GraphQLResolver<Album> {
     this.albumList = albumList;
   }
 
+  public String getZipDownloadUri(Album album) {
+    return album.getContext().getContexRootPath() + "/rest/album-zip/" + album.getId().toString();
+  }
+
   public CompletableFuture<List<UserReference>> canAccessedBy(Album album) {
     if (album.getContext().canUserManageUsers()) {
       return userManager

@@ -1,14 +1,14 @@
 // import {FixedSizeVirtualScrollStrategy, VIRTUAL_SCROLL_STRATEGY} from '@angular/cdk/scrolling';
 import {Component, ComponentFactoryResolver, Inject, OnInit, ViewContainerRef} from '@angular/core';
 import {ActivatedRoute, ParamMap, Router} from '@angular/router';
-import {Apollo} from 'apollo-angular';
 import gql from 'graphql-tag';
 import {ResizedEvent} from 'angular-resize-event';
 import {DomSanitizer} from '@angular/platform-browser';
 import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from '@angular/material';
-import {FrontendBehaviorService} from "../../services/frontend-behavior.service";
-import {AuthenticationState} from "../../interfaces/authentication.state";
-import {AlbumContentHeaderComponent} from "../album-content-header/album-content-header.component";
+import {FrontendBehaviorService} from '../../services/frontend-behavior.service';
+import {AuthenticationState} from '../../interfaces/authentication.state';
+import {AlbumContentHeaderComponent} from '../album-content-header/album-content-header.component';
+import {ApolloService} from '../../services/apollo.service';
 
 
 interface QueryResult {
@@ -62,14 +62,16 @@ export class AlbumContentComponent implements OnInit {
   minWidth = 5;
   title: string;
   scales: number[];
+  albumId: string;
 
   constructor(private route: ActivatedRoute,
               private router: Router,
-              private apollo: Apollo,
+              private apolloService: ApolloService,
               private sanitizer: DomSanitizer,
               private dialog: MatDialog,
               private frontendBehaviorService: FrontendBehaviorService,
-              private componentFactoryResolver: ComponentFactoryResolver) {
+              private componentFactoryResolver: ComponentFactoryResolver
+  ) {
     let size = 1600;
     const scales = [];
     while (size > 50) {
@@ -81,8 +83,8 @@ export class AlbumContentComponent implements OnInit {
 
     ngOnInit() {
       this.route.paramMap.subscribe((params: ParamMap) => {
-        const albumId = params.get('id');
-          return this.apollo.watchQuery({
+        this.albumId = params.get('id');
+          return this.apolloService.query().watchQuery({
               query: gql`query AlbumContent($albumId: ID) {albumById(id: $albumId){
                   name
                   entries{
@@ -93,7 +95,7 @@ export class AlbumContentComponent implements OnInit {
                       state
                   }
               }
-              `, variables: {albumId}
+              `, variables: {albumId: this.albumId}
           }).valueChanges.subscribe(result => {
             this.loading = result.loading;
             this.error = result.errors;
@@ -124,6 +126,30 @@ export class AlbumContentComponent implements OnInit {
               headerComponent.title = qr.albumById.name;
               headerComponent.zoomIn = () => this.zoomIn();
               headerComponent.zoomOut = () => this.zoomOut();
+              headerComponent.downloadZip = () => this.downloadZip();
+              headerComponent.startSync = () => {
+                headerComponent.syncRunning = true;
+                headerComponent.progressBarMode = 'indeterminate';
+                caches.open('images').then(c => {
+                  const countDivisor = this.sortedEntries.length / 100;
+                  let currentNumber = 0;
+                  headerComponent.progressBarValue = 0;
+                  headerComponent.progressBarMode = 'determinate';
+                  this.sortedEntries.forEach((entry) => {
+
+                    const thumbnailUri = entry.entryUri + '/thumbnail';
+                    c.add(thumbnailUri).then(() => {
+                      currentNumber += 1;
+                      if (currentNumber >= this.sortedEntries.length) {
+                        headerComponent.syncRunning = false;
+                      } else {
+                        headerComponent.progressBarValue = currentNumber / countDivisor;
+                      }
+                    });
+                  });
+
+                });
+              };
             }
           });
       });
@@ -236,6 +262,22 @@ export class AlbumContentComponent implements OnInit {
       );
     }
     this.recalculateComponents();
+  }
+
+  private downloadZip() {
+    this.apolloService.query().watchQuery({
+        query: gql`query AlbumContentZip($albumId: ID) {
+            albumById(id: $albumId){
+                zipDownloadUri
+            }
+        }
+        `, variables: {albumId: this.albumId}
+    }).valueChanges.subscribe(result => {
+      if (!result.loading) {
+        // @ts-ignore
+        window.location.href = result.data.albumById.zipDownloadUri;
+      }
+    });
   }
 }
 

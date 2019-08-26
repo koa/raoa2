@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -43,6 +44,7 @@ import org.ehcache.Cache;
 import org.joda.time.format.ISODateTimeFormat;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.xml.sax.SAXException;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
@@ -65,7 +67,7 @@ public class BareGitAccess implements GitAccess {
 
   private final Mono<Repository> repository;
   private final Mono<AlbumMeta> albumMetaSupplier;
-  private final ConcurrencyLimiter limiter;
+  private final Limiter limiter;
   Map<AlbumEntryKey, Mono<Metadata>> pendingMetdataLoad =
       Collections.synchronizedMap(new HashMap<>());
   private Path relativePath;
@@ -79,37 +81,24 @@ public class BareGitAccess implements GitAccess {
       final Cache<AlbumEntryKey, Metadata> metadataCache,
       Scheduler ioScheduler,
       final Scheduler processScheduler,
-      final ConcurrencyLimiter limiter) {
+      final Limiter limiter) {
     this.relativePath = relativePath;
     this.limiter = limiter;
     this.metadataCache = metadataCache;
+    this.ioScheduler = ioScheduler;
+    this.processScheduler = processScheduler;
 
     repository =
         limiter
             .limit(
-                Mono.<Repository>create(
-                    sink ->
-                        sink.onCancel(
-                            ioScheduler.schedule(
-                                () -> {
-                                  try {
-                                    sink.success(
-                                        new FileRepositoryBuilder()
-                                            .setGitDir(path.toFile())
-                                            .readEnvironment()
-                                            .build());
-                                  } catch (IOException e1) {
-                                    sink.error(
-                                        new RuntimeException("Cannot load repository " + path, e1));
-                                  } catch (Exception e) {
-                                    sink.error(e);
-                                  } finally {
-                                    sink.success();
-                                  }
-                                }))))
+                createAsyncMono(
+                    () ->
+                        new FileRepositoryBuilder()
+                            .setGitDir(path.toFile())
+                            .readEnvironment()
+                            .build()),
+                "load repository tree")
             .cache(REPOSITORY_CACHE_TIME);
-    this.ioScheduler = ioScheduler;
-    this.processScheduler = processScheduler;
 
     Consumer<AlbumMeta> metaUpdater =
         newMetadata -> {
@@ -128,26 +117,19 @@ public class BareGitAccess implements GitAccess {
         };
 
     albumMetaSupplier =
-        limiter
-            .limit(
-                readObject(".raoa.json")
-                    .flatMap(
-                        l ->
-                            Mono.create(
-                                (MonoSink<AlbumMeta> sink) ->
-                                    sink.onCancel(
-                                        ioScheduler.schedule(
-                                            () -> {
-                                              try (final ObjectStream src = l.openStream()) {
-                                                sink.success(albumMetaRader.readValue(src));
-                                              } catch (MissingObjectException e) {
-                                                sink.success();
-                                              } catch (IOException e) {
-                                                sink.error(e);
-                                              } finally {
-                                                sink.success();
-                                              }
-                                            })))))
+        readObject(".raoa.json")
+            .flatMap(
+                l ->
+                    limiter.limit(
+                        createAsyncMonoOptional(
+                            () -> {
+                              try (final ObjectStream src = l.openStream()) {
+                                return Optional.of(albumMetaRader.<AlbumMeta>readValue(src));
+                              } catch (MissingObjectException e) {
+                                return Optional.empty();
+                              }
+                            }),
+                        "load .raoa.json"))
             .publishOn(processScheduler)
             .map(
                 data -> {
@@ -179,7 +161,7 @@ public class BareGitAccess implements GitAccess {
       final Cache<AlbumEntryKey, Metadata> metadataCache,
       Scheduler ioScheduler,
       final Scheduler processScheduler,
-      final ConcurrencyLimiter limiter) {
+      final Limiter limiter) {
     return new BareGitAccess(
         path, relativePath, metadataCache, ioScheduler, processScheduler, limiter);
   }
@@ -192,83 +174,115 @@ public class BareGitAccess implements GitAccess {
               final Repository reps = t.getT1();
               final RevTree revTree = t.getT2();
               return Flux.<GitFileEntry>create(
-                      sink -> {
-                        Runnable run =
-                            () -> {
-                              Semaphore freeSlots = new Semaphore(1);
-                              sink.onRequest(
-                                  count -> {
-                                    // log.info("Request: " + count);
-                                    freeSlots.release(
-                                        (int)
-                                            Math.min(
-                                                Integer.MAX_VALUE - freeSlots.availablePermits(),
-                                                count));
-                                    // log.info("free: " + freeSlots);
-                                  });
-                              AtomicBoolean done = new AtomicBoolean(false);
-                              sink.onCancel(
-                                  () -> {
-                                    // log.info("Cancel");
-                                    done.set(true);
-                                  });
-                              try {
-                                try (ObjectReader objectReader = reps.newObjectReader()) {
-                                  TreeWalk tw = new TreeWalk(reps, objectReader);
-                                  tw.setFilter(filter);
-                                  tw.reset(new ObjectId[] {revTree.getId()});
-                                  tw.setRecursive(true);
-                                  while (!done.get() && tw.next()) {
-                                    // log.info("Free slots: " + freeSlots);
-                                    final String nameString = tw.getNameString();
-                                    final FileMode fileMode = tw.getFileMode();
-                                    final ObjectId fileId = tw.getObjectId(0);
-                                    if (!freeSlots.tryAcquire()) {
-                                      //                                      log.info("Start
-                                      // Throttle");
-                                      freeSlots.acquire();
-                                      //                                    log.info("End
-                                      // Throttle");
-                                    }
-                                    sink.next(new GitFileEntry(nameString, fileMode, fileId));
-                                  }
-                                }
-                              } catch (IOException | InterruptedException e) {
-                                sink.error(e);
-                              }
-                              sink.complete();
-                            };
-                        new Thread(run, "list files").start();
-                      })
-                  // .log("list files")
-                  .subscribeOn(ioScheduler)
-                  .publishOn(processScheduler, 3);
+                  sink -> {
+                    Semaphore freeSlots = new Semaphore(0);
+                    AtomicBoolean started = new AtomicBoolean(false);
+                    sink.onRequest(
+                        count -> {
+                          // log.info("Request: " + count);
+                          freeSlots.release(
+                              (int)
+                                  Math.min(
+                                      Integer.MAX_VALUE - freeSlots.availablePermits(), count));
+                          // log.info("free: " + freeSlots);
+                          if (started.compareAndSet(false, true)) {
+                            new Thread(
+                                    () -> {
+                                      AtomicBoolean done = new AtomicBoolean(false);
+                                      sink.onCancel(
+                                          () -> {
+                                            // log.info("Cancel");
+                                            done.set(true);
+                                          });
+                                      try {
+                                        try (ObjectReader objectReader = reps.newObjectReader()) {
+                                          TreeWalk tw = new TreeWalk(reps, objectReader);
+                                          tw.setFilter(filter);
+                                          tw.reset(new ObjectId[] {revTree.getId()});
+                                          tw.setRecursive(true);
+                                          while (!done.get() && tw.next()) {
+                                            // log.info("Free slots: " + freeSlots);
+                                            final String nameString = tw.getNameString();
+                                            final FileMode fileMode = tw.getFileMode();
+                                            final ObjectId fileId = tw.getObjectId(0);
+                                            if (!freeSlots.tryAcquire()) {
+                                              //
+                                              // log.info("Start
+                                              // Throttle");
+                                              freeSlots.acquire();
+                                              //
+                                              // log.info("End
+                                              // Throttle");
+                                            }
+                                            sink.next(
+                                                new GitFileEntry(nameString, fileMode, fileId));
+                                          }
+                                        }
+                                      } catch (IOException | InterruptedException e) {
+                                        sink.error(e);
+                                      }
+                                      sink.complete();
+                                    },
+                                    "list files")
+                                .start();
+                          }
+                        });
+                  })
+              // .log("list files")
+              // .publishOn(processScheduler, 3)
+              ;
             });
   }
 
   @Override
   public Mono<ObjectLoader> readObject(AnyObjectId objectId) {
-    return repository
-        .map(Repository::getObjectDatabase)
-        .flatMap(
-            db ->
-                Mono.create(
-                    (MonoSink<ObjectLoader> sink) ->
-                        sink.onCancel(
-                            ioScheduler.schedule(
-                                () -> {
-                                  try {
-                                    sink.success(db.open(objectId));
-                                  } catch (MissingObjectException ex) {
-                                    sink.success();
-                                  } catch (IOException e) {
-                                    sink.error(e);
-                                  } finally {
-                                    sink.success();
-                                  }
-                                }))))
-    // .log("read " + objectId)
-    ;
+
+    return limiter.limit(
+        repository
+            .map(Repository::getObjectDatabase)
+            .flatMap(
+                db ->
+                    this.createAsyncMonoOptional(
+                        () -> {
+                          try {
+                            return Optional.of(db.open(objectId));
+                          } catch (MissingObjectException ex) {
+                            return Optional.empty();
+                          }
+                        })),
+        "read object by id");
+    // .log("read " + objectId);
+  }
+
+  private <T> Mono<T> createAsyncMonoOptional(Callable<Optional<T>> callable) {
+    return createAsyncMono(callable).filter(Optional::isPresent).map(Optional::get);
+  }
+
+  private <T> Mono<T> createAsyncMono(Callable<T> callable) {
+    return Mono.create(
+        sink -> {
+          AtomicBoolean requested = new AtomicBoolean(false);
+          sink.onRequest(
+              count -> {
+                if (count > 0) {
+                  if (requested.compareAndSet(false, true)) {
+                    final Disposable schedule =
+                        ioScheduler.schedule(
+                            () -> {
+                              // log.info("Started "+sink.currentContext());
+                              try {
+                                sink.success(callable.call());
+                              } catch (Exception e) {
+                                sink.error(e);
+                              } // finally {
+                              // log.info("Ended");
+                              // }
+                            });
+                    sink.onCancel(schedule);
+                  }
+                }
+              });
+        });
   }
 
   @Override
@@ -276,31 +290,25 @@ public class BareGitAccess implements GitAccess {
     return Mono.zip(repository, masterTree())
         .flatMap(
             t ->
-                Mono.create(
-                    (MonoSink<ObjectLoader> sink) ->
-                        sink.onCancel(
-                            ioScheduler.schedule(
-                                () -> {
-                                  try {
-                                    final Repository rep = t.getT1();
-                                    final RevTree tree = t.getT2();
-                                    final TreeWalk treeWalk = TreeWalk.forPath(rep, filename, tree);
-                                    if (treeWalk == null) {
-                                      sink.success();
-                                      return;
-                                    }
-                                    final ObjectId objectId = treeWalk.getObjectId(0);
-                                    final ObjectLoader objectLoader =
-                                        rep.getObjectDatabase().open(objectId, Constants.OBJ_BLOB);
-                                    sink.success(objectLoader);
-                                  } catch (MissingObjectException e) {
-                                    sink.success();
-                                  } catch (IOException e) {
-                                    sink.error(e);
-                                  } finally {
-                                    sink.success();
-                                  }
-                                }))))
+                limiter.limit(
+                    this.createAsyncMonoOptional(
+                        () -> {
+                          try {
+                            final Repository rep = t.getT1();
+                            final RevTree tree = t.getT2();
+                            final TreeWalk treeWalk = TreeWalk.forPath(rep, filename, tree);
+                            if (treeWalk == null) {
+                              return Optional.empty();
+                            }
+                            final ObjectId objectId = treeWalk.getObjectId(0);
+                            final ObjectLoader objectLoader =
+                                rep.getObjectDatabase().open(objectId, Constants.OBJ_BLOB);
+                            return Optional.of(objectLoader);
+                          } catch (MissingObjectException e) {
+                            return Optional.empty();
+                          }
+                        }),
+                    "read object by name"))
         // .log("read " + filename)
         .publishOn(processScheduler);
   }
@@ -313,20 +321,8 @@ public class BareGitAccess implements GitAccess {
     return repository
         .flatMap(
             r ->
-                Mono.create(
-                    (MonoSink<RevCommit> monoSink) -> {
-                      monoSink.onCancel(
-                          ioScheduler.schedule(
-                              () -> {
-                                try {
-                                  monoSink.success(r.parseCommit(ref.getObjectId()));
-                                } catch (IOException e) {
-                                  monoSink.error(e);
-                                } finally {
-                                  monoSink.success();
-                                }
-                              }));
-                    }))
+                limiter.limit(
+                    createAsyncMono(() -> r.parseCommit(ref.getObjectId())), "read tree by ref"))
         .publishOn(processScheduler)
         .map(RevCommit::getTree);
   }
@@ -335,42 +331,32 @@ public class BareGitAccess implements GitAccess {
     return repository
         .map(Repository::getRefDatabase)
         .flatMap(
-            db ->
-                Mono.create(
-                    (MonoSink<Ref> sink) -> {
-                      sink.onCancel(
-                          ioScheduler.schedule(
-                              () -> {
-                                try {
-                                  sink.success(db.findRef("master"));
-                                } catch (IOException e) {
-                                  sink.error(e);
-                                } finally {
-                                  sink.success();
-                                }
-                              }));
-                    }))
+            db -> limiter.limit(createAsyncMono(() -> db.findRef("master")), "read master ref"))
         .publishOn(processScheduler);
   }
 
   @Override
   public Flux<Instant> readAutoadd() {
     CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
-    return readObject(".autoadd")
-        .map(ObjectLoader::getBytes)
-        .map(ByteBuffer::wrap)
-        .map(
-            b1 -> {
-              try {
-                return decoder.decode(b1);
-              } catch (CharacterCodingException e) {
-                throw new RuntimeException("Cannot read date string", e);
-              }
-            })
-        .map(CharBuffer::toString)
-        .flatMapIterable(s -> Arrays.asList(s.split("\n")))
-        .map(String::trim)
-        .map(line -> ISODateTimeFormat.dateTimeParser().parseDateTime(line).toDate().toInstant());
+    return limiter.limit(
+        readObject(".autoadd")
+            .map(ObjectLoader::getBytes)
+            .map(ByteBuffer::wrap)
+            .map(
+                b1 -> {
+                  try {
+                    return decoder.decode(b1);
+                  } catch (CharacterCodingException e) {
+                    throw new RuntimeException("Cannot read date string", e);
+                  }
+                })
+            .map(CharBuffer::toString)
+            .flatMapIterable(s -> Arrays.asList(s.split("\n")))
+            .map(String::trim)
+            .map(
+                line ->
+                    ISODateTimeFormat.dateTimeParser().parseDateTime(line).toDate().toInstant()),
+        "read autoadd");
   }
 
   @Override
@@ -380,24 +366,10 @@ public class BareGitAccess implements GitAccess {
         rep ->
             findMasterRef()
                 .flatMap(r -> readTree(r).map(t -> Tuples.of(r, t)))
-                .flatMap(
-                    t ->
-                        Mono.create(
-                            (MonoSink<Updater> sink) ->
-                                sink.onCancel(
-                                    ioScheduler.schedule(
-                                        () -> {
-                                          final Ref masterRef = t.getT1();
-                                          final RevTree tree = t.getT2();
-                                          try {
-                                            sink.success(createUpdater(rep, masterRef, tree));
-                                          } finally {
-                                            sink.success();
-                                          }
-                                        })))));
+                .flatMap(t -> createAsyncMono(() -> createUpdater(rep, t.getT1(), t.getT2()))));
   }
 
-  public Updater createUpdater(final Repository rep, final Ref masterRef, final RevTree tree) {
+  private Updater createUpdater(final Repository rep, final Ref masterRef, final RevTree tree) {
     Map<ObjectId, String> alreadyExistingFiles = Collections.synchronizedMap(new HashMap<>());
     final DirCache dirCache;
     final DirCacheBuilder builder;
@@ -469,42 +441,33 @@ public class BareGitAccess implements GitAccess {
       @Override
       public Mono<Boolean> importFile(final Path file, final String name, boolean replaceIfExists) {
         if (replaceIfExists) replacedFiles.add(name);
-        return Mono.<Boolean>create(
-                booleanMonoSink ->
-                    booleanMonoSink.onCancel(
-                        ioScheduler.schedule(
-                            () -> {
-                              try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
-                                final ObjectId newFileId =
-                                    objectInserter.insert(
-                                        Constants.OBJ_BLOB,
-                                        Files.size(file),
-                                        Files.newInputStream(file));
-                                synchronized (alreadyExistingFiles) {
-                                  final String existingFileName =
-                                      alreadyExistingFiles.get(newFileId);
-                                  if (existingFileName != null) {
-                                    log.info(
-                                        "File "
-                                            + file
-                                            + " already imported as "
-                                            + existingFileName
-                                            + " -> merging");
-                                  } else {
-                                    alreadyExistingFiles.put(newFileId, name);
-                                    final DirCacheEntry newEntry = new DirCacheEntry(name);
-                                    newEntry.setFileMode(FileMode.REGULAR_FILE);
-                                    newEntry.setObjectId(newFileId);
-                                    builder.add(newEntry);
-                                    modified = true;
-                                  }
-                                }
-                                booleanMonoSink.success(Boolean.TRUE);
-                              } catch (IOException e) {
-                                booleanMonoSink.error(e);
-                              }
-                            })))
-            .publishOn(processScheduler);
+        return createAsyncMono(
+            () -> {
+              try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
+                final ObjectId newFileId =
+                    objectInserter.insert(
+                        Constants.OBJ_BLOB, Files.size(file), Files.newInputStream(file));
+                synchronized (alreadyExistingFiles) {
+                  final String existingFileName = alreadyExistingFiles.get(newFileId);
+                  if (existingFileName != null) {
+                    log.info(
+                        "File "
+                            + file
+                            + " already imported as "
+                            + existingFileName
+                            + " -> merging");
+                  } else {
+                    alreadyExistingFiles.put(newFileId, name);
+                    final DirCacheEntry newEntry = new DirCacheEntry(name);
+                    newEntry.setFileMode(FileMode.REGULAR_FILE);
+                    newEntry.setObjectId(newFileId);
+                    builder.add(newEntry);
+                    modified = true;
+                  }
+                }
+                return true;
+              }
+            });
       }
 
       @Override
@@ -698,9 +661,8 @@ public class BareGitAccess implements GitAccess {
                                               "Cannot read metadata of " + entryId, e);
                                         }
                                       })
-                                  .subscribeOn(ioScheduler)
-                                  .cache()
-                                  .publishOn(processScheduler)))
+                                  .cache(),
+                              "load metdata"))
                   .doFinally(signal -> pendingMetdataLoad.remove(cacheKey));
             });
   }

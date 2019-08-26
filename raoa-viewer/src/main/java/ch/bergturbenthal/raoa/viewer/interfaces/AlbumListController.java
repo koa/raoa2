@@ -2,6 +2,7 @@ package ch.bergturbenthal.raoa.viewer.interfaces;
 
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
+import ch.bergturbenthal.raoa.libs.service.impl.Limiter;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.FileCache;
@@ -52,32 +53,37 @@ public class AlbumListController {
   private final ViewerProperties viewerProperties;
   private final FileCache<CacheKey> thumbnailCache;
   private final AuthorizationManager authorizationManager;
+  private final Limiter limiter;
 
   public AlbumListController(
       final AlbumList albumList,
       final FileCacheManager fileCacheManager,
       final ThumbnailManager thumbnailManager,
       final ViewerProperties viewerProperties,
-      final AuthorizationManager authorizationManager) {
+      final AuthorizationManager authorizationManager,
+      final Limiter limiter) {
     this.albumList = albumList;
     this.viewerProperties = viewerProperties;
     this.authorizationManager = authorizationManager;
+    this.limiter = limiter;
 
     thumbnailCache =
         fileCacheManager.createCache(
             "thumbnails",
             (CacheKey k, File targetDir) -> {
               final Mono<GitAccess> access = albumList.getAlbum(k.getAlbum());
-              return access
-                  .flatMap(gitAccess -> gitAccess.readObject(k.getFile()))
-                  .flatMap(
-                      loader ->
-                          thumbnailManager.takeThumbnail(
-                              k.getFile(),
-                              loader,
-                              MediaType.IMAGE_JPEG,
-                              k.getMaxLength(),
-                              targetDir));
+              return limiter.limit(
+                  access
+                      .flatMap(gitAccess -> gitAccess.readObject(k.getFile()))
+                      .flatMap(
+                          loader ->
+                              thumbnailManager.takeThumbnail(
+                                  k.getFile(),
+                                  loader,
+                                  MediaType.IMAGE_JPEG,
+                                  k.getMaxLength(),
+                                  targetDir)),
+                  "thumbnail");
             },
             cacheKey ->
                 cacheKey.getAlbum().toString()
@@ -165,26 +171,29 @@ public class AlbumListController {
     final Mono<GitAccess> access = albumList.getAlbum(albumId);
     final ObjectId entryId = ObjectId.fromString(fileId);
     final SecurityContext securityContext = SecurityContextHolder.getContext();
-    return authorizationManager
-        .canUserAccessToAlbum(securityContext, albumId)
-        .filter(t -> t)
-        .flatMap(
-            t ->
-                Mono.zip(
-                    access
-                        .flatMap(gitAccess -> gitAccess.entryMetdata(entryId))
-                        .map(m -> m.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE)),
-                    access.flatMap(gitAccess -> gitAccess.readObject(entryId))))
-        .map(
-            t -> {
-              final MediaType mediaType = MediaType.parseMediaType(t.getT1());
-              final GitBlobRessource resource = new GitBlobRessource(t.getT2(), mediaType, entryId);
-              final HttpHeaders headers = new HttpHeaders();
-              headers.setContentType(mediaType);
-              headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
-              headers.setETag("\"" + entryId.name() + "\"");
-              return new HttpEntity<>(resource, headers);
-            });
+    return limiter.limit(
+        authorizationManager
+            .canUserAccessToAlbum(securityContext, albumId)
+            .filter(t -> t)
+            .flatMap(
+                t ->
+                    Mono.zip(
+                        access
+                            .flatMap(gitAccess -> gitAccess.entryMetdata(entryId))
+                            .map(m -> m.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE)),
+                        access.flatMap(gitAccess -> gitAccess.readObject(entryId))))
+            .map(
+                t -> {
+                  final MediaType mediaType = MediaType.parseMediaType(t.getT1());
+                  final GitBlobRessource resource =
+                      new GitBlobRessource(t.getT2(), mediaType, entryId);
+                  final HttpHeaders headers = new HttpHeaders();
+                  headers.setContentType(mediaType);
+                  headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+                  headers.setETag("\"" + entryId.name() + "\"");
+                  return new HttpEntity<>(resource, headers);
+                }),
+        "original");
   }
 
   @GetMapping("album-zip/{albumId}")

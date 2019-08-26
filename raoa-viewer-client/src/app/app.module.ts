@@ -18,6 +18,7 @@ import {
   MatIconModule,
   MatInputModule,
   MatListModule,
+  MatProgressBarModule,
   MatSidenavModule,
   MatToolbarModule
 } from '@angular/material';
@@ -72,6 +73,7 @@ const appRouter: Routes = [
     MatInputModule,
     FormsModule,
     MatListModule,
+    MatProgressBarModule,
     // MatPasswordStrengthModule
   ],
   providers: [],
