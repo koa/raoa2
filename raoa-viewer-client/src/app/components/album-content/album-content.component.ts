@@ -131,23 +131,35 @@ export class AlbumContentComponent implements OnInit {
                 headerComponent.syncRunning = true;
                 headerComponent.progressBarMode = 'indeterminate';
                 caches.open('images').then(c => {
+                  const remainingEntries = this.sortedEntries.map(e => e.entryUri + '/thumbnail');
                   const countDivisor = this.sortedEntries.length / 100;
                   let currentNumber = 0;
                   headerComponent.progressBarValue = 0;
                   headerComponent.progressBarMode = 'determinate';
-                  this.sortedEntries.forEach((entry) => {
+                  const firstEntry = remainingEntries.pop();
+                  if (firstEntry !== undefined) {
+                    c.add(firstEntry).then(fetchNext);
+                  } else {
+                    headerComponent.syncRunning = false;
+                  }
+                  for (let i = 0; i < 3; i++) {
+                    const nextEntry = remainingEntries.pop();
+                    if (nextEntry === undefined) {
+                      break;
+                    }
+                    c.add(nextEntry).then(fetchNext);
+                  }
 
-                    const thumbnailUri = entry.entryUri + '/thumbnail';
-                    c.add(thumbnailUri).then(() => {
-                      currentNumber += 1;
-                      if (currentNumber >= this.sortedEntries.length) {
-                        headerComponent.syncRunning = false;
-                      } else {
-                        headerComponent.progressBarValue = currentNumber / countDivisor;
-                      }
-                    });
-                  });
-
+                  function fetchNext() {
+                    currentNumber += 1;
+                    const nextEntry = remainingEntries.pop();
+                    if (nextEntry === undefined) {
+                      headerComponent.syncRunning = false;
+                    } else {
+                      headerComponent.progressBarValue = currentNumber / countDivisor;
+                      c.add(nextEntry).then(fetchNext);
+                    }
+                  }
                 });
               };
             }
