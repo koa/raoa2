@@ -489,7 +489,7 @@ public class BareGitAccess implements GitAccess {
 
       Mono<Boolean> exectueCommit(final String message, final Ref currentMasterRef) {
         if (!modified) {
-          return Mono.just(false);
+          return Mono.just(true);
         }
         return Mono.create(
             (MonoSink<Boolean> sink) -> {
