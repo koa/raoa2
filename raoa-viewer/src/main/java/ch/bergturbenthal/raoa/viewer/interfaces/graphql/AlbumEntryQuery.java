@@ -4,6 +4,7 @@ import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
 import com.coxautodev.graphql.tools.GraphQLResolver;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Optional;
@@ -17,6 +18,7 @@ import reactor.core.publisher.Mono;
 
 @Component
 public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
+  private static final Duration TIMEOUT = Duration.ofMinutes(5);
   private final AlbumList albumList;
 
   public AlbumEntryQuery(final AlbumList albumList) {
@@ -136,7 +138,8 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
           .flatMap(a -> a.entryMetdata(ObjectId.fromString(entry.getId())))
           .map(v -> Optional.ofNullable(valueExtractor.apply(v)))
           .filter(Optional::isPresent)
-          .map(Optional::get);
+          .map(Optional::get)
+          .timeout(TIMEOUT);
     }
     return Mono.empty();
   }

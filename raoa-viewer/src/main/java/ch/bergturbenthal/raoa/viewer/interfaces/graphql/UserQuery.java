@@ -7,6 +7,7 @@ import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLResolver;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class UserQuery implements GraphQLResolver<UserReference> {
+  private static final Duration TIMEOUT = Duration.ofMinutes(5);
   private final UserManager userManager;
   private final AlbumList albumList;
 
@@ -31,6 +33,7 @@ public class UserQuery implements GraphQLResolver<UserReference> {
           .filterWhen(id -> albumList.getAlbum(id).map(a -> true).defaultIfEmpty(false))
           .map(id -> new Album(id, user.getContext()))
           .collectList()
+          .timeout(TIMEOUT)
           .toFuture();
     }
     return CompletableFuture.completedFuture(Collections.emptyList());
@@ -38,7 +41,11 @@ public class UserQuery implements GraphQLResolver<UserReference> {
 
   public CompletableFuture<Boolean> canManageUsers(UserReference user) {
     if (canShowUserDetails(user)) {
-      return userManager.findUserById(user.getId()).map(User::isSuperuser).toFuture();
+      return userManager
+          .findUserById(user.getId())
+          .map(User::isSuperuser)
+          .timeout(TIMEOUT)
+          .toFuture();
     }
     return CompletableFuture.completedFuture(null);
   }
@@ -58,6 +65,7 @@ public class UserQuery implements GraphQLResolver<UserReference> {
           .findUserById(user.getId())
           .flatMapIterable(User::getAuthentications)
           .collectList()
+          .timeout(TIMEOUT)
           .toFuture();
     }
     return CompletableFuture.completedFuture(Collections.emptyList());

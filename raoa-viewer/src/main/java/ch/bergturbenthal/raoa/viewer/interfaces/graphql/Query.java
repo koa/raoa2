@@ -6,6 +6,7 @@ import ch.bergturbenthal.raoa.viewer.model.usermanager.PersonalUserData;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLQueryResolver;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class Query implements GraphQLQueryResolver {
+  private static final Duration TIMEOUT = Duration.ofMinutes(5);
   private final AlbumList albumList;
   private final AuthorizationManager authorizationManager;
   private final UserManager userManager;
@@ -34,7 +36,11 @@ public class Query implements GraphQLQueryResolver {
   }
 
   public CompletableFuture<Album> getAlbumById(UUID albumId) {
-    return queryContextSupplier.createContext().map(c -> new Album(albumId, c)).toFuture();
+    return queryContextSupplier
+        .createContext()
+        .map(c -> new Album(albumId, c))
+        .timeout(TIMEOUT)
+        .toFuture();
   }
 
   public CompletableFuture<List<RegistrationRequest>> listPendingRequests() {
@@ -55,6 +61,7 @@ public class Query implements GraphQLQueryResolver {
                     .collect(Collectors.toList());
               else return Collections.<RegistrationRequest>emptyList();
             })
+        .timeout(TIMEOUT)
         .toFuture();
   }
 
@@ -69,6 +76,7 @@ public class Query implements GraphQLQueryResolver {
                     .filter(queryContext::canAccessAlbum)
                     .map(albumId -> new Album(albumId, queryContext))
                     .collectList())
+        .timeout(TIMEOUT)
         .toFuture();
   }
 
@@ -111,6 +119,7 @@ public class Query implements GraphQLQueryResolver {
                             .build();
                       });
             })
+        .timeout(TIMEOUT)
         .toFuture();
   }
 }

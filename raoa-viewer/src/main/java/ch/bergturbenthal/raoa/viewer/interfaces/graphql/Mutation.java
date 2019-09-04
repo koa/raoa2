@@ -11,6 +11,7 @@ import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLMutationResolver;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -19,6 +20,7 @@ import reactor.core.publisher.Mono;
 
 @Component
 public class Mutation implements GraphQLMutationResolver {
+  private static final Duration TIMEOUT = Duration.ofMinutes(5);
   private final UserManager userManager;
   private final AuthorizationManager authorizationManager;
   private final QueryContextSupplier queryContextSupplier;
@@ -41,6 +43,7 @@ public class Mutation implements GraphQLMutationResolver {
               final Mono<User> newUser = userManager.createNewUser(authenticationId);
               return newUser.map(u -> new UserReference(u.getId(), u.getUserData(), queryContext));
             })
+        .timeout(TIMEOUT)
         .toFuture();
   }
 
@@ -82,6 +85,7 @@ public class Mutation implements GraphQLMutationResolver {
                     return code;
                   }
                 })
+        .timeout(TIMEOUT)
         .toFuture();
   }
 }
