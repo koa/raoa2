@@ -477,9 +477,9 @@ public class BareGitAccess implements GitAccess {
 
       @Override
       public Mono<Boolean> commit(String message) {
-
-        return findMasterRef()
-            .flatMap(currentMasterRef -> exectueCommit(message, currentMasterRef))
+        final Mono<String> nameMono = getName();
+        return Mono.zip(findMasterRef(), nameMono)
+            .flatMap(t -> exectueCommit(message, t.getT1()).log("Commit " + t.getT2()))
             .defaultIfEmpty(Boolean.FALSE)
             .doFinally(
                 signal -> {
