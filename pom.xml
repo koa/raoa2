@@ -19,6 +19,7 @@
         <module>raoa-image-thumbnailer</module>
         <module>raoa-viewer</module>
         <module>raoa-viewer-client</module>
+        <module>raoa-viewer-client-oauth2</module>
     </modules>
     <properties>
         <java.version>11</java.version>
