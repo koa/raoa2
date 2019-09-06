@@ -19,6 +19,12 @@ public class ViewerProperties {
   private Map<String, DataSize> cacheSize = Collections.emptyMap();
   private boolean enableAuthentication = true;
   private String superuser = "107024483334418897627";
+  private ClientProperties clientProperties = new ClientProperties();
+
+  @Data
+  public static class ClientProperties {
+    private String googleClientId;
+  }
 
   public ViewerProperties() throws IOException {
     cacheDir = File.createTempFile("cache", "tmp");

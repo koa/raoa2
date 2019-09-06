@@ -1,0 +1,6 @@
+<button (click)="signInWithGoogle()">Login</button>
+<img [src]="user.photoUrl"/>
+<p>{{user.firstName}}</p>
+<p>{{user.lastName}}</p>
+<p>{{user.email}}</p>
+<a *ngIf="loggedIn" ></a>

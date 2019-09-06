@@ -77,6 +77,13 @@ public class BareAlbumList implements AlbumList {
     ioScheduler = Schedulers.newElastic("io-scheduler");
     final Scheduler processScheduler = Schedulers.newElastic("process");
     final Path repoRootPath = this.properties.getRepository().toPath();
+    if (!Files.isDirectory(repoRootPath)) {
+      try {
+        Files.createDirectories(repoRootPath);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
     repositories =
         listSubdirs(repoRootPath)
             .subscribeOn(ioScheduler)
