@@ -14,7 +14,7 @@ import {AppConfigService} from './app-config.service';
 export class ServerApiService {
   private ready: boolean;
   private readyPromise: Promise<boolean>;
-  private authToken: string;
+  private idToken: string;
 
   constructor(
     apollo: Apollo,
@@ -29,17 +29,17 @@ export class ServerApiService {
       appConfigService.getAuthService().then(authService => {
         authService.authState.subscribe((user: SocialUser) => {
           console.log(user);
-          this.authToken = user.authToken;
+          this.idToken = user.idToken;
 
 
           const authLink = new ApolloLink((operation, forward) => {
 
-            console.log('Auth token: ' + this.authToken);
+            console.log('Auth token: ' + this.idToken);
 
             // Use the setContext method to set the HTTP headers.
             operation.setContext({
               headers: {
-                Authorization: this.authToken ? `Bearer ${this.authToken}` : ''
+                Authorization: this.idToken ? `Bearer ${this.idToken}` : ''
               }
             });
 
