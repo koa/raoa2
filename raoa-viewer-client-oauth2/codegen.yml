@@ -1,0 +1,15 @@
+overwrite: true
+schema: ../raoa-viewer/src/main/resources/schema.graphqls
+documents: src/app/graphql/*.graphql
+config:
+  scalars:
+    DateTime: Date
+generates:
+  ./src/app/generated/graphql.ts:
+    plugins:
+      - typescript-common
+      - typescript-client
+      - typescript-apollo-angular
+  ./schema.json:
+    plugins:
+      - introspection

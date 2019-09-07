@@ -37,6 +37,16 @@
                         </configuration>
                         <phase>generate-resources</phase>
                     </execution>
+                  <execution>
+                    <id>generate graphql client</id>
+                    <goals>
+                      <goal>npm</goal>
+                    </goals>
+                    <configuration>
+                      <arguments>run graphql</arguments>
+                    </configuration>
+                    <phase>generate-resources</phase>
+                  </execution>
                     <execution>
                         <id>prod</id>
                         <goals>

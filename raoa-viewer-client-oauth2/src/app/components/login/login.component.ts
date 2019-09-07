@@ -1,5 +1,6 @@
 import {Component, OnInit} from '@angular/core';
-import {AuthService, GoogleLoginProvider, SocialUser} from 'angularx-social-login';
+import {GoogleLoginProvider, SocialUser} from 'angularx-social-login';
+import {AppConfigService} from '../../services/app-config.service';
 
 
 @Component({
@@ -8,14 +9,15 @@ import {AuthService, GoogleLoginProvider, SocialUser} from 'angularx-social-logi
   styleUrls: ['./login.component.css']
 })
 export class LoginComponent implements OnInit {
-  private user: SocialUser;
-  private loggedIn: boolean;
+  public user: SocialUser;
+  public loggedIn: boolean;
 
-  constructor(private authService: AuthService) {
+  constructor(private configService: AppConfigService) {
   }
 
-  ngOnInit() {
-    this.authService.authState.subscribe(user => {
+  async ngOnInit() {
+    const authService = await this.configService.getAuthService();
+    authService.authState.subscribe(user => {
       this.loggedIn = user != null;
       this.user = user;
       console.log('auth state');
@@ -23,13 +25,15 @@ export class LoginComponent implements OnInit {
     });
   }
 
-  signInWithGoogle(): void {
-    this.authService.signIn(GoogleLoginProvider.PROVIDER_ID);
+  async signInWithGoogle() {
+    const authService = await this.configService.getAuthService();
+    authService.signIn(GoogleLoginProvider.PROVIDER_ID);
   }
 
 
-  signOut(): void {
-    this.authService.signOut();
+  async signOut() {
+    const authService = await this.configService.getAuthService();
+    authService.signOut();
   }
 
 }

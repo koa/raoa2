@@ -7,6 +7,10 @@ const proxyConfig = [{
   context: '/rest',
   target: 'http://localhost:8080/',
   secure: false
+}, {
+  context: '/graphql',
+  target: 'http://localhost:8080/',
+  secure: false
 }];
 
 function setupForCorporateProxy(proxyConfig) {

@@ -5,31 +5,25 @@ import {AppRoutingModule} from './app-routing.module';
 import {AppComponent} from './app.component';
 import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
 import {LoginComponent} from './components/login/login.component';
-import {AuthServiceConfig, GoogleLoginProvider, SocialLoginModule} from 'angularx-social-login';
-import {RouterModule} from '@angular/router';
+import {SocialLoginModule} from 'angularx-social-login';
 import {AppConfigService} from './services/app-config.service';
 import {HttpClientModule} from '@angular/common/http';
+import {MatButtonModule} from '@angular/material/button';
+import {AlbumListComponent} from './components/album-list/album-list.component';
+import {ApolloModule} from 'apollo-angular';
+import {HttpLinkModule} from 'apollo-angular-link-http';
 
-
-export function provideConfig(appConfig: AppConfigService) {
-  return new AuthServiceConfig([
-    {
-      id: GoogleLoginProvider.PROVIDER_ID,
-      provider: new GoogleLoginProvider(appConfig.getConfig().googleClientId)
-    }
-  ]);
-}
 
 const appInitializerFn = (appConfig: AppConfigService) => {
-  return () => {
-    return appConfig.loadAppConfig();
-  };
+  console.log('app initializer fn');
+  return () => appConfig.loadAppConfig();
 };
 
 @NgModule({
   declarations: [
     AppComponent,
-    LoginComponent
+    LoginComponent,
+    AlbumListComponent
   ],
   imports: [
     BrowserModule,
@@ -37,10 +31,7 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     BrowserAnimationsModule,
     SocialLoginModule,
     HttpClientModule,
-    RouterModule.forRoot([
-      {path: 'login', component: LoginComponent},
-      {path: '', redirectTo: '/login', pathMatch: 'full'}
-    ])
+    MatButtonModule,
   ],
   providers: [
     AppConfigService,
@@ -50,13 +41,9 @@ const appInitializerFn = (appConfig: AppConfigService) => {
       multi: true,
       deps: [AppConfigService]
     },
-    {
-      provide: AuthServiceConfig,
-      useFactory: provideConfig,
-      deps: [AppConfigService]
-    }
   ],
-  bootstrap: [AppComponent]
+  bootstrap: [AppComponent],
+  exports: [ApolloModule, HttpLinkModule]
 })
 export class AppModule {
 }
