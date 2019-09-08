@@ -3,7 +3,7 @@ schema: ../raoa-viewer/src/main/resources/schema.graphqls
 documents: src/app/graphql/*.graphql
 config:
   scalars:
-    DateTime: Date
+    DateTime: string
 generates:
   ./src/app/generated/graphql.ts:
     plugins:

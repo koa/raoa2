@@ -1,1 +1,26 @@
-<p>album-list works!</p>
+<div [class.example-is-mobile]="mobileQuery.matches" class="main-container">
+  <mat-toolbar class="main-toolbar" color="primary">
+    <button (click)="snav.toggle()" mat-icon-button>
+      <mat-icon>menu</mat-icon>
+    </button>
+    <h1>Alben</h1>
+  </mat-toolbar>
+  <mat-sidenav-container [style.marginTop.px]="mobileQuery.matches ? 56 : 0"
+                         class="main-sidenav-container">
+    <mat-sidenav #snav [fixedInViewport]="mobileQuery.matches"
+                 [mode]="mobileQuery.matches ? 'over' : 'side'" fixedTopGap="56">
+      <mat-nav-list>
+        <ng-template>
+
+        </ng-template>
+        <a mat-list-item routerLink="login">Login</a>
+
+      </mat-nav-list>
+    </mat-sidenav>
+
+    <mat-sidenav-content>
+      <a *ngFor="let album of albums" [routerLink]="['/album', album.id]" mat-list-item>{{album.name}}
+        : {{album.entryCount}}</a>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
+</div>

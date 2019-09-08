@@ -30,3 +30,32 @@ h1.main-app-name {
   flex: 1 0 auto;
 }
 
+
+.gallery-row {
+  white-space: nowrap;
+  display: flex;
+}
+
+.gallery-row-scrolling {
+  grid-row-start: 2;
+  grid-column-start: 1;
+}
+
+.gallery-cell {
+  cursor: pointer;
+}
+
+mat-sidenav-content {
+  height: 100%;
+  display: grid;
+  grid-template-areas: "head" "content";
+  grid-template-columns: 1fr;
+  grid-template-rows: fit-content(1em) 1fr;
+}
+
+mat-toolbar {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  align-content: baseline;
+}

@@ -32,8 +32,7 @@ import {HeadlineDirective} from './directive/headline.directive';
 import {TitleOnlyHeaderComponent} from './components/title-only-header/title-only-header.component';
 import {RequestAccessHeaderComponent} from './components/request-access-header/request-access-header.component';
 import {AlbumContentHeaderComponent} from './components/album-content-header/album-content-header.component';
-import {SocialLoginModule} from "angularx-social-login";
-import {getAuthServiceConfigs} from "./socialloginConfig";
+import {SocialLoginModule} from 'angularx-social-login';
 // import { MatPasswordStrengthModule } from '@angular-material-extensions/core';
 
 const appRouter: Routes = [
@@ -80,7 +79,7 @@ const appRouter: Routes = [
     // MatPasswordStrengthModule
   ],
   providers: [
-    SocialLoginModule.initialize(getAuthServiceConfigs)
+    // SocialLoginModule.initialize(getAuthServiceConfigs)
   ],
   bootstrap: [AppComponent],
   entryComponents: [ShowImageDialogComponent, TitleOnlyHeaderComponent, RequestAccessHeaderComponent, AlbumContentHeaderComponent]

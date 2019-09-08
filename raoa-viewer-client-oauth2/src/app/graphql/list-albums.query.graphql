@@ -1,5 +1,7 @@
 query AllAlbums{
   listAlbums {
-    id, name
+    id,
+    name,
+    entryCount
   }
 }

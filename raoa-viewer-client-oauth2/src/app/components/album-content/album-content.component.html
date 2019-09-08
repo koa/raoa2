@@ -1,0 +1,56 @@
+<div [class.example-is-mobile]="mobileQuery.matches" class="main-container">
+  <mat-toolbar class="main-toolbar" color="primary">
+    <button (click)="snav.toggle()" mat-icon-button>
+      <mat-icon>menu</mat-icon>
+    </button>
+    <h1>{{title}}</h1>
+    <div>
+      <mat-progress-bar *ngIf="syncRunning" [mode]="progressBarMode" [value]="progressBarValue" color="accent">
+      </mat-progress-bar>
+      <button (click)="startSync()" *ngIf="!syncRunning" mat-icon-button>
+        <mat-icon>sync</mat-icon>
+      </button>
+      <button (click)="downloadZip()" mat-icon-button>
+        <mat-icon>archive</mat-icon>
+      </button>
+      <button (click)="zoomIn()" mat-icon-button>
+        <mat-icon>zoom_in</mat-icon>
+      </button>
+      <button (click)="zoomOut()" mat-icon-button>
+        <mat-icon>zoom_out</mat-icon>
+      </button>
+    </div>
+  </mat-toolbar>
+  <mat-sidenav-container [style.marginTop.px]="mobileQuery.matches ? 56 : 0"
+                         class="main-sidenav-container">
+    <mat-sidenav #snav [fixedInViewport]="mobileQuery.matches"
+                 [mode]="mobileQuery.matches ? 'over' : 'side'" fixedTopGap="56">
+      <mat-nav-list>
+        <ng-template>
+
+        </ng-template>
+        <a mat-list-item routerLink="requestAccess">Request Access</a>
+        <a *ngFor="let album of albums" [routerLink]="['/album', album.id]" mat-list-item>{{album.name}}
+          : {{album.entryCount}}</a>
+      </mat-nav-list>
+    </mat-sidenav>
+
+    <mat-sidenav-content>
+      <div *ngIf="loading">
+        Loading...
+      </div>
+      <div *ngIf="error">
+        Error :(
+      </div>
+      <cdk-virtual-scroll-viewport (resized)="resized($event)" *ngIf="resultRows" autosize
+                                   class="gallery-row-scrolling">
+        <div *cdkVirtualFor="let row of resultRows" class="gallery-row">
+          <img (click)="openImage(shape.entryIndex)" *ngFor="let shape of row.shapes" [alt]="shape.entry.name"
+               [height]="row.height"
+               [src]="createUrl(row, shape)" [width]="shape.width"
+               class="gallery-cell"/>
+        </div>
+      </cdk-virtual-scroll-viewport>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
+</div>

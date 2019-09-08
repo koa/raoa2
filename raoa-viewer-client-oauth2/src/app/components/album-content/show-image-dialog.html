@@ -1,0 +1,40 @@
+<!--<h2 mat-dialog-title>{{data.sortedEntries[data.currentIndex].name}}</h2>-->
+<mat-dialog-content (window:keydown.arrowLeft)="left()"
+                    (window:keydown.arrowRight)="right()"
+                    [style.backgroundImage]="'url('+ createImageUrl(currentIndex) +')'"
+                    class="showImage">
+  <div class="head-row">
+    <div>
+
+    </div>
+    <div>
+
+    </div>
+    <div>
+      <button mat-icon-button>
+        <mat-icon (click)="download()">save_alt</mat-icon>
+      </button>
+      <button *ngIf="supportShare" mat-icon-button>
+        <mat-icon (click)="share()">share</mat-icon>
+      </button>
+      <button mat-icon-button>
+        <mat-icon (click)="close()">close</mat-icon>
+      </button>
+    </div>
+  </div>
+  <div class="center-row">
+    <div>
+      <button mat-icon-button>
+        <mat-icon (click)="left()">arrow_left</mat-icon>
+      </button>
+    </div>
+    <div>
+      <button mat-icon-button>
+        <mat-icon (click)="right()">arrow_right</mat-icon>
+      </button>
+    </div>
+  </div>
+  <div class="foot-row">
+    {{data.sortedEntries[currentIndex].name}}
+  </div>
+</mat-dialog-content>

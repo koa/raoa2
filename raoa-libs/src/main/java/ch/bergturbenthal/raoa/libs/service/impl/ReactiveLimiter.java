@@ -1,8 +1,8 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
 import ch.bergturbenthal.raoa.libs.properties.Properties;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.Deque;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -44,7 +44,7 @@ public class ReactiveLimiter implements Limiter {
 
   private static class SubLimiter {
     private final Semaphore semaphore;
-    private final Queue<QueueEntry<?>> queue = new ConcurrentLinkedQueue<>();
+    private final Deque<QueueEntry<?>> queue = new ConcurrentLinkedDeque<>();
 
     public SubLimiter(int count) {
       semaphore = new Semaphore(count, true);
@@ -55,7 +55,7 @@ public class ReactiveLimiter implements Limiter {
         final int queueSize = queue.size();
         if (semaphore.tryAcquire((!wait || queueSize < 50) ? 0 : 2, TimeUnit.SECONDS)) {
           // log.info("Slot taken " + queueSize);
-          final QueueEntry<?> takenEntry = queue.poll();
+          final QueueEntry<?> takenEntry = queue.pollLast();
           if (takenEntry != null) {
             // log.info("entry from queue taken");
             runEntry(takenEntry);

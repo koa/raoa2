@@ -18,10 +18,10 @@ export class LoginComponent implements OnInit {
   async ngOnInit() {
     const authService = await this.configService.getAuthService();
     authService.authState.subscribe(user => {
-      this.loggedIn = user != null;
-      this.user = user;
       console.log('auth state');
       console.log(user);
+      this.loggedIn = user != null;
+      this.user = user;
     });
   }
 
