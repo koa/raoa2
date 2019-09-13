@@ -1,14 +1,15 @@
 import {Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {AppConfig} from '../interfaces/app-config';
-import {AuthService, AuthServiceConfig, GoogleLoginProvider} from "angularx-social-login";
+import {AuthService, AuthServiceConfig, GoogleLoginProvider} from 'angularx-social-login';
+import {CookieService} from 'ngx-cookie-service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AppConfigService {
 
-  constructor(private http: HttpClient) {
+  constructor(private http: HttpClient, private cookieService: CookieService) {
   }
 
   private appConfig: AppConfig;
@@ -53,6 +54,10 @@ export class AppConfigService {
           ]);
           const authService = new AuthService(authServiceConfig);
           this.auhService = authService;
+
+          authService.authState.subscribe(user => {
+            this.cookieService.set('access_token', user.idToken);
+          });
           return authService;
         });
     }

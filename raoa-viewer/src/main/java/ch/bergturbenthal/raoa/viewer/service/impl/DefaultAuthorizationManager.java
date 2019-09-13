@@ -13,8 +13,7 @@ import java.util.UUID;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
-import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.provider.OAuth2Authentication;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -45,14 +44,27 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
       userAuthentication = ((OAuth2Authentication) authentication).getUserAuthentication();
     } else userAuthentication = authentication;
     final Object principal = userAuthentication.getPrincipal();
-    if (principal instanceof DefaultOAuth2User
-        && userAuthentication instanceof OAuth2AuthenticationToken) {
-      final String authorizedClientRegistrationId =
-          ((OAuth2AuthenticationToken) userAuthentication).getAuthorizedClientRegistrationId();
-      final String subject = (String) ((DefaultOAuth2User) principal).getAttributes().get("sub");
+
+    if (principal instanceof Jwt) {
+      final Map<String, Object> claims = ((Jwt) principal).getClaims();
+      final String subject = (String) claims.get("sub");
+      String authorizedClientRegistrationId = (String) claims.get("iss");
       return Optional.of(
           AuthenticationId.builder().authority(authorizedClientRegistrationId).id(subject).build());
-    } else return Optional.empty();
+    }
+
+    return Optional.empty();
+    /*
+       if (principal instanceof DefaultOAuth2User
+               && userAuthentication instanceof OAuth2AuthenticationToken) {
+         final String authorizedClientRegistrationId =
+                 ((OAuth2AuthenticationToken) userAuthentication).getAuthorizedClientRegistrationId();
+         final String subject = (String) ((DefaultOAuth2User) principal).getAttributes().get("sub");
+         return Optional.of(
+                 AuthenticationId.builder().authority(authorizedClientRegistrationId).id(subject).build());
+       } else return Optional.empty();
+
+    */
   }
 
   @Override
@@ -105,8 +117,8 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   @Override
   public PersonalUserData readPersonalUserData(final SecurityContext context) {
     final Object principal = context.getAuthentication().getPrincipal();
-    final DefaultOAuth2User oidcUser = (DefaultOAuth2User) principal;
-    final Map<String, Object> attributes = oidcUser.getAttributes();
+    final Jwt oidcUser = (Jwt) principal;
+    final Map<String, Object> attributes = oidcUser.getClaims();
     return PersonalUserData.builder()
         .comment("")
         .picture((String) attributes.get("picture"))

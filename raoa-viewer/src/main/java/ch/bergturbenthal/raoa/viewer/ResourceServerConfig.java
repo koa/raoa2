@@ -1,9 +1,9 @@
 package ch.bergturbenthal.raoa.viewer;
 
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import javax.servlet.http.Cookie;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.ResourceServerProperties;
 import org.springframework.context.annotation.Bean;
@@ -24,7 +24,9 @@ import org.springframework.security.oauth2.provider.token.DefaultAccessTokenConv
 import org.springframework.security.oauth2.provider.token.TokenStore;
 import org.springframework.security.oauth2.provider.token.UserAuthenticationConverter;
 import org.springframework.security.oauth2.provider.token.store.jwk.JwkTokenStore;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 
+@Slf4j
 @Configuration
 @EnableResourceServer
 @EnableWebSecurity
@@ -37,6 +39,21 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
     http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
     http.authorizeRequests().anyRequest().permitAll();
     http.headers().cacheControl().disable();
+    final DefaultBearerTokenResolver defaultBearerTokenResolver = new DefaultBearerTokenResolver();
+    http.oauth2ResourceServer()
+        .bearerTokenResolver(
+            request -> {
+              final Optional<String> s =
+                  Optional.ofNullable(request.getCookies())
+                      .flatMap(
+                          cookies ->
+                              Arrays.stream(cookies)
+                                  .filter(cookie -> "access_token".equals(cookie.getName()))
+                                  .map(Cookie::getValue)
+                                  .findAny());
+              return s.orElseGet(() -> defaultBearerTokenResolver.resolve(request));
+            })
+        .jwt();
   }
 
   @Bean

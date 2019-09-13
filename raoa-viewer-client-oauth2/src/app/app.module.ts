@@ -7,7 +7,7 @@ import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
 import {LoginComponent} from './components/login/login.component';
 import {SocialLoginModule} from 'angularx-social-login';
 import {AppConfigService} from './services/app-config.service';
-import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
+import {HttpClientModule} from '@angular/common/http';
 import {MatButtonModule} from '@angular/material/button';
 import {AlbumListComponent} from './components/album-list/album-list.component';
 import {ApolloModule} from 'apollo-angular';
@@ -22,7 +22,7 @@ import {ScrollingModule as ExperimentalScrollingModule} from '@angular/cdk-exper
 import {MatDialogModule} from '@angular/material/dialog';
 import {AngularResizedEventModule} from 'angular-resize-event';
 import {MatProgressBarModule} from '@angular/material/progress-bar';
-import {BearerHttpInterceptor} from './interceptor/bearer-http-interceptor';
+import {CookieService} from 'ngx-cookie-service';
 
 
 const appInitializerFn = (appConfig: AppConfigService) => {
@@ -62,10 +62,8 @@ const appInitializerFn = (appConfig: AppConfigService) => {
       useFactory: appInitializerFn,
       multi: true,
       deps: [AppConfigService]
-    }, {
-      // register the interceptor to our angular module
-      provide: HTTP_INTERCEPTORS, useClass: BearerHttpInterceptor, multi: true
-    }
+    },
+    CookieService
   ],
   bootstrap: [AppComponent],
   exports: [ApolloModule, HttpLinkModule],

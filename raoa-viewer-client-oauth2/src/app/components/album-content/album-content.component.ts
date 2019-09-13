@@ -122,7 +122,7 @@ export class AlbumContentComponent implements OnInit {
             const componentThis = this;
             const firstEntry = remainingEntries.pop();
             if (firstEntry !== undefined) {
-              c.add(firstEntry + '?access_token=' + this.idToken).then(fetchNext);
+              c.add(firstEntry).then(fetchNext);
             } else {
               this.syncRunning = false;
             }
@@ -131,7 +131,7 @@ export class AlbumContentComponent implements OnInit {
               if (nextEntry === undefined) {
                 break;
               }
-              c.add(nextEntry + '?access_token=' + this.idToken).then(fetchNext);
+              c.add(nextEntry).then(fetchNext);
             }
 
             function fetchNext() {
@@ -141,7 +141,7 @@ export class AlbumContentComponent implements OnInit {
                 componentThis.syncRunning = false;
               } else {
                 componentThis.progressBarValue = currentNumber / countDivisor;
-                c.add(nextEntry + '?access_token=' + componentThis.idToken).then(fetchNext);
+                c.add(nextEntry).then(fetchNext);
               }
             }
           });
@@ -191,7 +191,7 @@ export class AlbumContentComponent implements OnInit {
 
   createUrl(row: TableRow, shape: Shape) {
     // const maxLength = this.findScale(Math.max(shape.width, row.height)); access_token
-    return this.trustUrl(shape.entry.entryUri + '/thumbnail?access_token=' + this.idToken);
+    return this.trustUrl(shape.entry.entryUri + '/thumbnail');
   }
 
   findScale(maxLength: number) {
@@ -248,12 +248,22 @@ export class AlbumContentComponent implements OnInit {
     let currentRowContent: AlbumEntry[] = [];
     for (let index = 0; index < this.sortedEntries.length; index++) {
       const entry = this.sortedEntries[index];
+      if (entry.targetWidth == null || entry.targetHeight == null) {
+        console.log('Invalid entry:');
+        console.log(entry);
+        continue;
+      }
       currentRowContent.push(entry);
       const currentWidth = currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0);
       if (currentWidth >= this.minWidth) {
         this.resultRows.push(this.createItems(index, currentRowContent, currentWidth));
         currentRowContent = [];
       }
+      if (currentRowContent.length > 50) {
+        console.log('Invalid row');
+        currentRowContent = [];
+      }
+
     }
     if (currentRowContent.length > 0) {
       this.resultRows.push(this.createItems(
@@ -327,12 +337,12 @@ export class ShowImageDialogComponent implements OnInit {
   download() {
 
     const entry = this.data.sortedEntries[this.currentIndex];
-    const entryUri = entry.entryUri + '/original?access_token=' + this.idToken;
+    const entryUri = entry.entryUri + '/original';
     const filename = entry.name;
     window.open(entryUri);
   }
 
   createImageUrl(currentIndex: number) {
-    return this.data.sortedEntries[currentIndex].entryUri + '/thumbnail?access_token=' + this.idToken;
+    return this.data.sortedEntries[currentIndex].entryUri + '/thumbnail';
   }
 }

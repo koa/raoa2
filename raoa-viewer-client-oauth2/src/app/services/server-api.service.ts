@@ -52,7 +52,7 @@ export class ServerApiService {
           });
 
           apollo.create({
-            link: authLink.concat(http),
+            link: http,
             cache: new InMemoryCache()
           });
           resolve(true);
