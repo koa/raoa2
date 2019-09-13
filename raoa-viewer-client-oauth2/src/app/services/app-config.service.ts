@@ -8,6 +8,7 @@ import {CookieService} from 'ngx-cookie-service';
   providedIn: 'root'
 })
 export class AppConfigService {
+  private lastLoginTime = 0;
 
   constructor(private http: HttpClient, private cookieService: CookieService) {
   }
@@ -40,6 +41,11 @@ export class AppConfigService {
   }
 
   getAuthService(): Promise<AuthService> {
+    if (Date.now() - this.lastLoginTime > 30 * 60 * 1000) {
+      this.lastLoginTime = Date.now();
+      this.auhService = undefined;
+      this.auhServicePromise = undefined;
+    }
     if (this.auhService !== undefined) {
       return Promise.resolve(this.auhService);
     }
@@ -54,9 +60,12 @@ export class AppConfigService {
           ]);
           const authService = new AuthService(authServiceConfig);
           this.auhService = authService;
-
           authService.authState.subscribe(user => {
-            this.cookieService.set('access_token', user.idToken);
+            if (user != null) {
+              this.cookieService.set('access_token', user.idToken);
+            } else {
+              this.cookieService.delete('access_token');
+            }
           });
           return authService;
         });
