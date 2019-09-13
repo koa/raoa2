@@ -8,7 +8,7 @@ import {ServerApiService} from '../../services/server-api.service';
 import {AlbumContent, AllAlbums, Maybe} from '../../generated/graphql';
 import {AppConfigService} from '../../services/app-config.service';
 import {ResizedEvent} from 'angular-resize-event';
-import {MediaMatcher} from "@angular/cdk/layout";
+import {MediaMatcher} from '@angular/cdk/layout';
 
 
 interface AlbumById {
@@ -122,16 +122,28 @@ export class AlbumContentComponent implements OnInit {
             const componentThis = this;
             const firstEntry = remainingEntries.pop();
             if (firstEntry !== undefined) {
-              c.add(firstEntry).then(fetchNext);
+              fetch(firstEntry, 5);
             } else {
               this.syncRunning = false;
             }
-            for (let i = 0; i < 3; i++) {
-              const nextEntry = remainingEntries.pop();
-              if (nextEntry === undefined) {
-                break;
-              }
-              c.add(nextEntry).then(fetchNext);
+            for (let i = 0; i < 3 && remainingEntries.length > 0; i++) {
+              fetchNext();
+            }
+
+            function fetch(url: string, repeat: number) {
+              c.match(url)
+                .then(existingEntry => existingEntry == null ? c.add(url) : Promise.resolve())
+                .then(fetchNext)
+                .catch(error => {
+                  console.log('Error fetching ' + url);
+                  console.log(error);
+                  if (repeat > 0) {
+                    fetch(url, repeat - 1);
+                  } else {
+                    componentThis.syncRunning = false;
+                  }
+                })
+              ;
             }
 
             function fetchNext() {
@@ -141,7 +153,7 @@ export class AlbumContentComponent implements OnInit {
                 componentThis.syncRunning = false;
               } else {
                 componentThis.progressBarValue = currentNumber / countDivisor;
-                c.add(nextEntry).then(fetchNext);
+                fetch(nextEntry, 5);
               }
             }
           });

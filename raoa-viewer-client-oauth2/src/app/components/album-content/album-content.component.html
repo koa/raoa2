@@ -42,7 +42,8 @@
       <div *ngIf="error">
         Error :(
       </div>
-      <cdk-virtual-scroll-viewport (resized)="resized($event)" *ngIf="resultRows" autosize
+      <cdk-virtual-scroll-viewport (resized)="resized($event)" *ngIf="resultRows" autosize maxBufferPx="1000"
+                                   minBufferPx="500"
                                    class="gallery-row-scrolling">
         <div *cdkVirtualFor="let row of resultRows" class="gallery-row">
           <img (click)="openImage(shape.entryIndex)" *ngFor="let shape of row.shapes" [alt]="shape.entry.name"
