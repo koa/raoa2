@@ -62,8 +62,10 @@ export class AppConfigService {
           this.auhService = authService;
           authService.authState.subscribe(user => {
             if (user != null) {
-              this.cookieService.set('access_token', user.idToken);
+              console.log('logged in ' + user.name);
+              this.cookieService.set('access_token', user.idToken, Date.now() + 24 * 60 * 60 * 1000);
             } else {
+              console.log('logged out');
               this.cookieService.delete('access_token');
             }
           });
