@@ -1,5 +1,4 @@
 import {Component, OnInit} from '@angular/core';
-import {GoogleLoginProvider, SocialUser} from 'angularx-social-login';
 import {AppConfigService} from '../../services/app-config.service';
 
 
@@ -9,14 +8,14 @@ import {AppConfigService} from '../../services/app-config.service';
   styleUrls: ['./login.component.css']
 })
 export class LoginComponent implements OnInit {
-  public user: SocialUser;
+  public user: any;
   public loggedIn: boolean;
 
   constructor(private configService: AppConfigService) {
   }
 
   async ngOnInit() {
-    const authService = await this.configService.getAuthService();
+    const authService = await this.configService.login();
     authService.authState.subscribe(user => {
       console.log('auth state');
       console.log(user);
@@ -26,13 +25,13 @@ export class LoginComponent implements OnInit {
   }
 
   async signInWithGoogle() {
-    const authService = await this.configService.getAuthService();
-    authService.signIn(GoogleLoginProvider.PROVIDER_ID);
+    const authService = await this.configService.login();
+    // authService.signIn(GoogleLoginProvider.PROVIDER_ID);
   }
 
 
   async signOut() {
-    const authService = await this.configService.getAuthService();
+    const authService = await this.configService.login();
     authService.signOut();
   }
 

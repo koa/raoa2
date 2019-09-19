@@ -318,6 +318,7 @@ public class BareGitAccess implements GitAccess {
   }
 
   private Mono<RevTree> readTree(final Ref ref) {
+    log.info("Read tree " + ref + " at " + relativePath);
     return repository
         .flatMap(
             r ->

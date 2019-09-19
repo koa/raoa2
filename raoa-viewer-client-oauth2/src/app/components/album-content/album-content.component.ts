@@ -88,7 +88,7 @@ export class AlbumContentComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.configApi.getAuthService().then(authService => authService.authState.subscribe(user => this.idToken = user.idToken));
+    // this.configApi.getAuthService().then(authService => authService.authState.subscribe(user => this.idToken = user.idToken));
     this.serverApi.listAllAlbums().then(data => {
       this.albums = data;
     });
@@ -293,10 +293,9 @@ export class AlbumContentComponent implements OnInit {
   templateUrl: 'show-image-dialog.html',
   styleUrls: ['./show-image-dialog.css'],
 })
-export class ShowImageDialogComponent implements OnInit {
+export class ShowImageDialogComponent {
   public currentIndex = 0;
   public supportShare: boolean;
-  private idToken: string;
 
   constructor(
     public dialogRef: MatDialogRef<ShowImageDialogComponent>,
@@ -308,9 +307,6 @@ export class ShowImageDialogComponent implements OnInit {
     this.supportShare = hackNavi.share !== undefined;
   }
 
-  ngOnInit() {
-    this.configApi.getAuthService().then(authService => authService.authState.subscribe(user => this.idToken = user.idToken));
-  }
 
   onNoClick(): void {
     this.dialogRef.close();

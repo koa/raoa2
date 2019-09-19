@@ -2,8 +2,6 @@ import {Injectable} from '@angular/core';
 import {AlbumContent, AlbumContentGQL, AlbumContentZipGQL, AllAlbums, AllAlbumsGQL, Maybe} from '../generated/graphql';
 import {Apollo} from 'apollo-angular';
 import {HttpLink} from 'apollo-angular-link-http';
-import {GoogleLoginProvider, SocialUser} from 'angularx-social-login';
-import {ApolloLink} from 'apollo-link';
 import {InMemoryCache} from 'apollo-cache-inmemory';
 import {AppConfigService} from './app-config.service';
 
@@ -26,41 +24,17 @@ export class ServerApiService {
   ) {
     this.ready = false;
     this.readyPromise = new Promise<boolean>(((resolve) => {
-      const http = httpLink.create({uri: '/graphql'});
-
-      appConfigService.getAuthService().then(authService => {
-        authService.authState.subscribe((user: SocialUser) => {
-          if (user == null) {
-            console.log('No user');
-            authService.signIn(GoogleLoginProvider.PROVIDER_ID);
-            return;
-          }
-          this.idToken = user.idToken;
-
-
-          const authLink = new ApolloLink((operation, forward) => {
-
-            // Use the setContext method to set the HTTP headers.
-            operation.setContext({
-              headers: {
-                Authorization: this.idToken ? `Bearer ${this.idToken}` : ''
-              }
-            });
-
-            // Call the next link in the middleware chain.
-            return forward(operation);
-          });
-
-          apollo.create({
-            link: http,
-            cache: new InMemoryCache()
-          });
-          resolve(true);
+      appConfigService.login().then(user => {
+        const http = httpLink.create({uri: '/graphql'});
+        apollo.create({
+          link: http,
+          cache: new InMemoryCache(),
         });
+        resolve(true);
+
       });
+
     }));
-
-
   }
 
   public async listAllAlbums(): Promise<Maybe<AllAlbums.ListAlbums>[]> {
