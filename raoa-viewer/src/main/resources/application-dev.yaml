@@ -5,16 +5,29 @@ spring:
         simple:
           instances:
             raoa-thumbnailer:
-              - uri: http://thumbnailer.lkw.teamkoenig.ch/
+              - uri: http://localhost:8081/
     kubernetes:
       enabled: false
+      config:
+        enabled: false
+        enable-api: false
+      discovery:
+        enabled: false
   security:
-    user:
-      name: user
-      password: 1234
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+security:
+  oauth2:
+    resource:
+      jwk:
+        key-set-uri: https://www.googleapis.com/oauth2/v3/certs
 raoa:
   media: /media
   repository: /tmp/photos
   viewer:
-    cache-dir: /tmp/cache
+    cache-dir: /tmp/raoa/cache
+    data-dir: /tmp/raoa/data
+  metadata-cache: /tmp/raoa/metadataCache
 

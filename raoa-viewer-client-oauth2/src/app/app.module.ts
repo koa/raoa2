@@ -4,7 +4,6 @@ import {APP_INITIALIZER, NgModule} from '@angular/core';
 import {AppRoutingModule} from './app-routing.module';
 import {AppComponent} from './app.component';
 import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
-import {LoginComponent} from './components/login/login.component';
 import {AppConfigService} from './services/app-config.service';
 import {HttpClientModule} from '@angular/common/http';
 import {MatButtonModule} from '@angular/material/button';
@@ -25,14 +24,12 @@ import {CookieService} from 'ngx-cookie-service';
 
 
 const appInitializerFn = (appConfig: AppConfigService) => {
-  console.log('app initializer fn');
   return () => appConfig.loadAppConfig();
 };
 
 @NgModule({
   declarations: [
     AppComponent,
-    LoginComponent,
     AlbumListComponent,
     AlbumContentComponent,
     ShowImageDialogComponent,
