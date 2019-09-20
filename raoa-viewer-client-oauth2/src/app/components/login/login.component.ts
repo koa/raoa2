@@ -15,7 +15,7 @@ export class LoginComponent implements OnInit {
   }
 
   async ngOnInit() {
-    const authService = await this.configService.login();
+    const authService = await this.configService.takeCurrentUser();
     authService.authState.subscribe(user => {
       console.log('auth state');
       console.log(user);
@@ -25,13 +25,13 @@ export class LoginComponent implements OnInit {
   }
 
   async signInWithGoogle() {
-    const authService = await this.configService.login();
+    const authService = await this.configService.takeCurrentUser();
     // authService.signIn(GoogleLoginProvider.PROVIDER_ID);
   }
 
 
   async signOut() {
-    const authService = await this.configService.login();
+    const authService = await this.configService.takeCurrentUser();
     authService.signOut();
   }
 

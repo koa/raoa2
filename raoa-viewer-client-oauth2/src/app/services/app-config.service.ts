@@ -67,7 +67,7 @@ export class AppConfigService {
     });
   }
 
-  login(): Promise<any> {
+  takeCurrentUser(): Promise<gapi.auth2.GoogleUser> {
     let forceLogin = false;
     if (this.expirationDate !== undefined && Date.now() > this.expirationDate.getTime()) {
       console.log('session timed out -> renew');
@@ -76,32 +76,10 @@ export class AppConfigService {
     }
     if (this.auhServicePromise === undefined) {
       this.auhServicePromise =
-        this.auhServicePromise = new Promise<any>((resolve, reject) => {
+        this.auhServicePromise = new Promise<gapi.auth2.GoogleUser>((resolve, reject) => {
             this.initGapi().then(() => {
-
-              let signedInPromise: Promise<gapi.auth2.GoogleUser>;
-              if (this.auth2.isSignedIn.get() && !forceLogin) {
-                console.log('already logged in');
-                signedInPromise = Promise.resolve(this.auth2.currentUser.get());
-              } else {
-                signedInPromise = this.auth2.signIn().then(user => {
-                  const authResponse = user.getAuthResponse(true);
-                  const expiresAt = authResponse.expires_at;
-                  this.expirationDate = new Date(expiresAt - 10000);
-                  const expiresIn = authResponse.expires_in;
-                  setTimeout(() => {
-                    console.log('login timed out');
-                    return this.login();
-                  }, expiresIn * 1000);
-                  return user;
-                });
-              }
-              signedInPromise.then((user) => {
-                console.log(user.getId());
-                console.log(user.getBasicProfile().getEmail());
-                const authResponse = user.getAuthResponse(true);
-                this.cookieService.set('access_token', authResponse.id_token, authResponse.expires_at, '/');
-                this.basicProfile = user.getBasicProfile();
+              this.ensureLoggedIn(forceLogin, 'consent').then((user) => {
+                this.updateToken(user);
                 resolve(user);
               }, error => {
                 reject(error);
@@ -114,5 +92,57 @@ export class AppConfigService {
     }
 
     return this.auhServicePromise;
+  }
+
+  selectUserPrompt(): Promise<gapi.auth2.GoogleUser> {
+    return this.initGapi().then(() => {
+      return this.doLogin('select_account');
+    }).then(user => {
+      this.updateToken(user);
+      return user;
+    });
+  }
+
+  logout() {
+    if (this.auhServicePromise !== undefined) {
+      this.auth2.signOut()
+        .then(r => {
+          console.log('signed out');
+          console.log(r);
+        });
+
+      this.auhServicePromise = undefined;
+    }
+  }
+
+  private updateToken(user) {
+    console.log(user.getId());
+    console.log(user.getBasicProfile().getEmail());
+    const authResponse = user.getAuthResponse(true);
+    this.cookieService.set('access_token', authResponse.id_token, authResponse.expires_at, '/');
+    this.basicProfile = user.getBasicProfile();
+  }
+
+  private ensureLoggedIn(forceLogin: boolean, prompt: string): Promise<gapi.auth2.GoogleUser> {
+    if (this.auth2.isSignedIn.get() && !forceLogin) {
+      console.log('already logged in');
+      return Promise.resolve(this.auth2.currentUser.get());
+    } else {
+      return this.doLogin(prompt);
+    }
+  }
+
+  private doLogin(prompt: string): Promise<gapi.auth2.GoogleUser> {
+    return this.auth2.signIn({prompt}).then(user => {
+      const authResponse = user.getAuthResponse(true);
+      const expiresAt = authResponse.expires_at;
+      this.expirationDate = new Date(expiresAt - 10000);
+      const expiresIn = authResponse.expires_in;
+      setTimeout(() => {
+        console.log('login timed out');
+        return this.takeCurrentUser();
+      }, expiresIn * 1000);
+      return user;
+    });
   }
 }

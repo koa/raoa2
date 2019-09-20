@@ -61,6 +61,7 @@ export class AlbumContentComponent implements OnInit {
   public albums: Maybe<AllAlbums.ListAlbums>[] = [];
   public authenticationState: AuthenticationState.Query;
   public AUTHENTICATED: AuthenticationState = AuthenticationState.Authenticated;
+  public UNKNOWN: AuthenticationState = AuthenticationState.Unknown;
 
   constructor(private route: ActivatedRoute,
               private router: Router,
@@ -283,6 +284,11 @@ export class AlbumContentComponent implements OnInit {
       );
     }
     this.recalculateComponents();
+  }
+
+
+  switchUser() {
+    this.configApi.selectUserPrompt().then(user => this.ngOnInit());
   }
 }
 

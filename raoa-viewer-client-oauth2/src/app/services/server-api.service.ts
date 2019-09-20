@@ -34,7 +34,7 @@ export class ServerApiService {
   ) {
     this.ready = false;
     this.readyPromise = new Promise<boolean>(((resolve) => {
-      appConfigService.login().then(user => {
+      appConfigService.takeCurrentUser().then(user => {
         const http = httpLink.create({uri: '/graphql'});
         apollo.create({
           link: http,
