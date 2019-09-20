@@ -2,13 +2,13 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.PersonalUserData;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLQueryResolver;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -80,45 +80,21 @@ public class Query implements GraphQLQueryResolver {
         .toFuture();
   }
 
-  public CompletableFuture<AuthenticationInformation> authenticationState() {
+  public CompletableFuture<AuthenticationState> authenticationState() {
     // log.info("Query for authentication state");
-
     return queryContextSupplier
         .createContext()
-        .map(
-            queryContext -> {
-              final AuthenticationState authenticationState = queryContext.getAuthenticationState();
-              return queryContext
-                  .getCurrentUser()
-                  .map(user -> new UserReference(user.getId(), user.getUserData(), queryContext))
-                  .map(
-                      userReference ->
-                          AuthenticationInformation.builder()
-                              .state(authenticationState)
-                              .user(userReference)
-                              .build())
-                  .orElseGet(
-                      () -> {
-                        final PersonalUserData.PersonalUserDataBuilder builder =
-                            PersonalUserData.builder();
-                        if (authenticationState != AuthenticationState.UNKNOWN) {
-                          final PersonalUserData personalUserData =
-                              authorizationManager.readPersonalUserData(
-                                  queryContext.getSecurityContext());
+        .map(QueryContext::getAuthenticationState)
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
 
-                          builder.name(personalUserData.getName());
-                          builder.email(personalUserData.getEmail());
-                          builder.picture(personalUserData.getPicture());
-                        }
-                        final UserReference userReference =
-                            new UserReference(
-                                UserReference.UNKNOWN_USER_ID, builder.build(), queryContext);
-                        return AuthenticationInformation.builder()
-                            .state(authenticationState)
-                            .user(userReference)
-                            .build();
-                      });
-            })
+  public CompletableFuture<UserReference> currentUser() {
+    return queryContextSupplier
+        .createContext()
+        .map(u -> u.getCurrentUser().map(c -> new UserReference(c.getId(), c.getUserData(), u)))
+        .filter(Optional::isPresent)
+        .map(Optional::get)
         .timeout(TIMEOUT)
         .toFuture();
   }

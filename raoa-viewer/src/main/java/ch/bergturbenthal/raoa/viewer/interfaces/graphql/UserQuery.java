@@ -10,9 +10,13 @@ import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 public class UserQuery implements GraphQLResolver<UserReference> {
   private static final Duration TIMEOUT = Duration.ofMinutes(5);
@@ -40,6 +44,10 @@ public class UserQuery implements GraphQLResolver<UserReference> {
   }
 
   public CompletableFuture<Boolean> canManageUsers(UserReference user) {
+    if (Objects.equals(
+        user.getId(), user.getContext().getCurrentUser().map(User::getId).orElse(null))) {
+      return CompletableFuture.completedFuture(user.getContext().canUserManageUsers());
+    }
     if (canShowUserDetails(user)) {
       return userManager
           .findUserById(user.getId())
@@ -51,12 +59,11 @@ public class UserQuery implements GraphQLResolver<UserReference> {
   }
 
   private boolean canShowUserDetails(UserReference userReference) {
-    if (userReference.getContext().canUserManageUsers()) return true;
-    return userReference
-        .getContext()
-        .getCurrentUser()
-        .map(u -> u.getId().equals(userReference.getId()))
-        .orElse(false);
+    if (userReference.getContext().canUserManageUsers()) {
+      return true;
+    }
+    final Optional<User> currentUser = userReference.getContext().getCurrentUser();
+    return currentUser.map(u -> u.getId().equals(userReference.getId())).orElse(false);
   }
 
   public CompletableFuture<List<AuthenticationId>> getAuthentications(UserReference user) {

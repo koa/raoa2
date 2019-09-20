@@ -1,5 +1,14 @@
 import {Injectable} from '@angular/core';
-import {AlbumContent, AlbumContentGQL, AlbumContentZipGQL, AllAlbums, AllAlbumsGQL, Maybe} from '../generated/graphql';
+import {
+  AlbumContent,
+  AlbumContentGQL,
+  AlbumContentZipGQL,
+  AllAlbums,
+  AllAlbumsGQL,
+  AuthenticationState,
+  AuthenticationStateGQL,
+  Maybe
+} from '../generated/graphql';
 import {Apollo} from 'apollo-angular';
 import {HttpLink} from 'apollo-angular-link-http';
 import {InMemoryCache} from 'apollo-cache-inmemory';
@@ -20,7 +29,8 @@ export class ServerApiService {
     private appConfigService: AppConfigService,
     private albumListGQL: AllAlbumsGQL,
     private albumContentQGL: AlbumContentGQL,
-    private albumContentZipGQL: AlbumContentZipGQL
+    private albumContentZipGQL: AlbumContentZipGQL,
+    private authenticationStateGQL: AuthenticationStateGQL
   ) {
     this.ready = false;
     this.readyPromise = new Promise<boolean>(((resolve) => {
@@ -72,6 +82,25 @@ export class ServerApiService {
     });
   }
 
+  public async getAuthenticationState(): Promise<AuthenticationState.Query> {
+    if (!(this.ready || await this.readyPromise)) {
+      return Promise.reject('Cannot init');
+    }
+    return new Promise((resolve, reject) => {
+      this.authenticationStateGQL.watch().valueChanges.subscribe(result => {
+        if (result.loading) {
+          return;
+        }
+        const data: AuthenticationState.Query = result.data;
+        if (data) {
+          resolve(result.data);
+        } else {
+          reject(result.errors);
+        }
+      });
+    });
+  }
+
   public async getAlbumZipUri(albumId: string): Promise<string> {
     if (!(this.ready || await this.readyPromise)) {
       return Promise.reject('Cannot init');
@@ -89,5 +118,4 @@ export class ServerApiService {
       });
     });
   }
-
 }

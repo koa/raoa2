@@ -68,9 +68,11 @@ export class AppConfigService {
   }
 
   login(): Promise<any> {
+    let forceLogin = false;
     if (this.expirationDate !== undefined && Date.now() > this.expirationDate.getTime()) {
       console.log('session timed out -> renew');
       this.auhServicePromise = undefined;
+      forceLogin = true;
     }
     if (this.auhServicePromise === undefined) {
       this.auhServicePromise =
@@ -78,7 +80,7 @@ export class AppConfigService {
             this.initGapi().then(() => {
 
               let signedInPromise: Promise<gapi.auth2.GoogleUser>;
-              if (this.auth2.isSignedIn.get()) {
+              if (this.auth2.isSignedIn.get() && !forceLogin) {
                 console.log('already logged in');
                 signedInPromise = Promise.resolve(this.auth2.currentUser.get());
               } else {

@@ -5,16 +5,10 @@ import {ActivatedRoute, ParamMap, Router} from '@angular/router';
 import {DomSanitizer} from '@angular/platform-browser';
 import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from '@angular/material';
 import {ServerApiService} from '../../services/server-api.service';
-import {AlbumContent, AllAlbums, Maybe} from '../../generated/graphql';
+import {AlbumContent, AllAlbums, AuthenticationState, Maybe} from '../../generated/graphql';
 import {AppConfigService} from '../../services/app-config.service';
 import {ResizedEvent} from 'angular-resize-event';
 import {MediaMatcher} from '@angular/cdk/layout';
-
-
-interface AlbumById {
-  name: string;
-  entries: AlbumEntry[];
-}
 
 interface AlbumEntry {
   id: string;
@@ -65,7 +59,8 @@ export class AlbumContentComponent implements OnInit {
   public mobileQuery: MediaQueryList;
   public mobileQueryListener: () => void;
   public albums: Maybe<AllAlbums.ListAlbums>[] = [];
-  private idToken: string;
+  public authenticationState: AuthenticationState.Query;
+  public AUTHENTICATED: AuthenticationState = AuthenticationState.Authenticated;
 
   constructor(private route: ActivatedRoute,
               private router: Router,
@@ -89,6 +84,9 @@ export class AlbumContentComponent implements OnInit {
 
   ngOnInit() {
     // this.configApi.getAuthService().then(authService => authService.authState.subscribe(user => this.idToken = user.idToken));
+    this.serverApi.getAuthenticationState().then(state => {
+      this.authenticationState = state;
+    });
     this.serverApi.listAllAlbums().then(data => {
       this.albums = data;
     });
