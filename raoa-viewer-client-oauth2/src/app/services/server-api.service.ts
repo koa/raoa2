@@ -31,7 +31,6 @@ export class ServerApiService {
           cache: new InMemoryCache(),
         });
         resolve(true);
-
       });
 
     }));

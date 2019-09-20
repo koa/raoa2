@@ -9,17 +9,19 @@ declare var gapi: any;
   providedIn: 'root'
 })
 export class AppConfigService {
-  private lastLoginTime = 0;
-  private auhServicePromise: Promise<any>;
 
-  constructor(private http: HttpClient, private cookieService: CookieService) {
-  }
+  private expirationDate: Date;
+
+  private auhServicePromise: Promise<any>;
 
   private appConfig: AppConfig;
   private appConfigPromise: Promise<AppConfig>;
 
   private basicProfile: gapi.auth2.BasicProfile;
   private auth2: gapi.auth2.GoogleAuth;
+
+  constructor(private http: HttpClient, private cookieService: CookieService) {
+  }
 
 
   loadAppConfig(): Promise<AppConfig> {
@@ -47,8 +49,11 @@ export class AppConfigService {
 
   }*/
 
-  initGapi(): Promise<any> {
-    return new Promise<any>((resolve, reject) => {
+  initGapi(): Promise<boolean> {
+    if (this.auth2 !== undefined) {
+      return Promise.resolve(true);
+    }
+    return new Promise<boolean>((resolve, reject) => {
       gapi.load('auth2', () => {
         this.loadAppConfig().then(config => {
           this.auth2 = gapi.auth2.init({
@@ -63,8 +68,8 @@ export class AppConfigService {
   }
 
   login(): Promise<any> {
-    if (Date.now() - this.lastLoginTime > 30 * 60 * 1000) {
-      this.lastLoginTime = Date.now();
+    if (this.expirationDate !== undefined && Date.now() > this.expirationDate.getTime()) {
+      console.log('session timed out -> renew');
       this.auhServicePromise = undefined;
     }
     if (this.auhServicePromise === undefined) {
@@ -74,9 +79,20 @@ export class AppConfigService {
 
               let signedInPromise: Promise<gapi.auth2.GoogleUser>;
               if (this.auth2.isSignedIn.get()) {
+                console.log('already logged in');
                 signedInPromise = Promise.resolve(this.auth2.currentUser.get());
               } else {
-                signedInPromise = this.auth2.signIn();
+                signedInPromise = this.auth2.signIn().then(user => {
+                  const authResponse = user.getAuthResponse(true);
+                  const expiresAt = authResponse.expires_at;
+                  this.expirationDate = new Date(expiresAt - 10000);
+                  const expiresIn = authResponse.expires_in;
+                  setTimeout(() => {
+                    console.log('login timed out');
+                    return this.login();
+                  }, expiresIn * 1000);
+                  return user;
+                });
               }
               signedInPromise.then((user) => {
                 console.log(user.getId());
