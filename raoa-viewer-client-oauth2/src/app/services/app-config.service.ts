@@ -67,18 +67,22 @@ export class AppConfigService {
       return this.currentUser = user;
     };
     return new Promise<boolean>((resolve, reject) => {
-      gapi.load('auth2', () => {
-        this.loadAppConfig().then(config => {
-          this.auth2 = gapi.auth2.init({
-            client_id: config.googleClientId,
-            fetch_basic_profile: false,
-            scope: 'profile'
+      try {
+        gapi.load('auth2', () => {
+          this.loadAppConfig().then(config => {
+            this.auth2 = gapi.auth2.init({
+              client_id: config.googleClientId,
+              fetch_basic_profile: false,
+              scope: 'profile'
+            });
+            this.auth2.isSignedIn.listen(signedInListener);
+            this.auth2.currentUser.listen(currentUserListener);
+            resolve(true);
           });
-          this.auth2.isSignedIn.listen(signedInListener);
-          this.auth2.currentUser.listen(currentUserListener);
-          resolve(true);
         });
-      });
+      } catch (e) {
+        resolve(false);
+      }
     });
   }
 
@@ -103,8 +107,8 @@ export class AppConfigService {
     if (this.auhServicePromise === undefined) {
       this.auhServicePromise =
         this.auhServicePromise = new Promise<gapi.auth2.GoogleUser>((resolve, reject) => {
-            this.initGapi().then(() => {
-              if (this.auth2.isSignedIn.get()) {
+            this.initGapi().then((ok) => {
+              if (ok && this.auth2.isSignedIn.get()) {
                 resolve(this.auth2.currentUser.get());
               } else {
                 resolve(undefined);
