@@ -1,0 +1,6 @@
+<mat-toolbar class="main-toolbar" color="primary">
+  Photos
+</mat-toolbar>
+<p id="sign-in-button">no connection to internet</p>
+<p *ngIf="signedIn">signed in: {{appConfigService.currentUser?.getBasicProfile()?.getName()}}</p>
+

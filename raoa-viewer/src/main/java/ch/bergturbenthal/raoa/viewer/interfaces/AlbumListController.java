@@ -97,21 +97,13 @@ public class AlbumListController {
   @GetMapping("album")
   public Mono<ModelAndView> listAlbums() {
     final SecurityContext securityContext = SecurityContextHolder.getContext();
-    return authorizationManager
-        .currentUser(securityContext)
-        .flatMap(
-            u ->
-                this.albumList
-                    .listAlbums()
-                    .filter(
-                        a ->
-                            u.isSuperuser()
-                                || (u.getVisibleAlbums() == null
-                                    || u.getVisibleAlbums().contains(a.getAlbumId())))
-                    .flatMap(
-                        f ->
-                            f.getAccess().getName().map(n -> new AlbumListEntry(f.getAlbumId(), n)))
-                    .collectSortedList(Comparator.comparing(AlbumListEntry::getName)))
+
+    return this.albumList
+        .listAlbums()
+        .filterWhen(
+            album -> authorizationManager.canUserAccessToAlbum(securityContext, album.getAlbumId()))
+        .flatMap(f -> f.getAccess().getName().map(n -> new AlbumListEntry(f.getAlbumId(), n)))
+        .collectSortedList(Comparator.comparing(AlbumListEntry::getName))
         .map(l -> new ModelAndView("list-albums", Collections.singletonMap("albums", l)));
   }
 

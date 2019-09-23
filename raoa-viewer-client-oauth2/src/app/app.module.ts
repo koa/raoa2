@@ -21,6 +21,7 @@ import {MatDialogModule} from '@angular/material/dialog';
 import {AngularResizedEventModule} from 'angular-resize-event';
 import {MatProgressBarModule} from '@angular/material/progress-bar';
 import {CookieService} from 'ngx-cookie-service';
+import { WelcomeComponent } from './components/welcome/welcome.component';
 
 
 const appInitializerFn = (appConfig: AppConfigService) => {
@@ -33,6 +34,7 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     AlbumListComponent,
     AlbumContentComponent,
     ShowImageDialogComponent,
+    WelcomeComponent,
   ],
   imports: [
     BrowserModule,

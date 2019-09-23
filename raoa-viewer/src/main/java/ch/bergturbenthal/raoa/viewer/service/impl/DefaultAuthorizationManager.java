@@ -1,15 +1,15 @@
 package ch.bergturbenthal.raoa.viewer.service.impl;
 
+import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.PersonalUserData;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.time.Duration;
+import java.util.*;
+import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -17,17 +17,36 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.provider.OAuth2Authentication;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
 @Service
 public class DefaultAuthorizationManager implements AuthorizationManager {
   private final UserManager userManager;
   private final ViewerProperties viewerProperties;
   private final UUID virtualSuperuserId = UUID.randomUUID();
+  private final Mono<UUID> latestAlbum;
 
   public DefaultAuthorizationManager(
-      final UserManager userManager, final ViewerProperties viewerProperties) {
+      final UserManager userManager,
+      final ViewerProperties viewerProperties,
+      final AlbumList albumList) {
     this.userManager = userManager;
     this.viewerProperties = viewerProperties;
+    latestAlbum =
+        albumList
+            .listAlbums()
+            .flatMap(
+                a ->
+                    a.getAccess()
+                        .readAutoadd()
+                        .reduce((t1, t2) -> t1.isAfter(t2) ? t1 : t2)
+                        .map(d -> Tuples.of(d, a.getAlbumId())))
+            .collect(Collectors.maxBy(Comparator.comparing(Tuple2::getT1)))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .map(Tuple2::getT2)
+            .cache(Duration.ofMinutes(5));
   }
 
   @Override
@@ -69,13 +88,16 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
 
   @Override
   public Mono<Boolean> canUserAccessToAlbum(final SecurityContext context, final UUID album) {
-    return currentUser(context)
-        // .log("current user")
-        .map(
-            u ->
-                u.isSuperuser()
-                    || (u.getVisibleAlbums() != null && u.getVisibleAlbums().contains(album)))
-        .defaultIfEmpty(false);
+    final Mono<Boolean> isLatestAlbum = latestAlbum.map(album::equals);
+    final Mono<Boolean> canAccessAlbum =
+        currentUser(context)
+            // .log("current user")
+            .map(
+                u ->
+                    u.isSuperuser()
+                        || (u.getVisibleAlbums() != null && u.getVisibleAlbums().contains(album)))
+            .defaultIfEmpty(false);
+    return Mono.zip(canAccessAlbum, isLatestAlbum).map(t -> t.getT1() || t.getT2());
   }
 
   @Override
