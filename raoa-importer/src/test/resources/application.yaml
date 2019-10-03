@@ -1,7 +1,8 @@
 raoa:
   import:
     media: /media
-    repository: /media/repository
+  metadata-cache: /tmp/test/raoa/meta
+  repository: /tmp/test/raoa/repository
 spring:
   cloud:
     discovery:
