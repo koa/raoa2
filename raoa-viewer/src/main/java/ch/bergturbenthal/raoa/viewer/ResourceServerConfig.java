@@ -1,6 +1,11 @@
 package ch.bergturbenthal.raoa.viewer;
 
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
+import com.nimbusds.jwt.JWT;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.JWTParser;
+import java.text.ParseException;
+import java.time.Instant;
 import java.util.*;
 import javax.servlet.http.Cookie;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +56,17 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
                                   .filter(cookie -> "access_token".equals(cookie.getName()))
                                   .map(Cookie::getValue)
                                   .findAny());
-              return s.orElseGet(() -> defaultBearerTokenResolver.resolve(request));
+              final String token = s.orElseGet(() -> defaultBearerTokenResolver.resolve(request));
+              try {
+                final JWT jwt = JWTParser.parse(token);
+                final JWTClaimsSet jwtClaimsSet = jwt.getJWTClaimsSet();
+                final Date expirationTime = jwtClaimsSet.getExpirationTime();
+                if (expirationTime.toInstant().isBefore(Instant.now())) return null;
+              } catch (ParseException e) {
+                log.warn("Invalid token", e);
+                return null;
+              }
+              return token;
             })
         .jwt();
   }
