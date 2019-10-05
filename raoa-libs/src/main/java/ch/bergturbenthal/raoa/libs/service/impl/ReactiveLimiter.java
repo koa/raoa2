@@ -55,7 +55,7 @@ public class ReactiveLimiter implements Limiter {
         final int queueSize = queue.size();
         if (semaphore.tryAcquire((!wait || queueSize < 50) ? 0 : 2, TimeUnit.SECONDS)) {
           // log.info("Slot taken " + queueSize);
-          final QueueEntry<?> takenEntry = queue.pollLast();
+          final QueueEntry<?> takenEntry = queue.pollFirst();
           if (takenEntry != null) {
             // log.info("entry from queue taken");
             runEntry(takenEntry);

@@ -57,6 +57,7 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
                                   .map(Cookie::getValue)
                                   .findAny());
               final String token = s.orElseGet(() -> defaultBearerTokenResolver.resolve(request));
+              if (token == null) return null;
               try {
                 final JWT jwt = JWTParser.parse(token);
                 final JWTClaimsSet jwtClaimsSet = jwt.getJWTClaimsSet();
