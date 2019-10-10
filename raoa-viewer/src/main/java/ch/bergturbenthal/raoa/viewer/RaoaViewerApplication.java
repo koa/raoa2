@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.viewer;
 import ch.bergturbenthal.raoa.libs.RaoaLibConfiguration;
 import ch.bergturbenthal.raoa.viewer.interfaces.AlbumListController;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
+import ch.bergturbenthal.raoa.viewer.repository.AlbumDataRepository;
 import ch.bergturbenthal.raoa.viewer.service.impl.RemoteThumbnailManager;
 import graphql.schema.*;
 import java.time.Instant;
@@ -10,9 +11,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.elasticsearch.core.EntityMapper;
+import org.springframework.data.elasticsearch.core.mapping.SimpleElasticsearchMappingContext;
+import org.springframework.data.elasticsearch.repository.config.EnableReactiveElasticsearchRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Slf4j
@@ -21,10 +26,39 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @Import({RaoaLibConfiguration.class, ResourceServerConfig.class})
 @ComponentScan(basePackageClasses = {RemoteThumbnailManager.class, AlbumListController.class})
 @EnableScheduling
+@EnableReactiveElasticsearchRepositories(basePackageClasses = AlbumDataRepository.class)
 public class RaoaViewerApplication {
 
   public static void main(String[] args) {
-    SpringApplication.run(RaoaViewerApplication.class, args);
+    final ConfigurableApplicationContext run =
+        SpringApplication.run(RaoaViewerApplication.class, args);
+
+    /*
+    final AlbumDataRepository dataRepository = run.getBean(AlbumDataRepository.class);
+
+
+    final AlbumData data = AlbumData.builder()
+                                    .repositoryId(UUID.randomUUID())
+                                    .currentVersion(ObjectId.zeroId())
+                                    .build();
+    final AlbumData block = dataRepository.save(data).block();
+    log.info("Stored: " + block);
+    log.info("Found Entries: " + dataRepository.findAll().map(AlbumData::getRepositoryId).collectList().block());
+
+    final AlbumDataEntryRepository albumDataEntryRepository = run.getBean(AlbumDataEntryRepository.class);
+    albumDataEntryRepository.save(AlbumEntryData.builder()
+                                                .albumId(UUID.randomUUID())
+                                                .entryId(ObjectId.zeroId())
+                                                .build()).block();
+    log.info("Found Entries: " + albumDataEntryRepository.findAll()
+                                                         .map(AlbumEntryData::getAlbumId)
+                                                         .collectList()
+                                                         .block());
+
+
+
+     */
+
     /*
     try (final ConfigurableApplicationContext applicationContext =
         SpringApplication.run(RaoaViewerApplication.class, args)) {
@@ -109,5 +143,10 @@ public class RaoaViewerApplication {
               }
             })
         .build();
+  }
+
+  @Bean
+  EntityMapper entityMapper(SimpleElasticsearchMappingContext mappingContext) {
+    return new CustomEntityMapper(mappingContext);
   }
 }

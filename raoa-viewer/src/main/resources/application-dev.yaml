@@ -18,6 +18,11 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+  data:
+    elasticsearch:
+      client:
+        reactive:
+          endpoints: localhost:9200
 security:
   oauth2:
     resource:

@@ -19,6 +19,8 @@ public interface GitAccess {
 
   Mono<ObjectLoader> readObject(String filename);
 
+  Mono<ObjectId> getCurrentVersion();
+
   Flux<Instant> readAutoadd();
 
   Mono<Updater> createUpdater();

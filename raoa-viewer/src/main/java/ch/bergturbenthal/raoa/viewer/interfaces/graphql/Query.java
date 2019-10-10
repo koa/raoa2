@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
+import ch.bergturbenthal.raoa.viewer.service.ImageDataService;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLQueryResolver;
 import java.time.Duration;
@@ -23,22 +24,25 @@ public class Query implements GraphQLQueryResolver {
   private final AuthorizationManager authorizationManager;
   private final UserManager userManager;
   private final QueryContextSupplier queryContextSupplier;
+  private final ImageDataService imageDataService;
 
   public Query(
       final AlbumList albumList,
       final AuthorizationManager authorizationManager,
       final UserManager userManager,
-      final QueryContextSupplier queryContextSupplier) {
+      final QueryContextSupplier queryContextSupplier,
+      final ImageDataService imageDataService) {
     this.albumList = albumList;
     this.authorizationManager = authorizationManager;
     this.userManager = userManager;
     this.queryContextSupplier = queryContextSupplier;
+    this.imageDataService = imageDataService;
   }
 
   public CompletableFuture<Album> getAlbumById(UUID albumId) {
     return queryContextSupplier
         .createContext()
-        .map(c -> new Album(albumId, c))
+        .map(c -> new Album(albumId, c, imageDataService.readAlbum(albumId).cache()))
         .timeout(TIMEOUT)
         .toFuture();
   }
@@ -56,7 +60,11 @@ public class Query implements GraphQLQueryResolver {
                                 .authenticationId(r.getAuthenticationId())
                                 .data(r.getUserData())
                                 .reason(r.getComment())
-                                .requestAlbum(new Album(r.getRequestedAlbum(), context))
+                                .requestAlbum(
+                                    new Album(
+                                        r.getRequestedAlbum(),
+                                        context,
+                                        imageDataService.readAlbum(r.getRequestedAlbum()).cache()))
                                 .build())
                     .collect(Collectors.toList());
               else return Collections.<RegistrationRequest>emptyList();
@@ -74,7 +82,10 @@ public class Query implements GraphQLQueryResolver {
                     .listAlbums()
                     .map(AlbumList.FoundAlbum::getAlbumId)
                     .filter(queryContext::canAccessAlbum)
-                    .map(albumId -> new Album(albumId, queryContext))
+                    .map(
+                        albumId ->
+                            new Album(
+                                albumId, queryContext, imageDataService.readAlbum(albumId).cache()))
                     .collectList())
         .timeout(TIMEOUT)
         .toFuture();

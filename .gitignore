@@ -1,3 +1,4 @@
 /.idea
 *.iml
-/java_*.hprof*
+java_*.hprof*
+hs_err*.log

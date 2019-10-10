@@ -5,6 +5,7 @@ import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
 import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
+import ch.bergturbenthal.raoa.viewer.service.ImageDataService;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
@@ -16,7 +17,6 @@ import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -31,10 +31,15 @@ public class AlbumQuery implements GraphQLResolver<Album> {
           });
   private final UserManager userManager;
   private final AlbumList albumList;
+  private final ImageDataService imageDataService;
 
-  public AlbumQuery(final UserManager userManager, final AlbumList albumList) {
+  public AlbumQuery(
+      final UserManager userManager,
+      final AlbumList albumList,
+      final ImageDataService imageDataService) {
     this.userManager = userManager;
     this.albumList = albumList;
+    this.imageDataService = imageDataService;
   }
 
   public String getZipDownloadUri(Album album) {
@@ -54,21 +59,18 @@ public class AlbumQuery implements GraphQLResolver<Album> {
   }
 
   public CompletableFuture<List<AlbumEntry>> getEntries(Album album) {
-    return streamEntries(album)
-        .map(e -> new AlbumEntry(album, e.getFileId().name(), e.getNameString()))
+    return imageDataService
+        .listEntries(album.getId())
+        .map(
+            e ->
+                new AlbumEntry(
+                    album,
+                    e.getEntryId().name(),
+                    e.getFilename(),
+                    imageDataService.loadEntry(album.getId(), e.getEntryId()).cache()))
         .collectList()
         .timeout(TIMEOUT)
         .toFuture();
-  }
-
-  @NotNull
-  private Flux<GitAccess.GitFileEntry> streamEntries(final Album album) {
-    if (album.getContext().canAccessAlbum(album.getId()))
-      return albumList
-          .getAlbum(album.getId())
-          .flatMapMany(e -> e.listFiles(ENTRIES_FILTER))
-          .timeout(TIMEOUT);
-    return Flux.empty();
   }
 
   public CompletableFuture<String> getName(Album album) {
@@ -84,6 +86,6 @@ public class AlbumQuery implements GraphQLResolver<Album> {
   }
 
   public CompletableFuture<Long> getEntryCount(Album album) {
-    return streamEntries(album).count().timeout(TIMEOUT).toFuture();
+    return imageDataService.listEntries(album.getId()).count().timeout(TIMEOUT).toFuture();
   }
 }

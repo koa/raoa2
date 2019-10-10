@@ -5,6 +5,7 @@ import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
 import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
+import ch.bergturbenthal.raoa.viewer.service.ImageDataService;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
@@ -22,10 +23,15 @@ public class UserQuery implements GraphQLResolver<UserReference> {
   private static final Duration TIMEOUT = Duration.ofMinutes(5);
   private final UserManager userManager;
   private final AlbumList albumList;
+  private final ImageDataService imageDataService;
 
-  public UserQuery(final UserManager userManager, final AlbumList albumList) {
+  public UserQuery(
+      final UserManager userManager,
+      final AlbumList albumList,
+      final ImageDataService imageDataService) {
     this.userManager = userManager;
     this.albumList = albumList;
+    this.imageDataService = imageDataService;
   }
 
   public CompletableFuture<List<Album>> canAccess(UserReference user) {
@@ -35,7 +41,7 @@ public class UserQuery implements GraphQLResolver<UserReference> {
           .filter(u -> u.getVisibleAlbums() != null)
           .flatMapIterable(User::getVisibleAlbums)
           .filterWhen(id -> albumList.getAlbum(id).map(a -> true).defaultIfEmpty(false))
-          .map(id -> new Album(id, user.getContext()))
+          .map(id -> new Album(id, user.getContext(), imageDataService.readAlbum(id).cache()))
           .collectList()
           .timeout(TIMEOUT)
           .toFuture();

@@ -22,6 +22,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import lombok.Cleanup;
@@ -328,11 +329,28 @@ public class BareGitAccess implements GitAccess {
         .map(RevCommit::getTree);
   }
 
+  @Override
+  public Mono<ObjectId> getCurrentVersion() {
+    return findMasterRef().map(Ref::getObjectId);
+  }
+
+  private AtomicReference<Mono<Ref>> cachedMasterRef = new AtomicReference<>();
+
   private Mono<Ref> findMasterRef() {
-    return repository
-        .map(Repository::getRefDatabase)
-        .flatMap(
-            db -> limiter.limit(createAsyncMono(() -> db.findRef("master")), "read master ref"))
+    return cachedMasterRef
+        .updateAndGet(
+            refMono ->
+                Objects.requireNonNullElseGet(
+                    refMono,
+                    () ->
+                        repository
+                            .map(Repository::getRefDatabase)
+                            .flatMap(
+                                db ->
+                                    limiter.limit(
+                                        createAsyncMono(() -> db.findRef("master")),
+                                        "read master ref"))
+                            .cache(REPOSITORY_CACHE_TIME)))
         .publishOn(processScheduler);
   }
 
@@ -493,96 +511,100 @@ public class BareGitAccess implements GitAccess {
           return Mono.just(true);
         }
         return Mono.create(
-            (MonoSink<Boolean> sink) -> {
-              sink.onCancel(
-                  ioScheduler.schedule(
-                      () -> {
-                        try {
+                (MonoSink<Boolean> sink) -> {
+                  sink.onCancel(
+                      ioScheduler.schedule(
+                          () -> {
+                            try {
 
-                          try (ObjectReader reader = rep.newObjectReader()) {
-                            TreeWalk tw = treeWalkSupplier.apply(reader);
-                            while (tw.next()) {
-                              if (!replacedFiles.contains(tw.getPathString()))
-                                builder.add(dirCacheEntryCreator.apply(tw));
-                            }
-                          }
-                          builder.finish();
-                          if (!isBareRepository) {
-                            // update index
-                            dirCache.write();
-                            if (!dirCache.commit()) {
+                              try (ObjectReader reader = rep.newObjectReader()) {
+                                TreeWalk tw = treeWalkSupplier.apply(reader);
+                                while (tw.next()) {
+                                  if (!replacedFiles.contains(tw.getPathString()))
+                                    builder.add(dirCacheEntryCreator.apply(tw));
+                                }
+                              }
+                              builder.finish();
+                              if (!isBareRepository) {
+                                // update index
+                                dirCache.write();
+                                if (!dirCache.commit()) {
+                                  sink.success(false);
+                                  return;
+                                }
+                              }
+                            } catch (IOException e) {
+                              log.warn("Cannot prepare commit", e);
                               sink.success(false);
                               return;
                             }
-                          }
-                        } catch (IOException e) {
-                          log.warn("Cannot prepare commit", e);
-                          sink.success(false);
-                          return;
-                        }
-                        try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
+                            try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
 
-                          final ObjectId treeId = dirCache.writeTree(objectInserter);
-                          final CommitBuilder commit = new CommitBuilder();
-                          final PersonIdent author =
-                              new PersonIdent("raoa-importer", "photos@teamkoenig.ch");
-                          if (message != null) commit.setMessage(message);
-                          commit.setAuthor(author);
-                          commit.setCommitter(author);
-                          commit.setParentIds(currentMasterRef.getObjectId());
-                          commit.setTreeId(treeId);
-                          final ObjectId commitId = objectInserter.insert(commit);
+                              final ObjectId treeId = dirCache.writeTree(objectInserter);
+                              final CommitBuilder commit = new CommitBuilder();
+                              final PersonIdent author =
+                                  new PersonIdent("raoa-importer", "photos@teamkoenig.ch");
+                              if (message != null) commit.setMessage(message);
+                              commit.setAuthor(author);
+                              commit.setCommitter(author);
+                              commit.setParentIds(currentMasterRef.getObjectId());
+                              commit.setTreeId(treeId);
+                              final ObjectId commitId = objectInserter.insert(commit);
 
-                          objectInserter.flush();
+                              objectInserter.flush();
 
-                          RevCommit revCommit = rep.parseCommit(commitId);
-                          RefUpdate ru = rep.updateRef(Constants.HEAD);
-                          ru.setNewObjectId(commitId);
-                          ru.setRefLogMessage("auto import" + revCommit.getShortMessage(), false);
-                          ru.setExpectedOldObjectId(masterRef.getObjectId());
-                          switch (ru.update()) {
-                            case NOT_ATTEMPTED:
-                            case LOCK_FAILURE:
-                            case REJECTED_OTHER_REASON:
-                            case REJECTED_MISSING_OBJECT:
-                            case IO_FAILURE:
-                            case REJECTED_CURRENT_BRANCH:
-                            case REJECTED:
-                              return;
+                              RevCommit revCommit = rep.parseCommit(commitId);
+                              RefUpdate ru = rep.updateRef(Constants.HEAD);
+                              ru.setNewObjectId(commitId);
+                              ru.setRefLogMessage(
+                                  "auto import" + revCommit.getShortMessage(), false);
+                              ru.setExpectedOldObjectId(masterRef.getObjectId());
+                              switch (ru.update()) {
+                                case NOT_ATTEMPTED:
+                                case LOCK_FAILURE:
+                                case REJECTED_OTHER_REASON:
+                                case REJECTED_MISSING_OBJECT:
+                                case IO_FAILURE:
+                                case REJECTED_CURRENT_BRANCH:
+                                case REJECTED:
+                                  return;
 
-                            case NO_CHANGE:
-                            case FAST_FORWARD:
-                            case FORCED:
-                            case NEW:
-                            case RENAMED:
-                              if (!isBareRepository)
-                                // checkout index
-                                try (ObjectReader reader = rep.newObjectReader()) {
-                                  final File workTree = rep.getWorkTree();
-                                  for (int i = 0; i < dirCache.getEntryCount(); i++) {
-                                    final DirCacheEntry dirCacheEntry = dirCache.getEntry(i);
-                                    if (dirCacheEntry == null) continue;
-                                    final File file =
-                                        new File(workTree, dirCacheEntry.getPathString());
-                                    if (replacedFiles.contains(dirCacheEntry.getPathString()))
-                                      file.delete();
-                                    if (file.exists()) continue;
-                                    @Cleanup
-                                    final FileOutputStream outputStream =
-                                        new FileOutputStream(file);
-                                    reader.open(dirCacheEntry.getObjectId()).copyTo(outputStream);
-                                  }
-                                }
-                              log.info("Commit successful " + rep.getDirectory());
-                              sink.success(true);
-                          }
-                        } catch (IOException e) {
-                          log.warn("Cannot finish commit", e);
-                        } finally {
-                          sink.success(false);
-                        }
-                      }));
-            });
+                                case NO_CHANGE:
+                                case FAST_FORWARD:
+                                case FORCED:
+                                case NEW:
+                                case RENAMED:
+                                  if (!isBareRepository)
+                                    // checkout index
+                                    try (ObjectReader reader = rep.newObjectReader()) {
+                                      final File workTree = rep.getWorkTree();
+                                      for (int i = 0; i < dirCache.getEntryCount(); i++) {
+                                        final DirCacheEntry dirCacheEntry = dirCache.getEntry(i);
+                                        if (dirCacheEntry == null) continue;
+                                        final File file =
+                                            new File(workTree, dirCacheEntry.getPathString());
+                                        if (replacedFiles.contains(dirCacheEntry.getPathString()))
+                                          file.delete();
+                                        if (file.exists()) continue;
+                                        @Cleanup
+                                        final FileOutputStream outputStream =
+                                            new FileOutputStream(file);
+                                        reader
+                                            .open(dirCacheEntry.getObjectId())
+                                            .copyTo(outputStream);
+                                      }
+                                    }
+                                  log.info("Commit successful " + rep.getDirectory());
+                                  sink.success(true);
+                              }
+                            } catch (IOException e) {
+                              log.warn("Cannot finish commit", e);
+                            } finally {
+                              sink.success(false);
+                            }
+                          }));
+                })
+            .doFinally(signal -> cachedMasterRef.set(null));
       }
     };
   }
