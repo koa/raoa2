@@ -6,6 +6,7 @@ import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -69,25 +70,30 @@ public class BareGitAccess implements GitAccess {
   private final Mono<Repository> repository;
   private final Mono<AlbumMeta> albumMetaSupplier;
   private final Limiter limiter;
+  private final MeterRegistry meterRegistry;
   Map<AlbumEntryKey, Mono<Metadata>> pendingMetdataLoad =
       Collections.synchronizedMap(new HashMap<>());
   private Path relativePath;
   private Scheduler ioScheduler;
   private Scheduler processScheduler;
   private Cache<AlbumEntryKey, Metadata> metadataCache;
+  private AtomicReference<Mono<Ref>> cachedMasterRef = new AtomicReference<>();
+  private AtomicReference<Mono<RevTree>> cachedMasterTree = new AtomicReference<>();
 
-  public BareGitAccess(
+  private BareGitAccess(
       final Path path,
       final Path relativePath,
       final Cache<AlbumEntryKey, Metadata> metadataCache,
       Scheduler ioScheduler,
       final Scheduler processScheduler,
-      final Limiter limiter) {
+      final Limiter limiter,
+      final MeterRegistry meterRegistry) {
     this.relativePath = relativePath;
     this.limiter = limiter;
     this.metadataCache = metadataCache;
     this.ioScheduler = ioScheduler;
     this.processScheduler = processScheduler;
+    this.meterRegistry = meterRegistry;
 
     repository =
         limiter
@@ -162,9 +168,10 @@ public class BareGitAccess implements GitAccess {
       final Cache<AlbumEntryKey, Metadata> metadataCache,
       Scheduler ioScheduler,
       final Scheduler processScheduler,
-      final Limiter limiter) {
+      final Limiter limiter,
+      MeterRegistry meterRegistry) {
     return new BareGitAccess(
-        path, relativePath, metadataCache, ioScheduler, processScheduler, limiter);
+        path, relativePath, metadataCache, ioScheduler, processScheduler, limiter, meterRegistry);
   }
 
   @Override
@@ -315,11 +322,15 @@ public class BareGitAccess implements GitAccess {
   }
 
   private Mono<RevTree> masterTree() {
-    return findMasterRef().flatMap(this::readTree);
+    return cachedMasterTree.updateAndGet(
+        treeMono ->
+            Objects.requireNonNullElseGet(
+                treeMono,
+                () -> findMasterRef().flatMap(this::readTree).cache(REPOSITORY_CACHE_TIME)));
   }
 
   private Mono<RevTree> readTree(final Ref ref) {
-    log.info("Read tree " + ref + " at " + relativePath);
+    // log.info("Read tree " + ref + " at " + relativePath);
     return repository
         .flatMap(
             r ->
@@ -333,8 +344,6 @@ public class BareGitAccess implements GitAccess {
   public Mono<ObjectId> getCurrentVersion() {
     return findMasterRef().map(Ref::getObjectId);
   }
-
-  private AtomicReference<Mono<Ref>> cachedMasterRef = new AtomicReference<>();
 
   private Mono<Ref> findMasterRef() {
     return cachedMasterRef
@@ -659,31 +668,31 @@ public class BareGitAccess implements GitAccess {
                           limiter.limit(
                               readObject(entryId)
                                   .map(
-                                      loader -> {
-                                        try {
-                                          final File tempFile =
-                                              File.createTempFile(entryId.name(), ".tmp");
-                                          try {
-                                            try (final FileOutputStream outputStream =
-                                                new FileOutputStream(tempFile)) {
-                                              loader.copyTo(outputStream);
-                                            }
-                                            AutoDetectParser parser = new AutoDetectParser();
-                                            BodyContentHandler handler = new BodyContentHandler();
-                                            Metadata metadata = new Metadata();
-                                            final TikaInputStream inputStream =
-                                                TikaInputStream.get(tempFile);
-                                            parser.parse(inputStream, handler, metadata);
-                                            metadataCache.put(k, metadata);
-                                            return metadata;
-                                          } finally {
-                                            tempFile.delete();
-                                          }
-                                        } catch (IOException | SAXException | TikaException e) {
-                                          throw new RuntimeException(
-                                              "Cannot read metadata of " + entryId, e);
-                                        }
-                                      })
+                                      loader ->
+                                          meterRegistry
+                                              .timer("git-access.metadata.load")
+                                              .record(
+                                                  () -> {
+                                                    try (final ObjectStream stream =
+                                                        loader.openStream()) {
+                                                      AutoDetectParser parser =
+                                                          new AutoDetectParser();
+                                                      BodyContentHandler handler =
+                                                          new BodyContentHandler();
+                                                      Metadata metadata = new Metadata();
+                                                      @Cleanup
+                                                      final TikaInputStream inputStream =
+                                                          TikaInputStream.get(stream);
+                                                      parser.parse(inputStream, handler, metadata);
+                                                      metadataCache.put(k, metadata);
+                                                      return metadata;
+                                                    } catch (IOException
+                                                        | SAXException
+                                                        | TikaException e) {
+                                                      throw new RuntimeException(
+                                                          "Cannot read metadata of " + entryId, e);
+                                                    }
+                                                  }))
                                   .cache(),
                               "load metdata"))
                   .doFinally(signal -> pendingMetdataLoad.remove(cacheKey));

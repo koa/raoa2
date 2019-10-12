@@ -2,6 +2,7 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
+import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumData;
 import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
 import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
@@ -74,7 +75,7 @@ public class AlbumQuery implements GraphQLResolver<Album> {
   }
 
   public CompletableFuture<String> getName(Album album) {
-    return gitAccessOfAlbum(album).flatMap(GitAccess::getName).timeout(TIMEOUT).toFuture();
+    return album.getElAlbumData().map(AlbumData::getName).timeout(TIMEOUT).toFuture();
   }
 
   @NotNull

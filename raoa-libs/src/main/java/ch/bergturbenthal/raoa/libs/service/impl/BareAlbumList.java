@@ -8,6 +8,7 @@ import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
 import ch.bergturbenthal.raoa.libs.service.impl.cache.AlbumEntryKeySerializer;
 import ch.bergturbenthal.raoa.libs.service.impl.cache.MetadataSerializer;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,7 +54,7 @@ public class BareAlbumList implements AlbumList {
   private final Scheduler ioScheduler;
   private Properties properties;
 
-  public BareAlbumList(Properties properties, Limiter limiter) {
+  public BareAlbumList(Properties properties, Limiter limiter, MeterRegistry meterRegistry) {
     this.properties = properties;
 
     final CacheManager cacheManager =
@@ -96,7 +97,8 @@ public class BareAlbumList implements AlbumList {
                         metadataCache,
                         ioScheduler,
                         processScheduler,
-                        limiter))
+                        limiter,
+                        meterRegistry))
             .flatMap(p -> p.getMetadata().map(m -> Tuples.of(p, m)))
             .filter(t1 -> t1.getT2().getAlbumId() != null)
             .collectMap(t -> t.getT2().getAlbumId(), Tuple2::getT1)

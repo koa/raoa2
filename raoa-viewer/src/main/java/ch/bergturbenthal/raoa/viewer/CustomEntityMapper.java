@@ -44,15 +44,6 @@ public class CustomEntityMapper implements EntityMapper {
             .featuresToDisable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .featuresToEnable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
             .build();
-
-    /*
-    objectMapper.registerModule(new CustomEntityMapper.SpringDataElasticsearchModule(context));
-    objectMapper.registerModule(new CustomGeoModule());
-
-    objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    objectMapper.configure(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY, true);
-
-     */
   }
 
   /*

@@ -1,8 +1,7 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
-import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumData;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
-import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.ImageDataService;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLQueryResolver;
@@ -20,20 +19,14 @@ import org.springframework.stereotype.Component;
 @Component
 public class Query implements GraphQLQueryResolver {
   private static final Duration TIMEOUT = Duration.ofMinutes(5);
-  private final AlbumList albumList;
-  private final AuthorizationManager authorizationManager;
   private final UserManager userManager;
   private final QueryContextSupplier queryContextSupplier;
   private final ImageDataService imageDataService;
 
   public Query(
-      final AlbumList albumList,
-      final AuthorizationManager authorizationManager,
       final UserManager userManager,
       final QueryContextSupplier queryContextSupplier,
       final ImageDataService imageDataService) {
-    this.albumList = albumList;
-    this.authorizationManager = authorizationManager;
     this.userManager = userManager;
     this.queryContextSupplier = queryContextSupplier;
     this.imageDataService = imageDataService;
@@ -78,9 +71,9 @@ public class Query implements GraphQLQueryResolver {
         .createContext()
         .flatMap(
             queryContext ->
-                albumList
+                imageDataService
                     .listAlbums()
-                    .map(AlbumList.FoundAlbum::getAlbumId)
+                    .map(AlbumData::getRepositoryId)
                     .filter(queryContext::canAccessAlbum)
                     .map(
                         albumId ->

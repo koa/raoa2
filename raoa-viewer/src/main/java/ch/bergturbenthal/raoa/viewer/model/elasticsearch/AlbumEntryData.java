@@ -12,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.elasticsearch.annotations.DateFormat;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
@@ -85,7 +84,7 @@ public class AlbumEntryData {
   @Field(type = FieldType.Keyword)
   private String filename;
 
-  @Field(type = FieldType.Date, format = DateFormat.basic_date_time)
+  @Field(type = FieldType.Double)
   private Instant createTime;
 
   @Field(type = FieldType.Keyword)

@@ -118,6 +118,10 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>io.projectreactor.addons</groupId>
+            <artifactId>reactor-extra</artifactId>
+        </dependency>
+        <dependency>
             <groupId>ch.bergturbenthal.raoa2</groupId>
             <artifactId>raoa-viewer-client-oauth2</artifactId>
             <version>0.0.1-SNAPSHOT</version>

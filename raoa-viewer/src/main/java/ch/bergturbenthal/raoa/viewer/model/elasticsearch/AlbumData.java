@@ -4,6 +4,7 @@ import ch.bergturbenthal.raoa.viewer.model.elasticsearch.serializer.ObjectIdSeri
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import java.time.Instant;
 import java.util.UUID;
 import lombok.Builder;
 import lombok.Value;
@@ -23,6 +24,14 @@ public class AlbumData {
   @Field(type = FieldType.Keyword)
   @JsonSerialize(using = ObjectIdSerializer.class)
   private ObjectId currentVersion;
+
+  @Field(type = FieldType.Text)
+  private String name;
+
+  private int entryCount;
+
+  @Field(type = FieldType.Double)
+  private Instant createTime;
 
   @JsonPOJOBuilder(withPrefix = "")
   public static class AlbumDataBuilder {}

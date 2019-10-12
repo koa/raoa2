@@ -23,6 +23,10 @@ spring:
       client:
         reactive:
           endpoints: localhost:9200
+          socket-timeout: 1m
+  elasticsearch:
+    rest:
+      uris: http://localhost:9200
 security:
   oauth2:
     resource:
@@ -35,4 +39,7 @@ raoa:
     cache-dir: /tmp/raoa/cache
     data-dir: /tmp/raoa/data
   metadata-cache: /tmp/raoa/metadataCache
-
+management:
+  endpoint:
+    health:
+      show-details: always
