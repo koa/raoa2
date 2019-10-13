@@ -47,17 +47,21 @@ public class Query implements GraphQLQueryResolver {
                 dataViewService
                     .listAllRequestedAccess()
                     .map(
-                        r ->
-                            RegistrationRequest.builder()
-                                .authenticationId(r.getAuthenticationId())
-                                .data(r.getUserData())
-                                .reason(r.getComment())
-                                .requestAlbum(
-                                    new Album(
-                                        r.getRequestedAlbum(),
-                                        context,
-                                        dataViewService.readAlbum(r.getRequestedAlbum()).cache()))
-                                .build()))
+                        r -> {
+                          final RegistrationRequest.RegistrationRequestBuilder builder =
+                              RegistrationRequest.builder()
+                                  .authenticationId(r.getAuthenticationId())
+                                  .data(r.getUserData())
+                                  .reason(r.getComment());
+                          if (r.getRequestedAlbum() != null) {
+                            builder.requestAlbum(
+                                new Album(
+                                    r.getRequestedAlbum(),
+                                    context,
+                                    dataViewService.readAlbum(r.getRequestedAlbum()).cache()));
+                          }
+                          return builder.build();
+                        }))
         .collectList()
         .timeout(TIMEOUT)
         .toFuture();
@@ -77,6 +81,20 @@ public class Query implements GraphQLQueryResolver {
                         albumId ->
                             new Album(
                                 albumId, queryContext, dataViewService.readAlbum(albumId).cache()))
+                    .collectList())
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<List<UserReference>> listUsers() {
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            queryContext ->
+                dataViewService
+                    .listUsers()
+                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext))
                     .collectList())
         .timeout(TIMEOUT)
         .toFuture();

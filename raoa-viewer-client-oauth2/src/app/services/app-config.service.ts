@@ -25,11 +25,22 @@ export class AppConfigService {
   private signedInSubscriber: Subscriber<boolean>;
   private currentUserSubscriber: Subscriber<gapi.auth2.GoogleUser>;
 
+  private isSignedIn: boolean;
+  private currentUser: gapi.auth2.GoogleUser;
+
   constructor(private http: HttpClient, private cookieService: CookieService) {
     this.signedInObservable = new Observable<boolean>(subscriber => {
       this.signedInSubscriber = subscriber;
+      if (this.isSignedIn !== undefined) {
+        subscriber.next(this.isSignedIn);
+      }
     });
-    this.currentUserObservable = new Observable<gapi.auth2.GoogleUser>(subscriber => this.currentUserSubscriber = subscriber);
+    this.currentUserObservable = new Observable<gapi.auth2.GoogleUser>(subscriber => {
+      this.currentUserSubscriber = subscriber;
+      if (this.currentUser !== undefined) {
+        subscriber.next(this.currentUser);
+      }
+    });
   }
 
 
@@ -63,10 +74,16 @@ export class AppConfigService {
       return Promise.resolve(true);
     }
     const signedInListener = signedIn => {
-      this.signedInSubscriber.next(signedIn);
+      this.isSignedIn = signedIn;
+      if (this.signedInSubscriber !== undefined) {
+        this.signedInSubscriber.next(signedIn);
+      }
     };
     const currentUserListener = user => {
-      this.currentUserSubscriber.next(user);
+      this.currentUser = user;
+      if (this.currentUserSubscriber !== undefined) {
+        this.currentUserSubscriber.next(user);
+      }
     };
     return new Promise<boolean>((resolve, reject) => {
       try {

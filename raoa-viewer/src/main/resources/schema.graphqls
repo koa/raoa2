@@ -6,6 +6,7 @@ type Query {
     authenticationState: AuthenticationState
     listPendingRequests: [RegistrationRequest]
     currentUser: User
+    listUsers: [User]
 }
 type Mutation{
     requestAccess(comment: String): RequestAccessResult

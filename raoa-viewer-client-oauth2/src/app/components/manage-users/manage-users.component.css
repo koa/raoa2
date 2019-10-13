@@ -1,0 +1,13 @@
+td.mat-cell {
+  padding-left: 1em;
+  padding-right: 1em;
+}
+
+div.user-photo {
+  background-size: cover;
+  height: 40px;
+  width: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+}

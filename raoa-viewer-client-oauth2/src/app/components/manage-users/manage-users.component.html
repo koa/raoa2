@@ -1,0 +1,29 @@
+<mat-toolbar class="main-toolbar" color="primary">
+  Benutzer Verwalten
+</mat-toolbar>
+<mat-tab-group>
+  <mat-tab label="Neue User">
+    <table [dataSource]="pendingRequests" class="mat-elevation-z8" mat-table>
+      <ng-container matColumnDef="icon">
+        <th *matHeaderCellDef mat-header-cell></th>
+        <td *matCellDef="let element" mat-cell>
+          <div [style.backgroundImage]="'url('+element.data.picture+')'" class="user-photo"></div>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="name">
+        <th *matHeaderCellDef mat-header-cell>Name</th>
+        <td *matCellDef="let element" mat-cell>{{element.data.name}} </td>
+      </ng-container>
+      <ng-container matColumnDef="email">
+        <th *matHeaderCellDef mat-header-cell>eMail</th>
+        <td *matCellDef="let element" mat-cell>{{element.data.email}} </td>
+      </ng-container>
+
+      <tr *matHeaderRowDef="displayedColumns" mat-header-row></tr>
+      <tr *matRowDef="let row; columns: displayedColumns;" mat-row></tr>
+    </table>
+  </mat-tab>
+  <mat-tab label="User">
+
+  </mat-tab>
+</mat-tab-group>

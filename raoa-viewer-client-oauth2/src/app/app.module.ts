@@ -27,6 +27,9 @@ import {RequestAccessDialogComponent} from './components/request-access-dialog/r
 import {MatFormFieldModule} from "@angular/material/form-field";
 import {FormsModule} from "@angular/forms";
 import {MatInputModule} from "@angular/material/input";
+import {ManageUsersComponent} from './components/manage-users/manage-users.component';
+import {MatTabsModule} from "@angular/material/tabs";
+import {MatTableModule} from "@angular/material/table";
 
 
 const appInitializerFn = (appConfig: AppConfigService) => {
@@ -41,6 +44,7 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     ShowImageDialogComponent,
     WelcomeComponent,
     RequestAccessDialogComponent,
+    ManageUsersComponent,
   ],
   imports: [
     BrowserModule,
@@ -61,6 +65,8 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     MatFormFieldModule,
     FormsModule,
     MatInputModule,
+    MatTabsModule,
+    MatTableModule,
   ],
   providers: [
     AppConfigService,

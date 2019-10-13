@@ -15,6 +15,7 @@
   </mat-card-content>
   <mat-card-actions>
     <button (click)="requestForAccess()" *ngIf="showRequestAuthorizationButton" mat-button>Zugang holen</button>
+    <button *ngIf="canManageUsers" mat-button routerLink="/manageUsers">Anfragen bearbeiten</button>
   </mat-card-actions>
 </mat-card>
 <mat-card *ngIf="!signedIn">

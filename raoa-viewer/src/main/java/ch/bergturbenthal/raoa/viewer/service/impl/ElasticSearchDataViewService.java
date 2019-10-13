@@ -378,7 +378,9 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   @Override
   public Mono<AccessRequest> getPendingRequest(final AuthenticationId id) {
-    return accessRequestRepository.findById(id.toString()).log("query pending request");
+    return accessRequestRepository
+        .findById(AccessRequest.concatId(id))
+        .log("query pending request");
   }
 
   @Override
@@ -394,6 +396,16 @@ public class ElasticSearchDataViewService implements DataViewService {
   @Override
   public Mono<Void> removePendingAccessRequest(final AccessRequest request) {
     return accessRequestRepository.delete(request).then();
+  }
+
+  @Override
+  public Flux<User> listUsers() {
+    return Flux.merge(userRepository.findBySuperuser(true), userRepository.findBySuperuser(false))
+        .onErrorResume(
+            ex -> {
+              log.warn("Error listing Users", ex);
+              return Flux.empty();
+            });
   }
 
   private static class AlbumStatisticsCollector {

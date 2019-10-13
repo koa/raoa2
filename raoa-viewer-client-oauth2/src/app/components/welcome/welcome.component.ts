@@ -37,7 +37,7 @@ export class WelcomeComponent implements OnInit {
         this.ngZone.run(() => this.appConfigService.renderButton('re-sign-in-button'));
       }
     });
-    this.appConfigService.currentUserObservable.subscribe(user =>
+    this.appConfigService.currentUserObservable.subscribe(user => {
       this.ngZone.run(() => {
         this.currentUser = user;
         const basicProfile = user.getBasicProfile();
@@ -46,16 +46,16 @@ export class WelcomeComponent implements OnInit {
           this.profilePhoto = basicProfile.getImageUrl();
           this.userEmail = basicProfile.getEmail();
         }
-      }));
+      });
+      this.evaluateUserState();
+    });
   }
 
   requestForAccess() {
-    console.log("open dialog")
     this.dialog.open(RequestAccessDialogComponent, {
       data: this.currentUser
     }).afterClosed().subscribe(() => {
-      console.log("Closed");
-      return this.evaluateUserState();
+      this.evaluateUserState();
     });
   }
 

@@ -1,0 +1,27 @@
+query ManageUsersOverview{
+  listPendingRequests{
+    authenticationId{
+      authority
+      id
+    }
+    reason
+    data{
+      name
+      email
+      picture
+    }
+  }
+  listUsers{
+    id
+    canManageUsers
+    authentications{
+      authority
+      id
+    }
+    info{
+      name
+      email
+      picture
+    }
+  }
+}
