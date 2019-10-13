@@ -6,12 +6,10 @@ import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLQueryResolver;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -43,10 +41,11 @@ public class Query implements GraphQLQueryResolver {
   public CompletableFuture<List<RegistrationRequest>> listPendingRequests() {
     return queryContextSupplier
         .createContext()
-        .map(
-            context -> {
-              if (context.canUserManageUsers())
-                return userManager.listPendingRequests().stream()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMapMany(
+            context ->
+                dataViewService
+                    .listAllRequestedAccess()
                     .map(
                         r ->
                             RegistrationRequest.builder()
@@ -58,10 +57,8 @@ public class Query implements GraphQLQueryResolver {
                                         r.getRequestedAlbum(),
                                         context,
                                         dataViewService.readAlbum(r.getRequestedAlbum()).cache()))
-                                .build())
-                    .collect(Collectors.toList());
-              else return Collections.<RegistrationRequest>emptyList();
-            })
+                                .build()))
+        .collectList()
         .timeout(TIMEOUT)
         .toFuture();
   }

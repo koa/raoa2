@@ -1,0 +1,6 @@
+query WelcomeUserInfo{
+  currentUser {
+    canManageUsers
+  }
+  authenticationState
+}

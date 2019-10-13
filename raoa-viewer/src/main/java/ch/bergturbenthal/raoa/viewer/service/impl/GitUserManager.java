@@ -14,9 +14,10 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
@@ -41,13 +42,6 @@ public class GitUserManager implements UserManager {
   private final ObjectReader accessRequestObjectReader;
   private final ObjectWriter userWriter;
   private final Limiter limiter;
-  private ObjectWriter accessRequestObjectWriter;
-  private Map<AuthenticationId, Mono<User>> userByAuthenticationCache =
-      Collections.synchronizedMap(new HashMap<>());
-  private Map<UUID, Mono<User>> userByIdCache = Collections.synchronizedMap(new HashMap<>());
-  private AtomicReference<Flux<User>> allUsersCache = new AtomicReference<>();
-  private AtomicReference<Set<AuthenticationId>> pendingAuthenticationsReference =
-      new AtomicReference<>(Collections.emptySet());
 
   public GitUserManager(
       AlbumList albumList, ViewerProperties viewerProperties, final Limiter limiter) {
@@ -55,7 +49,6 @@ public class GitUserManager implements UserManager {
     this.viewerProperties = viewerProperties;
     this.limiter = limiter;
     final ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().indentOutput(true).build();
-    accessRequestObjectWriter = objectMapper.writerFor(AccessRequest.class);
     accessRequestObjectReader = objectMapper.readerFor(AccessRequest.class);
 
     userReader = objectMapper.readerFor(User.class);
@@ -78,26 +71,9 @@ public class GitUserManager implements UserManager {
             pendingRequests.add(
                 accessRequestObjectReader.<AccessRequest>readValue(file).getAuthenticationId());
           }
-        pendingAuthenticationsReference.set(Collections.unmodifiableSet(pendingRequests));
       } catch (IOException e) {
         log.warn("Cannot load existing requests", e);
       }
-    }
-  }
-
-  @Override
-  public void requestAccess(final AccessRequest request) {
-    final File resultFile = accessRequestFile(request.getAuthenticationId());
-    try {
-      accessRequestObjectWriter.writeValue(resultFile, request);
-      pendingAuthenticationsReference.updateAndGet(
-          oldIds -> {
-            final HashSet<AuthenticationId> newIds = new HashSet<>(oldIds);
-            newIds.add(request.getAuthenticationId());
-            return Collections.unmodifiableSet(newIds);
-          });
-    } catch (IOException e) {
-      throw new RuntimeException(e);
     }
   }
 
@@ -108,49 +84,37 @@ public class GitUserManager implements UserManager {
   }
 
   @Override
-  public Mono<User> createNewUser(final AuthenticationId baseRequest) {
+  public Mono<User> createNewUser(final AccessRequest foundRequest) {
     try {
-      final File file = accessRequestFile(baseRequest);
-      if (file.exists()) {
-        final AccessRequest foundRequest = accessRequestObjectReader.readValue(file);
-        final User newUser =
-            User.builder()
-                .userData(foundRequest.getUserData())
-                .superuser(false)
-                .id(UUID.randomUUID())
-                .authentications(Collections.singleton(baseRequest))
-                .visibleAlbums(
-                    foundRequest.getRequestedAlbum() == null
-                        ? Collections.emptySet()
-                        : Collections.singleton(foundRequest.getRequestedAlbum()))
-                .build();
-        final String userFileName = createUserFile(newUser.getId());
-        final File tempFile = File.createTempFile(newUser.getId().toString(), "json");
-        userWriter.writeValue(tempFile, newUser);
-        return metaIdMono
-            .flatMap(albumList::getAlbum)
-            .flatMap(GitAccess::createUpdater)
-            .flatMap(
-                u ->
-                    u.importFile(tempFile.toPath(), userFileName)
-                        .filter(t -> t)
-                        .flatMap(t -> u.commit("created user"))
-                        .filter(t -> t)
-                        .doFinally(
-                            signal -> {
-                              u.close();
-                              tempFile.delete();
-                            }))
-            .map(t -> newUser)
-            .doOnNext(u -> file.delete())
-            .doFinally(
-                signal -> {
-                  userByIdCache.clear();
-                  userByAuthenticationCache.clear();
-                  allUsersCache.set(null);
-                });
-      }
-      return Mono.empty();
+      final User newUser =
+          User.builder()
+              .userData(foundRequest.getUserData())
+              .superuser(false)
+              .id(UUID.randomUUID())
+              .authentications(Collections.singleton(foundRequest.getAuthenticationId()))
+              .visibleAlbums(
+                  foundRequest.getRequestedAlbum() == null
+                      ? Collections.emptySet()
+                      : Collections.singleton(foundRequest.getRequestedAlbum()))
+              .build();
+      final String userFileName = createUserFile(newUser.getId());
+      final File tempFile = File.createTempFile(newUser.getId().toString(), "json");
+      userWriter.writeValue(tempFile, newUser);
+      return metaIdMono
+          .flatMap(albumList::getAlbum)
+          .flatMap(GitAccess::createUpdater)
+          .flatMap(
+              u ->
+                  u.importFile(tempFile.toPath(), userFileName)
+                      .filter(t -> t)
+                      .flatMap(t -> u.commit("created user"))
+                      .filter(t -> t)
+                      .doFinally(
+                          signal -> {
+                            u.close();
+                            tempFile.delete();
+                          }))
+          .map(t -> newUser);
     } catch (IOException e) {
       return Mono.error(e);
     }
@@ -168,11 +132,7 @@ public class GitUserManager implements UserManager {
 
   @NotNull
   private synchronized Flux<User> allUsers() {
-    final Flux<User> cachedUsers = allUsersCache.get();
-    if (cachedUsers != null) return cachedUsers;
-    final Flux<User> userFlux = loadUsers(ALL_USERS_FILTER).cache(CACHE_DURATION);
-    allUsersCache.set(userFlux);
-    return userFlux;
+    return loadUsers(ALL_USERS_FILTER).cache(CACHE_DURATION);
   }
 
   @NotNull
@@ -206,27 +166,5 @@ public class GitUserManager implements UserManager {
   @Override
   public Flux<User> listUsers() {
     return allUsers();
-  }
-
-  @Override
-  public Collection<AccessRequest> listPendingRequests() {
-    final Collection<AccessRequest> ret = new ArrayList<>();
-    final File requestDir = getAccessRequestsDir();
-    if (requestDir.exists()) {
-      try {
-        final Set<AuthenticationId> pendingRequests = new HashSet<>();
-        final File[] files = requestDir.listFiles();
-        if (files != null)
-          for (File file : files) {
-            ret.add(accessRequestObjectReader.readValue(file));
-          }
-        pendingAuthenticationsReference.set(
-            Collections.unmodifiableSet(
-                ret.stream().map(AccessRequest::getAuthenticationId).collect(Collectors.toSet())));
-      } catch (IOException e) {
-        log.warn("Cannot load existing requests", e);
-      }
-    }
-    return ret;
   }
 }

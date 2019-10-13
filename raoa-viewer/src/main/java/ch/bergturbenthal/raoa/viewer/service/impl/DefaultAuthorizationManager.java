@@ -161,7 +161,7 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   @Override
   public Mono<Boolean> hasPendingRequest(final SecurityContext context) {
     return Mono.justOrEmpty(currentAuthentication(context))
-        .flatMap(dataViewService::hasPendingRequest)
+        .flatMap(id -> dataViewService.getPendingRequest(id).hasElement())
         .defaultIfEmpty(false);
   }
 }

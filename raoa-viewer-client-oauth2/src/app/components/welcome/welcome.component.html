@@ -1,6 +1,32 @@
 <mat-toolbar class="main-toolbar" color="primary">
   Photos
 </mat-toolbar>
-<p id="sign-in-button">no connection to internet</p>
-<p *ngIf="signedIn">signed in: {{appConfigService.currentUser?.getBasicProfile()?.getName()}}</p>
+
+<mat-card *ngIf="signedIn">
+  <mat-card-header>
+    <div [style.backgroundImage]="'url('+profilePhoto+')'" class="small-photo" mat-card-avatar>
+    </div>
+    <mat-card-title>{{userName}}</mat-card-title>
+    <mat-card-subtitle>{{userEmail}}</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <p id="re-sign-in-button">no connection to internet</p>
+    <p *ngIf="showRequestPendingInformation">Deine Anfrage wurde gespeichert, aber noch nicht bearbeitet</p>
+  </mat-card-content>
+  <mat-card-actions>
+    <button (click)="requestForAccess()" *ngIf="showRequestAuthorizationButton" mat-button>Zugang holen</button>
+  </mat-card-actions>
+</mat-card>
+<mat-card *ngIf="!signedIn">
+  <mat-card-header>
+    <mat-card-title>Login</mat-card-title>
+    <mat-card-subtitle>Bitte einloggen</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-actions>
+    <p id="sign-in-button">no connection to internet</p>
+  </mat-card-actions>
+</mat-card>
+
+
+
 

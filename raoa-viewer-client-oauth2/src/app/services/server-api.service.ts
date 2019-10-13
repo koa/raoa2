@@ -9,7 +9,8 @@ import {
   AuthenticationStateGQL,
   Maybe
 } from '../generated/graphql';
-import {Apollo} from 'apollo-angular';
+import * as Apollo from 'apollo-angular';
+//import {Apollo} from 'apollo-angular';
 import {HttpLink} from 'apollo-angular-link-http';
 import {InMemoryCache} from 'apollo-cache-inmemory';
 import {AppConfigService} from './app-config.service';
@@ -24,7 +25,7 @@ export class ServerApiService {
 
 
   constructor(
-    apollo: Apollo,
+    apollo: Apollo.Apollo,
     httpLink: HttpLink,
     private appConfigService: AppConfigService,
     private albumListGQL: AllAlbumsGQL,
@@ -44,6 +45,37 @@ export class ServerApiService {
       });
 
     }));
+  }
+
+  public async query<T, V>(query: Apollo.Query<T, V>, variables: V): Promise<Maybe<T>> {
+    if (!(this.ready || await this.readyPromise)) {
+      return Promise.reject('Cannot init');
+    }
+    return new Promise<T>((resolve, reject) =>
+      query.watch(variables).valueChanges.subscribe(result => {
+        if (result.data) {
+          resolve(result.data);
+        } else {
+          reject(result.errors);
+        }
+      })
+    );
+  }
+
+  public async update<T, V>(query: Apollo.Mutation<T, V>, variables: V): Promise<Maybe<T>> {
+    if (!(this.ready || await this.readyPromise)) {
+      return Promise.reject('Cannot init');
+    }
+    return new Promise<T>((resolve, reject) =>
+      query.mutate(variables).subscribe(result => {
+        if (result.data) {
+          resolve(result.data);
+        } else {
+          reject(result.errors);
+        }
+      })
+    );
+
   }
 
   public async listAllAlbums(): Promise<Maybe<AllAlbums.ListAlbums>[]> {

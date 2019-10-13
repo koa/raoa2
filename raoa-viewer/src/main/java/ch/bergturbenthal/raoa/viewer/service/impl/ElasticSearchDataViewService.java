@@ -4,6 +4,7 @@ import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumData;
 import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumEntryData;
+import ch.bergturbenthal.raoa.viewer.model.usermanager.AccessRequest;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
 import ch.bergturbenthal.raoa.viewer.repository.*;
@@ -13,8 +14,6 @@ import com.google.common.base.Functions;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.metadata.*;
@@ -137,10 +136,14 @@ public class ElasticSearchDataViewService implements DataViewService {
     }
   }
 
-  @Override
   @Scheduled(fixedDelay = 5 * 60 * 1000, initialDelay = 2 * 1000)
-  public void updateUserData() {
-    userRepository
+  public void doUpdateUserData() {
+    updateUserData().block();
+  }
+
+  @Override
+  public Mono<Void> updateUserData() {
+    return userRepository
         .findAll()
         .onErrorResume(
             ex -> {
@@ -163,33 +166,7 @@ public class ElasticSearchDataViewService implements DataViewService {
         .flatMapIterable(Functions.identity())
         .flatMap(userRepository::deleteById)
         .count()
-        .block();
-  }
-
-  @Override
-  @Scheduled(fixedDelay = 5 * 60 * 1000, initialDelay = 3 * 1000)
-  public void updateAccessRequestData() {
-    accessRequestRepository
-        .findAll()
-        .onErrorResume(
-            ex -> {
-              log.warn("Cannot load existing access requests", ex);
-              return Flux.empty();
-            })
-        .collect(Collectors.toSet())
-        .flatMap(
-            existingRequests ->
-                Flux.fromIterable(existingRequests)
-                    .flatMap(
-                        storedRequest ->
-                            existingRequests.contains(storedRequest)
-                                ? Mono.just(storedRequest)
-                                : accessRequestRepository.save(storedRequest))
-                    .collect(() -> new HashSet<>(existingRequests), Set::remove))
-        .flatMapIterable(Function.identity())
-        .flatMap(accessRequestRepository::delete)
-        .count()
-        .block();
+        .then();
   }
 
   @Override
@@ -400,8 +377,23 @@ public class ElasticSearchDataViewService implements DataViewService {
   }
 
   @Override
-  public Mono<Boolean> hasPendingRequest(final AuthenticationId id) {
-    return accessRequestRepository.findByAuthenticationId(id).hasElements();
+  public Mono<AccessRequest> getPendingRequest(final AuthenticationId id) {
+    return accessRequestRepository.findById(id.toString()).log("query pending request");
+  }
+
+  @Override
+  public Mono<AccessRequest> requestAccess(final AccessRequest request) {
+    return accessRequestRepository.save(request).log("Request Access");
+  }
+
+  @Override
+  public Flux<AccessRequest> listAllRequestedAccess() {
+    return accessRequestRepository.findAll();
+  }
+
+  @Override
+  public Mono<Void> removePendingAccessRequest(final AccessRequest request) {
+    return accessRequestRepository.delete(request).then();
   }
 
   private static class AlbumStatisticsCollector {

@@ -21,13 +21,15 @@ export class AppConfigService {
   private basicProfile: gapi.auth2.BasicProfile;
   private auth2: gapi.auth2.GoogleAuth;
   public signedInObservable: Observable<boolean>;
-  public currentUser: gapi.auth2.GoogleUser;
+  public currentUserObservable: Observable<gapi.auth2.GoogleUser>;
   private signedInSubscriber: Subscriber<boolean>;
+  private currentUserSubscriber: Subscriber<gapi.auth2.GoogleUser>;
 
   constructor(private http: HttpClient, private cookieService: CookieService) {
     this.signedInObservable = new Observable<boolean>(subscriber => {
       this.signedInSubscriber = subscriber;
     });
+    this.currentUserObservable = new Observable<gapi.auth2.GoogleUser>(subscriber => this.currentUserSubscriber = subscriber);
   }
 
 
@@ -64,7 +66,7 @@ export class AppConfigService {
       this.signedInSubscriber.next(signedIn);
     };
     const currentUserListener = user => {
-      return this.currentUser = user;
+      this.currentUserSubscriber.next(user);
     };
     return new Promise<boolean>((resolve, reject) => {
       try {
@@ -72,11 +74,10 @@ export class AppConfigService {
           this.loadAppConfig().then(config => {
             this.auth2 = gapi.auth2.init({
               client_id: config.googleClientId,
-              fetch_basic_profile: false,
               scope: 'profile'
             });
-            this.auth2.isSignedIn.listen(signedInListener);
             this.auth2.currentUser.listen(currentUserListener);
+            this.auth2.isSignedIn.listen(signedInListener);
             resolve(true);
           });
         });

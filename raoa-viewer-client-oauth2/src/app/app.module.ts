@@ -21,7 +21,12 @@ import {MatDialogModule} from '@angular/material/dialog';
 import {AngularResizedEventModule} from 'angular-resize-event';
 import {MatProgressBarModule} from '@angular/material/progress-bar';
 import {CookieService} from 'ngx-cookie-service';
-import { WelcomeComponent } from './components/welcome/welcome.component';
+import {WelcomeComponent} from './components/welcome/welcome.component';
+import {MatCardModule} from "@angular/material/card";
+import {RequestAccessDialogComponent} from './components/request-access-dialog/request-access-dialog.component';
+import {MatFormFieldModule} from "@angular/material/form-field";
+import {FormsModule} from "@angular/forms";
+import {MatInputModule} from "@angular/material/input";
 
 
 const appInitializerFn = (appConfig: AppConfigService) => {
@@ -35,6 +40,7 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     AlbumContentComponent,
     ShowImageDialogComponent,
     WelcomeComponent,
+    RequestAccessDialogComponent,
   ],
   imports: [
     BrowserModule,
@@ -51,6 +57,10 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     MatDialogModule,
     AngularResizedEventModule,
     MatProgressBarModule,
+    MatCardModule,
+    MatFormFieldModule,
+    FormsModule,
+    MatInputModule,
   ],
   providers: [
     AppConfigService,
@@ -64,7 +74,7 @@ const appInitializerFn = (appConfig: AppConfigService) => {
   ],
   bootstrap: [AppComponent],
   exports: [ApolloModule, HttpLinkModule],
-  entryComponents: [ShowImageDialogComponent]
+  entryComponents: [ShowImageDialogComponent, RequestAccessDialogComponent]
 })
 export class AppModule {
 }

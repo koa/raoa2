@@ -48,12 +48,11 @@ public class QueryContextSupplier {
 
   public Mono<QueryContext> createContext() {
     final SecurityContext context = SecurityContextHolder.getContext();
-    final Mono<User> user = authorizationManager.currentUser(context).log("create context user");
+    final Mono<User> user = authorizationManager.currentUser(context).cache();
     final Optional<AuthenticationId> authenticationId =
         authorizationManager.currentAuthentication(context);
     final RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
-    final Mono<Optional<User>> userMono =
-        user.map(Optional::of).defaultIfEmpty(Optional.empty()).log("optional user");
+    final Mono<Optional<User>> userMono = user.map(Optional::of).defaultIfEmpty(Optional.empty());
     return Mono.zip(userMono, latestAlbum)
         .map(
             t -> {
@@ -132,6 +131,7 @@ public class QueryContextSupplier {
     }
     return authorizationManager
         .hasPendingRequest(context)
+        .onErrorReturn(false)
         .map(
             hasPendingRequest -> {
               if (hasPendingRequest) return AuthenticationState.AUTHORIZATION_REQUESTED;

@@ -1,0 +1,12 @@
+<h1 mat-dialog-title>Zugang holen</h1>
+<div mat-dialog-content>
+  <p>Möchtest du Zugang zu den Photos vom teamkoenig.ch</p>
+  <mat-form-field>
+    <textarea [(ngModel)]="comment" matInput placeholder="Warum?">
+    </textarea>
+  </mat-form-field>
+</div>
+<div mat-dialog-actions>
+  <button (click)="cancel()" mat-button>Vielleicht später</button>
+  <button (click)="sendRequestAccess()" mat-button>Ja</button>
+</div>

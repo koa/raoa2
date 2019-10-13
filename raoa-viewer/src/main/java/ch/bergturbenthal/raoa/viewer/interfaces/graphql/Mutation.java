@@ -47,9 +47,12 @@ public class Mutation implements GraphQLMutationResolver {
             queryContext -> {
               if (!queryContext.canUserManageUsers()) return Mono.empty();
               final Mono<User> newUser =
-                  userManager
-                      .createNewUser(authenticationId)
-                      .doOnNext(user -> dataViewService.updateUserData());
+                  dataViewService
+                      .getPendingRequest(authenticationId)
+                      .flatMap(userManager::createNewUser)
+                      .flatMap(
+                          user ->
+                              dataViewService.updateUserData().map(v -> user).defaultIfEmpty(user));
               return newUser.map(u -> new UserReference(u.getId(), u.getUserData(), queryContext));
             })
         .timeout(TIMEOUT)
@@ -62,7 +65,7 @@ public class Mutation implements GraphQLMutationResolver {
         .flatMap(
             queryContext ->
                 queryContext.getAuthenticationState().map(s -> Tuples.of(queryContext, s)))
-        .map(
+        .flatMap(
             TupleUtils.function(
                 (queryContext, authenticationState) -> {
                   final Optional<AuthenticationId> authenticationId =
@@ -78,13 +81,14 @@ public class Mutation implements GraphQLMutationResolver {
                     builder.requestTime(Instant.now());
 
                     builder.userData(personalUserData);
-                    userManager.requestAccess(builder.build());
-                    dataViewService.updateAccessRequestData();
-                    return RequestAccessResultCode.OK;
+                    return dataViewService
+                        .requestAccess(builder.build())
+                        .map(c -> RequestAccessResultCode.OK);
                   }
-                  if (authenticationState == AuthenticationState.AUTHORIZED)
-                    return RequestAccessResultCode.ALREADY_ACCEPTED;
-                  return RequestAccessResultCode.NOT_LOGGED_IN;
+                  return Mono.just(
+                      authenticationState == AuthenticationState.AUTHORIZED
+                          ? RequestAccessResultCode.ALREADY_ACCEPTED
+                          : RequestAccessResultCode.NOT_LOGGED_IN);
                 }))
         .map(
             code ->
