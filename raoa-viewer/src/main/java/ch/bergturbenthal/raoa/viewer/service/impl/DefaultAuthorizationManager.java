@@ -6,6 +6,7 @@ import ch.bergturbenthal.raoa.viewer.model.usermanager.PersonalUserData;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
+import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import java.time.Duration;
 import java.util.*;
@@ -22,16 +23,16 @@ import reactor.util.function.Tuples;
 
 @Service
 public class DefaultAuthorizationManager implements AuthorizationManager {
-  private final UserManager userManager;
   private final ViewerProperties viewerProperties;
   private final UUID virtualSuperuserId = UUID.randomUUID();
   private final Mono<UUID> latestAlbum;
+  private final DataViewService dataViewService;
 
   public DefaultAuthorizationManager(
       final UserManager userManager,
       final ViewerProperties viewerProperties,
-      final AlbumList albumList) {
-    this.userManager = userManager;
+      final AlbumList albumList,
+      final DataViewService dataViewService) {
     this.viewerProperties = viewerProperties;
     latestAlbum =
         albumList
@@ -47,6 +48,7 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
             .map(Optional::get)
             .map(Tuple2::getT2)
             .cache(Duration.ofMinutes(5));
+    this.dataViewService = dataViewService;
   }
 
   @Override
@@ -96,13 +98,19 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
                 u ->
                     u.isSuperuser()
                         || (u.getVisibleAlbums() != null && u.getVisibleAlbums().contains(album)))
+            // .log("can user access")
             .defaultIfEmpty(false);
-    return Mono.zip(canAccessAlbum, isLatestAlbum).map(t -> t.getT1() || t.getT2());
+    return Mono.zip(canAccessAlbum, isLatestAlbum).map(t -> t.getT1() || t.getT2())
+    // .log("can access " + album)
+    ;
   }
 
   @Override
   public Mono<Boolean> canUserManageUsers(final SecurityContext context) {
-    return currentUser(context).map(User::isSuperuser).defaultIfEmpty(false);
+    return currentUser(context)
+        .map(User::isSuperuser)
+        // .log("can manage users")
+        .defaultIfEmpty(false);
   }
 
   @Override
@@ -111,7 +119,7 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
     return currentAuthentication(context)
         .map(
             authenticationId ->
-                userManager
+                dataViewService
                     .findUserForAuthentication(authenticationId)
                     .switchIfEmpty(
                         Mono.defer(
@@ -151,7 +159,9 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   }
 
   @Override
-  public boolean hasPendingRequest(final SecurityContext context) {
-    return currentAuthentication(context).map(userManager::hasPendingRequest).orElse(false);
+  public Mono<Boolean> hasPendingRequest(final SecurityContext context) {
+    return Mono.justOrEmpty(currentAuthentication(context))
+        .flatMap(dataViewService::hasPendingRequest)
+        .defaultIfEmpty(false);
   }
 }

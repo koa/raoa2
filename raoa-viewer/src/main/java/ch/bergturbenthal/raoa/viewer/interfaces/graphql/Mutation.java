@@ -9,6 +9,7 @@ import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.PersonalUserData;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
+import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLMutationResolver;
 import java.time.Duration;
@@ -17,6 +18,8 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+import reactor.function.TupleUtils;
+import reactor.util.function.Tuples;
 
 @Component
 public class Mutation implements GraphQLMutationResolver {
@@ -24,14 +27,17 @@ public class Mutation implements GraphQLMutationResolver {
   private final UserManager userManager;
   private final AuthorizationManager authorizationManager;
   private final QueryContextSupplier queryContextSupplier;
+  private final DataViewService dataViewService;
 
   public Mutation(
       final UserManager userManager,
       final AuthorizationManager authorizationManager,
-      final QueryContextSupplier queryContextSupplier) {
+      final QueryContextSupplier queryContextSupplier,
+      final DataViewService dataViewService) {
     this.userManager = userManager;
     this.authorizationManager = authorizationManager;
     this.queryContextSupplier = queryContextSupplier;
+    this.dataViewService = dataViewService;
   }
 
   public CompletableFuture<UserReference> createUser(AuthenticationId authenticationId) {
@@ -40,7 +46,10 @@ public class Mutation implements GraphQLMutationResolver {
         .flatMap(
             queryContext -> {
               if (!queryContext.canUserManageUsers()) return Mono.empty();
-              final Mono<User> newUser = userManager.createNewUser(authenticationId);
+              final Mono<User> newUser =
+                  userManager
+                      .createNewUser(authenticationId)
+                      .doOnNext(user -> dataViewService.updateUserData());
               return newUser.map(u -> new UserReference(u.getId(), u.getUserData(), queryContext));
             })
         .timeout(TIMEOUT)
@@ -50,28 +59,33 @@ public class Mutation implements GraphQLMutationResolver {
   public CompletableFuture<? extends RequestAccessResult> requestAccess(String comment) {
     return queryContextSupplier
         .createContext()
+        .flatMap(
+            queryContext ->
+                queryContext.getAuthenticationState().map(s -> Tuples.of(queryContext, s)))
         .map(
-            queryContext -> {
-              final Optional<AuthenticationId> authenticationId =
-                  queryContext.currentAuthenticationId();
-              final AuthenticationState authenticationState = queryContext.getAuthenticationState();
-              if (authenticationState == AuthenticationState.AUTHENTICATED
-                  && authenticationId.isPresent()) {
-                final PersonalUserData personalUserData =
-                    authorizationManager.readPersonalUserData(queryContext.getSecurityContext());
-                final AccessRequest.AccessRequestBuilder builder = AccessRequest.builder();
-                builder.authenticationId(authenticationId.get());
-                builder.comment(comment);
-                builder.requestTime(Instant.now());
+            TupleUtils.function(
+                (queryContext, authenticationState) -> {
+                  final Optional<AuthenticationId> authenticationId =
+                      queryContext.currentAuthenticationId();
+                  if (authenticationState == AuthenticationState.AUTHENTICATED
+                      && authenticationId.isPresent()) {
+                    final PersonalUserData personalUserData =
+                        authorizationManager.readPersonalUserData(
+                            queryContext.getSecurityContext());
+                    final AccessRequest.AccessRequestBuilder builder = AccessRequest.builder();
+                    builder.authenticationId(authenticationId.get());
+                    builder.comment(comment);
+                    builder.requestTime(Instant.now());
 
-                builder.userData(personalUserData);
-                userManager.requestAccess(builder.build());
-                return RequestAccessResultCode.OK;
-              }
-              if (authenticationState == AuthenticationState.AUTHORIZED)
-                return RequestAccessResultCode.ALREADY_ACCEPTED;
-              return RequestAccessResultCode.NOT_LOGGED_IN;
-            })
+                    builder.userData(personalUserData);
+                    userManager.requestAccess(builder.build());
+                    dataViewService.updateAccessRequestData();
+                    return RequestAccessResultCode.OK;
+                  }
+                  if (authenticationState == AuthenticationState.AUTHORIZED)
+                    return RequestAccessResultCode.ALREADY_ACCEPTED;
+                  return RequestAccessResultCode.NOT_LOGGED_IN;
+                }))
         .map(
             code ->
                 new RequestAccessResult() {

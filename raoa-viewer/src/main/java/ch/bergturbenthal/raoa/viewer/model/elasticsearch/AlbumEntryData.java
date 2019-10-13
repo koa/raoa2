@@ -21,43 +21,6 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 @Value
 @JsonDeserialize(builder = AlbumEntryData.AlbumEntryDataBuilder.class)
 public class AlbumEntryData {
-
-  @Builder
-  public AlbumEntryData(
-      final UUID albumId,
-      final ObjectId entryId,
-      final Integer width,
-      final Integer height,
-      final Integer targetWidth,
-      final Integer targetHeight,
-      final String filename,
-      final Instant createTime,
-      final String cameraModel,
-      final String cameraManufacturer,
-      final Integer focalLength,
-      final Double fNumber,
-      final String contentType) {
-    this.albumId = albumId;
-    this.entryId = entryId;
-    this.width = width;
-    this.height = height;
-    this.targetWidth = targetWidth;
-    this.targetHeight = targetHeight;
-    this.filename = filename;
-    this.createTime = createTime;
-    this.cameraModel = cameraModel;
-    this.cameraManufacturer = cameraManufacturer;
-    this.focalLength = focalLength;
-    this.fNumber = fNumber;
-    this.contentType = contentType;
-    this.documentId = createDocumentId(albumId, entryId);
-  }
-
-  @NotNull
-  public static String createDocumentId(final UUID albumId, final ObjectId entryId) {
-    return albumId + "-" + entryId.name();
-  }
-
   @Id
   @Field(index = false)
   private String documentId;
@@ -101,6 +64,42 @@ public class AlbumEntryData {
 
   @Field(type = FieldType.Keyword)
   private String contentType;
+
+  @Builder
+  public AlbumEntryData(
+      final UUID albumId,
+      final ObjectId entryId,
+      final Integer width,
+      final Integer height,
+      final Integer targetWidth,
+      final Integer targetHeight,
+      final String filename,
+      final Instant createTime,
+      final String cameraModel,
+      final String cameraManufacturer,
+      final Integer focalLength,
+      final Double fNumber,
+      final String contentType) {
+    this.albumId = albumId;
+    this.entryId = entryId;
+    this.width = width;
+    this.height = height;
+    this.targetWidth = targetWidth;
+    this.targetHeight = targetHeight;
+    this.filename = filename;
+    this.createTime = createTime;
+    this.cameraModel = cameraModel;
+    this.cameraManufacturer = cameraManufacturer;
+    this.focalLength = focalLength;
+    this.fNumber = fNumber;
+    this.contentType = contentType;
+    this.documentId = createDocumentId(albumId, entryId);
+  }
+
+  @NotNull
+  public static String createDocumentId(final UUID albumId, final ObjectId entryId) {
+    return albumId + "-" + entryId.name();
+  }
 
   @JsonPOJOBuilder(withPrefix = "")
   public static class AlbumEntryDataBuilder {}

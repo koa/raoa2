@@ -1,12 +1,10 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
-import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
 import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
-import ch.bergturbenthal.raoa.viewer.service.ImageDataService;
-import ch.bergturbenthal.raoa.viewer.service.UserManager;
+import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
 import java.util.Collections;
@@ -21,27 +19,20 @@ import org.springframework.stereotype.Component;
 @Component
 public class UserQuery implements GraphQLResolver<UserReference> {
   private static final Duration TIMEOUT = Duration.ofMinutes(5);
-  private final UserManager userManager;
-  private final AlbumList albumList;
-  private final ImageDataService imageDataService;
+  private final DataViewService dataViewService;
 
-  public UserQuery(
-      final UserManager userManager,
-      final AlbumList albumList,
-      final ImageDataService imageDataService) {
-    this.userManager = userManager;
-    this.albumList = albumList;
-    this.imageDataService = imageDataService;
+  public UserQuery(final DataViewService dataViewService) {
+    this.dataViewService = dataViewService;
   }
 
   public CompletableFuture<List<Album>> canAccess(UserReference user) {
     if (canShowUserDetails(user)) {
-      return userManager
+      return dataViewService
           .findUserById(user.getId())
           .filter(u -> u.getVisibleAlbums() != null)
           .flatMapIterable(User::getVisibleAlbums)
-          .filterWhen(id -> albumList.getAlbum(id).map(a -> true).defaultIfEmpty(false))
-          .map(id -> new Album(id, user.getContext(), imageDataService.readAlbum(id).cache()))
+          .filterWhen(id -> dataViewService.readAlbum(id).map(a -> true).defaultIfEmpty(false))
+          .map(id -> new Album(id, user.getContext(), dataViewService.readAlbum(id).cache()))
           .collectList()
           .timeout(TIMEOUT)
           .toFuture();
@@ -55,7 +46,7 @@ public class UserQuery implements GraphQLResolver<UserReference> {
       return CompletableFuture.completedFuture(user.getContext().canUserManageUsers());
     }
     if (canShowUserDetails(user)) {
-      return userManager
+      return dataViewService
           .findUserById(user.getId())
           .map(User::isSuperuser)
           .timeout(TIMEOUT)
@@ -74,7 +65,7 @@ public class UserQuery implements GraphQLResolver<UserReference> {
 
   public CompletableFuture<List<AuthenticationId>> getAuthentications(UserReference user) {
     if (canShowUserDetails(user)) {
-      return userManager
+      return dataViewService
           .findUserById(user.getId())
           .flatMapIterable(User::getAuthentications)
           .collectList()

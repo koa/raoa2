@@ -15,15 +15,7 @@ public interface UserManager {
 
   void assignNewIdentity(UUID existingId, AuthenticationId baseRequest);
 
-  Mono<User> findUserForAuthentication(AuthenticationId authenticationId);
-
-  Mono<User> findUserById(UUID id);
-
   Flux<User> listUsers();
 
-  Flux<User> listUserForAlbum(UUID albumId);
-
   Collection<AccessRequest> listPendingRequests();
-
-  boolean hasPendingRequest(AuthenticationId id);
 }

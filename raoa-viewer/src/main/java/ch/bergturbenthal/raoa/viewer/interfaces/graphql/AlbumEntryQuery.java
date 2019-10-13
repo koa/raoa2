@@ -5,7 +5,10 @@ import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 @Component
 public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
@@ -14,7 +17,7 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
   public AlbumEntryQuery() {}
 
   public CompletableFuture<String> getContentType(AlbumEntry entry) {
-    return entry.getElDataEntry().map(AlbumEntryData::getContentType).toFuture();
+    return extractDataEntryValue(entry, AlbumEntryData::getContentType);
   }
 
   public String getEntryUri(AlbumEntry entry) {
@@ -34,38 +37,45 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
   }
 
   public CompletableFuture<Instant> getCreated(AlbumEntry entry) {
-    return entry.getElDataEntry().map(AlbumEntryData::getCreateTime).toFuture();
+    return extractDataEntryValue(entry, AlbumEntryData::getCreateTime);
+  }
+
+  @NotNull
+  public <T> CompletableFuture<T> extractDataEntryValue(
+      final AlbumEntry entry, final Function<AlbumEntryData, T> function) {
+    return entry.getElDataEntry().flatMap(v -> Mono.justOrEmpty(function.apply(v))).toFuture();
   }
 
   public CompletableFuture<Integer> getWidth(AlbumEntry entry) {
-    return entry.getElDataEntry().map(AlbumEntryData::getWidth).toFuture();
+    return extractDataEntryValue(entry, AlbumEntryData::getWidth);
   }
 
   public CompletableFuture<Integer> getHeight(AlbumEntry entry) {
-    return entry.getElDataEntry().map(AlbumEntryData::getHeight).toFuture();
+    return extractDataEntryValue(entry, AlbumEntryData::getHeight);
   }
 
   public CompletableFuture<String> getCameraModel(AlbumEntry entry) {
-    return entry.getElDataEntry().map(AlbumEntryData::getCameraModel).toFuture();
+    return extractDataEntryValue(entry, AlbumEntryData::getCameraModel);
   }
 
   public CompletableFuture<String> getCameraManufacturer(AlbumEntry entry) {
-    return entry.getElDataEntry().map(AlbumEntryData::getCameraManufacturer).toFuture();
+
+    return extractDataEntryValue(entry, AlbumEntryData::getCameraManufacturer);
   }
 
   public CompletableFuture<Integer> getFocalLength(AlbumEntry entry) {
-    return entry.getElDataEntry().map(AlbumEntryData::getFocalLength).toFuture();
+    return extractDataEntryValue(entry, AlbumEntryData::getFocalLength);
   }
 
   public CompletableFuture<Double> getFNumber(AlbumEntry entry) {
-    return entry.getElDataEntry().map(AlbumEntryData::getFNumber).toFuture();
+    return extractDataEntryValue(entry, AlbumEntryData::getFNumber);
   }
 
   public CompletableFuture<Integer> getTargetWidth(AlbumEntry entry) {
-    return entry.getElDataEntry().map(AlbumEntryData::getTargetWidth).toFuture();
+    return extractDataEntryValue(entry, AlbumEntryData::getTargetWidth);
   }
 
   public CompletableFuture<Integer> getTargetHeight(AlbumEntry entry) {
-    return entry.getElDataEntry().map(AlbumEntryData::getTargetHeight).toFuture();
+    return extractDataEntryValue(entry, AlbumEntryData::getTargetHeight);
   }
 }

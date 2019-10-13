@@ -11,5 +11,5 @@ public class Properties {
   // @NonNull
   private File repository;
   private File metadataCache;
-  private int maxConcurrent = 10;
+  private int maxConcurrent = 30;
 }

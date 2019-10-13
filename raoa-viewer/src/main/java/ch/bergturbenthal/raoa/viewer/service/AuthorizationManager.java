@@ -23,5 +23,5 @@ public interface AuthorizationManager {
 
   PersonalUserData readPersonalUserData(SecurityContext context);
 
-  boolean hasPendingRequest(SecurityContext context);
+  Mono<Boolean> hasPendingRequest(SecurityContext context);
 }

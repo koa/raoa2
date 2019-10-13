@@ -6,11 +6,12 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.web.context.request.RequestAttributes;
+import reactor.core.publisher.Mono;
 
 public interface QueryContext {
   SecurityContext getSecurityContext();
 
-  AuthenticationState getAuthenticationState();
+  Mono<AuthenticationState> getAuthenticationState();
 
   Optional<User> getCurrentUser();
 

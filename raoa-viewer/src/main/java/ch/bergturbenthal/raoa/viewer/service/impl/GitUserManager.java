@@ -30,7 +30,7 @@ import reactor.core.publisher.Mono;
 
 @Slf4j
 @Service
-public class DefaultUserManager implements UserManager {
+public class GitUserManager implements UserManager {
   private static final TreeFilter ALL_USERS_FILTER =
       AndTreeFilter.create(PathFilter.create("users"), PathSuffixFilter.create(".json"));
   private static final Duration CACHE_DURATION = Duration.ofMinutes(5);
@@ -49,7 +49,7 @@ public class DefaultUserManager implements UserManager {
   private AtomicReference<Set<AuthenticationId>> pendingAuthenticationsReference =
       new AtomicReference<>(Collections.emptySet());
 
-  public DefaultUserManager(
+  public GitUserManager(
       AlbumList albumList, ViewerProperties viewerProperties, final Limiter limiter) {
     this.albumList = albumList;
     this.viewerProperties = viewerProperties;
@@ -67,8 +67,7 @@ public class DefaultUserManager implements UserManager {
             .filterWhen(a -> a.getAccess().getFullPath().map(p -> p.equals(".meta")))
             // .log("meta album")
             .map(AlbumList.FoundAlbum::getAlbumId)
-            .singleOrEmpty()
-            .cache(CACHE_DURATION);
+            .singleOrEmpty();
     final File requestDir = getAccessRequestsDir();
     if (requestDir.exists()) {
       try {
@@ -167,18 +166,6 @@ public class DefaultUserManager implements UserManager {
     return requestDir;
   }
 
-  @Override
-  public Mono<User> findUserForAuthentication(final AuthenticationId authenticationId) {
-    if (userByAuthenticationCache.size() > 100) userByAuthenticationCache.clear();
-    return userByAuthenticationCache.computeIfAbsent(
-        authenticationId,
-        k ->
-            allUsers()
-                .filter(u -> u.getAuthentications() != null && u.getAuthentications().contains(k))
-                .singleOrEmpty()
-                .cache(CACHE_DURATION));
-  }
-
   @NotNull
   private synchronized Flux<User> allUsers() {
     final Flux<User> cachedUsers = allUsersCache.get();
@@ -211,14 +198,6 @@ public class DefaultUserManager implements UserManager {
                                 "load user ")));
   }
 
-  @Override
-  public Mono<User> findUserById(final UUID id) {
-    if (userByIdCache.size() > 1000) userByIdCache.clear();
-    return userByIdCache.computeIfAbsent(
-        id,
-        k -> loadUsers(PathFilter.create(createUserFile(k))).singleOrEmpty().cache(CACHE_DURATION));
-  }
-
   @NotNull
   private String createUserFile(final UUID id) {
     return "users/" + id.toString() + ".json";
@@ -227,15 +206,6 @@ public class DefaultUserManager implements UserManager {
   @Override
   public Flux<User> listUsers() {
     return allUsers();
-  }
-
-  @Override
-  public Flux<User> listUserForAlbum(final UUID albumId) {
-    return allUsers()
-        .filter(
-            u ->
-                u.isSuperuser()
-                    || (u.getVisibleAlbums() != null && u.getVisibleAlbums().contains(albumId)));
   }
 
   @Override
@@ -258,10 +228,5 @@ public class DefaultUserManager implements UserManager {
       }
     }
     return ret;
-  }
-
-  @Override
-  public boolean hasPendingRequest(final AuthenticationId id) {
-    return pendingAuthenticationsReference.get().contains(id);
   }
 }

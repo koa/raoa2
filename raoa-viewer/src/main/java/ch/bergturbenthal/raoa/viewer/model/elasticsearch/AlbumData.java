@@ -28,6 +28,7 @@ public class AlbumData {
   @Field(type = FieldType.Text)
   private String name;
 
+  @Field(type = FieldType.Integer)
   private int entryCount;
 
   @Field(type = FieldType.Double)
