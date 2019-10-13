@@ -357,7 +357,7 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   @Override
   public Flux<AlbumData> listAlbums() {
-    return albumDataRepository.findByEntryCountGreaterThan(-1);
+    return albumDataRepository.findByEntryCountGreaterThan(0);
   }
 
   @Override

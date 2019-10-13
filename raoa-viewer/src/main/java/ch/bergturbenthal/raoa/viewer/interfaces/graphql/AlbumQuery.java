@@ -7,10 +7,14 @@ import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
 import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 @Component
 public class AlbumQuery implements GraphQLResolver<Album> {
@@ -54,10 +58,24 @@ public class AlbumQuery implements GraphQLResolver<Album> {
   }
 
   public CompletableFuture<String> getName(Album album) {
-    return album.getElAlbumData().map(AlbumData::getName).timeout(TIMEOUT).toFuture();
+    return extractElField(album, AlbumData::getName);
   }
 
-  public CompletableFuture<Long> getEntryCount(Album album) {
-    return dataViewService.listEntries(album.getId()).count().timeout(TIMEOUT).toFuture();
+  @NotNull
+  public <T> CompletableFuture<T> extractElField(
+      final Album album, final Function<AlbumData, T> extractor) {
+    return album
+        .getElAlbumData()
+        .flatMap(d -> Mono.justOrEmpty(extractor.apply(d)))
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<Integer> getEntryCount(Album album) {
+    return extractElField(album, AlbumData::getEntryCount);
+  }
+
+  public CompletableFuture<Instant> getAlbumTime(Album album) {
+    return extractElField(album, AlbumData::getCreateTime);
   }
 }

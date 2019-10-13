@@ -42,7 +42,7 @@ public class QueryContextSupplier {
             .filter(Optional::isPresent)
             .map(Optional::get)
             .map(Tuple2::getT2)
-            .log("latest album")
+            // .log("latest album")
             .cache(Duration.ofMinutes(1));
   }
 
@@ -91,7 +91,7 @@ public class QueryContextSupplier {
 
                 @Override
                 public boolean canAccessAlbum(final UUID albumId) {
-                  log.info("can access " + albumId + " ?");
+                  // log.info("can access " + albumId + " ?");
                   final boolean b =
                       albumId.equals(latestAlbum)
                           || u.map(
@@ -99,7 +99,7 @@ public class QueryContextSupplier {
                                       user.isSuperuser()
                                           || user.getVisibleAlbums().contains(albumId))
                               .orElse(false);
-                  log.info("Can access " + albumId + ": " + b);
+                  // log.info("Can access " + albumId + ": " + b);
                   return b;
                 }
 

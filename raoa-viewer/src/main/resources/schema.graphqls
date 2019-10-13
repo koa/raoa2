@@ -42,6 +42,7 @@ type Album {
     entryCount: Int
     canAccessedBy: [User]
     zipDownloadUri: String
+    albumTime: DateTime
 }
 
 type AlbumEntry {

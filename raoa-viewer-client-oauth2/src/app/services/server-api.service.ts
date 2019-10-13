@@ -59,7 +59,9 @@ export class ServerApiService {
         }
       })
     ).then(result => {
-      return result.listAlbums.sort((a, b) => a.name.localeCompare(b.name));
+      return result.listAlbums
+        .filter(a => a.albumTime != null)
+        .sort((a, b) => -a.albumTime.localeCompare(b.albumTime));
     });
   }
 

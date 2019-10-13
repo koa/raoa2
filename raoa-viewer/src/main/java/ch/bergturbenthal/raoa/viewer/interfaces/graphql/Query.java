@@ -73,7 +73,7 @@ public class Query implements GraphQLQueryResolver {
             queryContext ->
                 dataViewService
                     .listAlbums()
-                    .log("album")
+                    // .log("album")
                     .map(AlbumData::getRepositoryId)
                     .filter(queryContext::canAccessAlbum)
                     .map(

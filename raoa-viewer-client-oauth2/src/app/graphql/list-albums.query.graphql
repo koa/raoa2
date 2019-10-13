@@ -2,6 +2,7 @@ query AllAlbums{
   listAlbums {
     id,
     name,
-    entryCount
+    entryCount,
+    albumTime
   }
 }
