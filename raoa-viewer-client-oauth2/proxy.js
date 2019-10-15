@@ -1,25 +1,23 @@
 const HttpsProxyAgent = require('https-proxy-agent');
-const proxyConfig = [{
+const proxyConfig = [
+  {
     context: '/config',
-    target: 'http://raoa.dev.berg-turbenthal.ch/',
+    target: 'http://localhost:8080/',
     secure: false,
     headers: {host: 'raoa.dev.berg-turbenthal.ch'},
-    xfwd: true
   },
     {
       context: '/rest',
-      target: 'http://raoa.dev.berg-turbenthal.ch/',
+      target: 'http://localhost:8080/',
       secure: false,
       headers: {host: 'raoa.dev.berg-turbenthal.ch'},
-      xfwd: true
     }
     ,
     {
       context: '/graphql',
-      target: 'http://raoa.dev.berg-turbenthal.ch/',
+      target: 'http://localhost:8080/',
       secure: false,
       headers: {host: 'raoa.dev.berg-turbenthal.ch'},
-      xfwd: true
     }
   ]
 ;

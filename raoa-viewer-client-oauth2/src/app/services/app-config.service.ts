@@ -81,6 +81,7 @@ export class AppConfigService {
     };
     const currentUserListener = user => {
       this.currentUser = user;
+      this.loginSuccessful(user);
       if (this.currentUserSubscriber !== undefined) {
         this.currentUserSubscriber.next(user);
       }

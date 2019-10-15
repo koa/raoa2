@@ -499,6 +499,16 @@ public class BareGitAccess implements GitAccess {
       }
 
       @Override
+      public Mono<Boolean> removeFile(final String name) {
+        replacedFiles.add(name);
+        synchronized (alreadyExistingFiles) {
+          final boolean wasExisting = alreadyExistingFiles.containsValue(name);
+          modified = true;
+          return Mono.just(wasExisting);
+        }
+      }
+
+      @Override
       public Mono<Boolean> commit() {
         return commit(null);
       }

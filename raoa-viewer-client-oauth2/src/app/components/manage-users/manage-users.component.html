@@ -1,5 +1,10 @@
 <mat-toolbar class="main-toolbar" color="primary">
   Benutzer Verwalten
+  <div>
+    <button mat-icon-button routerLink="/">
+      <mat-icon>home</mat-icon>
+    </button>
+  </div>
 </mat-toolbar>
 <mat-tab-group>
   <mat-tab label="Neue User">
@@ -18,12 +23,62 @@
         <th *matHeaderCellDef mat-header-cell>eMail</th>
         <td *matCellDef="let element" mat-cell>{{element.data.email}} </td>
       </ng-container>
+      <ng-container matColumnDef="acceptButton">
+        <th *matHeaderCellDef mat-header-cell></th>
+        <td *matCellDef="let element" mat-cell>
+          <button (click)="acceptRequest(element)" mat-button>
+            <mat-icon>add</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="removeButton">
+        <th *matHeaderCellDef mat-header-cell></th>
+        <td *matCellDef="let element" mat-cell>
+          <button (click)="removeRequest(element)" mat-button>
+            <mat-icon>delete</mat-icon>
+          </button>
+        </td>
+      </ng-container>
 
-      <tr *matHeaderRowDef="displayedColumns" mat-header-row></tr>
-      <tr *matRowDef="let row; columns: displayedColumns;" mat-row></tr>
+      <tr *matHeaderRowDef="pendingUsersDisplayColumns" mat-header-row></tr>
+      <tr *matRowDef="let row; columns: pendingUsersDisplayColumns;" mat-row></tr>
     </table>
   </mat-tab>
   <mat-tab label="User">
+    <table [dataSource]="users" class="mat-elevation-z8" mat-table>
+      <ng-container matColumnDef="icon">
+        <th *matHeaderCellDef mat-header-cell></th>
+        <td *matCellDef="let element" mat-cell>
+          <div [style.backgroundImage]="'url('+element.info.picture+')'" class="user-photo"></div>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="name">
+        <th *matHeaderCellDef mat-header-cell>Name</th>
+        <td *matCellDef="let element" mat-cell>{{element.info.name}} </td>
+      </ng-container>
+      <ng-container matColumnDef="email">
+        <th *matHeaderCellDef mat-header-cell>eMail</th>
+        <td *matCellDef="let element" mat-cell>{{element.info.email}} </td>
+      </ng-container>
+      <ng-container matColumnDef="editButton">
+        <th *matHeaderCellDef mat-header-cell></th>
+        <td *matCellDef="let element" mat-cell>
+          <button (click)="editUser(element)" mat-button>
+            <mat-icon>edit</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="removeButton">
+        <th *matHeaderCellDef mat-header-cell></th>
+        <td *matCellDef="let element" mat-cell>
+          <button (click)="removeUser(element)" mat-button>
+            <mat-icon>delete</mat-icon>
+          </button>
+        </td>
+      </ng-container>
 
+      <tr *matHeaderRowDef="usersDisplayColumns" mat-header-row></tr>
+      <tr *matRowDef="let row; columns: usersDisplayColumns;" mat-row></tr>
+    </table>
   </mat-tab>
 </mat-tab-group>

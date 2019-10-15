@@ -1,0 +1,5 @@
+mutation ManageUsersAcceptRequest($authority: String, $id: String){
+  createUser(id: {authority: $authority, id: $id}){
+    id
+  }
+}

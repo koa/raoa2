@@ -10,7 +10,9 @@ type Query {
 }
 type Mutation{
     requestAccess(comment: String): RequestAccessResult
+    removeRequest(id: AuthenticationKey): Boolean
     createUser(id: AuthenticationKey): User
+    removeUser(id: ID): Boolean
 }
 
 type RegistrationRequest{

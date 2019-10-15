@@ -11,3 +11,10 @@ div.user-photo {
   flex-shrink: 0;
   object-fit: cover;
 }
+
+mat-toolbar {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  align-content: baseline;
+}

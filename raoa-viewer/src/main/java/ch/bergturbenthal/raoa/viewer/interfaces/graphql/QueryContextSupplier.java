@@ -28,7 +28,7 @@ import reactor.util.function.Tuples;
 @Component
 public class QueryContextSupplier {
   private final AuthorizationManager authorizationManager;
-  private final Mono<UUID> latestAlbum;
+  private final Mono<Optional<UUID>> latestAlbum;
 
   public QueryContextSupplier(
       final AuthorizationManager authorizationManager, DataViewService dataViewService) {
@@ -40,8 +40,7 @@ public class QueryContextSupplier {
             .map(e -> Tuples.of(e.getCreateTime(), e.getRepositoryId()))
             .collect(Collectors.maxBy(Comparator.comparing(Tuple2::getT1)))
             .filter(Optional::isPresent)
-            .map(Optional::get)
-            .map(Tuple2::getT2)
+            .map(o -> o.map(Tuple2::getT2))
             // .log("latest album")
             .cache(Duration.ofMinutes(1));
   }
@@ -57,7 +56,7 @@ public class QueryContextSupplier {
         .map(
             t -> {
               final Optional<User> u = t.getT1();
-              final UUID latestAlbum = t.getT2();
+              final Optional<UUID> latestAlbum = t.getT2();
               return new QueryContext() {
 
                 private final Mono<AuthenticationState> currentAuthenticationState =
@@ -92,7 +91,7 @@ public class QueryContextSupplier {
                 public boolean canAccessAlbum(final UUID albumId) {
                   // log.info("can access " + albumId + " ?");
                   final boolean b =
-                      albumId.equals(latestAlbum)
+                      latestAlbum.map(albumId::equals).orElse(false)
                           || u.map(
                                   user ->
                                       user.isSuperuser()

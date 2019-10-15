@@ -15,6 +15,7 @@ import com.coxautodev.graphql.tools.GraphQLMutationResolver;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -52,9 +53,27 @@ public class Mutation implements GraphQLMutationResolver {
                       .flatMap(userManager::createNewUser)
                       .flatMap(
                           user ->
-                              dataViewService.updateUserData().map(v -> user).defaultIfEmpty(user));
+                              Mono.zip(
+                                      dataViewService.removePendingAccessRequest(authenticationId),
+                                      dataViewService.updateUserData())
+                                  .thenReturn(user));
               return newUser.map(u -> new UserReference(u.getId(), u.getUserData(), queryContext));
             })
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<Boolean> removeUser(UUID userId) {
+    return queryContextSupplier
+        .createContext()
+        .flatMap(
+            queryContext ->
+                queryContext.canUserManageUsers()
+                    ? userManager
+                        .removeUser(userId)
+                        .flatMap(r -> dataViewService.updateUserData().thenReturn(r))
+                        .defaultIfEmpty(false)
+                    : Mono.empty())
         .timeout(TIMEOUT)
         .toFuture();
   }
@@ -105,5 +124,9 @@ public class Mutation implements GraphQLMutationResolver {
                 })
         .timeout(TIMEOUT)
         .toFuture();
+  }
+
+  public CompletableFuture<Boolean> removeRequest(AuthenticationId id) {
+    return dataViewService.removePendingAccessRequest(id).thenReturn(true).toFuture();
   }
 }

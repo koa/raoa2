@@ -36,7 +36,7 @@ public interface DataViewService {
 
   Flux<AccessRequest> listAllRequestedAccess();
 
-  Mono<Void> removePendingAccessRequest(AccessRequest request);
+  Mono<Void> removePendingAccessRequest(AuthenticationId id);
 
   Flux<User> listUsers();
 }

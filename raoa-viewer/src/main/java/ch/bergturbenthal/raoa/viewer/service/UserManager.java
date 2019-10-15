@@ -11,6 +11,8 @@ public interface UserManager {
 
   Mono<User> createNewUser(AccessRequest baseRequest);
 
+  Mono<Boolean> removeUser(UUID id);
+
   void assignNewIdentity(UUID existingId, AuthenticationId baseRequest);
 
   Flux<User> listUsers();

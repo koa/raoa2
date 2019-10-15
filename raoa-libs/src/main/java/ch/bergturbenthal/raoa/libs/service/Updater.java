@@ -9,6 +9,8 @@ public interface Updater extends Closeable {
 
   Mono<Boolean> importFile(Path file, String name, boolean replaceIfExists);
 
+  Mono<Boolean> removeFile(String name);
+
   Mono<Boolean> commit();
 
   Mono<Boolean> commit(String message);

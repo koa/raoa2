@@ -121,6 +121,17 @@ public class GitUserManager implements UserManager {
   }
 
   @Override
+  public Mono<Boolean> removeUser(final UUID id) {
+    final String userFileName = createUserFile(id);
+    return metaIdMono
+        .flatMap(albumList::getAlbum)
+        .flatMap(GitAccess::createUpdater)
+        .flatMap(
+            u -> u.removeFile(userFileName).filter(t -> t).flatMap(t -> u.commit("removed user")))
+        .defaultIfEmpty(false);
+  }
+
+  @Override
   public void assignNewIdentity(final UUID existingId, final AuthenticationId baseRequest) {}
 
   @NotNull

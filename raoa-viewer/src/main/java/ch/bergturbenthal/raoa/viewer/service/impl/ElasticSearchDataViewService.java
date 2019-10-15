@@ -390,12 +390,18 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   @Override
   public Flux<AccessRequest> listAllRequestedAccess() {
-    return accessRequestRepository.findAll();
+    return accessRequestRepository
+        .findAll()
+        .onErrorResume(
+            ex -> {
+              log.warn("Cannot load pending requests", ex);
+              return Flux.empty();
+            });
   }
 
   @Override
-  public Mono<Void> removePendingAccessRequest(final AccessRequest request) {
-    return accessRequestRepository.delete(request).then();
+  public Mono<Void> removePendingAccessRequest(final AuthenticationId id) {
+    return accessRequestRepository.deleteById(AccessRequest.concatId(id)).then();
   }
 
   @Override

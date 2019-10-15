@@ -3,7 +3,6 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumData;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.service.DataViewService;
-import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLQueryResolver;
 import java.time.Duration;
 import java.util.List;
@@ -17,15 +16,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class Query implements GraphQLQueryResolver {
   private static final Duration TIMEOUT = Duration.ofMinutes(5);
-  private final UserManager userManager;
   private final QueryContextSupplier queryContextSupplier;
   private final DataViewService dataViewService;
 
   public Query(
-      final UserManager userManager,
-      final QueryContextSupplier queryContextSupplier,
-      final DataViewService dataViewService) {
-    this.userManager = userManager;
+      final QueryContextSupplier queryContextSupplier, final DataViewService dataViewService) {
     this.queryContextSupplier = queryContextSupplier;
     this.dataViewService = dataViewService;
   }
@@ -63,6 +58,7 @@ public class Query implements GraphQLQueryResolver {
                           return builder.build();
                         }))
         .collectList()
+        .log("pending request")
         .timeout(TIMEOUT)
         .toFuture();
   }
