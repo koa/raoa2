@@ -4,6 +4,7 @@ import {
   ManageUsersAcceptRequestGQL,
   ManageUsersOverview,
   ManageUsersOverviewGQL,
+  ManageUsersRemoveRequestGQL,
   ManageUsersRemoveUserGQL
 } from '../../generated/graphql';
 
@@ -21,8 +22,8 @@ export class ManageUsersComponent implements OnInit {
   constructor(private serverApiService: ServerApiService,
               private manageUsersOverviewGQL: ManageUsersOverviewGQL,
               private manageUsersAcceptRequestGQL: ManageUsersAcceptRequestGQL,
-              private manageUsersRemoveUserGQL: ManageUsersRemoveUserGQL
-    ,
+              private manageUsersRemoveUserGQL: ManageUsersRemoveUserGQL,
+              private manageUsersRemoveRequestGQL: ManageUsersRemoveRequestGQL,
               private ngZone: NgZone
   ) {
   }
@@ -31,42 +32,48 @@ export class ManageUsersComponent implements OnInit {
     this.loadDataFromServer();
   }
 
-  acceptRequest(element: ManageUsersOverview.ListPendingRequests) {
-    console.log(element);
-    this.serverApiService
+  async acceptRequest(element: ManageUsersOverview.ListPendingRequests): Promise<void> {
+    await this.serverApiService
       .update(this.manageUsersAcceptRequestGQL, {
         authority: element.authenticationId.authority,
         id: element.authenticationId.id
-      })
-      .then(result => {
-        this.ngZone.run(() => {
-          this.loadDataFromServer();
-        });
       });
+    await this.reloadData();
   }
 
   editUser(element: ManageUsersOverview.ListUsers) {
 
   }
 
-  removeUser(element: ManageUsersOverview.ListUsers) {
-    const handler = this.loadDataFromServer;
-    this.serverApiService
-      .update(this.manageUsersRemoveUserGQL, {id: element.id})
-      .then(result =>
-        setTimeout(handler, 3000));
-  }
-
-  removeRequest(element: ManageUsersOverview.ListPendingRequests) {
+  public async removeUser(element: ManageUsersOverview.ListUsers): Promise<void> {
+    await this.serverApiService
+      .update(this.manageUsersRemoveUserGQL, {id: element.id});
+    return await this.reloadData();
 
   }
 
-  private loadDataFromServer() {
-    this.serverApiService.query(this.manageUsersOverviewGQL, {}).then(result => {
+  public async removeRequest(element: ManageUsersOverview.ListPendingRequests): Promise<void> {
+    await this.serverApiService
+      .update(this.manageUsersRemoveRequestGQL, {
+        id: element.authenticationId.id,
+        authority: element.authenticationId.authority
+      });
+    return await this.reloadData();
+  }
+
+  private async reloadData(): Promise<void> {
+    await this.serverApiService.flushCache();
+    await this.loadDataFromServer();
+  }
+
+  private async loadDataFromServer(): Promise<void> {
+    const result = await this.serverApiService.query(this.manageUsersOverviewGQL, {});
+    this.ngZone.run(() => {
       if (result.listPendingRequests != null) {
         this.pendingRequests = result.listPendingRequests;
         this.users = result.listUsers;
       }
     });
+
   }
 }

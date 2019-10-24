@@ -1,9 +1,9 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 import {AppConfigService} from '../../services/app-config.service';
-import {ServerApiService} from "../../services/server-api.service";
-import {AuthenticationState, WelcomeUserInfoGQL} from "../../generated/graphql";
-import {RequestAccessDialogComponent} from "../request-access-dialog/request-access-dialog.component";
-import {MatDialog} from "@angular/material/dialog";
+import {ServerApiService} from '../../services/server-api.service';
+import {AuthenticationState, WelcomeUserInfoGQL} from '../../generated/graphql';
+import {RequestAccessDialogComponent} from '../request-access-dialog/request-access-dialog.component';
+import {MatDialog} from '@angular/material/dialog';
 
 @Component({
   selector: 'app-welcome',
@@ -33,6 +33,7 @@ export class WelcomeComponent implements OnInit {
     this.evaluateUserState();
     this.appConfigService.signedInObservable.subscribe(signedIn => {
       this.ngZone.run(() => this.signedIn = signedIn);
+      console.log('signed in: ' + signedIn);
       if (signedIn) {
         this.ngZone.run(() => this.appConfigService.renderButton('re-sign-in-button'));
       }

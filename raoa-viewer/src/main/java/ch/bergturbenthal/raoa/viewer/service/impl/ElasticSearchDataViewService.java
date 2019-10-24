@@ -11,9 +11,12 @@ import ch.bergturbenthal.raoa.viewer.repository.*;
 import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.google.common.base.Functions;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.metadata.*;
@@ -150,13 +153,11 @@ public class ElasticSearchDataViewService implements DataViewService {
               log.warn("Cannot load existing users", ex);
               return Flux.empty();
             })
-        .log("el user")
         .collectMap(User::getId, Functions.identity())
         .flatMap(
             existingUsers ->
                 userManager
                     .listUsers()
-                    .log("git user")
                     .flatMap(
                         storedUser ->
                             Objects.equals(existingUsers.get(storedUser.getId()), storedUser)
@@ -378,14 +379,12 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   @Override
   public Mono<AccessRequest> getPendingRequest(final AuthenticationId id) {
-    return accessRequestRepository
-        .findById(AccessRequest.concatId(id))
-        .log("query pending request");
+    return accessRequestRepository.findById(AccessRequest.concatId(id));
   }
 
   @Override
   public Mono<AccessRequest> requestAccess(final AccessRequest request) {
-    return accessRequestRepository.save(request).log("Request Access");
+    return accessRequestRepository.save(request);
   }
 
   @Override
@@ -401,7 +400,19 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   @Override
   public Mono<Void> removePendingAccessRequest(final AuthenticationId id) {
-    return accessRequestRepository.deleteById(AccessRequest.concatId(id)).then();
+    return accessRequestRepository.deleteById(AccessRequest.concatId(id));
+  }
+
+  private <T> Mono<T> pollCondition(
+      Supplier<Mono<T>> query, Predicate<T> condition, Duration intervall, int count) {
+    return query
+        .get()
+        .flatMap(
+            v -> {
+              if (count <= 0 || condition.test(v)) return Mono.just(v);
+              return Mono.delay(intervall)
+                  .flatMap(l -> pollCondition(query, condition, intervall, count - 1));
+            });
   }
 
   @Override

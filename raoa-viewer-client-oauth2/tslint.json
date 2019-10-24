@@ -1,4 +1,9 @@
 {
+  "linterOptions": {
+    "exclude": [
+      "src/app/generated/*.ts"
+    ]
+  },
   "extends": "tslint:recommended",
   "rules": {
     "array-type": false,

@@ -22,6 +22,7 @@ export class ServerApiService {
   private ready: boolean;
   private readyPromise: Promise<boolean>;
   private idToken: string;
+  private cache: InMemoryCache;
 
 
   constructor(
@@ -34,12 +35,14 @@ export class ServerApiService {
     private authenticationStateGQL: AuthenticationStateGQL
   ) {
     this.ready = false;
+    this.cache = new InMemoryCache();
+
     this.readyPromise = new Promise<boolean>(((resolve) => {
       appConfigService.takeCurrentUser().then(user => {
         const http = httpLink.create({uri: '/graphql'});
         apollo.create({
           link: http,
-          cache: new InMemoryCache(),
+          cache: this.cache,
         });
         resolve(true);
       });
@@ -47,12 +50,16 @@ export class ServerApiService {
     }));
   }
 
+  public async flushCache(): Promise<void> {
+    return this.cache.reset();
+  }
+
   public async query<T, V>(query: Apollo.Query<T, V>, variables: V): Promise<Maybe<T>> {
     if (!(this.ready || await this.readyPromise)) {
       return Promise.reject('Cannot init');
     }
     return new Promise<T>((resolve, reject) =>
-      query.watch(variables).valueChanges.subscribe(result => {
+      query.fetch(variables).subscribe(result => {
         if (result.data) {
           resolve(result.data);
         } else {

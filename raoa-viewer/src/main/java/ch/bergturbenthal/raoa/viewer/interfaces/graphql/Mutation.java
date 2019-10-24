@@ -17,8 +17,11 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Level;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.SignalType;
 import reactor.function.TupleUtils;
 import reactor.util.function.Tuples;
 
@@ -51,12 +54,35 @@ public class Mutation implements GraphQLMutationResolver {
                   dataViewService
                       .getPendingRequest(authenticationId)
                       .flatMap(userManager::createNewUser)
+                      .log(
+                          "created",
+                          Level.INFO,
+                          SignalType.REQUEST,
+                          SignalType.ON_COMPLETE,
+                          SignalType.ON_NEXT,
+                          SignalType.ON_ERROR)
                       .flatMap(
                           user ->
-                              Mono.zip(
-                                      dataViewService.removePendingAccessRequest(authenticationId),
-                                      dataViewService.updateUserData())
-                                  .thenReturn(user));
+                              Flux.merge(
+                                      dataViewService
+                                          .removePendingAccessRequest(authenticationId)
+                                          .log(
+                                              "remove pending",
+                                              Level.INFO,
+                                              SignalType.REQUEST,
+                                              SignalType.ON_COMPLETE,
+                                              SignalType.ON_NEXT,
+                                              SignalType.ON_ERROR),
+                                      dataViewService
+                                          .updateUserData()
+                                          .log(
+                                              "update users",
+                                              Level.INFO,
+                                              SignalType.REQUEST,
+                                              SignalType.ON_COMPLETE,
+                                              SignalType.ON_NEXT,
+                                              SignalType.ON_ERROR))
+                                  .then(Mono.just(user)));
               return newUser.map(u -> new UserReference(u.getId(), u.getUserData(), queryContext));
             })
         .timeout(TIMEOUT)

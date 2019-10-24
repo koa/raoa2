@@ -1,6 +1,6 @@
 overwrite: true
 schema: ../raoa-viewer/src/main/resources/schema.graphqls
-documents: src/app/graphql/*.graphql
+documents: src/app/components/*/*.graphql
 config:
   scalars:
     DateTime: string
