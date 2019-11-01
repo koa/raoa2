@@ -91,7 +91,11 @@
                         <image>docker.io/library/openjdk:11-slim</image>
                     </from>
                     <to>
-                        <image>docker.io/koa1/raoa-image-thumbnailer:${version}</image>
+                        <image>docker.io/koa1/raoa-image-thumbnailer</image>
+                        <tags>
+                            <tag>${project.version}</tag>
+                            <tag>${local.version}</tag>
+                        </tags>
                     </to>
                 </configuration>
             </plugin>
