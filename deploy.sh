@@ -12,5 +12,5 @@ kubectl -n $namespace set image deployment/raoa-viewer main=koa1/raoa-viewer:$ve
 kubectl -n $namespace rollout history deployment/raoa-image-thumbnailer
 kubectl -n $namespace rollout history deployment/raoa-viewer
 
-kubectl -n $namespace rollout status -w deployment/raoa-image-thumbnailer
 kubectl -n $namespace rollout status -w deployment/raoa-viewer
+kubectl -n $namespace rollout status -w deployment/raoa-image-thumbnailer

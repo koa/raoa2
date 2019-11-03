@@ -18,10 +18,18 @@ query ManageUsersOverview{
       authority
       id
     }
+    canAccess{
+      id
+    }
     info{
       name
       email
       picture
     }
+  }
+  listAlbums{
+    id
+    name
+    albumTime
   }
 }

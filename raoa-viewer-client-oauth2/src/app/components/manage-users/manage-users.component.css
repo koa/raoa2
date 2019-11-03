@@ -18,3 +18,26 @@ mat-toolbar {
   width: 100%;
   align-content: baseline;
 }
+
+tr.user-detail-row {
+  height: 0;
+}
+
+
+tr.user-row:not(.user-expanded-row):hover {
+  background: #777;
+}
+
+tr.user-row:not(.user-expanded-row):active {
+  background: #efefef;
+}
+
+div.user-detail {
+  padding: 16px;
+  display: flex;
+  justify-content: space-around;
+}
+
+.user-detail-row td {
+  overflow: hidden;
+}

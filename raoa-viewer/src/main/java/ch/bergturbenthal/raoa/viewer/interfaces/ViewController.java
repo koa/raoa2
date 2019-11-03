@@ -13,7 +13,7 @@ public class ViewController {
     this.viewerProperties = viewerProperties;
   }
 
-  @RequestMapping({"/", "/album", "/album/{id}", "/requestAccess", "/admin/{page}"})
+  @RequestMapping({"/", "/album", "/album/{id}", "/requestAccess", "/admin/{page}", "/manageUsers"})
   public String index() {
     return "forward:/index.html";
   }

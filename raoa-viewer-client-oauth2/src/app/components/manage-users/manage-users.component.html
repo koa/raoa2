@@ -7,7 +7,7 @@
   </div>
 </mat-toolbar>
 <mat-tab-group>
-  <mat-tab label="Neue User">
+  <mat-tab *ngIf="pendingRequests && pendingRequests.length>0" label="Neue User">
     <table [dataSource]="pendingRequests" class="mat-elevation-z8" mat-table>
       <ng-container matColumnDef="icon">
         <th *matHeaderCellDef mat-header-cell></th>
@@ -44,8 +44,9 @@
       <tr *matRowDef="let row; columns: pendingUsersDisplayColumns;" mat-row></tr>
     </table>
   </mat-tab>
-  <mat-tab label="User">
-    <table [dataSource]="users" class="mat-elevation-z8" mat-table>
+
+  <mat-tab *ngIf="users && users.length>0" label="User">
+    <table [dataSource]="users" class="mat-elevation-z8" mat-table multiTemplateDataRows>
       <ng-container matColumnDef="icon">
         <th *matHeaderCellDef mat-header-cell></th>
         <td *matCellDef="let element" mat-cell>
@@ -60,25 +61,50 @@
         <th *matHeaderCellDef mat-header-cell>eMail</th>
         <td *matCellDef="let element" mat-cell>{{element.info.email}} </td>
       </ng-container>
-      <ng-container matColumnDef="editButton">
-        <th *matHeaderCellDef mat-header-cell></th>
-        <td *matCellDef="let element" mat-cell>
-          <button (click)="editUser(element)" mat-button>
-            <mat-icon>edit</mat-icon>
-          </button>
-        </td>
-      </ng-container>
-      <ng-container matColumnDef="removeButton">
-        <th *matHeaderCellDef mat-header-cell></th>
-        <td *matCellDef="let element" mat-cell>
-          <button (click)="removeUser(element)" mat-button>
-            <mat-icon>delete</mat-icon>
-          </button>
+
+      <ng-container matColumnDef="expandedDetail">
+        <td *matCellDef="let user" [attr.colspan]="usersDisplayColumns.length" mat-cell>
+          <div
+            [@detailExpand]="user == expandedUser ? 'expanded' : 'collapsed'">
+
+            <div>
+              <div class="user-detail">
+                <mat-button-toggle-group [value]="user.canManageUsers" matTooltip="Admin User Umschalten">
+                  <mat-button-toggle [value]="true">
+                    <mat-icon>supervisor_account</mat-icon>
+                  </mat-button-toggle>
+                  <mat-button-toggle [value]="false">
+                    <mat-icon>account_box</mat-icon>
+                  </mat-button-toggle>
+                </mat-button-toggle-group>
+                <button (click)="removeUser(user)" class="removebutton" color="warn" mat-fab
+                        matTooltip="User entfernen">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+              <mat-list>
+                <mat-list-item *ngFor="let album of albums">
+                  <mat-icon mat-list-icon>photo_album</mat-icon>
+                  <h4 mat-line>{{album.name}}</h4>
+                  <p mat-line>{{album.albumTime | date}}</p>
+                  <mat-slide-toggle></mat-slide-toggle>
+                </mat-list-item>
+              </mat-list>
+            </div>
+          </div>
         </td>
       </ng-container>
 
       <tr *matHeaderRowDef="usersDisplayColumns" mat-header-row></tr>
-      <tr *matRowDef="let row; columns: usersDisplayColumns;" mat-row></tr>
+      <tr (click)="expandedUser = expandedUser === user ? null : user"
+          *matRowDef="let user; columns: usersDisplayColumns;"
+          [class.user-expanded-row]="expandedUser === user"
+          class="user-row"
+          mat-row>
+      </tr>
+      <tr *matRowDef="let row; columns: ['expandedDetail']" class="user-detail-row" mat-row>
+
+      </tr>
     </table>
   </mat-tab>
 </mat-tab-group>
