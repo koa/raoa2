@@ -356,7 +356,9 @@ public class ElasticSearchDataViewService implements DataViewService {
   @Override
   public Mono<User> findUserForAuthentication(final AuthenticationId authenticationId) {
     return userRepository
-        .findByAuthentications(authenticationId)
+        .findByAuthenticationsAuthorityAndAuthenticationsId(
+            authenticationId.getAuthority(), authenticationId.getId())
+        .filter(u -> u.getAuthentications().contains(authenticationId))
         .onErrorResume(
             ex -> {
               log.warn("Cannot load user by authentication id " + authenticationId, ex);

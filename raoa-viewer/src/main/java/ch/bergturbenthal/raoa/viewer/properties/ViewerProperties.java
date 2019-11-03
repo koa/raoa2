@@ -20,16 +20,17 @@ public class ViewerProperties {
   private boolean enableAuthentication = true;
   private String superuser = "107024483334418897627";
   private ClientProperties clientProperties = new ClientProperties();
-
-  @Data
-  public static class ClientProperties {
-    private String googleClientId;
-  }
+  private boolean alwaysShowLatestRepository = false;
 
   public ViewerProperties() throws IOException {
     cacheDir = File.createTempFile("cache", "tmp");
     cacheDir.delete();
     dataDir = File.createTempFile("data", "tmp");
     dataDir.delete();
+  }
+
+  @Data
+  public static class ClientProperties {
+    private String googleClientId;
   }
 }

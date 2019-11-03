@@ -70,10 +70,10 @@
             <div>
               <div class="user-detail">
                 <mat-button-toggle-group [value]="user.canManageUsers" matTooltip="Admin User Umschalten">
-                  <mat-button-toggle [value]="true">
+                  <mat-button-toggle (click)="enableSuperuser(user.id, true)" [value]="true">
                     <mat-icon>supervisor_account</mat-icon>
                   </mat-button-toggle>
-                  <mat-button-toggle [value]="false">
+                  <mat-button-toggle (click)="enableSuperuser(user.id, false)" [value]="false">
                     <mat-icon>account_box</mat-icon>
                   </mat-button-toggle>
                 </mat-button-toggle-group>
@@ -87,7 +87,8 @@
                   <mat-icon mat-list-icon>photo_album</mat-icon>
                   <h4 mat-line>{{album.name}}</h4>
                   <p mat-line>{{album.albumTime | date}}</p>
-                  <mat-slide-toggle></mat-slide-toggle>
+                  <mat-slide-toggle (change)="updateAlbumVisibility(user.id, album.id, $event)"
+                                    [checked]="canUserAccess(user.id, album.id)"></mat-slide-toggle>
                 </mat-list-item>
               </mat-list>
             </div>

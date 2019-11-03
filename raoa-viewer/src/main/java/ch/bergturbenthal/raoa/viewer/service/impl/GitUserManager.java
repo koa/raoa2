@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
@@ -100,24 +101,34 @@ public class GitUserManager implements UserManager {
       final String userFileName = createUserFile(newUser.getId());
       final File tempFile = File.createTempFile(newUser.getId().toString(), "json");
       userWriter.writeValue(tempFile, newUser);
-      return metaIdMono
-          .flatMap(albumList::getAlbum)
-          .flatMap(GitAccess::createUpdater)
-          .flatMap(
-              u ->
-                  u.importFile(tempFile.toPath(), userFileName)
-                      .filter(t -> t)
-                      .flatMap(t -> u.commit("created user"))
-                      .filter(t -> t)
-                      .doFinally(
-                          signal -> {
-                            u.close();
-                            tempFile.delete();
-                          }))
+      return overrideFile(userFileName, tempFile, "created user", false)
+          .filter(t -> t)
           .map(t -> newUser);
     } catch (IOException e) {
       return Mono.error(e);
     }
+  }
+
+  @NotNull
+  public Mono<Boolean> overrideFile(
+      final String newFilename,
+      final File srcData,
+      final String commitComment,
+      final boolean replaceIfExists) {
+    return metaIdMono
+        .flatMap(albumList::getAlbum)
+        .flatMap(GitAccess::createUpdater)
+        .flatMap(
+            u ->
+                u.importFile(srcData.toPath(), newFilename, replaceIfExists)
+                    .filter(t -> t)
+                    .flatMap(t -> u.commit(commitComment))
+                    .filter(t -> t)
+                    .doFinally(
+                        signal -> {
+                          u.close();
+                          srcData.delete();
+                        }));
   }
 
   @Override
@@ -177,5 +188,35 @@ public class GitUserManager implements UserManager {
   @Override
   public Flux<User> listUsers() {
     return allUsers();
+  }
+
+  @Override
+  public Mono<User> loadUser(final UUID userId) {
+    final PathFilter filter = PathFilter.create(createUserFile(userId));
+    return loadUsers(filter).singleOrEmpty();
+  }
+
+  @Override
+  public Mono<User> updateUser(
+      final UUID userId, final Function<User, User> updater, final String updateDescription) {
+    final String userFile = createUserFile(userId);
+    final PathFilter filter = PathFilter.create(userFile);
+
+    return loadUsers(filter)
+        .map(updater)
+        .singleOrEmpty()
+        .flatMap(
+            updatedUser -> {
+              try {
+                final File tempFile = File.createTempFile(userId.toString(), "json");
+                userWriter.writeValue(tempFile, updatedUser);
+                return overrideFile(userFile, tempFile, updateDescription, true)
+                    .filter(t -> t)
+                    .map(t -> updatedUser);
+              } catch (IOException e) {
+                return Mono.error(
+                    new RuntimeException("Cannot write user " + userId + " for update", e));
+              }
+            });
   }
 }

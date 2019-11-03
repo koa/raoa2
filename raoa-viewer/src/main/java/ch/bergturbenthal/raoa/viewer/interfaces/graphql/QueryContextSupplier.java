@@ -4,6 +4,7 @@ import ch.bergturbenthal.raoa.viewer.model.graphql.AuthenticationState;
 import ch.bergturbenthal.raoa.viewer.model.graphql.QueryContext;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
+import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import java.time.Duration;
@@ -29,9 +30,12 @@ import reactor.util.function.Tuples;
 public class QueryContextSupplier {
   private final AuthorizationManager authorizationManager;
   private final Mono<Optional<UUID>> latestAlbum;
+  private ViewerProperties viewerProperties;
 
   public QueryContextSupplier(
-      final AuthorizationManager authorizationManager, DataViewService dataViewService) {
+      final AuthorizationManager authorizationManager,
+      DataViewService dataViewService,
+      ViewerProperties viewerProperties) {
     this.authorizationManager = authorizationManager;
     latestAlbum =
         dataViewService
@@ -43,6 +47,7 @@ public class QueryContextSupplier {
             .map(o -> o.map(Tuple2::getT2))
             // .log("latest album")
             .cache(Duration.ofMinutes(1));
+    this.viewerProperties = viewerProperties;
   }
 
   public Mono<QueryContext> createContext() {
@@ -90,14 +95,17 @@ public class QueryContextSupplier {
                 @Override
                 public boolean canAccessAlbum(final UUID albumId) {
                   // log.info("can access " + albumId + " ?");
+                  final boolean isLatestAlbum =
+                      viewerProperties.isAlwaysShowLatestRepository()
+                          && latestAlbum.map(albumId::equals).orElse(false);
                   final boolean b =
-                      latestAlbum.map(albumId::equals).orElse(false)
+                      isLatestAlbum
                           || u.map(
                                   user ->
                                       user.isSuperuser()
                                           || user.getVisibleAlbums().contains(albumId))
                               .orElse(false);
-                  // log.info("Can access " + albumId + ": " + b);
+                  //                  log.info("Can access " + albumId + ": " + b);
                   return b;
                 }
 

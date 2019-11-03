@@ -5,9 +5,12 @@ import {
   ManageUsersOverview,
   ManageUsersOverviewGQL,
   ManageUsersRemoveRequestGQL,
-  ManageUsersRemoveUserGQL
+  ManageUsersRemoveUserGQL,
+  ManageUsersUpdateAlbumVisibilityGQL,
+  ManageUsersUpdateSuperuserGQL
 } from '../../generated/graphql';
 import {animate, state, style, transition, trigger} from '@angular/animations';
+import {MatSlideToggleChange} from '@angular/material';
 
 @Component({
   selector: 'app-manage-users',
@@ -34,6 +37,8 @@ export class ManageUsersComponent implements OnInit {
               private manageUsersAcceptRequestGQL: ManageUsersAcceptRequestGQL,
               private manageUsersRemoveUserGQL: ManageUsersRemoveUserGQL,
               private manageUsersRemoveRequestGQL: ManageUsersRemoveRequestGQL,
+              private manageUsersUpdateSuperuserGQL: ManageUsersUpdateSuperuserGQL,
+              private manageUsersUpdateAlbumVisibilityGQL: ManageUsersUpdateAlbumVisibilityGQL,
               private ngZone: NgZone
   ) {
   }
@@ -71,6 +76,28 @@ export class ManageUsersComponent implements OnInit {
   private async reloadData(): Promise<void> {
     await this.serverApiService.flushCache();
     await this.loadDataFromServer();
+  }
+
+  public async enableSuperuser(userid: string, enable: boolean) {
+    await this.serverApiService.update(this.manageUsersUpdateSuperuserGQL, {id: userid, enabled: enable});
+    // return await this.reloadData();
+  }
+
+  public async updateAlbumVisibility(userId: string, albumId: string, event: MatSlideToggleChange) {
+    const enabled: boolean = event.checked;
+    console.log('Album: ' + userId + ', ' + albumId + ': ' + enabled);
+    await this.serverApiService.update(this.manageUsersUpdateAlbumVisibilityGQL,
+      {userId, albumId, enabled});
+    // return await this.reloadData();
+  }
+
+  public canUserAccess(userId: string, albumId: string): boolean {
+    const listUsers: ManageUsersOverview.ListUsers = this.users.find(u => u.id === userId);
+    if (listUsers === undefined) {
+      return false;
+    }
+    return listUsers.canAccess.find(a => a.id === albumId) !== undefined;
+
   }
 
   private async loadDataFromServer(): Promise<void> {

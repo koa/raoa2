@@ -13,6 +13,8 @@ type Mutation{
     removeRequest(id: AuthenticationKey): Boolean
     createUser(id: AuthenticationKey): User
     removeUser(id: ID): Boolean
+    setCanManageUserFlag(userId: ID, enabled: Boolean): User
+    setAlbumVisibility(userId: ID, albumId: ID, visible: Boolean): User
 }
 
 type RegistrationRequest{

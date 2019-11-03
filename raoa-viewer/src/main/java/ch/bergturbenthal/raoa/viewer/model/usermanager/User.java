@@ -15,13 +15,13 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 public class User {
   @Id private UUID id;
 
-  @Field(type = FieldType.Nested)
+  @Field(type = FieldType.Object)
   private PersonalUserData userData;
 
   @Field(type = FieldType.Keyword)
   private Set<UUID> visibleAlbums;
 
-  @Field(type = FieldType.Nested)
+  @Field(type = FieldType.Object)
   private Set<AuthenticationId> authentications;
 
   @Field(type = FieldType.Boolean)

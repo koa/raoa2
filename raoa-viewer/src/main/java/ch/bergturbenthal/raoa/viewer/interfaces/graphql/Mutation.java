@@ -1,20 +1,18 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
-import ch.bergturbenthal.raoa.viewer.model.graphql.AuthenticationState;
-import ch.bergturbenthal.raoa.viewer.model.graphql.RequestAccessResult;
-import ch.bergturbenthal.raoa.viewer.model.graphql.RequestAccessResultCode;
-import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
+import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AccessRequest;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.PersonalUserData;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.coxautodev.graphql.tools.GraphQLMutationResolver;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
@@ -47,44 +45,42 @@ public class Mutation implements GraphQLMutationResolver {
   public CompletableFuture<UserReference> createUser(AuthenticationId authenticationId) {
     return queryContextSupplier
         .createContext()
+        .filter(QueryContext::canUserManageUsers)
         .flatMap(
-            queryContext -> {
-              if (!queryContext.canUserManageUsers()) return Mono.empty();
-              final Mono<User> newUser =
-                  dataViewService
-                      .getPendingRequest(authenticationId)
-                      .flatMap(userManager::createNewUser)
-                      .log(
-                          "created",
-                          Level.INFO,
-                          SignalType.REQUEST,
-                          SignalType.ON_COMPLETE,
-                          SignalType.ON_NEXT,
-                          SignalType.ON_ERROR)
-                      .flatMap(
-                          user ->
-                              Flux.merge(
-                                      dataViewService
-                                          .removePendingAccessRequest(authenticationId)
-                                          .log(
-                                              "remove pending",
-                                              Level.INFO,
-                                              SignalType.REQUEST,
-                                              SignalType.ON_COMPLETE,
-                                              SignalType.ON_NEXT,
-                                              SignalType.ON_ERROR),
-                                      dataViewService
-                                          .updateUserData()
-                                          .log(
-                                              "update users",
-                                              Level.INFO,
-                                              SignalType.REQUEST,
-                                              SignalType.ON_COMPLETE,
-                                              SignalType.ON_NEXT,
-                                              SignalType.ON_ERROR))
-                                  .then(Mono.just(user)));
-              return newUser.map(u -> new UserReference(u.getId(), u.getUserData(), queryContext));
-            })
+            queryContext ->
+                dataViewService
+                    .getPendingRequest(authenticationId)
+                    .flatMap(userManager::createNewUser)
+                    .log(
+                        "created",
+                        Level.INFO,
+                        SignalType.REQUEST,
+                        SignalType.ON_COMPLETE,
+                        SignalType.ON_NEXT,
+                        SignalType.ON_ERROR)
+                    .flatMap(
+                        user ->
+                            Flux.merge(
+                                    dataViewService
+                                        .removePendingAccessRequest(authenticationId)
+                                        .log(
+                                            "remove pending",
+                                            Level.INFO,
+                                            SignalType.REQUEST,
+                                            SignalType.ON_COMPLETE,
+                                            SignalType.ON_NEXT,
+                                            SignalType.ON_ERROR),
+                                    dataViewService
+                                        .updateUserData()
+                                        .log(
+                                            "update users",
+                                            Level.INFO,
+                                            SignalType.REQUEST,
+                                            SignalType.ON_COMPLETE,
+                                            SignalType.ON_NEXT,
+                                            SignalType.ON_ERROR))
+                                .then(Mono.just(user)))
+                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
         .timeout(TIMEOUT)
         .toFuture();
   }
@@ -154,5 +150,52 @@ public class Mutation implements GraphQLMutationResolver {
 
   public CompletableFuture<Boolean> removeRequest(AuthenticationId id) {
     return dataViewService.removePendingAccessRequest(id).thenReturn(true).toFuture();
+  }
+
+  public CompletableFuture<UserReference> setCanManageUserFlag(UUID userId, boolean enabled) {
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            queryContext -> {
+              return userManager
+                  .updateUser(
+                      userId,
+                      user -> user.toBuilder().superuser(enabled).build(),
+                      queryContext.getCurrentUser().orElseThrow().getUserData().getName()
+                          + " setCanManageUser to "
+                          + enabled)
+                  .flatMap(user -> dataViewService.updateUserData().thenReturn(user))
+                  .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext));
+            })
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<UserReference> setAlbumVisibility(
+      UUID userId, UUID albumId, boolean enabled) {
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            queryContext ->
+                userManager
+                    .updateUser(
+                        userId,
+                        user -> {
+                          final Set<UUID> visibleAlbums = new HashSet<>(user.getVisibleAlbums());
+                          if (enabled) visibleAlbums.add(albumId);
+                          else visibleAlbums.remove(albumId);
+                          return user.toBuilder().visibleAlbums(visibleAlbums).build();
+                        },
+                        queryContext.getCurrentUser().orElseThrow().getUserData().getName()
+                            + (enabled ? " shows user " : " hides for user")
+                            + userId
+                            + " album "
+                            + albumId)
+                    .flatMap(user -> dataViewService.updateUserData().thenReturn(user))
+                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
+        .timeout(TIMEOUT)
+        .toFuture();
   }
 }

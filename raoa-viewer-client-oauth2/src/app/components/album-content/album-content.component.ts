@@ -115,6 +115,7 @@ export class AlbumContentComponent implements OnInit {
       });
     this.route.paramMap.subscribe((params: ParamMap) => {
       this.loading = true;
+      this.error = undefined;
       this.albumId = params.get('id');
       this.serverApi
         .query(this.albumContentQGL, {albumId: this.albumId})

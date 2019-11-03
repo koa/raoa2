@@ -28,6 +28,7 @@ public class Query implements GraphQLQueryResolver {
   public CompletableFuture<Album> getAlbumById(UUID albumId) {
     return queryContextSupplier
         .createContext()
+        .filter(q -> q.canAccessAlbum(albumId))
         .map(c -> new Album(albumId, c, dataViewService.readAlbum(albumId).cache()))
         .timeout(TIMEOUT)
         .toFuture();
@@ -58,7 +59,7 @@ public class Query implements GraphQLQueryResolver {
                           return builder.build();
                         }))
         .collectList()
-        .log("pending request")
+        // .log("pending request")
         .timeout(TIMEOUT)
         .toFuture();
   }
