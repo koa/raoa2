@@ -5,7 +5,15 @@ import {ActivatedRoute, ParamMap, Router} from '@angular/router';
 import {DomSanitizer} from '@angular/platform-browser';
 import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from '@angular/material';
 import {ServerApiService} from '../../services/server-api.service';
-import {AlbumContent, AllAlbums, AuthenticationState, Maybe} from '../../generated/graphql';
+import {
+  AlbumContent,
+  AlbumContentGQL,
+  AlbumContentZipGQL,
+  AllAlbums,
+  AllAlbumsGQL,
+  AuthenticationState,
+  Maybe
+} from '../../generated/graphql';
 import {AppConfigService} from '../../services/app-config.service';
 import {ResizedEvent} from 'angular-resize-event';
 import {MediaMatcher} from '@angular/cdk/layout';
@@ -69,6 +77,9 @@ export class AlbumContentComponent implements OnInit {
               private dialog: MatDialog,
               private serverApi: ServerApiService,
               private configApi: AppConfigService,
+              private albumListGQL: AllAlbumsGQL,
+              private albumContentQGL: AlbumContentGQL,
+              private albumContentZipGQL: AlbumContentZipGQL,
               changeDetectorRef: ChangeDetectorRef, media: MediaMatcher
   ) {
     let size = 1600;
@@ -85,80 +96,98 @@ export class AlbumContentComponent implements OnInit {
 
   ngOnInit() {
     // this.configApi.getAuthService().then(authService => authService.authState.subscribe(user => this.idToken = user.idToken));
+    this.loading = true;
     this.serverApi.getAuthenticationState().then(state => {
       this.authenticationState = state;
     });
-    this.serverApi.listAllAlbums().then(data => {
-      this.albums = data;
-    });
-    this.route.paramMap.subscribe((params: ParamMap) => {
-      this.albumId = params.get('id');
-      this.serverApi.listAlbumContent(this.albumId).then(result => {
-        const albumById: AlbumContent.AlbumById = result.albumById;
-        this.sortedEntries = albumById.entries.filter(e => e.created != null)
-          .map(e => {
-            return {
-              name: e.name,
-              entryUri: this.fixUrl(e.entryUri),
-              targetHeight: e.targetHeight,
-              targetWidth: e.targetWidth,
-              created: e.created,
-              id: e.id
-            };
-          })
-          .sort((e1, e2) => e1.created.localeCompare(e2.created));
-        this.redistributeEntries();
-        this.title = albumById.name;
-        this.startSync = () => {
-          this.syncRunning = true;
-          this.progressBarMode = 'indeterminate';
-          caches.open('images').then(c => {
-            const remainingEntries = this.sortedEntries.map(e => e.entryUri + '/thumbnail');
-            const countDivisor = this.sortedEntries.length / 100;
-            let currentNumber = 0;
-            this.progressBarValue = 0;
-            this.progressBarMode = 'determinate';
-            const componentThis = this;
-            const firstEntry = remainingEntries.pop();
-            if (firstEntry !== undefined) {
-              fetch(firstEntry, 5);
-            } else {
-              this.syncRunning = false;
-            }
-            for (let i = 0; i < 3 && remainingEntries.length > 0; i++) {
-              fetchNext();
-            }
-
-            function fetch(url: string, repeat: number) {
-              c.match(url)
-                .then(existingEntry => existingEntry == null ? c.add(url) : Promise.resolve())
-                .then(fetchNext)
-                .catch(error => {
-                  console.log('Error fetching ' + url);
-                  console.log(error);
-                  if (repeat > 0) {
-                    fetch(url, repeat - 1);
-                  } else {
-                    componentThis.syncRunning = false;
-                  }
-                })
-              ;
-            }
-
-            function fetchNext() {
-              currentNumber += 1;
-              const nextEntry = remainingEntries.pop();
-              if (nextEntry === undefined) {
-                componentThis.syncRunning = false;
-              } else {
-                componentThis.progressBarValue = currentNumber / countDivisor;
-                fetch(nextEntry, 5);
-              }
-            }
-          });
-        };
-        this.loading = false;
+    this.serverApi.query(this.albumListGQL, {})
+      .then(result => {
+        if (result == null || result.listAlbums == null) {
+          return [];
+        } else {
+          return result.listAlbums
+            .filter(a => a.albumTime != null)
+            .sort((a, b) => -a.albumTime.localeCompare(b.albumTime));
+        }
+      })
+      .then(data => {
+        this.albums = data;
       });
+    this.route.paramMap.subscribe((params: ParamMap) => {
+      this.loading = true;
+      this.albumId = params.get('id');
+      this.serverApi
+        .query(this.albumContentQGL, {albumId: this.albumId})
+        .then(result => {
+          const albumById: AlbumContent.AlbumById = result.albumById;
+          this.sortedEntries = albumById.entries.filter(e => e.created != null)
+            .map(e => {
+              return {
+                name: e.name,
+                entryUri: this.fixUrl(e.entryUri),
+                targetHeight: e.targetHeight,
+                targetWidth: e.targetWidth,
+                created: e.created,
+                id: e.id
+              };
+            })
+            .sort((e1, e2) => e1.created.localeCompare(e2.created));
+          this.redistributeEntries();
+          this.title = albumById.name;
+          this.startSync = () => {
+            this.syncRunning = true;
+            this.progressBarMode = 'indeterminate';
+            caches.open('images').then(c => {
+              const remainingEntries = this.sortedEntries.map(e => e.entryUri + '/thumbnail');
+              const countDivisor = this.sortedEntries.length / 100;
+              let currentNumber = 0;
+              this.progressBarValue = 0;
+              this.progressBarMode = 'determinate';
+              const componentThis = this;
+              const firstEntry = remainingEntries.pop();
+              if (firstEntry !== undefined) {
+                fetch(firstEntry, 5);
+              } else {
+                this.syncRunning = false;
+              }
+              for (let i = 0; i < 3 && remainingEntries.length > 0; i++) {
+                fetchNext();
+              }
+
+              function fetch(url: string, repeat: number) {
+                c.match(url)
+                  .then(existingEntry => existingEntry == null ? c.add(url) : Promise.resolve())
+                  .then(fetchNext)
+                  .catch(error => {
+                    console.log('Error fetching ' + url);
+                    console.log(error);
+                    if (repeat > 0) {
+                      fetch(url, repeat - 1);
+                    } else {
+                      componentThis.syncRunning = false;
+                    }
+                  })
+                ;
+              }
+
+              function fetchNext() {
+                currentNumber += 1;
+                const nextEntry = remainingEntries.pop();
+                if (nextEntry === undefined) {
+                  componentThis.syncRunning = false;
+                } else {
+                  componentThis.progressBarValue = currentNumber / countDivisor;
+                  fetch(nextEntry, 5);
+                }
+              }
+            });
+          };
+          this.loading = false;
+        })
+        .catch(error => {
+          this.loading = false;
+          this.error = error;
+        });
     });
   }
 
@@ -220,7 +249,9 @@ export class AlbumContentComponent implements OnInit {
   }
 
   public downloadZip() {
-    this.serverApi.getAlbumZipUri(this.albumId).then(uri => window.location.href = uri);
+    this.serverApi.query(this.albumContentZipGQL, {albumId: this.albumId})
+      .then(result => result.albumById.zipDownloadUri)
+      .then(uri => window.location.href = uri);
   }
 
   private recalculateComponents() {

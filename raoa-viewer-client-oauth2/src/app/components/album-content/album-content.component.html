@@ -33,14 +33,14 @@
     </mat-sidenav>
 
     <mat-sidenav-content>
-      <div *ngIf="loading">
-        Loading...
+      <div *ngIf="loading" class="main-spinner">
+        <mat-progress-spinner *ngIf="loading" class="main-spinner" mode="indeterminate"></mat-progress-spinner>
       </div>
-      <div *ngIf="error">
-        Error :(
+      <div *ngIf="error" class="mat-error main-error">
+        {{error}}
       </div>
-      <cdk-virtual-scroll-viewport (resized)="resized($event)" *ngIf="resultRows" autosize maxBufferPx="1000"
-                                   minBufferPx="500"
+      <cdk-virtual-scroll-viewport (resized)="resized($event)" *ngIf="!loading && resultRows" autosize maxBufferPx="200"
+                                   minBufferPx="100"
                                    class="gallery-row-scrolling">
         <div *cdkVirtualFor="let row of resultRows" class="gallery-row">
           <img (click)="openImage(shape.entryIndex)" *ngFor="let shape of row.shapes" [alt]="shape.entry.name"

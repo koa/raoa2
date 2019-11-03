@@ -22,14 +22,15 @@ import {AngularResizedEventModule} from 'angular-resize-event';
 import {MatProgressBarModule} from '@angular/material/progress-bar';
 import {CookieService} from 'ngx-cookie-service';
 import {WelcomeComponent} from './components/welcome/welcome.component';
-import {MatCardModule} from "@angular/material/card";
+import {MatCardModule} from '@angular/material/card';
 import {RequestAccessDialogComponent} from './components/request-access-dialog/request-access-dialog.component';
-import {MatFormFieldModule} from "@angular/material/form-field";
-import {FormsModule} from "@angular/forms";
-import {MatInputModule} from "@angular/material/input";
+import {MatFormFieldModule} from '@angular/material/form-field';
+import {FormsModule} from '@angular/forms';
+import {MatInputModule} from '@angular/material/input';
 import {ManageUsersComponent} from './components/manage-users/manage-users.component';
-import {MatTabsModule} from "@angular/material/tabs";
-import {MatTableModule} from "@angular/material/table";
+import {MatTabsModule} from '@angular/material/tabs';
+import {MatTableModule} from '@angular/material/table';
+import {MatProgressSpinnerModule} from '@angular/material';
 
 
 const appInitializerFn = (appConfig: AppConfigService) => {
@@ -67,6 +68,7 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     MatInputModule,
     MatTabsModule,
     MatTableModule,
+    MatProgressSpinnerModule,
   ],
   providers: [
     AppConfigService,

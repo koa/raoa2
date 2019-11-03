@@ -4,20 +4,20 @@ const proxyConfig = [
     context: '/config',
     target: 'http://localhost:8080/',
     secure: false,
-    headers: {host: 'raoa.dev.berg-turbenthal.ch'},
+    //headers: {host: 'raoa.dev.berg-turbenthal.ch'},
   },
     {
       context: '/rest',
       target: 'http://localhost:8080/',
       secure: false,
-      headers: {host: 'raoa.dev.berg-turbenthal.ch'},
+      //headers: {host: 'raoa.dev.berg-turbenthal.ch'},
     }
     ,
     {
       context: '/graphql',
       target: 'http://localhost:8080/',
       secure: false,
-      headers: {host: 'raoa.dev.berg-turbenthal.ch'},
+      //headers: {host: 'raoa.dev.berg-turbenthal.ch'},
     }
   ]
 ;
