@@ -93,12 +93,12 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
     final Mono<Boolean> isLatestAlbum = latestAlbum.map(album::equals);
     final Mono<Boolean> canAccessAlbum =
         currentUser(context)
-            .log("current user")
+            // .log("current user")
             .map(
                 u ->
                     u.isSuperuser()
                         || (u.getVisibleAlbums() != null && u.getVisibleAlbums().contains(album)))
-            .log("can user access")
+            // .log("can user access")
             .defaultIfEmpty(false);
     return Mono.zip(canAccessAlbum, isLatestAlbum).map(t -> t.getT1() || t.getT2())
     // .log("can access " + album)

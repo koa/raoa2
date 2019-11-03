@@ -112,10 +112,14 @@ export class AlbumContentComponent implements OnInit {
       })
       .then(data => {
         this.albums = data;
-      });
+      }).catch(error => {
+      this.loading = false;
+      this.error = error;
+    });
     this.route.paramMap.subscribe((params: ParamMap) => {
       this.loading = true;
       this.error = undefined;
+      this.title = '';
       this.albumId = params.get('id');
       this.serverApi
         .query(this.albumContentQGL, {albumId: this.albumId})
