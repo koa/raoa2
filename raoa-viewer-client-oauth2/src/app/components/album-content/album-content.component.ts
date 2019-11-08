@@ -424,4 +424,9 @@ export class ShowImageDialogComponent {
   createImageUrl(currentIndex: number) {
     return this.data.sortedEntries[currentIndex].entryUri + '/thumbnail';
   }
+
+  createDownloadUrl(currentIndex: number) {
+    return this.data.sortedEntries[currentIndex].entryUri + '/original';
+  }
+
 }

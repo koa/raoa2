@@ -11,9 +11,12 @@
 
     </div>
     <div>
-      <button mat-icon-button>
-        <mat-icon (click)="download()">save_alt</mat-icon>
-      </button>
+      <a [download]="data.sortedEntries[currentIndex].name" [href]="createDownloadUrl(currentIndex)"
+         class="download-button">
+        <button mat-icon-button>
+          <mat-icon>save_alt</mat-icon>
+        </button>
+      </a>
       <button *ngIf="supportShare" mat-icon-button>
         <mat-icon (click)="share()">share</mat-icon>
       </button>

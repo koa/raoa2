@@ -22,6 +22,10 @@
   color: white;
 }
 
+a.download-button:link, a.download-button:visited {
+  color: inherit;
+}
+
 .head-row {
   width: 100%;
   display: flex;
