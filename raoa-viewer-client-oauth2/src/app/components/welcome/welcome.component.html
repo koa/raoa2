@@ -2,31 +2,82 @@
   Photos
 </mat-toolbar>
 
-<mat-card *ngIf="signedIn">
+<mat-card *ngIf="!signedIn">
+  <mat-card-content class="mat-typography">
+
+    <h2>Allgemein</h2>
+    <p>
+      Diese Seite bietet Zugang zu allen Photos im LKW vom Teamkönig.
+      Um darauf zuzugreifen musst du dich mit einem GMail-Account anmelden.
+    </p>
+    <h2>Was ist ein GMail-Account?</h2>
+    <p>
+      Das ist das Login das zu einer &lt;meinname&gt;@gmail.com Adresse gehört.
+      Wenn du ein Android-Handy hast (Eines das nicht von Apple stammt, also z.B. von Samsung, HTC, Huawei, LG, Sony,
+      Motorola, ...),
+      hast du so eine Adresse eingerichtet um deine Apps vom Play-Store herunter zu laden.
+    </p>
+    <p>
+      Wenn du kein Android Handy besitzt kannst du unter <a href="https://gmail.com/">https://gmail.com/</a> gratis so
+      eine Adresse einrichten.
+    </p>
+    <h2>Ich habe einen GMail-Account, wie muss ich vorgehen?</h2>
+    <p>
+      Mit dem Knopf unten musst du dich anmelden. Dann kannst du den Zugang zu den Fotos beantragen.
+      Sobald der Zugang für dein GMail freigeschaltet ist, kannst du hier die Fotos sehen und downloaden.
+    </p>
+  </mat-card-content>
+  <mat-card-actions>
+    <div id="google-signin-button">Warte auf Internet-Verbindung</div>
+  </mat-card-actions>
+</mat-card>
+
+<mat-card *ngIf="signedIn && !showRequestPendingInformation">
   <mat-card-header>
     <div [style.backgroundImage]="'url('+profilePhoto+')'" class="small-photo" mat-card-avatar>
     </div>
     <mat-card-title>{{userName}}</mat-card-title>
     <mat-card-subtitle>{{userEmail}}</mat-card-subtitle>
   </mat-card-header>
-  <mat-card-content>
-    <p *ngIf="showRequestPendingInformation">Deine Anfrage wurde gespeichert, aber noch nicht bearbeitet</p>
+  <mat-card-content class="mat-typography">
+    <h2>Hallo {{userName}}</h2>
+    <p>Du hast dich mit deinem GMail-Account angemeldet.</p>
+    <p>Jetzt kannst du den Zugang beantragen.
+      Wenn du das machst, wird dein Foto, dein Name ({{userName}}) und
+      deine eMail-Adresse ({{userEmail}} an den Server
+      übermittelt und dort gespeichert.
+      Damit kann der <a href="mailto:photos@teamkoenig.ch">Administrator</a> dir die Fotos frei schalten.
+    </p>
+    <p>
+      Beim Kommentar kannst du einen zusätzlichen Text hinzufügen (z.B. für welche Fotos du dich interessierst,
+      usw.).
+    </p>
+    <mat-form-field>
+    <textarea [(ngModel)]="requestAccessComment" class="comment-area" matInput placeholder="Kommentar (Optional)">
+    </textarea>
+    </mat-form-field>
   </mat-card-content>
   <mat-card-actions>
-    <button (click)="requestForAccess()" *ngIf="showRequestAuthorizationButton" mat-raised-button>Zugang holen</button>
-    <button *ngIf="canManageUsers" mat-raised-button routerLink="/manageUsers">Anfragen bearbeiten</button>
-    <p id="re-sign-in-button">no connection to internet</p>
+    <button (click)="submitRequest()" mat-raised-button>Zugang beantragen</button>
   </mat-card-actions>
 </mat-card>
-<mat-card *ngIf="!signedIn">
+
+<mat-card *ngIf="signedIn && showRequestPendingInformation">
   <mat-card-header>
-    <mat-card-title>Login</mat-card-title>
-    <mat-card-subtitle>Bitte einloggen</mat-card-subtitle>
+    <div [style.backgroundImage]="'url('+profilePhoto+')'" class="small-photo" mat-card-avatar>
+    </div>
+    <mat-card-title>{{userName}}</mat-card-title>
+    <mat-card-subtitle>{{userEmail}}</mat-card-subtitle>
   </mat-card-header>
-  <mat-card-actions>
-    <p id="sign-in-button">no connection to internet</p>
-  </mat-card-actions>
+  <mat-card-content class="mat-typography">
+    <h2>Hallo {{userName}}</h2>
+    <p>Du hast dich mit deinem GMail-Account angemeldet und den Zugang beantragt</p>
+    <p>Jetzt musst du warten bis der <a href="mailto:photos@teamkoenig.ch">Administrator</a>
+      dir die Fotos frei geschaltet hat.
+    </p>
+  </mat-card-content>
 </mat-card>
+
 
 
 

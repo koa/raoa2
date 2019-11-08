@@ -1,5 +1,5 @@
 import {Injectable} from '@angular/core';
-import {AuthenticationState, AuthenticationStateGQL, Maybe} from '../generated/graphql';
+import {Maybe} from '../generated/graphql';
 import * as Apollo from 'apollo-angular';
 import {HttpLink} from 'apollo-angular-link-http';
 import {InMemoryCache} from 'apollo-cache-inmemory';
@@ -19,7 +19,6 @@ export class ServerApiService {
     apollo: Apollo.Apollo,
     httpLink: HttpLink,
     private appConfigService: AppConfigService,
-    private authenticationStateGQL: AuthenticationStateGQL
   ) {
     this.ready = false;
     this.cache = new InMemoryCache();
@@ -73,25 +72,4 @@ export class ServerApiService {
     );
 
   }
-
-
-  public async getAuthenticationState(): Promise<AuthenticationState.Query> {
-    if (!(this.ready || await this.readyPromise)) {
-      return Promise.reject('Cannot init');
-    }
-    return new Promise((resolve, reject) => {
-      this.authenticationStateGQL.watch().valueChanges.subscribe(result => {
-        if (result.loading) {
-          return;
-        }
-        const data: AuthenticationState.Query = result.data;
-        if (data) {
-          resolve(result.data);
-        } else {
-          reject(result.errors);
-        }
-      });
-    });
-  }
-
 }

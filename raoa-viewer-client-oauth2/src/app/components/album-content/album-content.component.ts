@@ -1,5 +1,5 @@
 // import {FixedSizeVirtualScrollStrategy, VIRTUAL_SCROLL_STRATEGY} from '@angular/cdk/scrolling';
-import {ChangeDetectorRef, Component, Inject, OnInit} from '@angular/core';
+import {ChangeDetectorRef, Component, Inject, NgZone, OnInit} from '@angular/core';
 import {ActivatedRoute, ParamMap, Router} from '@angular/router';
 // import {ResizedEvent} from 'angular-resize-event';
 import {DomSanitizer} from '@angular/platform-browser';
@@ -67,9 +67,12 @@ export class AlbumContentComponent implements OnInit {
   public mobileQuery: MediaQueryList;
   public mobileQueryListener: () => void;
   public albums: Maybe<AllAlbums.ListAlbums>[] = [];
-  public authenticationState: AuthenticationState.Query;
+  public authenticationState: AuthenticationState;
   public AUTHENTICATED: AuthenticationState = AuthenticationState.Authenticated;
   public UNKNOWN: AuthenticationState = AuthenticationState.Unknown;
+  public canManageUsers: Maybe<boolean> = false;
+  private albumSearchPattern = '';
+  private availableAlbums: Maybe<AllAlbums.ListAlbums>[] = [];
 
   constructor(private route: ActivatedRoute,
               private router: Router,
@@ -80,7 +83,9 @@ export class AlbumContentComponent implements OnInit {
               private albumListGQL: AllAlbumsGQL,
               private albumContentQGL: AlbumContentGQL,
               private albumContentZipGQL: AlbumContentZipGQL,
-              changeDetectorRef: ChangeDetectorRef, media: MediaMatcher
+              private changeDetectorRef: ChangeDetectorRef,
+              private media: MediaMatcher,
+              private ngZone: NgZone
   ) {
     let size = 1600;
     const scales = [];
@@ -95,27 +100,8 @@ export class AlbumContentComponent implements OnInit {
   }
 
   ngOnInit() {
-    // this.configApi.getAuthService().then(authService => authService.authState.subscribe(user => this.idToken = user.idToken));
     this.loading = true;
-    this.serverApi.getAuthenticationState().then(state => {
-      this.authenticationState = state;
-    });
-    this.serverApi.query(this.albumListGQL, {})
-      .then(result => {
-        if (result == null || result.listAlbums == null) {
-          return [];
-        } else {
-          return result.listAlbums
-            .filter(a => a.albumTime != null)
-            .sort((a, b) => -a.albumTime.localeCompare(b.albumTime));
-        }
-      })
-      .then(data => {
-        this.albums = data;
-      }).catch(error => {
-      this.loading = false;
-      this.error = error;
-    });
+    this.refreshAlbumList();
     this.route.paramMap.subscribe((params: ParamMap) => {
       this.loading = true;
       this.error = undefined;
@@ -196,6 +182,10 @@ export class AlbumContentComponent implements OnInit {
     });
   }
 
+  logout() {
+    this.configApi.logout();
+    this.refreshAlbumList();
+  }
 
   resized(event: ResizedEvent) {
     this.width = event.newWidth;
@@ -325,6 +315,47 @@ export class AlbumContentComponent implements OnInit {
 
   switchUser() {
     this.configApi.selectUserPrompt().then(user => this.ngOnInit());
+  }
+
+  updateSearch(value: string) {
+    this.albumSearchPattern = value.toLocaleLowerCase();
+    this.updateAlbumList();
+  }
+
+  private refreshAlbumList() {
+    this.serverApi.flushCache();
+    this.serverApi.query(this.albumListGQL, {})
+      .then(result => {
+        if (result == null || result.listAlbums == null) {
+          return [];
+        } else {
+          if (result.authenticationState !== AuthenticationState.Authorized) {
+            this.ngZone.run(() => this.router.navigate(['/'], {queryParams: {requestAlbum: this.albumId}}));
+            return;
+          }
+          this.authenticationState = result.authenticationState;
+
+          this.canManageUsers = result.currentUser.canManageUsers;
+          return result.listAlbums
+            .filter(a => a.albumTime != null)
+            .sort((a, b) => -a.albumTime.localeCompare(b.albumTime));
+        }
+      })
+      .then(data => {
+        this.availableAlbums = data;
+        this.updateAlbumList();
+      }).catch(error => {
+      this.loading = false;
+      this.error = error;
+    });
+  }
+
+  private updateAlbumList() {
+    if (this.albumSearchPattern === '') {
+      this.albums = this.availableAlbums;
+    } else {
+      this.albums = this.availableAlbums.filter(e => e.name.toLocaleLowerCase().includes(this.albumSearchPattern));
+    }
   }
 }
 

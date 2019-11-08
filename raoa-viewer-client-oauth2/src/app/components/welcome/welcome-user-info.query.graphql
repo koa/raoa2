@@ -1,6 +1,9 @@
 query WelcomeUserInfo{
   currentUser {
     canManageUsers
+    newestAlbumCanAccess{
+      id
+    }
   }
   authenticationState
 }

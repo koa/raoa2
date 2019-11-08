@@ -17,7 +17,7 @@
                 <version>1.7.6</version>
                 <configuration>
                     <nodeVersion>v10.16.0</nodeVersion>
-                    <npmVersion>6.9.0</npmVersion>
+                  <npmVersion>6.13.0</npmVersion>
                     <installDirectory>target</installDirectory>
                 </configuration>
                 <executions>

@@ -7,7 +7,6 @@ import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
 import {AppConfigService} from './services/app-config.service';
 import {HttpClientModule} from '@angular/common/http';
 import {MatButtonModule} from '@angular/material/button';
-import {AlbumListComponent} from './components/album-list/album-list.component';
 import {ApolloModule} from 'apollo-angular';
 import {HttpLinkModule} from 'apollo-angular-link-http';
 import {MatIconModule} from '@angular/material/icon';
@@ -40,7 +39,6 @@ const appInitializerFn = (appConfig: AppConfigService) => {
 @NgModule({
   declarations: [
     AppComponent,
-    AlbumListComponent,
     AlbumContentComponent,
     ShowImageDialogComponent,
     WelcomeComponent,

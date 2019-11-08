@@ -108,11 +108,13 @@ export class AppConfigService {
   renderButton(id) {
     const proc = user => this.loginSuccessful(user);
     this.initGapi().then(() => {
-      gapi.signin2.render(id, {
-        onsuccess(user: gapi.auth2.GoogleUser): void {
-          proc(user);
-        }
-      });
+      if (document.getElementById(id)) {
+        gapi.signin2.render(id, {
+          onsuccess(user: gapi.auth2.GoogleUser): void {
+            proc(user);
+          }
+        });
+      }
     });
   }
 
@@ -159,15 +161,16 @@ export class AppConfigService {
           console.log('signed out');
           console.log(r);
         });
-
+      this.cookieService.delete('access_token', '/');
       this.auhServicePromise = undefined;
     }
   }
 
   private loginSuccessful(user: gapi.auth2.GoogleUser) {
-    console.log(user.getId());
-    console.log(user.getBasicProfile().getEmail());
     const authResponse = user.getAuthResponse(true);
+    if (authResponse === null) {
+      return;
+    }
     this.cookieService.set('access_token', authResponse.id_token, authResponse.expires_at, '/');
     this.basicProfile = user.getBasicProfile();
 

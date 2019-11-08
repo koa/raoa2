@@ -1,6 +1,0 @@
-query AuthenticationState{
-  authenticationState,
-  currentUser{
-    canManageUsers
-  }
-}

@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
+import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumData;
 import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
 import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
@@ -7,13 +8,14 @@ import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
 import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.time.Instant;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @Component
@@ -26,18 +28,45 @@ public class UserQuery implements GraphQLResolver<UserReference> {
   }
 
   public CompletableFuture<List<Album>> canAccess(UserReference user) {
-    if (canShowUserDetails(user)) {
-      return dataViewService
-          .findUserById(user.getId())
-          .filter(u -> u.getVisibleAlbums() != null)
-          .flatMapIterable(User::getVisibleAlbums)
-          .filterWhen(id -> dataViewService.readAlbum(id).map(a -> true).defaultIfEmpty(false))
-          .map(id -> new Album(id, user.getContext(), dataViewService.readAlbum(id).cache()))
-          .collectList()
-          .timeout(TIMEOUT)
-          .toFuture();
+    return getVisibleAlbums(user)
+        .map(a -> new Album(a.getRepositoryId(), user.getContext(), Mono.just(a)))
+        .collectList()
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public Flux<AlbumData> getVisibleAlbums(final UserReference user) {
+    if (!canShowUserDetails(user)) {
+      return Flux.empty();
     }
-    return CompletableFuture.completedFuture(Collections.emptyList());
+    final Flux<AlbumData> visibleAlbums;
+    if (user.getContext().canUserManageUsers()) {
+      visibleAlbums = dataViewService.listAlbums();
+    } else
+      visibleAlbums =
+          dataViewService
+              .findUserById(user.getId())
+              .filter(u -> u.getVisibleAlbums() != null)
+              .flatMapIterable(User::getVisibleAlbums)
+              .flatMap(dataViewService::readAlbum);
+    return visibleAlbums;
+  }
+
+  public CompletableFuture<Album> newestAlbumCanAccess(UserReference user) {
+
+    return getVisibleAlbums(user)
+        .collect(
+            Collectors.maxBy(
+                Comparator.comparing(
+                    albumData ->
+                        albumData.getCreateTime() == null
+                            ? Instant.MIN
+                            : albumData.getCreateTime())))
+        .filter(Optional::isPresent)
+        .map(Optional::get)
+        .map(a -> new Album(a.getRepositoryId(), user.getContext(), Mono.just(a)))
+        .timeout(TIMEOUT)
+        .toFuture();
   }
 
   public CompletableFuture<Boolean> canManageUsers(UserReference user) {

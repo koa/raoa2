@@ -35,6 +35,7 @@ input AuthenticationKey{
 type User{
     id: ID!
     canAccess: [Album]
+    newestAlbumCanAccess: Album
     info: UserInfo
     authentications: [AuthenticationId]
     canManageUsers: Boolean

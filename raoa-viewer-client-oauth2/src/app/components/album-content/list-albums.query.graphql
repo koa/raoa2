@@ -5,4 +5,8 @@ query AllAlbums{
     entryCount,
     albumTime
   }
+  currentUser{
+    canManageUsers
+  }
+  authenticationState
 }

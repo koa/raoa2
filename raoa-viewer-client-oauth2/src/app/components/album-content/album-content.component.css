@@ -83,3 +83,12 @@ mat-toolbar {
   width: 100%;
   align-content: baseline;
 }
+
+#google-signin-button {
+  padding: 12px;
+}
+
+.search-list-item:hover {
+  background: transparent;
+  cursor: initial;
+}
