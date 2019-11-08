@@ -39,17 +39,14 @@ public class UserQuery implements GraphQLResolver<UserReference> {
     if (!canShowUserDetails(user)) {
       return Flux.empty();
     }
-    final Flux<AlbumData> visibleAlbums;
-    if (user.getContext().canUserManageUsers()) {
-      visibleAlbums = dataViewService.listAlbums();
-    } else
-      visibleAlbums =
-          dataViewService
-              .findUserById(user.getId())
-              .filter(u -> u.getVisibleAlbums() != null)
-              .flatMapIterable(User::getVisibleAlbums)
-              .flatMap(dataViewService::readAlbum);
-    return visibleAlbums;
+    return dataViewService
+        .findUserById(user.getId())
+        .log("user")
+        .flatMapMany(
+            u ->
+                u.isSuperuser()
+                    ? dataViewService.listAlbums()
+                    : Flux.fromIterable(u.getVisibleAlbums()).flatMap(dataViewService::readAlbum));
   }
 
   public CompletableFuture<Album> newestAlbumCanAccess(UserReference user) {

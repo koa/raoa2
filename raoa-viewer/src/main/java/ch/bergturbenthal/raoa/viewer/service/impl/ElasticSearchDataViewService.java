@@ -6,7 +6,9 @@ import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumData;
 import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumEntryData;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AccessRequest;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
+import ch.bergturbenthal.raoa.viewer.model.usermanager.PersonalUserData;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
+import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.repository.*;
 import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
@@ -47,6 +49,7 @@ public class ElasticSearchDataViewService implements DataViewService {
             PathSuffixFilter.create(".MP4"),
             PathSuffixFilter.create(".mkv")
           });
+  private final UUID virtualSuperuserId = UUID.randomUUID();
   private final AlbumDataRepository albumDataRepository;
   private final AlbumDataEntryRepository albumDataEntryRepository;
   private final AlbumList albumList;
@@ -54,6 +57,7 @@ public class ElasticSearchDataViewService implements DataViewService {
   private final UserRepository userRepository;
   private final AccessRequestRepository accessRequestRepository;
   private final UserManager userManager;
+  private ViewerProperties viewerProperties;
 
   public ElasticSearchDataViewService(
       final AlbumDataRepository albumDataRepository,
@@ -62,7 +66,8 @@ public class ElasticSearchDataViewService implements DataViewService {
       final SyncAlbumDataEntryRepository syncAlbumDataEntryRepository,
       final UserRepository userRepository,
       final AccessRequestRepository accessRequestRepository,
-      final UserManager userManager) {
+      final UserManager userManager,
+      final ViewerProperties viewerProperties) {
     this.albumDataRepository = albumDataRepository;
     this.albumDataEntryRepository = albumDataEntryRepository;
     this.albumList = albumList;
@@ -70,6 +75,7 @@ public class ElasticSearchDataViewService implements DataViewService {
     this.userRepository = userRepository;
     this.accessRequestRepository = accessRequestRepository;
     this.userManager = userManager;
+    this.viewerProperties = viewerProperties;
   }
 
   private static Optional<Integer> extractTargetWidth(final Metadata m) {
@@ -359,6 +365,20 @@ public class ElasticSearchDataViewService implements DataViewService {
         .findByAuthenticationsAuthorityAndAuthenticationsId(
             authenticationId.getAuthority(), authenticationId.getId())
         .filter(u -> u.getAuthentications().contains(authenticationId))
+        .switchIfEmpty(
+            Mono.defer(
+                () -> {
+                  if (viewerProperties.getSuperuser().equals(authenticationId.getId())) {
+                    return Mono.just(
+                        User.builder()
+                            .authentications(Collections.singleton(authenticationId))
+                            .id(virtualSuperuserId)
+                            .superuser(true)
+                            .userData(
+                                PersonalUserData.builder().comment("Virtual superuser").build())
+                            .build());
+                  } else return Mono.empty();
+                }))
         .onErrorResume(
             ex -> {
               log.warn("Cannot load user by authentication id " + authenticationId, ex);
@@ -369,7 +389,23 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   @Override
   public Mono<User> findUserById(final UUID id) {
-    return userRepository.findById(id);
+    return userRepository
+        .findById(id)
+        .switchIfEmpty(
+            Mono.defer(
+                () -> {
+                  if (id.equals(virtualSuperuserId)) {
+                    return Mono.just(
+                        User.builder()
+                            .authentications(Collections.emptySet())
+                            .id(virtualSuperuserId)
+                            .superuser(true)
+                            .userData(
+                                PersonalUserData.builder().comment("Virtual superuser").build())
+                            .build());
+                  }
+                  return Mono.empty();
+                }));
   }
 
   @Override

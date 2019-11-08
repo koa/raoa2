@@ -139,6 +139,7 @@ public class AlbumListController {
                             g ->
                                 g.listFiles(IMAGE_FILE_FILTER)
                                     .filter(e -> e.getFileId().name().equals(fileId))
+                                    .take(1)
                                     .singleOrEmpty())
                         .map(GitAccess.GitFileEntry::getNameString),
                     thumbnailCache

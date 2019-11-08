@@ -4,12 +4,13 @@ import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.PersonalUserData;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
-import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.DataViewService;
-import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import java.time.Duration;
-import java.util.*;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.security.core.Authentication;
@@ -23,17 +24,11 @@ import reactor.util.function.Tuples;
 
 @Service
 public class DefaultAuthorizationManager implements AuthorizationManager {
-  private final ViewerProperties viewerProperties;
-  private final UUID virtualSuperuserId = UUID.randomUUID();
   private final Mono<UUID> latestAlbum;
   private final DataViewService dataViewService;
 
   public DefaultAuthorizationManager(
-      final UserManager userManager,
-      final ViewerProperties viewerProperties,
-      final AlbumList albumList,
-      final DataViewService dataViewService) {
-    this.viewerProperties = viewerProperties;
+      final AlbumList albumList, final DataViewService dataViewService) {
     latestAlbum =
         albumList
             .listAlbums()
@@ -117,30 +112,7 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   @NotNull
   public Mono<User> currentUser(final SecurityContext context) {
     return currentAuthentication(context)
-        .map(
-            authenticationId ->
-                dataViewService
-                    .findUserForAuthentication(authenticationId)
-                    .switchIfEmpty(
-                        Mono.defer(
-                            () -> {
-                              if (viewerProperties
-                                  .getSuperuser()
-                                  .equals(authenticationId.getId())) {
-                                return Mono.just(
-                                    User.builder()
-                                        .authentications(Collections.singleton(authenticationId))
-                                        .id(virtualSuperuserId)
-                                        .superuser(true)
-                                        .userData(
-                                            readPersonalUserData(context)
-                                                .toBuilder()
-                                                .comment("superuser created by config")
-                                                .build())
-                                        .build());
-
-                              } else return Mono.empty();
-                            })))
+        .map(dataViewService::findUserForAuthentication)
         .orElse(Mono.empty());
   }
 
