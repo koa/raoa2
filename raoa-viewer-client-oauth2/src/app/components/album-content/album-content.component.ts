@@ -225,8 +225,8 @@ export class AlbumContentComponent implements OnInit {
   }
 
   createUrl(row: TableRow, shape: Shape) {
-    // const maxLength = this.findScale(Math.max(shape.width, row.height)); access_token
-    return this.trustUrl(shape.entry.entryUri + '/thumbnail');
+    const maxLength = this.findScale(Math.max(shape.width, row.height));
+    return this.trustUrl(shape.entry.entryUri + '/thumbnail?maxLength=' + maxLength);
   }
 
   findScale(maxLength: number) {
