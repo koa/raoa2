@@ -47,14 +47,14 @@ a.download-button {
   grid-column: 3;
   grid-row: 1;
   display: flex;
-  justify-content: end;
+  justify-content: flex-end;
 }
 
 .arrowLeft {
   grid-column: 1;
   grid-row: 2;
   display: flex;
-  justify-content: start;
+  justify-content: flex-start;
   align-items: center;
 }
 
@@ -62,7 +62,7 @@ a.download-button {
   grid-column: 3;
   grid-row: 2;
   display: flex;
-  justify-content: end;
+  justify-content: flex-end;
   align-items: center;
 }
 
@@ -71,7 +71,7 @@ a.download-button {
   grid-column-start: 1;
   grid-column-end: 4;
   display: flex;
-  justify-content: start;
-  align-items: end;
+  justify-content: flex-start;
+  align-items: flex-end;
 }
 
