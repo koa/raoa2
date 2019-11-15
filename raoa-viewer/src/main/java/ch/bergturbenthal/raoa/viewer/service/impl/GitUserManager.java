@@ -6,7 +6,6 @@ import ch.bergturbenthal.raoa.libs.service.impl.Limiter;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AccessRequest;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
-import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
@@ -15,8 +14,6 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
@@ -37,20 +34,15 @@ public class GitUserManager implements UserManager {
       AndTreeFilter.create(PathFilter.create("users"), PathSuffixFilter.create(".json"));
   private static final Duration CACHE_DURATION = Duration.ofMinutes(5);
   @org.jetbrains.annotations.NotNull private final AlbumList albumList;
-  private final ViewerProperties viewerProperties;
   private final Mono<UUID> metaIdMono;
   private final ObjectReader userReader;
-  private final ObjectReader accessRequestObjectReader;
   private final ObjectWriter userWriter;
   private final Limiter limiter;
 
-  public GitUserManager(
-      AlbumList albumList, ViewerProperties viewerProperties, final Limiter limiter) {
+  public GitUserManager(AlbumList albumList, final Limiter limiter) {
     this.albumList = albumList;
-    this.viewerProperties = viewerProperties;
     this.limiter = limiter;
     final ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().indentOutput(true).build();
-    accessRequestObjectReader = objectMapper.readerFor(AccessRequest.class);
 
     userReader = objectMapper.readerFor(User.class);
     userWriter = objectMapper.writerFor(User.class);
@@ -62,26 +54,6 @@ public class GitUserManager implements UserManager {
             // .log("meta album")
             .map(AlbumList.FoundAlbum::getAlbumId)
             .singleOrEmpty();
-    final File requestDir = getAccessRequestsDir();
-    if (requestDir.exists()) {
-      try {
-        final Set<AuthenticationId> pendingRequests = new HashSet<>();
-        final File[] files = requestDir.listFiles();
-        if (files != null)
-          for (File file : files) {
-            pendingRequests.add(
-                accessRequestObjectReader.<AccessRequest>readValue(file).getAuthenticationId());
-          }
-      } catch (IOException e) {
-        log.warn("Cannot load existing requests", e);
-      }
-    }
-  }
-
-  @NotNull
-  private File accessRequestFile(final AuthenticationId authenticationId) {
-    String filename = authenticationId.getAuthority() + "-" + authenticationId.getId();
-    return new File(getAccessRequestsDir(), filename);
   }
 
   @Override
@@ -144,13 +116,6 @@ public class GitUserManager implements UserManager {
 
   @Override
   public void assignNewIdentity(final UUID existingId, final AuthenticationId baseRequest) {}
-
-  @NotNull
-  private File getAccessRequestsDir() {
-    final File requestDir = new File(viewerProperties.getDataDir(), "access-requests");
-    if (!requestDir.exists()) requestDir.mkdirs();
-    return requestDir;
-  }
 
   @NotNull
   private synchronized Flux<User> allUsers() {

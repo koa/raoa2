@@ -62,10 +62,15 @@ public class ReactiveLimiter implements Limiter {
   }
 
   private <T> Flux<T> doLimit(final Flux<T> input, final String context) {
-    return Flux.<T>create(
+    return Flux.create(
         sink -> {
           final QueueEntry<T> queueEntry = new QueueEntry<>(() -> input, sink, context);
           final SubLimiter limiter = sink.currentContext().getOrDefault(CONTEXT_KEY, rootLimiter);
+          sink.onCancel(
+              () -> {
+                meterRegistry.counter("reactive-limiter.cancel").increment();
+                limiter.removeEntry(queueEntry);
+              });
           limiter.enqueue(queueEntry);
         });
   }
@@ -116,11 +121,11 @@ public class ReactiveLimiter implements Limiter {
     private void runEntry(final QueueEntry<?> takenEntry) {
       final FluxSink<Object> sink = (FluxSink<Object>) takenEntry.getResultSink();
       SubLimiter subLimiter = new SubLimiter(1);
-      final Disposable subscribe =
+      final Disposable subscription =
           takenEntry
               .getMonoSupplier()
               .get()
-              .timeout(Duration.ofMinutes(5))
+              .timeout(Duration.ofSeconds(30))
               .doFinally(
                   signal -> {
                     // log.info("Signal " + signal);
@@ -132,7 +137,12 @@ public class ReactiveLimiter implements Limiter {
                   })
               .subscriberContext(sink.currentContext().put(CONTEXT_KEY, subLimiter))
               .subscribe(sink::next, sink::error, sink::complete);
-      sink.onCancel(subscribe);
+      // sink.onCancel(subscription);
+      // sink.onDispose(subscription);
+    }
+
+    public <T> void removeEntry(final QueueEntry<T> queueEntry) {
+      queue.remove(queueEntry);
     }
   }
 

@@ -9,11 +9,16 @@ import ch.bergturbenthal.raoa.viewer.service.FileCache;
 import ch.bergturbenthal.raoa.viewer.service.FileCacheManager;
 import ch.bergturbenthal.raoa.viewer.service.ThumbnailManager;
 import ch.bergturbenthal.raoa.viewer.service.impl.GitBlobRessource;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.servlet.http.HttpServletResponse;
@@ -54,6 +59,9 @@ public class AlbumListController {
   private final FileCache<CacheKey> thumbnailCache;
   private final AuthorizationManager authorizationManager;
   private final Limiter limiter;
+  private final MeterRegistry meterRegistry;
+  private final Map<UUID, Instant> runningRequests = new ConcurrentHashMap<>();
+  private final AtomicInteger failCount = new AtomicInteger();
 
   public AlbumListController(
       final AlbumList albumList,
@@ -61,11 +69,16 @@ public class AlbumListController {
       final ThumbnailManager thumbnailManager,
       final ViewerProperties viewerProperties,
       final AuthorizationManager authorizationManager,
-      final Limiter limiter) {
+      final Limiter limiter,
+      MeterRegistry meterRegistry) {
     this.albumList = albumList;
     this.viewerProperties = viewerProperties;
     this.authorizationManager = authorizationManager;
     this.limiter = limiter;
+    this.meterRegistry = meterRegistry;
+
+    meterRegistry.gauge("limiter2.running", runningRequests, Map::size);
+    meterRegistry.gauge("limiter2.failed", failCount, AtomicInteger::get);
 
     thumbnailCache =
         fileCacheManager.createCache(
@@ -87,7 +100,7 @@ public class AlbumListController {
             },
             cacheKey ->
                 cacheKey.getAlbum().toString()
-                    + "-"
+                    + "/"
                     + cacheKey.getFile().name()
                     + "-"
                     + cacheKey.getMaxLength()
@@ -121,40 +134,84 @@ public class AlbumListController {
   }
 
   @GetMapping("album/{albumId}/{imageId}/thumbnail")
-  public @ResponseBody Mono<HttpEntity<Resource>> takeThumbnail(
+  public @ResponseBody Mono<ResponseEntity<Resource>> takeThumbnail(
       @PathVariable("albumId") UUID albumId,
       @PathVariable("imageId") String fileId,
       @RequestParam(name = "maxLength", defaultValue = "1600") int maxLength) {
     final ObjectId objectId = ObjectId.fromString(fileId);
     final SecurityContext securityContext = SecurityContextHolder.getContext();
-    return authorizationManager
-        .canUserAccessToAlbum(securityContext, albumId)
-        .filter(t -> t)
-        .flatMap(
-            t ->
-                Mono.zip(
-                    albumList
-                        .getAlbum(albumId)
-                        .flatMap(
-                            g ->
-                                g.listFiles(IMAGE_FILE_FILTER)
-                                    .filter(e -> e.getFileId().name().equals(fileId))
-                                    .take(1)
-                                    .singleOrEmpty())
-                        .map(GitAccess.GitFileEntry::getNameString),
-                    thumbnailCache
-                        .take(new CacheKey(albumId, objectId, maxLength))
-                        .map(FileSystemResource::new)))
-        .map(
-            t -> {
-              final HttpHeaders headers = new HttpHeaders();
-              headers.setContentType(MediaType.IMAGE_JPEG);
-              headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
-              headers.setETag("\"" + fileId + "\"");
-              // headers.setContentDisposition(
-              //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
-              return new HttpEntity<>(t.getT2(), headers);
+    final Mono<ResponseEntity<Resource>> map =
+        authorizationManager
+            .canUserAccessToAlbum(securityContext, albumId)
+            .filter(t -> t)
+            .flatMap(
+                t ->
+                    Mono.zip(
+                        albumList
+                            .getAlbum(albumId)
+                            .flatMap(
+                                g ->
+                                    g.listFiles(IMAGE_FILE_FILTER)
+                                        .filter(e -> e.getFileId().name().equals(fileId))
+                                        .take(1)
+                                        .singleOrEmpty())
+                            .map(GitAccess.GitFileEntry::getNameString),
+                        thumbnailCache
+                            .take(new CacheKey(albumId, objectId, maxLength))
+                            .map(FileSystemResource::new)))
+            .map(
+                t -> {
+                  final HttpHeaders headers = new HttpHeaders();
+                  headers.setContentType(MediaType.IMAGE_JPEG);
+                  headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+                  headers.setETag("\"" + fileId + "\"");
+                  // headers.setContentDisposition(
+                  //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
+                  return new ResponseEntity<>(t.getT2(), headers, HttpStatus.OK);
+                });
+    final Mono<UUID> reservation =
+        Mono.create(
+            sink -> {
+              try {
+                if (runningRequests.size() < 500) {
+                  final UUID uuid = UUID.randomUUID();
+                  runningRequests.put(uuid, Instant.now());
+                  sink.onCancel(() -> runningRequests.remove(uuid));
+                  sink.success(uuid);
+                  failCount.set(0);
+                } else failCount.incrementAndGet();
+              } finally {
+                sink.success();
+              }
             });
+
+    return Mono.just(UUID.randomUUID())
+        .flatMap(
+            id ->
+                map.timeout(Duration.ofSeconds(20))
+                    .map(v -> Tuples.of(id, Optional.of(v)))
+                    .onErrorResume(
+                        ex -> {
+                          log.warn("Cannot generate thumbnail", ex);
+                          return Mono.empty();
+                        })
+                    .defaultIfEmpty(Tuples.of(id, Optional.empty())))
+        .doOnNext(r -> runningRequests.remove(r.getT1()))
+        .map(Tuple2::getT2)
+        // .map(o -> o.orElse(ResponseEntity.notFound().build()))
+        // .map(Optional::of)
+        // .defaultIfEmpty(Optional.empty())
+        .doOnNext(value -> failCount.set(0))
+        .map(
+            o ->
+                o.orElseGet(
+                    () -> {
+                      final HttpHeaders headers = new HttpHeaders();
+                      headers.add(
+                          "Retry-After",
+                          Integer.toString(Math.min(failCount.incrementAndGet() / 2 + 1, 120)));
+                      return new ResponseEntity<>(headers, HttpStatus.TOO_MANY_REQUESTS);
+                    }));
   }
 
   @GetMapping("album/{albumId}/{imageId}/original")

@@ -1,0 +1,5 @@
+mutation ManageUsersUpdateUser($id: ID, $update: UserUpdate){
+  updateUser(userId: $id, update: $update){
+    id
+  }
+}

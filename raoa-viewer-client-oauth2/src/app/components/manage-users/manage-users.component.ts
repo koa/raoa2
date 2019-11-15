@@ -7,7 +7,8 @@ import {
   ManageUsersRemoveRequestGQL,
   ManageUsersRemoveUserGQL,
   ManageUsersUpdateAlbumVisibilityGQL,
-  ManageUsersUpdateSuperuserGQL
+  ManageUsersUpdateSuperuserGQL,
+  ManageUsersUpdateUserGQL
 } from '../../generated/graphql';
 import {animate, state, style, transition, trigger} from '@angular/animations';
 import {MatSlideToggleChange} from '@angular/material';
@@ -39,6 +40,7 @@ export class ManageUsersComponent implements OnInit {
               private manageUsersRemoveRequestGQL: ManageUsersRemoveRequestGQL,
               private manageUsersUpdateSuperuserGQL: ManageUsersUpdateSuperuserGQL,
               private manageUsersUpdateAlbumVisibilityGQL: ManageUsersUpdateAlbumVisibilityGQL,
+              private manageUsersUpdateUserGQL: ManageUsersUpdateUserGQL,
               private ngZone: NgZone
   ) {
   }

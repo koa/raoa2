@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-namespace=raoa
+namespace=raoa-dev
 
 cd "$(dirname "$0")"
 version=$(date "+%Y%m%d-%H%M%S")

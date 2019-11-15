@@ -1,9 +1,12 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.UserUpdate;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.UserVisibilityUpdate;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AccessRequest;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
 import ch.bergturbenthal.raoa.viewer.model.usermanager.PersonalUserData;
+import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.service.UserManager;
@@ -16,6 +19,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -23,6 +27,7 @@ import reactor.core.publisher.SignalType;
 import reactor.function.TupleUtils;
 import reactor.util.function.Tuples;
 
+@Slf4j
 @Component
 public class Mutation implements GraphQLMutationResolver {
   private static final Duration TIMEOUT = Duration.ofMinutes(5);
@@ -193,6 +198,45 @@ public class Mutation implements GraphQLMutationResolver {
                             + userId
                             + " album "
                             + albumId)
+                    .flatMap(user -> dataViewService.updateUserData().thenReturn(user))
+                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<UserReference> updateUser(UUID userId, UserUpdate update) {
+    log.info("update: " + update);
+
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            queryContext ->
+                userManager
+                    .updateUser(
+                        userId,
+                        user -> {
+                          final User.UserBuilder userBuilder = user.toBuilder();
+                          if (update.getVisibilityUpdates() != null) {
+                            final Set<UUID> visibleAlbums = new HashSet<>(user.getVisibleAlbums());
+                            for (UserVisibilityUpdate visibilityUpdate :
+                                update.getVisibilityUpdates()) {
+                              if (visibilityUpdate.isVisibility()) {
+                                visibleAlbums.add(visibilityUpdate.getAlbumId());
+                              } else {
+                                visibleAlbums.remove(visibilityUpdate.getAlbumId());
+                              }
+                            }
+                            userBuilder.visibleAlbums(visibleAlbums);
+                          }
+                          if (update.getCanManageUsers() != null) {
+                            userBuilder.superuser(update.getCanManageUsers());
+                          }
+                          return userBuilder.build();
+                        },
+                        queryContext.getCurrentUser().orElseThrow().getUserData().getName()
+                            + " updates "
+                            + userId)
                     .flatMap(user -> dataViewService.updateUserData().thenReturn(user))
                     .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
         .timeout(TIMEOUT)

@@ -15,6 +15,17 @@ type Mutation{
     removeUser(id: ID): Boolean
     setCanManageUserFlag(userId: ID, enabled: Boolean): User
     setAlbumVisibility(userId: ID, albumId: ID, visible: Boolean): User
+    updateUser(userId: ID, update: UserUpdate): User
+}
+
+input UserUpdate{
+    visibilityUpdates: [UserVisibilityUpdate]
+    canManageUsers: Boolean
+}
+
+input UserVisibilityUpdate{
+    albumId: ID
+    visibility: Boolean
 }
 
 type RegistrationRequest{

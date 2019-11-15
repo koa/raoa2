@@ -38,10 +38,9 @@ public class DefaultFileCacheManager implements FileCacheManager {
     return (FileCache<K>)
         existingCaches.computeIfAbsent(
             cacheId,
-            name -> {
-              return new FileCacheEntry<>(
-                  new File(properties.getCacheDir(), name), filenameGenerator, objectCreator);
-            });
+            name ->
+                new FileCacheEntry<>(
+                    new File(properties.getCacheDir(), name), filenameGenerator, objectCreator));
   }
 
   @Scheduled(fixedDelay = 60 * 1000)
@@ -160,6 +159,7 @@ public class DefaultFileCacheManager implements FileCacheManager {
                 })
             .getCachedFile();
       }
+      if (!targetFilename.getParentFile().exists()) targetFilename.getParentFile().mkdirs();
       final FileEntryMetadata fileEntryMetadata =
           cacheEntries.computeIfAbsent(
               objectId,

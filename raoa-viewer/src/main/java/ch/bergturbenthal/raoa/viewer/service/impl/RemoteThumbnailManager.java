@@ -100,7 +100,7 @@ public class RemoteThumbnailManager implements ThumbnailManager {
         .subscribe(
             newValue -> {
               endpointData.set(newValue);
-              log.info("Updated endpoints: " + newValue.getKnownEndpoints());
+              log.info("Updated endpoints: " + endpointData.get().getKnownEndpoints());
             },
             ex -> {
               log.error("Cannot collect thumbnailers information", ex);
