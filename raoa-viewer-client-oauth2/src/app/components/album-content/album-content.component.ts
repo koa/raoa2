@@ -9,6 +9,8 @@ import {
   AlbumContent,
   AlbumContentGQL,
   AlbumContentZipGQL,
+  AlbumEntryDetail,
+  AlbumEntryDetailGQL,
   AllAlbums,
   AllAlbumsGQL,
   AuthenticationState,
@@ -41,6 +43,7 @@ interface TableRow {
 interface DialogData {
   currentIndex: number;
   sortedEntries: AlbumEntry[];
+  albumId: string;
 }
 
 
@@ -201,8 +204,9 @@ export class AlbumContentComponent implements OnInit {
       maxHeight: '100vh',
       hasBackdrop: true,
       data: {
-        currentIndex: entryIndex, sortedEntries:
-        this.sortedEntries
+        currentIndex: entryIndex,
+        sortedEntries: this.sortedEntries,
+        albumId: this.albumId
       }
     })
     ;
@@ -367,17 +371,32 @@ export class AlbumContentComponent implements OnInit {
 export class ShowImageDialogComponent {
   public currentIndex = 0;
   public supportShare: boolean;
+  public showDetails = false;
+  public imageProperties: Maybe<AlbumEntryDetail.AlbumEntry>;
 
   constructor(
     public dialogRef: MatDialogRef<ShowImageDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: DialogData,
-    private configApi: AppConfigService) {
+    private serverApi: ServerApiService,
+    private albumEntryDetailGQL: AlbumEntryDetailGQL,
+    private ngZone: NgZone
+  ) {
     this.currentIndex = data.currentIndex;
     let hackNavi: any;
     hackNavi = window.navigator;
     this.supportShare = hackNavi.share !== undefined;
+    this.loadImageProperties();
   }
 
+  loadImageProperties() {
+    const data = this.data;
+    const albumId = data.albumId;
+    const entryId = data.sortedEntries[this.currentIndex].id;
+    this.serverApi.query(this.albumEntryDetailGQL, {albumId, entryId})
+      .then(props => this.ngZone.run(() => {
+        return this.imageProperties = props.albumById.albumEntry;
+      }));
+  }
 
   onNoClick(): void {
     this.dialogRef.close();
@@ -390,12 +409,14 @@ export class ShowImageDialogComponent {
   left() {
     if (this.currentIndex > 0) {
       this.currentIndex -= 1;
+      this.loadImageProperties();
     }
   }
 
   right() {
     if (this.currentIndex < this.data.sortedEntries.length - 1) {
       this.currentIndex += 1;
+      this.loadImageProperties();
     }
   }
 
@@ -429,4 +450,7 @@ export class ShowImageDialogComponent {
     return this.data.sortedEntries[currentIndex].entryUri + '/original';
   }
 
+  toggleInfo() {
+    this.showDetails = !this.showDetails;
+  }
 }

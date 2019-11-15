@@ -1,5 +1,5 @@
 import {BrowserModule} from '@angular/platform-browser';
-import {APP_INITIALIZER, NgModule} from '@angular/core';
+import {APP_INITIALIZER, LOCALE_ID, NgModule} from '@angular/core';
 
 import {AppRoutingModule} from './app-routing.module';
 import {AppComponent} from './app.component';
@@ -38,6 +38,10 @@ import {
   MatTooltipModule
 } from '@angular/material';
 
+import {registerLocaleData} from '@angular/common';
+import localeDe from '@angular/common/locales/de';
+
+registerLocaleData(localeDe, 'de');
 
 const appInitializerFn = (appConfig: AppConfigService) => {
   return () => appConfig.loadAppConfig();
@@ -81,6 +85,7 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     MatMenuModule,
   ],
   providers: [
+    {provide: LOCALE_ID, useValue: 'de-CH'},
     AppConfigService,
     {
       provide: APP_INITIALIZER,

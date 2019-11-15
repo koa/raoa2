@@ -67,11 +67,25 @@ a.download-button {
 }
 
 .foot-row {
-  grid-row: 3;
+  grid-row-start: 1;
+  grid-row-end: 4;
   grid-column-start: 1;
   grid-column-end: 4;
   display: flex;
-  justify-content: flex-start;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  flex-grow: inherit;
 }
 
+.foot-row div {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+}
+
+.foot-row mat-card {
+  background-color: rgba(255, 255, 255, 0.37);
+  width: 100%;
+}

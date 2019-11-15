@@ -11,6 +11,9 @@
         <mat-icon>save_alt</mat-icon>
       </button>
     </a>
+    <button mat-icon-button>
+      <mat-icon (click)="toggleInfo()">info</mat-icon>
+    </button>
     <button *ngIf="supportShare" mat-icon-button>
       <mat-icon (click)="share()">share</mat-icon>
     </button>
@@ -28,7 +31,20 @@
       <mat-icon (click)="right()">arrow_right</mat-icon>
     </button>
   </div>
-  <div class="foot-row">
-    {{data.sortedEntries[currentIndex].name}}
+  <div *ngIf="showDetails" class="foot-row">
+    <div>
+      <mat-card *ngIf="imageProperties">
+        <mat-card-title>{{imageProperties.cameraModel}}</mat-card-title>
+        <mat-card-subtitle>Kamera Modell</mat-card-subtitle>
+      </mat-card>
+      <mat-card *ngIf="imageProperties">
+        <mat-card-title>{{imageProperties.created | date:'short'}}</mat-card-title>
+        <mat-card-subtitle>Aufnahme</mat-card-subtitle>
+      </mat-card>
+      <mat-card>
+        <mat-card-title>{{data.sortedEntries[currentIndex].name}}</mat-card-title>
+        <mat-card-subtitle>Dateiname</mat-card-subtitle>
+      </mat-card>
+    </div>
   </div>
 </mat-dialog-content>

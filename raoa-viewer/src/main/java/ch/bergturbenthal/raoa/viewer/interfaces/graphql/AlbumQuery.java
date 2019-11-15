@@ -1,6 +1,7 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
 import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumData;
+import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumEntryData;
 import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
 import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
@@ -12,6 +13,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import org.eclipse.jgit.lib.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -45,16 +47,27 @@ public class AlbumQuery implements GraphQLResolver<Album> {
   public CompletableFuture<List<AlbumEntry>> getEntries(Album album) {
     return dataViewService
         .listEntries(album.getId())
-        .map(
-            e ->
-                new AlbumEntry(
-                    album,
-                    e.getEntryId().name(),
-                    e.getFilename(),
-                    dataViewService.loadEntry(album.getId(), e.getEntryId()).cache()))
+        .map(e -> createAlbumEntry(album, e))
         .collectList()
         .timeout(TIMEOUT)
         .toFuture();
+  }
+
+  public CompletableFuture<AlbumEntry> getAlbumEntry(Album album, String entryId) {
+    return dataViewService
+        .loadEntry(album.getId(), ObjectId.fromString(entryId))
+        .map(e -> createAlbumEntry(album, e))
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  @NotNull
+  private AlbumEntry createAlbumEntry(final Album album, final AlbumEntryData entry) {
+    return new AlbumEntry(
+        album,
+        entry.getEntryId().name(),
+        entry.getFilename(),
+        dataViewService.loadEntry(album.getId(), entry.getEntryId()).cache());
   }
 
   public CompletableFuture<String> getName(Album album) {
@@ -62,7 +75,7 @@ public class AlbumQuery implements GraphQLResolver<Album> {
   }
 
   @NotNull
-  public <T> CompletableFuture<T> extractElField(
+  private <T> CompletableFuture<T> extractElField(
       final Album album, final Function<AlbumData, T> extractor) {
     return album
         .getElAlbumData()

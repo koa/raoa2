@@ -55,7 +55,8 @@ type User{
 type Album {
     id: ID!
     name: String
-    entries: [AlbumEntry]!
+    entries: [AlbumEntry!]!
+    albumEntry(entryId: ID): AlbumEntry
     entryCount: Int
     canAccessedBy: [User]
     zipDownloadUri: String
