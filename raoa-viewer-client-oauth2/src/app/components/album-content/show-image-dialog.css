@@ -7,39 +7,71 @@
   background-color: #1e1e1e;
 }
 
+.mat-dialog-content {
+  max-height: 100%;
+}
+
 .showImage {
   width: 100%;
   height: 100%;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: contain;
-  max-height: unset;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: stretch;
-  text-shadow: 0 1px 0 black;
   color: white;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
 }
 
 a.download-button:link, a.download-button:visited {
   color: inherit;
 }
 
-.head-row {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: stretch;
+a.download-button {
+  border: none;
+  outline: none;
 }
 
-.center-row {
+.bigImage {
+  grid-column-start: 1;
+  grid-column-end: 4;
+  grid-row-start: 1;
+  grid-row-end: 4;
+  vertical-align: middle;
+  background-size: contain;
+  position: absolute;
+  background-position: center;
+  background-repeat: no-repeat;
+  height: 100%;
   width: 100%;
+}
+
+.actionButtons {
+  grid-column: 3;
+  grid-row: 1;
   display: flex;
-  justify-content: space-between;
-  align-items: stretch;
+  justify-content: end;
+}
+
+.arrowLeft {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  justify-content: start;
+  align-items: center;
+}
+
+.arrowRight {
+  grid-column: 3;
+  grid-row: 2;
+  display: flex;
+  justify-content: end;
+  align-items: center;
 }
 
 .foot-row {
-  width: 100%;
+  grid-row: 3;
+  grid-column-start: 1;
+  grid-column-end: 4;
+  display: flex;
+  justify-content: start;
+  align-items: end;
 }
+
