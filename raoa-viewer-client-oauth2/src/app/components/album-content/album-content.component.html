@@ -7,18 +7,29 @@
     <div>
       <mat-progress-bar *ngIf="syncRunning" [mode]="progressBarMode" [value]="progressBarValue" color="accent">
       </mat-progress-bar>
-      <button (click)="startSync()" *ngIf="!syncRunning" mat-icon-button>
-        <mat-icon>sync</mat-icon>
+      <button [matMenuTriggerFor]="menu" aria-label="Menu" mat-icon-button>
+        <mat-icon>more_vert</mat-icon>
       </button>
-      <button (click)="downloadZip()" mat-icon-button>
-        <mat-icon>archive</mat-icon>
-      </button>
-      <button (click)="zoomIn()" mat-icon-button>
-        <mat-icon>zoom_in</mat-icon>
-      </button>
-      <button (click)="zoomOut()" mat-icon-button>
-        <mat-icon>zoom_out</mat-icon>
-      </button>
+      <mat-menu #menu="matMenu">
+        <button (click)="zoomIn()" mat-menu-item>
+          <mat-icon>zoom_in</mat-icon>
+          <span>Grösser</span>
+        </button>
+        <button (click)="zoomOut()" mat-menu-item>
+          <mat-icon>zoom_out</mat-icon>
+          <span>Kleiner</span>
+        </button>
+        <!--
+        <button (click)="startSync()" *ngIf="!syncRunning" mat-menu-item>
+          <mat-icon>sync</mat-icon>
+          <span>Synchronisieren</span>
+        </button>
+        -->
+        <button (click)="downloadZip()" mat-menu-item>
+          <mat-icon>archive</mat-icon>
+          <span>Als ZIP Herunterladen</span>
+        </button>
+      </mat-menu>
     </div>
   </mat-toolbar>
   <mat-sidenav-container [style.marginTop.px]="mobileQuery.matches ? 56 : 0"

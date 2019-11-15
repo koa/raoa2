@@ -29,7 +29,14 @@ import {MatInputModule} from '@angular/material/input';
 import {ManageUsersComponent} from './components/manage-users/manage-users.component';
 import {MatTabsModule} from '@angular/material/tabs';
 import {MatTableModule} from '@angular/material/table';
-import {MatButtonToggleModule, MatProgressSpinnerModule, MatSelectModule, MatSlideToggleModule, MatTooltipModule} from '@angular/material';
+import {
+  MatButtonToggleModule,
+  MatMenuModule,
+  MatProgressSpinnerModule,
+  MatSelectModule,
+  MatSlideToggleModule,
+  MatTooltipModule
+} from '@angular/material';
 
 
 const appInitializerFn = (appConfig: AppConfigService) => {
@@ -71,6 +78,7 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     MatSlideToggleModule,
     MatButtonToggleModule,
     MatTooltipModule,
+    MatMenuModule,
   ],
   providers: [
     AppConfigService,
