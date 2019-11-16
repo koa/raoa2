@@ -239,6 +239,13 @@ public class ElasticSearchDataViewService implements DataViewService {
                       });
             },
             10)
+        .collectList()
+        .flatMapIterable(
+            l -> {
+              final List<AlbumList.FoundAlbum> albums = new ArrayList<>(l);
+              Collections.shuffle(albums);
+              return albums;
+            })
         .flatMap(
             album ->
                 Mono.zip(album.getAccess().getCurrentVersion(), album.getAccess().getName())
