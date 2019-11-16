@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +59,7 @@ public class ElasticSearchDataViewService implements DataViewService {
             PathSuffixFilter.create(".MP4"),
             PathSuffixFilter.create(".mkv")
           });
+  private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9\\.]+");
   private static TreeFilter XMP_FILE_FILTER = PathSuffixFilter.create(".xmp");
   private final UUID virtualSuperuserId = UUID.randomUUID();
   private final AlbumDataRepository albumDataRepository;
@@ -148,6 +150,8 @@ public class ElasticSearchDataViewService implements DataViewService {
 
     extractString(metadata, Property.internalInteger("Focal Length 35"))
         .map(v -> v.split(" ")[0])
+        .map(String::trim)
+        .filter(v -> NUMBER_PATTERN.matcher(v).matches())
         .map(Double::valueOf)
         .ifPresent(albumEntryDataBuilder::focalLength35);
 
@@ -268,7 +272,9 @@ public class ElasticSearchDataViewService implements DataViewService {
                                                                     } catch (XMPException
                                                                         | IOException e) {
                                                                       log.warn(
-                                                                          "Cannot load xmp file",
+                                                                          "Cannot load xmp file "
+                                                                              + xmpGitEntry
+                                                                                  .getNameString(),
                                                                           e);
                                                                       return Mono.empty();
                                                                     }
