@@ -82,6 +82,7 @@ type AlbumEntry {
     exposureTime: Float
     isoSpeedRatings: Int
     fNumber: Float
+    keywords: [String!]!
 }
 
 enum AuthenticationState {

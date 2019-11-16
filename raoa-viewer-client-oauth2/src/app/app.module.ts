@@ -31,6 +31,7 @@ import {MatTabsModule} from '@angular/material/tabs';
 import {MatTableModule} from '@angular/material/table';
 import {
   MatButtonToggleModule,
+  MatChipsModule,
   MatMenuModule,
   MatProgressSpinnerModule,
   MatSelectModule,
@@ -40,6 +41,7 @@ import {
 
 import {registerLocaleData} from '@angular/common';
 import localeDe from '@angular/common/locales/de';
+import {ExposureTimePipe} from './pipe/exposure-time.pipe';
 
 registerLocaleData(localeDe, 'de');
 
@@ -55,6 +57,7 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     WelcomeComponent,
     RequestAccessDialogComponent,
     ManageUsersComponent,
+    ExposureTimePipe,
   ],
   imports: [
     BrowserModule,
@@ -83,6 +86,7 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     MatButtonToggleModule,
     MatTooltipModule,
     MatMenuModule,
+    MatChipsModule,
   ],
   providers: [
     {provide: LOCALE_ID, useValue: 'de-CH'},

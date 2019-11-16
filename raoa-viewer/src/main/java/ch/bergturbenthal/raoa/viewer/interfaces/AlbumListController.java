@@ -188,7 +188,7 @@ public class AlbumListController {
     return Mono.just(UUID.randomUUID())
         .flatMap(
             id ->
-                map.timeout(Duration.ofSeconds(20))
+                map.timeout(Duration.ofSeconds(33))
                     .map(v -> Tuples.of(id, Optional.of(v)))
                     .onErrorResume(
                         ex -> {

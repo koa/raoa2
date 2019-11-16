@@ -85,7 +85,12 @@ a.download-button {
   align-items: flex-start;
 }
 
-.foot-row mat-card {
+.foot-row mat-chip {
+  backdrop-filter: blur(0.3em);
   background-color: rgba(255, 255, 255, 0.37);
-  width: 100%;
+}
+
+.foot-row mat-chip .mat-chip-trailing-icon {
+  margin-left: 0;
+  margin-right: 8px;
 }

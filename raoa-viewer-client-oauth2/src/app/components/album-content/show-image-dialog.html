@@ -32,19 +32,28 @@
     </button>
   </div>
   <div *ngIf="showDetails" class="foot-row">
-    <div>
-      <mat-card *ngIf="imageProperties">
-        <mat-card-title>{{imageProperties.cameraModel}}</mat-card-title>
-        <mat-card-subtitle>Kamera Modell</mat-card-subtitle>
-      </mat-card>
-      <mat-card *ngIf="imageProperties">
-        <mat-card-title>{{imageProperties.created | date:'short'}}</mat-card-title>
-        <mat-card-subtitle>Aufnahme</mat-card-subtitle>
-      </mat-card>
-      <mat-card>
-        <mat-card-title>{{data.sortedEntries[currentIndex].name}}</mat-card-title>
-        <mat-card-subtitle>Dateiname</mat-card-subtitle>
-      </mat-card>
-    </div>
+    <mat-chip-list>
+      <mat-chip *ngFor="let keyword of imageProperties.keywords">
+        <mat-icon matChipTrailingIcon>label</mat-icon>
+        {{keyword}}
+      </mat-chip>
+      <mat-chip *ngIf="imageProperties && imageProperties.created">
+        <mat-icon matChipTrailingIcon>access_time</mat-icon>
+        {{imageProperties.created | date:'short'}}
+      </mat-chip>
+      <mat-chip *ngIf="imageProperties && imageProperties.cameraModel">
+        <mat-icon matChipTrailingIcon>photo_camera</mat-icon>
+        {{imageProperties.cameraModel}}</mat-chip>
+      <mat-chip *ngIf="imageProperties && imageProperties.focalLength35">{{imageProperties.focalLength35}}mm</mat-chip>
+      <mat-chip *ngIf="imageProperties && imageProperties.fNumber">F {{imageProperties.fNumber}}</mat-chip>
+      <mat-chip *ngIf="imageProperties && imageProperties.exposureTime">
+        <mat-icon matChipTrailingIcon>shutter_speed</mat-icon>
+        {{imageProperties.exposureTime | exposureTime}}s
+      </mat-chip>
+      <mat-chip *ngIf="imageProperties && imageProperties.isoSpeedRatings">
+        <mat-icon matChipTrailingIcon>iso</mat-icon>
+        ISO {{imageProperties.isoSpeedRatings}}</mat-chip>
+      <mat-chip *ngIf="imageProperties">{{data.sortedEntries[currentIndex].name}}</mat-chip>
+    </mat-chip-list>
   </div>
 </mat-dialog-content>

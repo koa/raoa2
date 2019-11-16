@@ -371,7 +371,7 @@ export class AlbumContentComponent implements OnInit {
 export class ShowImageDialogComponent {
   public currentIndex = 0;
   public supportShare: boolean;
-  public showDetails = false;
+  public showDetails = true;
   public imageProperties: Maybe<AlbumEntryDetail.AlbumEntry>;
 
   constructor(

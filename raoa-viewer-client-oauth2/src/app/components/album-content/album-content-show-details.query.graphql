@@ -3,6 +3,11 @@ query AlbumEntryDetail($albumId: ID, $entryId: ID) {
     albumEntry(entryId: $entryId){
       created
       cameraModel
+      exposureTime
+      fNumber
+      focalLength35
+      isoSpeedRatings
+      keywords
     }
   }
 }

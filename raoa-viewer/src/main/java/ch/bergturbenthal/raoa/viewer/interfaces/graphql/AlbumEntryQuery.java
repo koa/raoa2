@@ -4,6 +4,8 @@ import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumEntryData;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import org.jetbrains.annotations.NotNull;
@@ -44,6 +46,16 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
   public <T> CompletableFuture<T> extractDataEntryValue(
       final AlbumEntry entry, final Function<AlbumEntryData, T> function) {
     return entry.getElDataEntry().flatMap(v -> Mono.justOrEmpty(function.apply(v))).toFuture();
+  }
+
+  @NotNull
+  public <T> CompletableFuture<T> extractDataEntryValue(
+      final AlbumEntry entry, final Function<AlbumEntryData, T> function, T defaultValue) {
+    return entry
+        .getElDataEntry()
+        .flatMap(v -> Mono.justOrEmpty(function.apply(v)))
+        .defaultIfEmpty(defaultValue)
+        .toFuture();
   }
 
   public CompletableFuture<Integer> getWidth(AlbumEntry entry) {
@@ -89,5 +101,9 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
 
   public CompletableFuture<Integer> getIsoSpeedRatings(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getIsoSpeedRatings);
+  }
+
+  public CompletableFuture<Set<String>> getKeywords(AlbumEntry entry) {
+    return extractDataEntryValue(entry, AlbumEntryData::getKeywords, Collections.emptySet());
   }
 }
