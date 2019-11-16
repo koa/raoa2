@@ -78,6 +78,9 @@ type AlbumEntry {
     cameraModel: String
     cameraManufacturer: String
     focalLength: Int
+    focalLength35: Int
+    exposureTime: Float
+    isoSpeedRatings: Int
     fNumber: Float
 }
 

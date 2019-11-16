@@ -63,7 +63,7 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
     return extractDataEntryValue(entry, AlbumEntryData::getCameraManufacturer);
   }
 
-  public CompletableFuture<Integer> getFocalLength(AlbumEntry entry) {
+  public CompletableFuture<Double> getFocalLength(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getFocalLength);
   }
 
@@ -77,5 +77,17 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
 
   public CompletableFuture<Integer> getTargetHeight(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getTargetHeight);
+  }
+
+  public CompletableFuture<Double> getFocalLength35(AlbumEntry entry) {
+    return extractDataEntryValue(entry, AlbumEntryData::getFocalLength35);
+  }
+
+  public CompletableFuture<Double> getExposureTime(AlbumEntry entry) {
+    return extractDataEntryValue(entry, AlbumEntryData::getExposureTime);
+  }
+
+  public CompletableFuture<Integer> getIsoSpeedRatings(AlbumEntry entry) {
+    return extractDataEntryValue(entry, AlbumEntryData::getIsoSpeedRatings);
   }
 }

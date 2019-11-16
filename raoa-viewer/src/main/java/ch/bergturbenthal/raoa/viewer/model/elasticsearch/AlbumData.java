@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import lombok.Builder;
 import lombok.Value;
@@ -33,6 +34,9 @@ public class AlbumData {
 
   @Field(type = FieldType.Double)
   private Instant createTime;
+
+  @Field(type = FieldType.Object)
+  private List<KeywordCount> keywordCount;
 
   @JsonPOJOBuilder(withPrefix = "")
   public static class AlbumDataBuilder {}

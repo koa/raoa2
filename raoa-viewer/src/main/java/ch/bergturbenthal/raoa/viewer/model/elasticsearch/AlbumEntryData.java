@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.time.Instant;
+import java.util.Set;
 import java.util.UUID;
 import lombok.Builder;
 import lombok.Value;
@@ -15,6 +16,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
+import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 
 @Slf4j
 @Document(indexName = "album-entry")
@@ -56,14 +58,34 @@ public class AlbumEntryData {
   @Field(type = FieldType.Keyword)
   private String cameraManufacturer;
 
-  @Field(type = FieldType.Integer)
-  private Integer focalLength;
+  @Field(type = FieldType.Double)
+  private Double focalLength;
+
+  @Field(type = FieldType.Double)
+  private Double focalLength35;
 
   @Field(type = FieldType.Double)
   private Double fNumber;
 
+  @Field(type = FieldType.Double)
+  private Double exposureTime;
+
+  @Field(type = FieldType.Integer)
+  private Integer isoSpeedRatings;
+
   @Field(type = FieldType.Keyword)
   private String contentType;
+
+  @Field(type = FieldType.Keyword)
+  private Set<String> keywords;
+
+  @Field(type = FieldType.Text)
+  private String description;
+
+  @Field(type = FieldType.Integer)
+  private Integer rating;
+
+  @Field private GeoPoint captureCoordinates;
 
   @Builder
   public AlbumEntryData(
@@ -77,9 +99,16 @@ public class AlbumEntryData {
       final Instant createTime,
       final String cameraModel,
       final String cameraManufacturer,
-      final Integer focalLength,
+      final Double focalLength,
+      final Double focalLength35,
       final Double fNumber,
-      final String contentType) {
+      final Double exposureTime,
+      final Integer isoSpeedRatings,
+      final String contentType,
+      final Set<String> keywords,
+      final String description,
+      final Integer rating,
+      final GeoPoint captureCoordinates) {
     this.albumId = albumId;
     this.entryId = entryId;
     this.width = width;
@@ -91,8 +120,15 @@ public class AlbumEntryData {
     this.cameraModel = cameraModel;
     this.cameraManufacturer = cameraManufacturer;
     this.focalLength = focalLength;
+    this.focalLength35 = focalLength35;
     this.fNumber = fNumber;
+    this.exposureTime = exposureTime;
+    this.isoSpeedRatings = isoSpeedRatings;
     this.contentType = contentType;
+    this.keywords = keywords;
+    this.description = description;
+    this.rating = rating;
+    this.captureCoordinates = captureCoordinates;
     this.documentId = createDocumentId(albumId, entryId);
   }
 

@@ -125,7 +125,7 @@ public class ReactiveLimiter implements Limiter {
           takenEntry
               .getMonoSupplier()
               .get()
-              .timeout(Duration.ofSeconds(30))
+              .timeout(Duration.ofSeconds(60))
               .doFinally(
                   signal -> {
                     // log.info("Signal " + signal);
