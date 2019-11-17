@@ -458,13 +458,6 @@ export class ShowImageDialogComponent {
     }
   }
 
-  download() {
-
-    const entry = this.data.sortedEntries[this.currentIndex];
-    const entryUri = entry.entryUri + '/original';
-    const filename = entry.name;
-    window.open(entryUri);
-  }
 
   createImageUrl(currentIndex: number) {
     return this.data.sortedEntries[currentIndex].entryUri + '/thumbnail';

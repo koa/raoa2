@@ -33,7 +33,7 @@
   </div>
   <div *ngIf="showDetails" class="foot-row">
     <mat-chip-list>
-      <mat-chip *ngFor="let keyword of imageProperties.keywords">
+      <mat-chip *ngFor="let keyword of imageProperties?.keywords">
         <mat-icon matChipTrailingIcon>label</mat-icon>
         {{keyword}}
       </mat-chip>
