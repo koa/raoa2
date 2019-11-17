@@ -2,7 +2,6 @@ package ch.bergturbenthal.raoa.viewer.interfaces;
 
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
-import ch.bergturbenthal.raoa.libs.service.impl.Limiter;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.FileCache;
@@ -14,9 +13,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
@@ -58,9 +55,7 @@ public class AlbumListController {
   private final ViewerProperties viewerProperties;
   private final FileCache<CacheKey> thumbnailCache;
   private final AuthorizationManager authorizationManager;
-  private final Limiter limiter;
   private final MeterRegistry meterRegistry;
-  private final Map<UUID, Instant> runningRequests = new ConcurrentHashMap<>();
   private final AtomicInteger failCount = new AtomicInteger();
 
   public AlbumListController(
@@ -69,35 +64,29 @@ public class AlbumListController {
       final ThumbnailManager thumbnailManager,
       final ViewerProperties viewerProperties,
       final AuthorizationManager authorizationManager,
-      final Limiter limiter,
       MeterRegistry meterRegistry) {
     this.albumList = albumList;
     this.viewerProperties = viewerProperties;
     this.authorizationManager = authorizationManager;
-    this.limiter = limiter;
     this.meterRegistry = meterRegistry;
 
-    meterRegistry.gauge("limiter2.running", runningRequests, Map::size);
     meterRegistry.gauge("limiter2.failed", failCount, AtomicInteger::get);
 
     thumbnailCache =
         fileCacheManager.createCache(
             "thumbnails",
-            (CacheKey k, File targetDir) -> {
-              final Mono<GitAccess> access = albumList.getAlbum(k.getAlbum());
-              return limiter.limit(
-                  access
-                      .flatMap(gitAccess -> gitAccess.readObject(k.getFile()))
-                      .flatMap(
-                          loader ->
-                              thumbnailManager.takeThumbnail(
-                                  k.getFile(),
-                                  loader,
-                                  MediaType.IMAGE_JPEG,
-                                  k.getMaxLength(),
-                                  targetDir)),
-                  "thumbnail");
-            },
+            (CacheKey k, File targetDir) ->
+                albumList
+                    .getAlbum(k.getAlbum())
+                    .flatMap(gitAccess -> gitAccess.readObject(k.getFile()))
+                    .flatMap(
+                        loader ->
+                            thumbnailManager.takeThumbnail(
+                                k.getFile(),
+                                loader,
+                                MediaType.IMAGE_JPEG,
+                                k.getMaxLength(),
+                                targetDir)),
             cacheKey ->
                 cacheKey.getAlbum().toString()
                     + "/"
@@ -140,67 +129,50 @@ public class AlbumListController {
       @RequestParam(name = "maxLength", defaultValue = "1600") int maxLength) {
     final ObjectId objectId = ObjectId.fromString(fileId);
     final SecurityContext securityContext = SecurityContextHolder.getContext();
-    final Mono<ResponseEntity<Resource>> map =
-        authorizationManager
-            .canUserAccessToAlbum(securityContext, albumId)
-            .filter(t -> t)
-            .flatMap(
-                t ->
-                    Mono.zip(
-                        albumList
-                            .getAlbum(albumId)
-                            .flatMap(
-                                g ->
-                                    g.listFiles(IMAGE_FILE_FILTER)
-                                        .filter(e -> e.getFileId().name().equals(fileId))
-                                        .take(1)
-                                        .singleOrEmpty())
-                            .map(GitAccess.GitFileEntry::getNameString),
-                        thumbnailCache
-                            .take(new CacheKey(albumId, objectId, maxLength))
-                            .map(FileSystemResource::new)))
-            .map(
-                t -> {
-                  final HttpHeaders headers = new HttpHeaders();
-                  headers.setContentType(MediaType.IMAGE_JPEG);
-                  headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
-                  headers.setETag("\"" + fileId + "\"");
-                  // headers.setContentDisposition(
-                  //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
-                  return new ResponseEntity<>(t.getT2(), headers, HttpStatus.OK);
-                });
-    final Mono<UUID> reservation =
-        Mono.create(
-            sink -> {
-              try {
-                if (runningRequests.size() < 500) {
-                  final UUID uuid = UUID.randomUUID();
-                  runningRequests.put(uuid, Instant.now());
-                  sink.onCancel(() -> runningRequests.remove(uuid));
-                  sink.success(uuid);
-                  failCount.set(0);
-                } else failCount.incrementAndGet();
-              } finally {
-                sink.success();
-              }
-            });
 
-    return Mono.just(UUID.randomUUID())
+    final Mono<Boolean> userCanAccess =
+        authorizationManager.canUserAccessToAlbum(securityContext, albumId).filter(t -> t).cache();
+    if (maxLength != 1600) {
+      userCanAccess
+          .flatMap(t -> thumbnailCache.take(new CacheKey(albumId, objectId, 1600)))
+          .subscribe(
+              data -> log.debug("preloaded " + data), ex -> log.warn("Cannot preload image", ex));
+    }
+
+    return userCanAccess
         .flatMap(
-            id ->
-                map.timeout(Duration.ofSeconds(33))
-                    .map(v -> Tuples.of(id, Optional.of(v)))
-                    .onErrorResume(
-                        ex -> {
-                          log.warn("Cannot generate thumbnail", ex);
-                          return Mono.empty();
-                        })
-                    .defaultIfEmpty(Tuples.of(id, Optional.empty())))
-        .doOnNext(r -> runningRequests.remove(r.getT1()))
-        .map(Tuple2::getT2)
-        // .map(o -> o.orElse(ResponseEntity.notFound().build()))
-        // .map(Optional::of)
-        // .defaultIfEmpty(Optional.empty())
+            t ->
+                Mono.zip(
+                    albumList
+                        .getAlbum(albumId)
+                        .flatMap(
+                            g ->
+                                g.listFiles(IMAGE_FILE_FILTER)
+                                    .filter(e -> e.getFileId().name().equals(fileId))
+                                    .take(1)
+                                    .singleOrEmpty())
+                        .map(GitAccess.GitFileEntry::getNameString),
+                    thumbnailCache
+                        .take(new CacheKey(albumId, objectId, maxLength))
+                        .map(FileSystemResource::new)))
+        .<ResponseEntity<Resource>>map(
+            t -> {
+              final HttpHeaders headers1 = new HttpHeaders();
+              headers1.setContentType(MediaType.IMAGE_JPEG);
+              headers1.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+              headers1.setETag("\"" + fileId + "\"");
+              // headers.setContentDisposition(
+              //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
+              return new ResponseEntity<>(t.getT2(), headers1, HttpStatus.OK);
+            })
+        .timeout(Duration.ofSeconds(33))
+        .map(Optional::of)
+        .onErrorResume(
+            ex -> {
+              log.warn("Cannot generate thumbnail", ex);
+              return Mono.empty();
+            })
+        .defaultIfEmpty(Optional.empty())
         .doOnNext(value -> failCount.set(0))
         .map(
             o ->
@@ -221,29 +193,26 @@ public class AlbumListController {
     final Mono<GitAccess> access = albumList.getAlbum(albumId);
     final ObjectId entryId = ObjectId.fromString(fileId);
     final SecurityContext securityContext = SecurityContextHolder.getContext();
-    return limiter.limit(
-        authorizationManager
-            .canUserAccessToAlbum(securityContext, albumId)
-            .filter(t -> t)
-            .flatMap(
-                t ->
-                    Mono.zip(
-                        access
-                            .flatMap(gitAccess -> gitAccess.entryMetdata(entryId))
-                            .map(m -> m.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE)),
-                        access.flatMap(gitAccess -> gitAccess.readObject(entryId))))
-            .map(
-                t -> {
-                  final MediaType mediaType = MediaType.parseMediaType(t.getT1());
-                  final GitBlobRessource resource =
-                      new GitBlobRessource(t.getT2(), mediaType, entryId);
-                  final HttpHeaders headers = new HttpHeaders();
-                  headers.setContentType(mediaType);
-                  headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
-                  headers.setETag("\"" + entryId.name() + "\"");
-                  return new HttpEntity<>(resource, headers);
-                }),
-        "original");
+    return authorizationManager
+        .canUserAccessToAlbum(securityContext, albumId)
+        .filter(t -> t)
+        .flatMap(
+            t ->
+                Mono.zip(
+                    access
+                        .flatMap(gitAccess -> gitAccess.entryMetdata(entryId))
+                        .map(m -> m.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE)),
+                    access.flatMap(gitAccess -> gitAccess.readObject(entryId))))
+        .map(
+            t -> {
+              final MediaType mediaType = MediaType.parseMediaType(t.getT1());
+              final GitBlobRessource resource = new GitBlobRessource(t.getT2(), mediaType, entryId);
+              final HttpHeaders headers = new HttpHeaders();
+              headers.setContentType(mediaType);
+              headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+              headers.setETag("\"" + entryId.name() + "\"");
+              return new HttpEntity<>(resource, headers);
+            });
   }
 
   @GetMapping("album-zip/{albumId}")
