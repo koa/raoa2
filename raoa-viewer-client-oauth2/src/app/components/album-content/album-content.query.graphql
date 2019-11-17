@@ -3,6 +3,7 @@ query AlbumContent($albumId: ID) {
     name
     entries{
       id, name, entryUri, targetWidth, targetHeight, created
+      keywords
     }
   }
 }

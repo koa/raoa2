@@ -3,7 +3,7 @@ import {ChangeDetectorRef, Component, Inject, NgZone, OnInit} from '@angular/cor
 import {ActivatedRoute, ParamMap, Router} from '@angular/router';
 // import {ResizedEvent} from 'angular-resize-event';
 import {DomSanitizer} from '@angular/platform-browser';
-import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from '@angular/material';
+import {MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatListOption} from '@angular/material';
 import {ServerApiService} from '../../services/server-api.service';
 import {
   AlbumContent,
@@ -19,6 +19,7 @@ import {
 import {AppConfigService} from '../../services/app-config.service';
 import {ResizedEvent} from 'angular-resize-event';
 import {MediaMatcher} from '@angular/cdk/layout';
+import {SelectionModel} from '@angular/cdk/collections';
 
 interface AlbumEntry {
   id: string;
@@ -27,6 +28,7 @@ interface AlbumEntry {
   targetWidth: number;
   targetHeight: number;
   created: string;
+  keywords: string[];
 }
 
 interface Shape {
@@ -59,6 +61,7 @@ export class AlbumContentComponent implements OnInit {
   error: any;
   width = 100;
   sortedEntries: AlbumEntry[];
+  filteredEntries: AlbumEntry[];
   minWidth = 5;
   title: string;
   scales: number[];
@@ -76,6 +79,8 @@ export class AlbumContentComponent implements OnInit {
   public canManageUsers: Maybe<boolean> = false;
   private albumSearchPattern = '';
   private availableAlbums: Maybe<AllAlbums.ListAlbums>[] = [];
+  public availableKeywords: Set<string> = new Set();
+  public filteringKeywords: Set<string> = new Set();
 
   constructor(private route: ActivatedRoute,
               private router: Router,
@@ -106,6 +111,8 @@ export class AlbumContentComponent implements OnInit {
     this.loading = true;
     this.refreshAlbumList();
     this.route.paramMap.subscribe((params: ParamMap) => {
+      this.availableKeywords.clear();
+      this.filteringKeywords.clear();
       this.loading = true;
       this.error = undefined;
       this.title = '';
@@ -114,6 +121,10 @@ export class AlbumContentComponent implements OnInit {
         .query(this.albumContentQGL, {albumId: this.albumId})
         .then(result => {
           const albumById: AlbumContent.AlbumById = result.albumById;
+          this.ngZone.run(() => {
+            this.availableKeywords.clear();
+            albumById.entries.forEach(e => e.keywords.forEach(k => this.availableKeywords.add(k)));
+          });
           this.sortedEntries = albumById.entries.filter(e => e.created != null)
             .map(e => {
               return {
@@ -122,7 +133,8 @@ export class AlbumContentComponent implements OnInit {
                 targetHeight: e.targetHeight,
                 targetWidth: e.targetWidth,
                 created: e.created,
-                id: e.id
+                id: e.id,
+                keywords: e.keywords
               };
             })
             .sort((e1, e2) => e1.created.localeCompare(e2.created));
@@ -205,7 +217,7 @@ export class AlbumContentComponent implements OnInit {
       hasBackdrop: true,
       data: {
         currentIndex: entryIndex,
-        sortedEntries: this.sortedEntries,
+        sortedEntries: this.filteredEntries,
         albumId: this.albumId
       }
     })
@@ -284,36 +296,11 @@ export class AlbumContentComponent implements OnInit {
     return {height: rowHeight, shapes};
   }
 
-  private redistributeEntries() {
-    this.resultRows = [];
-    let currentRowContent: AlbumEntry[] = [];
-    for (let index = 0; index < this.sortedEntries.length; index++) {
-      const entry = this.sortedEntries[index];
-      if (entry.targetWidth == null || entry.targetHeight == null) {
-        console.log('Invalid entry:');
-        console.log(entry);
-        continue;
-      }
-      currentRowContent.push(entry);
-      const currentWidth = currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0);
-      if (currentWidth >= this.minWidth) {
-        this.resultRows.push(this.createItems(index, currentRowContent, currentWidth));
-        currentRowContent = [];
-      }
-      if (currentRowContent.length > 50) {
-        console.log('Invalid row');
-        currentRowContent = [];
-      }
-
-    }
-    if (currentRowContent.length > 0) {
-      this.resultRows.push(this.createItems(
-        this.sortedEntries.length - 1,
-        currentRowContent,
-        currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0))
-      );
-    }
-    this.recalculateComponents();
+  updateLabelFilter(selectedOptions: SelectionModel<MatListOption>) {
+    this.filteringKeywords.clear();
+    selectedOptions.selected.map(o => o.value)
+      .forEach(k => this.filteringKeywords.add(k));
+    this.redistributeEntries();
   }
 
 
@@ -360,6 +347,43 @@ export class AlbumContentComponent implements OnInit {
     } else {
       this.albums = this.availableAlbums.filter(e => e.name.toLocaleLowerCase().includes(this.albumSearchPattern));
     }
+  }
+
+  private redistributeEntries() {
+    this.resultRows = [];
+    let currentRowContent: AlbumEntry[] = [];
+    if (this.filteringKeywords.size > 0) {
+      this.filteredEntries = this.sortedEntries.filter(e => e.keywords.filter(k => this.filteringKeywords.has(k)).length > 0);
+    } else {
+      this.filteredEntries = this.sortedEntries;
+    }
+    for (let index = 0; index < this.filteredEntries.length; index++) {
+      const entry = this.filteredEntries[index];
+      if (entry.targetWidth == null || entry.targetHeight == null) {
+        console.log('Invalid entry:');
+        console.log(entry);
+        continue;
+      }
+      currentRowContent.push(entry);
+      const currentWidth = currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0);
+      if (currentWidth >= this.minWidth) {
+        this.resultRows.push(this.createItems(index, currentRowContent, currentWidth));
+        currentRowContent = [];
+      }
+      if (currentRowContent.length > 50) {
+        console.log('Invalid row');
+        currentRowContent = [];
+      }
+
+    }
+    if (currentRowContent.length > 0) {
+      this.resultRows.push(this.createItems(
+        this.filteredEntries.length - 1,
+        currentRowContent,
+        currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0))
+      );
+    }
+    this.recalculateComponents();
   }
 }
 
