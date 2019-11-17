@@ -22,7 +22,7 @@ public class TestLoadGitDirs {
     final ConcurrencyLimiter limiter =
         new ConcurrencyLimiter(properties, new SimpleMeterRegistry());
     final MeterRegistry meterRegistry = new SimpleMeterRegistry();
-    final BareAlbumList albumList = new BareAlbumList(properties, limiter, meterRegistry);
+    final BareAlbumList albumList = new BareAlbumList(properties, meterRegistry);
 
     final Path dir = Path.of("/media/akoenig/NIKON D500/DCIM/198ND500");
     final FileImporter importer = albumList.createImporter();

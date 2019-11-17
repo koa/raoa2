@@ -18,13 +18,13 @@ import com.adobe.xmp.XMPMeta;
 import com.adobe.xmp.XMPMetaFactory;
 import com.google.common.base.Functions;
 import java.io.IOException;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.Getter;
@@ -59,7 +59,7 @@ public class ElasticSearchDataViewService implements DataViewService {
             PathSuffixFilter.create(".MP4"),
             PathSuffixFilter.create(".mkv")
           });
-  private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9\\.]+");
+  private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
   private static TreeFilter XMP_FILE_FILTER = PathSuffixFilter.create(".xmp");
   private final UUID virtualSuperuserId = UUID.randomUUID();
   private final AlbumDataRepository albumDataRepository;
@@ -69,7 +69,8 @@ public class ElasticSearchDataViewService implements DataViewService {
   private final UserRepository userRepository;
   private final AccessRequestRepository accessRequestRepository;
   private final UserManager userManager;
-  private ViewerProperties viewerProperties;
+  private final ViewerProperties viewerProperties;
+  private final ExecutorService ioExecutorService = Executors.newFixedThreadPool(3);
 
   public ElasticSearchDataViewService(
       final AlbumDataRepository albumDataRepository,
@@ -270,22 +271,41 @@ public class ElasticSearchDataViewService implements DataViewService {
                                                               .getAccess()
                                                               .readObject(xmpGitEntry.getFileId())
                                                               .flatMap(
-                                                                  loader -> {
-                                                                    try (final ObjectStream stream =
-                                                                        loader.openStream()) {
-                                                                      return Mono.just(
-                                                                          XMPMetaFactory.parse(
-                                                                              stream));
-                                                                    } catch (XMPException
-                                                                        | IOException e) {
-                                                                      log.warn(
-                                                                          "Cannot load xmp file "
-                                                                              + xmpGitEntry
-                                                                                  .getNameString(),
-                                                                          e);
-                                                                      return Mono.empty();
-                                                                    }
-                                                                  })
+                                                                  loader ->
+                                                                      Mono.<XMPMeta>create(
+                                                                          monoSink -> {
+                                                                            final Future<?> future =
+                                                                                ioExecutorService
+                                                                                    .submit(
+                                                                                        () -> {
+                                                                                          try (final
+                                                                                          ObjectStream
+                                                                                              stream =
+                                                                                                  loader
+                                                                                                      .openStream()) {
+                                                                                            monoSink
+                                                                                                .success(
+                                                                                                    XMPMetaFactory
+                                                                                                        .parse(
+                                                                                                            stream));
+                                                                                          } catch (XMPException
+                                                                                              | IOException
+                                                                                                  e) {
+                                                                                            log
+                                                                                                .warn(
+                                                                                                    "Cannot load xmp file "
+                                                                                                        + xmpGitEntry
+                                                                                                            .getNameString(),
+                                                                                                    e);
+                                                                                            monoSink
+                                                                                                .success();
+                                                                                          }
+                                                                                        });
+                                                                            monoSink.onCancel(
+                                                                                () ->
+                                                                                    future.cancel(
+                                                                                        true));
+                                                                          }))
                                                               .map(
                                                                   meta ->
                                                                       Tuples.of(
@@ -536,18 +556,6 @@ public class ElasticSearchDataViewService implements DataViewService {
   @Override
   public Mono<Void> removePendingAccessRequest(final AuthenticationId id) {
     return accessRequestRepository.deleteById(AccessRequest.concatId(id));
-  }
-
-  private <T> Mono<T> pollCondition(
-      Supplier<Mono<T>> query, Predicate<T> condition, Duration intervall, int count) {
-    return query
-        .get()
-        .flatMap(
-            v -> {
-              if (count <= 0 || condition.test(v)) return Mono.just(v);
-              return Mono.delay(intervall)
-                  .flatMap(l -> pollCondition(query, condition, intervall, count - 1));
-            });
   }
 
   @Override

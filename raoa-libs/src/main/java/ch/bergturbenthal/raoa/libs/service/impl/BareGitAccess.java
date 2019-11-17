@@ -21,6 +21,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -46,7 +48,6 @@ import org.ehcache.Cache;
 import org.joda.time.format.ISODateTimeFormat;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.xml.sax.SAXException;
-import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
@@ -69,14 +70,10 @@ public class BareGitAccess implements GitAccess {
 
   private final Mono<Repository> repository;
   private final Mono<AlbumMeta> albumMetaSupplier;
-  private final Limiter limiter;
   private final MeterRegistry meterRegistry;
-  Map<AlbumEntryKey, Mono<Metadata>> pendingMetdataLoad =
-      Collections.synchronizedMap(new HashMap<>());
   private Path relativePath;
-  private Scheduler ioScheduler;
+  private ExecutorService ioScheduler;
   private Scheduler processScheduler;
-  private Cache<AlbumEntryKey, Metadata> metadataCache;
   private AtomicReference<Mono<Ref>> cachedMasterRef = new AtomicReference<>();
   private AtomicReference<Mono<RevTree>> cachedMasterTree = new AtomicReference<>();
 
@@ -84,27 +81,18 @@ public class BareGitAccess implements GitAccess {
       final Path path,
       final Path relativePath,
       final Cache<AlbumEntryKey, Metadata> metadataCache,
-      Scheduler ioScheduler,
+      ExecutorService ioScheduler,
       final Scheduler processScheduler,
-      final Limiter limiter,
       final MeterRegistry meterRegistry) {
     this.relativePath = relativePath;
-    this.limiter = limiter;
-    this.metadataCache = metadataCache;
     this.ioScheduler = ioScheduler;
     this.processScheduler = processScheduler;
     this.meterRegistry = meterRegistry;
 
     repository =
-        limiter
-            .limit(
-                createAsyncMono(
-                    () ->
-                        new FileRepositoryBuilder()
-                            .setGitDir(path.toFile())
-                            .readEnvironment()
-                            .build()),
-                "load repository tree")
+        createAsyncMono(
+                () ->
+                    new FileRepositoryBuilder().setGitDir(path.toFile()).readEnvironment().build())
             .cache(REPOSITORY_CACHE_TIME);
 
     Consumer<AlbumMeta> metaUpdater =
@@ -116,8 +104,7 @@ public class BareGitAccess implements GitAccess {
                 .flatMap(u -> u.importFile(tempFile.toPath(), ".raoa.json", true).map(l -> u))
                 .flatMap(u -> u.commit("Metadata updated").map(l -> u))
                 .doFinally(signal -> tempFile.delete())
-                .subscribe(
-                    updater -> updater.close(), ex -> log.warn("Cannot update metadata", ex));
+                .subscribe(Updater::close, ex -> log.warn("Cannot update metadata", ex));
           } catch (IOException e) {
             throw new RuntimeException(e);
           }
@@ -127,16 +114,14 @@ public class BareGitAccess implements GitAccess {
         readObject(".raoa.json")
             .flatMap(
                 l ->
-                    limiter.limit(
-                        createAsyncMonoOptional(
-                            () -> {
-                              try (final ObjectStream src = l.openStream()) {
-                                return Optional.of(albumMetaRader.<AlbumMeta>readValue(src));
-                              } catch (MissingObjectException e) {
-                                return Optional.empty();
-                              }
-                            }),
-                        "load .raoa.json"))
+                    createAsyncMonoOptional(
+                        () -> {
+                          try (final ObjectStream src = l.openStream()) {
+                            return Optional.of(albumMetaRader.<AlbumMeta>readValue(src));
+                          } catch (MissingObjectException e) {
+                            return Optional.empty();
+                          }
+                        }))
             .publishOn(processScheduler)
             .map(
                 data -> {
@@ -166,12 +151,11 @@ public class BareGitAccess implements GitAccess {
       Path path,
       final Path relativePath,
       final Cache<AlbumEntryKey, Metadata> metadataCache,
-      Scheduler ioScheduler,
+      ExecutorService ioScheduler,
       final Scheduler processScheduler,
-      final Limiter limiter,
       MeterRegistry meterRegistry) {
     return new BareGitAccess(
-        path, relativePath, metadataCache, ioScheduler, processScheduler, limiter, meterRegistry);
+        path, relativePath, metadataCache, ioScheduler, processScheduler, meterRegistry);
   }
 
   @Override
@@ -181,7 +165,7 @@ public class BareGitAccess implements GitAccess {
             t -> {
               final Repository reps = t.getT1();
               final RevTree revTree = t.getT2();
-              return Flux.<GitFileEntry>create(
+              return Flux.create(
                   sink -> {
                     Semaphore freeSlots = new Semaphore(0);
                     AtomicBoolean started = new AtomicBoolean(false);
@@ -245,20 +229,18 @@ public class BareGitAccess implements GitAccess {
   @Override
   public Mono<ObjectLoader> readObject(AnyObjectId objectId) {
 
-    return limiter.limit(
-        repository
-            .map(Repository::getObjectDatabase)
-            .flatMap(
-                db ->
-                    this.createAsyncMonoOptional(
-                        () -> {
-                          try {
-                            return Optional.of(db.open(objectId));
-                          } catch (MissingObjectException ex) {
-                            return Optional.empty();
-                          }
-                        })),
-        "read object by id");
+    return repository
+        .map(Repository::getObjectDatabase)
+        .flatMap(
+            db ->
+                this.createAsyncMonoOptional(
+                    () -> {
+                      try {
+                        return Optional.of(db.open(objectId));
+                      } catch (MissingObjectException ex) {
+                        return Optional.empty();
+                      }
+                    }));
     // .log("read " + objectId);
   }
 
@@ -274,8 +256,8 @@ public class BareGitAccess implements GitAccess {
               count -> {
                 if (count > 0) {
                   if (requested.compareAndSet(false, true)) {
-                    final Disposable schedule =
-                        ioScheduler.schedule(
+                    final Future<?> schedule =
+                        ioScheduler.submit(
                             () -> {
                               // log.info("Started "+sink.currentContext());
                               try {
@@ -286,7 +268,7 @@ public class BareGitAccess implements GitAccess {
                               // log.info("Ended");
                               // }
                             });
-                    sink.onCancel(schedule);
+                    sink.onCancel(() -> schedule.cancel(true));
                   }
                 }
               });
@@ -298,25 +280,23 @@ public class BareGitAccess implements GitAccess {
     return Mono.zip(repository, masterTree())
         .flatMap(
             t ->
-                limiter.limit(
-                    this.createAsyncMonoOptional(
-                        () -> {
-                          try {
-                            final Repository rep = t.getT1();
-                            final RevTree tree = t.getT2();
-                            final TreeWalk treeWalk = TreeWalk.forPath(rep, filename, tree);
-                            if (treeWalk == null) {
-                              return Optional.empty();
-                            }
-                            final ObjectId objectId = treeWalk.getObjectId(0);
-                            final ObjectLoader objectLoader =
-                                rep.getObjectDatabase().open(objectId, Constants.OBJ_BLOB);
-                            return Optional.of(objectLoader);
-                          } catch (MissingObjectException e) {
-                            return Optional.empty();
-                          }
-                        }),
-                    "read object by name"))
+                this.createAsyncMonoOptional(
+                    () -> {
+                      try {
+                        final Repository rep = t.getT1();
+                        final RevTree tree = t.getT2();
+                        final TreeWalk treeWalk = TreeWalk.forPath(rep, filename, tree);
+                        if (treeWalk == null) {
+                          return Optional.empty();
+                        }
+                        final ObjectId objectId = treeWalk.getObjectId(0);
+                        final ObjectLoader objectLoader =
+                            rep.getObjectDatabase().open(objectId, Constants.OBJ_BLOB);
+                        return Optional.of(objectLoader);
+                      } catch (MissingObjectException e) {
+                        return Optional.empty();
+                      }
+                    }))
         // .log("read " + filename)
         .publishOn(processScheduler);
   }
@@ -332,10 +312,7 @@ public class BareGitAccess implements GitAccess {
   private Mono<RevTree> readTree(final Ref ref) {
     // log.info("Read tree " + ref + " at " + relativePath);
     return repository
-        .flatMap(
-            r ->
-                limiter.limit(
-                    createAsyncMono(() -> r.parseCommit(ref.getObjectId())), "read tree by ref"))
+        .flatMap(r -> createAsyncMono(() -> r.parseCommit(ref.getObjectId())))
         .publishOn(processScheduler)
         .map(RevCommit::getTree);
   }
@@ -354,11 +331,7 @@ public class BareGitAccess implements GitAccess {
                     () ->
                         repository
                             .map(Repository::getRefDatabase)
-                            .flatMap(
-                                db ->
-                                    limiter.limit(
-                                        createAsyncMono(() -> db.findRef("master")),
-                                        "read master ref"))
+                            .flatMap(db -> createAsyncMono(() -> db.findRef("master")))
                             .cache(REPOSITORY_CACHE_TIME)))
         .publishOn(processScheduler);
   }
@@ -366,25 +339,21 @@ public class BareGitAccess implements GitAccess {
   @Override
   public Flux<Instant> readAutoadd() {
     CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
-    return limiter.limit(
-        readObject(".autoadd")
-            .map(ObjectLoader::getBytes)
-            .map(ByteBuffer::wrap)
-            .map(
-                b1 -> {
-                  try {
-                    return decoder.decode(b1);
-                  } catch (CharacterCodingException e) {
-                    throw new RuntimeException("Cannot read date string", e);
-                  }
-                })
-            .map(CharBuffer::toString)
-            .flatMapIterable(s -> Arrays.asList(s.split("\n")))
-            .map(String::trim)
-            .map(
-                line ->
-                    ISODateTimeFormat.dateTimeParser().parseDateTime(line).toDate().toInstant()),
-        "read autoadd");
+    return readObject(".autoadd")
+        .map(ObjectLoader::getBytes)
+        .map(ByteBuffer::wrap)
+        .map(
+            b1 -> {
+              try {
+                return decoder.decode(b1);
+              } catch (CharacterCodingException e) {
+                throw new RuntimeException("Cannot read date string", e);
+              }
+            })
+        .map(CharBuffer::toString)
+        .flatMapIterable(s -> Arrays.asList(s.split("\n")))
+        .map(String::trim)
+        .map(line -> ISODateTimeFormat.dateTimeParser().parseDateTime(line).toDate().toInstant());
   }
 
   @Override
@@ -531,8 +500,8 @@ public class BareGitAccess implements GitAccess {
         }
         return Mono.create(
                 (MonoSink<Boolean> sink) -> {
-                  sink.onCancel(
-                      ioScheduler.schedule(
+                  final Future<?> future =
+                      ioScheduler.submit(
                           () -> {
                             try {
 
@@ -621,7 +590,8 @@ public class BareGitAccess implements GitAccess {
                             } finally {
                               sink.success(false);
                             }
-                          }));
+                          });
+                  sink.onCancel(() -> future.cancel(false));
                 })
             .doFinally(signal -> cachedMasterRef.set(null));
       }
@@ -665,47 +635,34 @@ public class BareGitAccess implements GitAccess {
   public Mono<Metadata> entryMetdata(final AnyObjectId entryId) {
     return getMetadata()
         .flatMap(
-            albumMeta -> {
-              final AlbumEntryKey cacheKey =
-                  new AlbumEntryKey(albumMeta.getAlbumId(), entryId.toObjectId());
-              final Metadata cachedValue = metadataCache.get(cacheKey);
-              if (cachedValue != null) return Mono.just(cachedValue);
-
-              return pendingMetdataLoad
-                  .computeIfAbsent(
-                      cacheKey,
-                      k ->
-                          limiter.limit(
-                              readObject(entryId)
-                                  .map(
-                                      loader ->
-                                          meterRegistry
-                                              .timer("git-access.metadata.load")
-                                              .record(
-                                                  () -> {
-                                                    try (final ObjectStream stream =
-                                                        loader.openStream()) {
-                                                      AutoDetectParser parser =
-                                                          new AutoDetectParser();
-                                                      BodyContentHandler handler =
-                                                          new BodyContentHandler();
-                                                      Metadata metadata = new Metadata();
-                                                      @Cleanup
-                                                      final TikaInputStream inputStream =
-                                                          TikaInputStream.get(stream);
-                                                      parser.parse(inputStream, handler, metadata);
-                                                      metadataCache.put(k, metadata);
-                                                      return metadata;
-                                                    } catch (IOException
-                                                        | SAXException
-                                                        | TikaException e) {
-                                                      throw new RuntimeException(
-                                                          "Cannot read metadata of " + entryId, e);
-                                                    }
-                                                  }))
-                                  .cache(),
-                              "load metdata"))
-                  .doFinally(signal -> pendingMetdataLoad.remove(cacheKey));
-            });
+            albumMeta ->
+                readObject(entryId)
+                    .flatMap(
+                        loader ->
+                            this.createAsyncMono(
+                                () ->
+                                    meterRegistry
+                                        .timer("git-access.metadata.load")
+                                        .record(
+                                            () -> {
+                                              try (final ObjectStream stream =
+                                                  loader.openStream()) {
+                                                AutoDetectParser parser = new AutoDetectParser();
+                                                BodyContentHandler handler =
+                                                    new BodyContentHandler();
+                                                Metadata metadata = new Metadata();
+                                                @Cleanup
+                                                final TikaInputStream inputStream =
+                                                    TikaInputStream.get(stream);
+                                                parser.parse(inputStream, handler, metadata);
+                                                return metadata;
+                                              } catch (IOException
+                                                  | SAXException
+                                                  | TikaException e) {
+                                                throw new RuntimeException(
+                                                    "Cannot read metadata of " + entryId, e);
+                                              }
+                                            })))
+                    .cache());
   }
 }
