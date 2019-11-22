@@ -140,54 +140,6 @@ export class AlbumContentComponent implements OnInit {
             .sort((e1, e2) => e1.created.localeCompare(e2.created));
           this.redistributeEntries();
           this.title = albumById.name;
-          this.startSync = () => {
-            this.syncRunning = true;
-            this.progressBarMode = 'indeterminate';
-            caches.open('images').then(c => {
-              const remainingEntries = this.sortedEntries.map(e => e.entryUri + '/thumbnail');
-              const countDivisor = this.sortedEntries.length / 100;
-              let currentNumber = 0;
-              this.progressBarValue = 0;
-              this.progressBarMode = 'determinate';
-              const componentThis = this;
-              const firstEntry = remainingEntries.pop();
-              if (firstEntry !== undefined) {
-                fetch(firstEntry, 5);
-              } else {
-                this.syncRunning = false;
-              }
-              for (let i = 0; i < 3 && remainingEntries.length > 0; i++) {
-                fetchNext();
-              }
-
-              function fetch(url: string, repeat: number) {
-                c.match(url)
-                  .then(existingEntry => existingEntry == null ? c.add(url) : Promise.resolve())
-                  .then(fetchNext)
-                  .catch(error => {
-                    console.log('Error fetching ' + url);
-                    console.log(error);
-                    if (repeat > 0) {
-                      fetch(url, repeat - 1);
-                    } else {
-                      componentThis.syncRunning = false;
-                    }
-                  })
-                ;
-              }
-
-              function fetchNext() {
-                currentNumber += 1;
-                const nextEntry = remainingEntries.pop();
-                if (nextEntry === undefined) {
-                  componentThis.syncRunning = false;
-                } else {
-                  componentThis.progressBarValue = currentNumber / countDivisor;
-                  fetch(nextEntry, 5);
-                }
-              }
-            });
-          };
           this.loading = false;
         })
         .catch(error => {
@@ -241,8 +193,12 @@ export class AlbumContentComponent implements OnInit {
   }
 
   createUrl(row: TableRow, shape: Shape) {
+    return this.trustUrl(this.createUrlString(row, shape));
+  }
+
+  private createUrlString(row: TableRow, shape: Shape) {
     const maxLength = this.findScale(Math.max(shape.width, row.height));
-    return this.trustUrl(shape.entry.entryUri + '/thumbnail?maxLength=' + maxLength);
+    return shape.entry.entryUri + '/thumbnail?maxLength=' + maxLength;
   }
 
   findScale(maxLength: number) {
@@ -281,6 +237,56 @@ export class AlbumContentComponent implements OnInit {
 
       return {height: rowHeight, shapes};
     });
+    this.startSync = () => {
+      this.syncRunning = true;
+      this.progressBarMode = 'indeterminate';
+      caches.open('images').then(c => {
+        const remainingEntries = this.resultRows.flatMap(row => row.shapes.map(shape => this.createUrlString(row, shape)));
+        const countDivisor = remainingEntries.length / 100;
+        let currentNumber = 0;
+        this.progressBarValue = 0;
+        this.progressBarMode = 'determinate';
+        const componentThis = this;
+        const firstEntry = remainingEntries.pop();
+        if (firstEntry !== undefined) {
+          fetch(firstEntry, 5);
+        } else {
+          this.syncRunning = false;
+        }
+        for (let i = 0; i < 20 && remainingEntries.length > 0; i++) {
+          fetchNext();
+        }
+
+        function fetch(url: string, repeat: number) {
+          c.match(url)
+            .then(existingEntry => existingEntry == null ? c.add(url) : Promise.resolve())
+            .then(fetchNext)
+            .catch(error => {
+              console.log('Error fetching ' + url);
+              console.log(error);
+              if (repeat > 0) {
+                setTimeout(() => fetch(url, repeat - 1), 3);
+              } else {
+                componentThis.syncRunning = false;
+              }
+            })
+          ;
+        }
+
+        function fetchNext() {
+          currentNumber += 1;
+          const nextEntry = remainingEntries.pop();
+          if (nextEntry === undefined) {
+            componentThis.syncRunning = false;
+          } else {
+            componentThis.progressBarValue = currentNumber / countDivisor;
+            fetch(nextEntry, 5);
+          }
+        }
+      });
+    };
+
+
   }
 
   private createItems(index: number, currentRowContent: AlbumEntry[], currentWidth) {
