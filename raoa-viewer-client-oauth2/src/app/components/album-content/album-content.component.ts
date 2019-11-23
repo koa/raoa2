@@ -1,5 +1,5 @@
 // import {FixedSizeVirtualScrollStrategy, VIRTUAL_SCROLL_STRATEGY} from '@angular/cdk/scrolling';
-import {ChangeDetectorRef, Component, Inject, NgZone, OnInit} from '@angular/core';
+import {ChangeDetectorRef, Component, Inject, NgZone, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, ParamMap, Router} from '@angular/router';
 // import {ResizedEvent} from 'angular-resize-event';
 import {DomSanitizer} from '@angular/platform-browser';
@@ -20,6 +20,7 @@ import {AppConfigService} from '../../services/app-config.service';
 import {ResizedEvent} from 'angular-resize-event';
 import {MediaMatcher} from '@angular/cdk/layout';
 import {SelectionModel} from '@angular/cdk/collections';
+import {CdkVirtualScrollViewport} from '@angular/cdk/scrolling';
 
 interface AlbumEntry {
   id: string;
@@ -37,15 +38,39 @@ interface Shape {
   entryIndex: number;
 }
 
-interface TableRow {
+
+interface ImagesRow {
+  kind: 'images';
   height: number;
   shapes: Shape[];
+}
+
+interface HeaderRow {
+  kind: 'timestamp';
+  time: string;
+}
+
+type TableRow = ImagesRow | HeaderRow;
+
+interface NavigationTarget {
+  time: string;
+  row: number;
 }
 
 interface DialogData {
   currentIndex: number;
   sortedEntries: AlbumEntry[];
   albumId: string;
+}
+
+
+function createImagesRow(rowHeight, shapes: Shape[]): ImagesRow {
+  return {height: rowHeight, shapes, kind: 'images'} as ImagesRow;
+}
+
+
+function dayOfDate(dateValue: string): string {
+  return new Date(dateValue).toDateString();
 }
 
 
@@ -81,6 +106,10 @@ export class AlbumContentComponent implements OnInit {
   private availableAlbums: Maybe<AllAlbums.ListAlbums>[] = [];
   public availableKeywords: Set<string> = new Set();
   public filteringKeywords: Set<string> = new Set();
+  public availableDays: string[] = [];
+  public filteringDays: Set<string> = new Set();
+  public availableNavigationTargets: NavigationTarget[] = [];
+  @ViewChild(CdkVirtualScrollViewport, {static: false}) viewPort: CdkVirtualScrollViewport;
 
   constructor(private route: ActivatedRoute,
               private router: Router,
@@ -123,7 +152,18 @@ export class AlbumContentComponent implements OnInit {
           const albumById: AlbumContent.AlbumById = result.albumById;
           this.ngZone.run(() => {
             this.availableKeywords.clear();
-            albumById.entries.forEach(e => e.keywords.forEach(k => this.availableKeywords.add(k)));
+            const availableDays: Set<string> = new Set();
+            albumById.entries.forEach(e => {
+              availableDays.add(dayOfDate(e.created));
+              e.keywords.forEach(k => this.availableKeywords.add(k));
+            });
+            this.availableDays = [];
+            if (availableDays.size > 1) {
+              const days: string[] = [];
+              availableDays.forEach(v => days.push(v));
+              days.sort((d1, d2) => new Date(d1).getTime() - new Date(d2).getTime())
+                .forEach(day => this.availableDays.push(day));
+            }
           });
           this.sortedEntries = albumById.entries.filter(e => e.created != null)
             .map(e => {
@@ -192,13 +232,15 @@ export class AlbumContentComponent implements OnInit {
     this.redistributeEntries();
   }
 
-  createUrl(row: TableRow, shape: Shape) {
+  createUrl(row: ImagesRow, shape: Shape) {
     return this.trustUrl(this.createUrlString(row, shape));
   }
 
-  private createUrlString(row: TableRow, shape: Shape) {
-    const maxLength = this.findScale(Math.max(shape.width, row.height));
-    return shape.entry.entryUri + '/thumbnail?maxLength=' + maxLength;
+  imagesOf(row: ImagesRow | HeaderRow): Shape[] {
+    if (row !== undefined && row.kind === 'images') {
+      return row.shapes;
+    }
+    return [];
   }
 
   findScale(maxLength: number) {
@@ -221,85 +263,16 @@ export class AlbumContentComponent implements OnInit {
       .then(uri => window.location.href = uri);
   }
 
-  private recalculateComponents() {
-    this.resultRows = this.resultRows.map(currentRowContent => {
-      const currentWidth = currentRowContent.shapes
-        .map(e => e.entry)
-        .map(e => e.targetWidth / e.targetHeight)
-        .reduce((sum, current) => sum + current, 0);
-      const rowHeight = this.width / currentWidth;
-      const shapes: Shape[] =
-        currentRowContent.shapes.map(e => ({
-          width: e.entry.targetWidth / e.entry.targetHeight * rowHeight,
-          entry: e.entry,
-          entryIndex: e.entryIndex,
-        }));
-
-      return {height: rowHeight, shapes};
-    });
-    this.startSync = () => {
-      this.syncRunning = true;
-      this.progressBarMode = 'indeterminate';
-      caches.open('images').then(c => {
-        const remainingEntries = this.resultRows.flatMap(row => row.shapes.map(shape => this.createUrlString(row, shape)));
-        const countDivisor = remainingEntries.length / 100;
-        let currentNumber = 0;
-        this.progressBarValue = 0;
-        this.progressBarMode = 'determinate';
-        const componentThis = this;
-        const firstEntry = remainingEntries.pop();
-        if (firstEntry !== undefined) {
-          fetch(firstEntry, 5);
-        } else {
-          this.syncRunning = false;
-        }
-        for (let i = 0; i < 20 && remainingEntries.length > 0; i++) {
-          fetchNext();
-        }
-
-        function fetch(url: string, repeat: number) {
-          c.match(url)
-            .then(existingEntry => existingEntry == null ? c.add(url) : Promise.resolve())
-            .then(fetchNext)
-            .catch(error => {
-              console.log('Error fetching ' + url);
-              console.log(error);
-              if (repeat > 0) {
-                setTimeout(() => fetch(url, repeat - 1), 3);
-              } else {
-                componentThis.syncRunning = false;
-              }
-            })
-          ;
-        }
-
-        function fetchNext() {
-          currentNumber += 1;
-          const nextEntry = remainingEntries.pop();
-          if (nextEntry === undefined) {
-            componentThis.syncRunning = false;
-          } else {
-            componentThis.progressBarValue = currentNumber / countDivisor;
-            fetch(nextEntry, 5);
-          }
-        }
-      });
-    };
-
-
+  updateDayFilter(selectedOptions: SelectionModel<MatListOption>) {
+    this.filteringDays.clear();
+    selectedOptions.selected.map(o => o.value)
+      .forEach(k => this.filteringDays.add(k));
+    this.redistributeEntries();
   }
 
-  private createItems(index: number, currentRowContent: AlbumEntry[], currentWidth) {
-    const startIndex = index - currentRowContent.length + 1;
-    const rowHeight = this.width / currentWidth;
-    const shapes: Shape[] =
-      currentRowContent.map((e, i) => ({
-        width: (e.targetWidth / e.targetHeight * rowHeight),
-        entry: e,
-        uri: (e.entryUri),
-        entryIndex: i + startIndex
-      }));
-    return {height: rowHeight, shapes};
+  private createUrlString(row: ImagesRow, shape: Shape) {
+    const maxLength = this.findScale(Math.max(shape.width, row.height));
+    return shape.entry.entryUri + '/thumbnail?maxLength=' + maxLength;
   }
 
   updateLabelFilter(selectedOptions: SelectionModel<MatListOption>) {
@@ -355,16 +328,127 @@ export class AlbumContentComponent implements OnInit {
     }
   }
 
+  private recalculateComponents() {
+    this.resultRows = this.resultRows.map(currentRowContent => {
+      switch (currentRowContent.kind) {
+        case 'images':
+          const currentWidth = currentRowContent.shapes
+            .map(e => e.entry)
+            .map(e => e.targetWidth / e.targetHeight)
+            .reduce((sum, current) => sum + current, 0);
+          const rowHeight = this.width / currentWidth;
+          const shapes: Shape[] =
+            currentRowContent.shapes.map(e => ({
+              width: e.entry.targetWidth / e.entry.targetHeight * rowHeight,
+              entry: e.entry,
+              entryIndex: e.entryIndex,
+            }));
+          return createImagesRow(rowHeight, shapes);
+        default:
+          return currentRowContent;
+      }
+    });
+    this.startSync = () => {
+      this.syncRunning = true;
+      this.progressBarMode = 'indeterminate';
+      caches.open('images').then(c => {
+        const remainingEntries = this.resultRows
+          .flatMap(row =>
+            row.kind === 'images'
+              ? row.shapes.map(shape => this.createUrlString(row, shape))
+              : []);
+        const countDivisor = remainingEntries.length / 100;
+        let currentNumber = 0;
+        this.progressBarValue = 0;
+        this.progressBarMode = 'determinate';
+        const componentThis = this;
+        const firstEntry = remainingEntries.pop();
+        if (firstEntry !== undefined) {
+          fetch(firstEntry, 5);
+        } else {
+          this.syncRunning = false;
+        }
+        for (let i = 0; i < 20 && remainingEntries.length > 0; i++) {
+          fetchNext();
+        }
+
+        function fetch(url: string, repeat: number) {
+          c.match(url)
+            .then(existingEntry => existingEntry == null ? c.add(url) : Promise.resolve())
+            .then(fetchNext)
+            .catch(error => {
+              console.log('Error fetching ' + url);
+              console.log(error);
+              if (repeat > 0) {
+                setTimeout(() => fetch(url, repeat - 1), 3);
+              } else {
+                componentThis.syncRunning = false;
+              }
+            })
+          ;
+        }
+
+        function fetchNext() {
+          currentNumber += 1;
+          const nextEntry = remainingEntries.pop();
+          if (nextEntry === undefined) {
+            componentThis.syncRunning = false;
+          } else {
+            componentThis.progressBarValue = currentNumber / countDivisor;
+            fetch(nextEntry, 5);
+          }
+        }
+      });
+    };
+
+
+  }
+
+  private createItems(index: number, currentRowContent: AlbumEntry[], currentWidth): ImagesRow {
+    const startIndex = index - currentRowContent.length + 1;
+    const rowHeight = this.width / currentWidth;
+    const shapes: Shape[] =
+      currentRowContent.map((e, i) => ({
+        width: (e.targetWidth / e.targetHeight * rowHeight),
+        entry: e,
+        uri: (e.entryUri),
+        entryIndex: i + startIndex
+      }));
+    return createImagesRow(rowHeight, shapes);
+  }
+
   private redistributeEntries() {
     this.resultRows = [];
-    let currentRowContent: AlbumEntry[] = [];
+    this.availableNavigationTargets = [];
+    let keywordFiltered: AlbumEntry[];
     if (this.filteringKeywords.size > 0) {
-      this.filteredEntries = this.sortedEntries.filter(e => e.keywords.filter(k => this.filteringKeywords.has(k)).length > 0);
+      keywordFiltered = this.sortedEntries.filter(e => e.keywords.filter(k => this.filteringKeywords.has(k)).length > 0);
     } else {
-      this.filteredEntries = this.sortedEntries;
+      keywordFiltered = this.sortedEntries;
     }
+    if (this.filteringDays.size > 0) {
+      this.filteredEntries = keywordFiltered.filter(e => this.filteringDays.has(dayOfDate(e.created)));
+    } else {
+      this.filteredEntries = keywordFiltered;
+    }
+    let currentHeader: string | null = null;
+
+    let currentRowContent: AlbumEntry[] = [];
     for (let index = 0; index < this.filteredEntries.length; index++) {
       const entry = this.filteredEntries[index];
+      const headerString = dayOfDate(entry.created);
+      if (currentHeader !== headerString) {
+        currentHeader = headerString;
+        if (currentRowContent.length > 0) {
+          this.resultRows.push(
+            this.createItems(index,
+              currentRowContent,
+              currentRowContent.map(e => e.targetWidth / e.targetHeight).reduce((sum, current) => sum + current, 0)));
+          currentRowContent = [];
+        }
+        this.availableNavigationTargets.push({time: entry.created, row: this.resultRows.length});
+        this.resultRows.push({time: entry.created, kind: 'timestamp'});
+      }
       if (entry.targetWidth == null || entry.targetHeight == null) {
         console.log('Invalid entry:');
         console.log(entry);

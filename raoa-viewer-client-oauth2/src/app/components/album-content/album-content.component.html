@@ -35,14 +35,22 @@
     <mat-sidenav #snav [fixedInViewport]="mobileQuery.matches"
                  [mode]="mobileQuery.matches ? 'over' : 'side'" fixedTopGap="56">
       <mat-nav-list>
-        <h3 *ngIf="availableKeywords.size>0" matSubheader>Labels</h3>
+        <h3 *ngIf="availableDays.length>0" matSubheader>Datum</h3>
+        <mat-selection-list (selectionChange)="updateDayFilter($event.source.selectedOptions)">
+          <mat-list-option *ngFor="let entryDate of availableDays" [value]="entryDate">
+            {{entryDate | date:'EE, dd.MM'}}
+          </mat-list-option>
+        </mat-selection-list>
+        <mat-divider *ngIf="availableDays.length>0"></mat-divider>
+
+        <h3 *ngIf="availableKeywords.size>0" matSubheader>Label</h3>
         <mat-selection-list (selectionChange)="updateLabelFilter($event.source.selectedOptions)">
           <mat-list-option *ngFor="let keyword of availableKeywords" [value]="keyword">
             {{keyword}}
           </mat-list-option>
         </mat-selection-list>
         <mat-divider *ngIf="availableKeywords.size>0"></mat-divider>
-        <h3 matSubheader>Alben</h3>
+        <h3 matSubheader>Album</h3>
         <mat-list-item class="search-list-item" disableRipple="true">
           <mat-form-field>
             <mat-label>Suche</mat-label>
@@ -66,11 +74,17 @@
       <div *ngIf="error" class="mat-error main-error">
         {{error}}
       </div>
-      <cdk-virtual-scroll-viewport (resized)="resized($event)" *ngIf="!loading && resultRows" autosize maxBufferPx="200"
-                                   minBufferPx="100"
+      <cdk-virtual-scroll-viewport (resized)="resized($event)"
+                                   *ngIf="!loading && resultRows"
+                                   autosize
                                    class="gallery-row-scrolling">
         <div *cdkVirtualFor="let row of resultRows" class="gallery-row">
-          <img (click)="openImage(shape.entryIndex)" *ngFor="let shape of row.shapes" [alt]="shape.entry.name"
+          <div *ngIf="row.kind==='timestamp'">
+            {{row.time | date:'fullDate'}}
+          </div>
+          <img (click)="openImage(shape.entryIndex)"
+               *ngFor="let shape of imagesOf(row)"
+               [alt]="shape.entry.name"
                [height]="row.height"
                [src]="createUrl(row, shape)" [width]="shape.width"
                class="gallery-cell"/>
