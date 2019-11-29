@@ -41,7 +41,7 @@ public class UserQuery implements GraphQLResolver<UserReference> {
     }
     return dataViewService
         .findUserById(user.getId())
-        .log("user")
+        // .log("user")
         .flatMapMany(
             u ->
                 u.isSuperuser()

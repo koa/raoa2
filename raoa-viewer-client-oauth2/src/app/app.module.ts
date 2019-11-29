@@ -32,6 +32,7 @@ import {MatTableModule} from '@angular/material/table';
 import {
   MatButtonToggleModule,
   MatChipsModule,
+  MatExpansionModule,
   MatMenuModule,
   MatProgressSpinnerModule,
   MatSelectModule,
@@ -87,6 +88,7 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     MatTooltipModule,
     MatMenuModule,
     MatChipsModule,
+    MatExpansionModule,
   ],
   providers: [
     {provide: LOCALE_ID, useValue: 'de-CH'},
