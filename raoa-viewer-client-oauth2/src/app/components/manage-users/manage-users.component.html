@@ -48,7 +48,7 @@
 
   <mat-tab *ngIf="users && users.length>0" label="User">
     <mat-accordion displayMode="flat">
-      <mat-expansion-panel *ngFor="let user of users">
+      <mat-expansion-panel (afterCollapse)="storePendingUpdate()" *ngFor="let user of users">
         <mat-expansion-panel-header>
           <mat-panel-title>
             <!--<img matListAvatar [src]="user.info.picture">-->

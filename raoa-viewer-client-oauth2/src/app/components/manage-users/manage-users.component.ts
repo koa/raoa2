@@ -8,6 +8,7 @@ import {
   ManageUsersRemoveUserGQL,
   ManageUsersUpdateAlbumVisibilityGQL,
   ManageUsersUpdateSuperuserGQL,
+  ManageUsersUpdateUser,
   ManageUsersUpdateUserGQL
 } from '../../generated/graphql';
 import {animate, state, style, transition, trigger} from '@angular/animations';
@@ -29,9 +30,8 @@ export class ManageUsersComponent implements OnInit {
   public pendingRequests: ManageUsersOverview.ListPendingRequests[] = [];
   public users: ManageUsersOverview.ListUsers[];
   public pendingUsersDisplayColumns = ['icon', 'name', 'email', 'acceptButton', 'removeButton'];
-  public usersDisplayColumns = ['icon', 'name', 'email'];
-  public expandedUser: ManageUsersOverview.ListUsers | null;
   public albums: ManageUsersOverview.ListAlbums[] | null;
+  public pendingUpdate: ManageUsersUpdateUser.Variables | null = null;
 
   constructor(private serverApiService: ServerApiService,
               private manageUsersOverviewGQL: ManageUsersOverviewGQL,
@@ -80,17 +80,21 @@ export class ManageUsersComponent implements OnInit {
     await this.loadDataFromServer();
   }
 
-  public async enableSuperuser(userid: string, enable: boolean) {
-    await this.serverApiService.update(this.manageUsersUpdateSuperuserGQL, {id: userid, enabled: enable});
-    // return await this.reloadData();
+  public enableSuperuser(userid: string, enable: boolean) {
+    this.preparePendingUpdates(userid);
+    this.pendingUpdate.update.canManageUsers = enable;
   }
 
-  public async updateAlbumVisibility(userId: string, albumId: string, event: MatSlideToggleChange) {
+  public updateAlbumVisibility(userId: string, albumId: string, event: MatSlideToggleChange) {
+    this.preparePendingUpdates(userId);
     const enabled: boolean = event.checked;
-    console.log('Album: ' + userId + ', ' + albumId + ': ' + enabled);
-    await this.serverApiService.update(this.manageUsersUpdateAlbumVisibilityGQL,
-      {userId, albumId, enabled});
-    // return await this.reloadData();
+    for (const update of this.pendingUpdate.update.visibilityUpdates) {
+      if (update.albumId === albumId) {
+        update.visibility = enabled;
+        return;
+      }
+    }
+    this.pendingUpdate.update.visibilityUpdates.push({albumId, visibility: enabled});
   }
 
   public canUserAccess(userId: string, albumId: string): boolean {
@@ -114,5 +118,29 @@ export class ManageUsersComponent implements OnInit {
       }
     });
 
+  }
+
+  storePendingUpdate() {
+    if (this.pendingUpdate !== null) {
+      const data: ManageUsersUpdateUser.Variables = this.pendingUpdate;
+      this.pendingUpdate = null;
+      this.serverApiService.update(this.manageUsersUpdateUserGQL, data)
+        .then(this.loadDataFromServer)
+        .catch(error => console.log(error));
+    }
+  }
+
+  private preparePendingUpdates(userId: string) {
+    if (this.pendingUpdate !== null && this.pendingUpdate.id !== userId) {
+      this.storePendingUpdate();
+    }
+    if (this.pendingUpdate === null) {
+      this.pendingUpdate = {
+        id: userId, update: {
+          canManageUsers: undefined,
+          visibilityUpdates: []
+        }
+      };
+    }
   }
 }

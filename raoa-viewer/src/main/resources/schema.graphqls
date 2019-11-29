@@ -19,7 +19,7 @@ type Mutation{
 }
 
 input UserUpdate{
-    visibilityUpdates: [UserVisibilityUpdate]
+    visibilityUpdates: [UserVisibilityUpdate!]!
     canManageUsers: Boolean
 }
 
