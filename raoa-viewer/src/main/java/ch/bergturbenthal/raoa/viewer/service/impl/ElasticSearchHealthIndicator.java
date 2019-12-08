@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.viewer.service.impl;
 
-import ch.bergturbenthal.raoa.viewer.repository.UserRepository;
+import ch.bergturbenthal.raoa.libs.repository.UserRepository;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;

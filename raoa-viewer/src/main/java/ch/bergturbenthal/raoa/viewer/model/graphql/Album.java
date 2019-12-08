@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.viewer.model.graphql;
 
-import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumData;
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumData;
 import java.util.UUID;
 import lombok.Value;
 import reactor.core.publisher.Mono;

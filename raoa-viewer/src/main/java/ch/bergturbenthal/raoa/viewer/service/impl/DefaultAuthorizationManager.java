@@ -1,11 +1,11 @@
 package ch.bergturbenthal.raoa.viewer.service.impl;
 
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.AuthenticationId;
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.PersonalUserData;
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.User;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.PersonalUserData;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
+import ch.bergturbenthal.raoa.libs.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
-import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.Map;

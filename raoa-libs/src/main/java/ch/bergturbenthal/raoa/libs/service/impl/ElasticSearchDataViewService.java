@@ -1,18 +1,11 @@
-package ch.bergturbenthal.raoa.viewer.service.impl;
+package ch.bergturbenthal.raoa.libs.service.impl;
 
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.*;
+import ch.bergturbenthal.raoa.libs.repository.*;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.libs.service.DataViewService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
-import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumData;
-import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumEntryData;
-import ch.bergturbenthal.raoa.viewer.model.elasticsearch.KeywordCount;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.AccessRequest;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.PersonalUserData;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
-import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
-import ch.bergturbenthal.raoa.viewer.repository.*;
-import ch.bergturbenthal.raoa.viewer.service.DataViewService;
-import ch.bergturbenthal.raoa.viewer.service.UserManager;
+import ch.bergturbenthal.raoa.libs.service.UserManager;
 import com.adobe.xmp.XMPException;
 import com.adobe.xmp.XMPMeta;
 import com.adobe.xmp.XMPMetaFactory;
@@ -69,7 +62,6 @@ public class ElasticSearchDataViewService implements DataViewService {
   private final UserRepository userRepository;
   private final AccessRequestRepository accessRequestRepository;
   private final UserManager userManager;
-  private final ViewerProperties viewerProperties;
   private final ExecutorService ioExecutorService = Executors.newFixedThreadPool(3);
 
   public ElasticSearchDataViewService(
@@ -79,8 +71,7 @@ public class ElasticSearchDataViewService implements DataViewService {
       final SyncAlbumDataEntryRepository syncAlbumDataEntryRepository,
       final UserRepository userRepository,
       final AccessRequestRepository accessRequestRepository,
-      final UserManager userManager,
-      final ViewerProperties viewerProperties) {
+      final UserManager userManager) {
     this.albumDataRepository = albumDataRepository;
     this.albumDataEntryRepository = albumDataEntryRepository;
     this.albumList = albumList;
@@ -88,7 +79,6 @@ public class ElasticSearchDataViewService implements DataViewService {
     this.userRepository = userRepository;
     this.accessRequestRepository = accessRequestRepository;
     this.userManager = userManager;
-    this.viewerProperties = viewerProperties;
   }
 
   private static Optional<Integer> extractTargetWidth(final Metadata m) {
@@ -482,20 +472,6 @@ public class ElasticSearchDataViewService implements DataViewService {
         .findByAuthenticationsAuthorityAndAuthenticationsId(
             authenticationId.getAuthority(), authenticationId.getId())
         .filter(u -> u.getAuthentications().contains(authenticationId))
-        .switchIfEmpty(
-            Mono.defer(
-                () -> {
-                  if (viewerProperties.getSuperuser().equals(authenticationId.getId())) {
-                    return Mono.just(
-                        User.builder()
-                            .authentications(Collections.singleton(authenticationId))
-                            .id(virtualSuperuserId)
-                            .superuser(true)
-                            .userData(
-                                PersonalUserData.builder().comment("Virtual superuser").build())
-                            .build());
-                  } else return Mono.empty();
-                }))
         .onErrorResume(
             ex -> {
               log.warn("Cannot load user by authentication id " + authenticationId, ex);

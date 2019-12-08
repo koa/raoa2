@@ -1,6 +1,5 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
-import ch.bergturbenthal.raoa.libs.model.AlbumEntryKey;
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
@@ -44,7 +43,6 @@ import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
-import org.ehcache.Cache;
 import org.joda.time.format.ISODateTimeFormat;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.xml.sax.SAXException;
@@ -80,7 +78,6 @@ public class BareGitAccess implements GitAccess {
   private BareGitAccess(
       final Path path,
       final Path relativePath,
-      final Cache<AlbumEntryKey, Metadata> metadataCache,
       ExecutorService ioScheduler,
       final Scheduler processScheduler,
       final MeterRegistry meterRegistry) {
@@ -150,12 +147,10 @@ public class BareGitAccess implements GitAccess {
   public static BareGitAccess accessOf(
       Path path,
       final Path relativePath,
-      final Cache<AlbumEntryKey, Metadata> metadataCache,
       ExecutorService ioScheduler,
       final Scheduler processScheduler,
       MeterRegistry meterRegistry) {
-    return new BareGitAccess(
-        path, relativePath, metadataCache, ioScheduler, processScheduler, meterRegistry);
+    return new BareGitAccess(path, relativePath, ioScheduler, processScheduler, meterRegistry);
   }
 
   @Override

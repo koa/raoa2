@@ -1,8 +1,8 @@
-package ch.bergturbenthal.raoa.viewer.service;
+package ch.bergturbenthal.raoa.libs.service;
 
-import ch.bergturbenthal.raoa.viewer.model.usermanager.AccessRequest;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.AccessRequest;
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.AuthenticationId;
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.User;
 import java.util.UUID;
 import java.util.function.Function;
 import reactor.core.publisher.Flux;

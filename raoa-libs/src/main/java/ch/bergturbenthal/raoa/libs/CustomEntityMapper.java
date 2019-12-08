@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.viewer;
+package ch.bergturbenthal.raoa.libs;
 
 import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.DeserializationFeature;

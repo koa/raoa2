@@ -1,6 +1,6 @@
-package ch.bergturbenthal.raoa.viewer.model.elasticsearch;
+package ch.bergturbenthal.raoa.libs.model.elasticsearch;
 
-import ch.bergturbenthal.raoa.viewer.model.elasticsearch.serializer.ObjectIdSerializer;
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.serializer.ObjectIdSerializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;

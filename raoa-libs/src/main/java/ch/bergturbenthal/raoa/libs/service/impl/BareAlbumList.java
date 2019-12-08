@@ -1,13 +1,10 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
-import ch.bergturbenthal.raoa.libs.model.AlbumEntryKey;
 import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.FileImporter;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
-import ch.bergturbenthal.raoa.libs.service.impl.cache.AlbumEntryKeySerializer;
-import ch.bergturbenthal.raoa.libs.service.impl.cache.MetadataSerializer;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,13 +29,6 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.sax.BodyContentHandler;
-import org.ehcache.Cache;
-import org.ehcache.CacheManager;
-import org.ehcache.config.builders.CacheConfigurationBuilder;
-import org.ehcache.config.builders.CacheManagerBuilder;
-import org.ehcache.config.builders.ResourcePoolsBuilder;
-import org.ehcache.config.units.EntryUnit;
-import org.ehcache.config.units.MemoryUnit;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
 import reactor.core.publisher.Flux;
@@ -75,24 +65,6 @@ public class BareAlbumList implements AlbumList {
   public BareAlbumList(Properties properties, MeterRegistry meterRegistry) {
     this.properties = properties;
 
-    final CacheManager cacheManager =
-        CacheManagerBuilder.newCacheManagerBuilder()
-            .with(CacheManagerBuilder.persistence(properties.getMetadataCache()))
-            .build();
-    cacheManager.init();
-
-    final Cache<AlbumEntryKey, Metadata> metadataCache =
-        cacheManager.createCache(
-            "metadata",
-            CacheConfigurationBuilder.newCacheConfigurationBuilder(
-                    AlbumEntryKey.class,
-                    Metadata.class,
-                    ResourcePoolsBuilder.newResourcePoolsBuilder()
-                        .heap(2000, EntryUnit.ENTRIES)
-                        .disk(3, MemoryUnit.GB, true))
-                .withKeySerializer(new AlbumEntryKeySerializer())
-                .withValueSerializer(new MetadataSerializer()));
-
     final Scheduler processScheduler = Schedulers.newElastic("process");
     final Path repoRootPath = this.properties.getRepository().toPath();
     if (!Files.isDirectory(repoRootPath)) {
@@ -108,12 +80,7 @@ public class BareAlbumList implements AlbumList {
             .<GitAccess>map(
                 p ->
                     BareGitAccess.accessOf(
-                        p,
-                        repoRootPath.relativize(p),
-                        metadataCache,
-                        ioExecutor,
-                        processScheduler,
-                        meterRegistry))
+                        p, repoRootPath.relativize(p), ioExecutor, processScheduler, meterRegistry))
             .flatMap(p -> p.getMetadata().map(m -> Tuples.of(p, m)))
             .filter(t1 -> t1.getT2().getAlbumId() != null)
             .collectMap(t -> t.getT2().getAlbumId(), Tuple2::getT1)

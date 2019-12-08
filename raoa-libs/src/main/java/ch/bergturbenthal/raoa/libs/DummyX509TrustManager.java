@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.viewer;
+package ch.bergturbenthal.raoa.libs;
 
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;

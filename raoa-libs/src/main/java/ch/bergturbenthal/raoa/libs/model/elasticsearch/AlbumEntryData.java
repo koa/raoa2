@@ -1,6 +1,6 @@
-package ch.bergturbenthal.raoa.viewer.model.elasticsearch;
+package ch.bergturbenthal.raoa.libs.model.elasticsearch;
 
-import ch.bergturbenthal.raoa.viewer.model.elasticsearch.serializer.ObjectIdSerializer;
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.serializer.ObjectIdSerializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -11,7 +11,6 @@ import lombok.Builder;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
@@ -132,7 +131,6 @@ public class AlbumEntryData {
     this.documentId = createDocumentId(albumId, entryId);
   }
 
-  @NotNull
   public static String createDocumentId(final UUID albumId, final ObjectId entryId) {
     return albumId + "-" + entryId.name();
   }

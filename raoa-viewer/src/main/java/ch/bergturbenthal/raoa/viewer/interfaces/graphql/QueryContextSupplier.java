@@ -1,12 +1,12 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.AuthenticationId;
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.User;
+import ch.bergturbenthal.raoa.libs.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AuthenticationState;
 import ch.bergturbenthal.raoa.viewer.model.graphql.QueryContext;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
-import ch.bergturbenthal.raoa.viewer.service.DataViewService;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.Optional;

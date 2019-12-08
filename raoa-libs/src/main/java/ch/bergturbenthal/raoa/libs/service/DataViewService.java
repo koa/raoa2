@@ -1,11 +1,6 @@
-package ch.bergturbenthal.raoa.viewer.service;
+package ch.bergturbenthal.raoa.libs.service;
 
-import ch.bergturbenthal.raoa.libs.service.AlbumList;
-import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumData;
-import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumEntryData;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.AccessRequest;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.AuthenticationId;
-import ch.bergturbenthal.raoa.viewer.model.usermanager.User;
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.*;
 import java.util.UUID;
 import org.eclipse.jgit.lib.ObjectId;
 import reactor.core.publisher.Flux;

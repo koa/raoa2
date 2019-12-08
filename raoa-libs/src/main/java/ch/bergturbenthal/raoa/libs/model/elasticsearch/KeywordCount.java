@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.viewer.model.elasticsearch;
+package ch.bergturbenthal.raoa.libs.model.elasticsearch;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;

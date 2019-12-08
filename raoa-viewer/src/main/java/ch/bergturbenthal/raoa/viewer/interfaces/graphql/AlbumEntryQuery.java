@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
-import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumEntryData;
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumEntryData;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Instant;

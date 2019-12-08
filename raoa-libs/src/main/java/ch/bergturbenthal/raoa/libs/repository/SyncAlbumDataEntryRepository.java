@@ -1,6 +1,6 @@
-package ch.bergturbenthal.raoa.viewer.repository;
+package ch.bergturbenthal.raoa.libs.repository;
 
-import ch.bergturbenthal.raoa.viewer.model.elasticsearch.AlbumEntryData;
+import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumEntryData;
 import org.springframework.data.repository.CrudRepository;
 
 public interface SyncAlbumDataEntryRepository extends CrudRepository<AlbumEntryData, String> {}

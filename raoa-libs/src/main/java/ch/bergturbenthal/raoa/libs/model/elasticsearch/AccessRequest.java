@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.viewer.model.usermanager;
+package ch.bergturbenthal.raoa.libs.model.elasticsearch;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.util.UUID;
 import lombok.Builder;
 import lombok.Value;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
@@ -50,7 +49,6 @@ public class AccessRequest {
     this.requestId = concatId(authenticationId);
   }
 
-  @NotNull
   public static String concatId(final AuthenticationId authenticationId) {
     return authenticationId.getAuthority() + ";" + authenticationId.getId();
   }

@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.viewer.model.elasticsearch.serializer;
+package ch.bergturbenthal.raoa.libs.model.elasticsearch.serializer;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;

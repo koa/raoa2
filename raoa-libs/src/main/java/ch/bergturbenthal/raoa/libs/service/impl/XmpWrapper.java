@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.viewer.service.impl;
+package ch.bergturbenthal.raoa.libs.service.impl;
 
 import com.adobe.xmp.XMPConst;
 import com.adobe.xmp.XMPException;
