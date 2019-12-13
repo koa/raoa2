@@ -189,7 +189,7 @@ public class ElasticSearchDataViewService implements DataViewService {
             })
         .collectMap(User::getId, Functions.identity())
         .flatMap(
-            existingUsers ->
+            (Map<UUID, User> existingUsers) ->
                 userManager
                     .listUsers()
                     .flatMap(
