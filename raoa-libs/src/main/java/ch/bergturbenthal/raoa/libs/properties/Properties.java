@@ -8,8 +8,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Data
 // @Validated
 public class Properties {
-  // @NonNull
   private File repository;
+  private File thumbnailDir = new File("/tmp/raoa/thumbnails");
   private File metadataCache;
   private int maxConcurrent = 30;
 }

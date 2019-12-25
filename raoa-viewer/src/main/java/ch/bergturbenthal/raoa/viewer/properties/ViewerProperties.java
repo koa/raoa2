@@ -11,7 +11,6 @@ import org.springframework.util.unit.DataSize;
 @ConfigurationProperties(prefix = "raoa.viewer")
 @Data
 public class ViewerProperties {
-  private File cacheDir;
   private File dataDir;
   private String thumbnailerService = "raoa-thumbnailer";
   private int concurrentThumbnailers = 40;
@@ -23,8 +22,7 @@ public class ViewerProperties {
   private boolean alwaysShowLatestRepository = false;
 
   public ViewerProperties() throws IOException {
-    cacheDir = File.createTempFile("cache", "tmp");
-    cacheDir.delete();
+
     dataDir = File.createTempFile("data", "tmp");
     dataDir.delete();
   }

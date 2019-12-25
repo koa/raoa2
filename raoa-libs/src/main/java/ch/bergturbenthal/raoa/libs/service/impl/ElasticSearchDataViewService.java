@@ -29,7 +29,6 @@ import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -163,7 +162,7 @@ public class ElasticSearchDataViewService implements DataViewService {
     return albumEntryDataBuilder.build();
   }
 
-  @Scheduled(fixedDelay = 5 * 60 * 1000, initialDelay = 5 * 1000)
+  // @Scheduled(fixedDelay = 5 * 60 * 1000, initialDelay = 5 * 1000)
   public void updateAlbumData() {
     try {
       final Optional<Long> albumCount = updateAlbums(this.albumList.listAlbums()).blockOptional();
@@ -173,7 +172,7 @@ public class ElasticSearchDataViewService implements DataViewService {
     }
   }
 
-  @Scheduled(fixedDelay = 5 * 60 * 1000, initialDelay = 2 * 1000)
+  // @Scheduled(fixedDelay = 5 * 60 * 1000, initialDelay = 2 * 1000)
   public void doUpdateUserData() {
     updateUserData().block();
   }

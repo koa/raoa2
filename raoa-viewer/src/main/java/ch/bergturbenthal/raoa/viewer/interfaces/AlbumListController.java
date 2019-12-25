@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.servlet.http.HttpServletResponse;
@@ -72,6 +73,14 @@ public class AlbumListController {
 
     meterRegistry.gauge("limiter2.failed", failCount, AtomicInteger::get);
 
+    final Function<CacheKey, String> cacheKeyStringFunction =
+        cacheKey ->
+            cacheKey.getAlbum().toString()
+                + "/"
+                + cacheKey.getFile().name()
+                + "-"
+                + cacheKey.getMaxLength()
+                + ".jpg";
     thumbnailCache =
         fileCacheManager.createCache(
             "thumbnails",
@@ -87,13 +96,7 @@ public class AlbumListController {
                                 MediaType.IMAGE_JPEG,
                                 k.getMaxLength(),
                                 targetDir)),
-            cacheKey ->
-                cacheKey.getAlbum().toString()
-                    + "/"
-                    + cacheKey.getFile().name()
-                    + "-"
-                    + cacheKey.getMaxLength()
-                    + ".jpg");
+            cacheKeyStringFunction);
   }
 
   @GetMapping("album")

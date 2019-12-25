@@ -19,6 +19,8 @@
         <module>raoa-image-thumbnailer</module>
         <module>raoa-viewer</module>
         <module>raoa-viewer-client-oauth2</module>
+        <module>raoa-job-coordinator</module>
+        <module>raoa-image-processor</module>
     </modules>
     <properties>
         <java.version>11</java.version>

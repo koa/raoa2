@@ -1,10 +1,7 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
 import ch.bergturbenthal.raoa.libs.properties.Properties;
-import ch.bergturbenthal.raoa.libs.service.AlbumList;
-import ch.bergturbenthal.raoa.libs.service.FileImporter;
-import ch.bergturbenthal.raoa.libs.service.GitAccess;
-import ch.bergturbenthal.raoa.libs.service.Updater;
+import ch.bergturbenthal.raoa.libs.service.*;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,13 +11,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.exception.TikaException;
@@ -32,9 +26,7 @@ import org.apache.tika.sax.BodyContentHandler;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoSink;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.function.Tuple2;
@@ -49,21 +41,24 @@ public class BareAlbumList implements AlbumList {
       new HashSet<>(Arrays.asList("image/jpeg", "image/tiff", "application/mp4", "video/mp4"));
   private final Mono<SortedMap<Instant, UUID>> autoaddIndex;
   private final Mono<Map<UUID, GitAccess>> repositories;
-  private final ExecutorService ioExecutor =
-      Executors.newFixedThreadPool(
-          50,
-          new ThreadFactory() {
-            AtomicInteger threadId = new AtomicInteger();
+  /*private final ExecutorService ioExecutor =
+  Executors.newFixedThreadPool(
+      50,
+      new ThreadFactory() {
+        AtomicInteger threadId = new AtomicInteger();
 
-            @Override
-            public Thread newThread(final Runnable r) {
-              return new Thread(r, "git-thread-" + threadId.incrementAndGet());
-            }
-          });
+        @Override
+        public Thread newThread(final Runnable r) {
+          return new Thread(r, "git-thread-" + threadId.incrementAndGet());
+        }
+      });*/
+  private final AsyncService asyncService;
   private Properties properties;
 
-  public BareAlbumList(Properties properties, MeterRegistry meterRegistry) {
+  public BareAlbumList(
+      Properties properties, MeterRegistry meterRegistry, final AsyncService asyncService) {
     this.properties = properties;
+    this.asyncService = asyncService;
 
     final Scheduler processScheduler = Schedulers.newElastic("process");
     final Path repoRootPath = this.properties.getRepository().toPath();
@@ -80,7 +75,11 @@ public class BareAlbumList implements AlbumList {
             .<GitAccess>map(
                 p ->
                     BareGitAccess.accessOf(
-                        p, repoRootPath.relativize(p), ioExecutor, processScheduler, meterRegistry))
+                        p,
+                        repoRootPath.relativize(p),
+                        asyncService,
+                        processScheduler,
+                        meterRegistry))
             .flatMap(p -> p.getMetadata().map(m -> Tuples.of(p, m)))
             .filter(t1 -> t1.getT2().getAlbumId() != null)
             .collectMap(t -> t.getT2().getAlbumId(), Tuple2::getT1)
@@ -107,39 +106,27 @@ public class BareAlbumList implements AlbumList {
             .cache(MAX_AUTOINDEX_CACHE_TIME);
   }
 
-  private static void listSubdirs(final Path dir, final FluxSink<Path> fluxSink) {
-    try {
-      Files.list(dir)
-          .filter(e -> Files.isReadable(e) && Files.isExecutable(e) && Files.isDirectory(e))
-          .forEach(
-              d -> {
-                if (d.getFileName().toString().endsWith(".git")) {
-                  fluxSink.next(d);
-                } else {
-                  final Path dotGitDir = d.resolve(".git");
-                  if (Files.isDirectory(dotGitDir)) {
-                    fluxSink.next(dotGitDir);
-                  } else {
-                    listSubdirs(d, fluxSink);
-                  }
-                }
-              });
-    } catch (IOException e) {
-      fluxSink.error(e);
+  private static void listSubdirs(final Path dir, final Consumer<Path> fluxSink)
+      throws IOException {
+    final Stream<Path> pathStream =
+        Files.list(dir)
+            .filter(e -> Files.isReadable(e) && Files.isExecutable(e) && Files.isDirectory(e));
+    for (Path d : (Iterable<Path>) pathStream::iterator) {
+      if (d.getFileName().toString().endsWith(".git")) {
+        fluxSink.accept(d);
+      } else {
+        final Path dotGitDir = d.resolve(".git");
+        if (Files.isDirectory(dotGitDir)) {
+          fluxSink.accept(dotGitDir);
+        } else {
+          listSubdirs(d, fluxSink);
+        }
+      }
     }
   }
 
   private Flux<Path> listSubdirs(Path dir) {
-    return Flux.create(
-        fluxSink -> {
-          final Future<?> future =
-              ioExecutor.submit(
-                  () -> {
-                    listSubdirs(dir, fluxSink);
-                    fluxSink.complete();
-                  });
-          fluxSink.onDispose(() -> future.cancel(true));
-        });
+    return asyncService.asyncFlux(sink -> listSubdirs(dir, sink));
   }
 
   @Override
@@ -164,78 +151,59 @@ public class BareAlbumList implements AlbumList {
         return repositories
             .flatMap(
                 reps ->
-                    Mono.create(
-                        (MonoSink<Mono<Boolean>> monoSink) -> {
-                          final Future<?> submit =
-                              ioExecutor.submit(
-                                  () -> {
-                                    try {
-                                      AutoDetectParser parser = new AutoDetectParser();
-                                      BodyContentHandler handler = new BodyContentHandler();
-                                      Metadata metadata = new Metadata();
-                                      final TikaInputStream inputStream = TikaInputStream.get(file);
-                                      parser.parse(inputStream, handler, metadata);
-                                      if (!IMPORTING_TYPES.contains(
-                                          metadata.get(Metadata.CONTENT_TYPE))) {
-                                        log.info(
-                                            "Unsupported content type: "
-                                                + metadata.get(Metadata.CONTENT_TYPE));
-                                        monoSink.success(Mono.just(false));
-                                        return;
-                                      }
-                                      final Date createDate =
-                                          metadata.getDate(TikaCoreProperties.CREATED);
-                                      if (createDate == null) {
-                                        log.info("No creation timestamp");
-                                        monoSink.success(Mono.just(false));
-                                        return;
-                                      }
-                                      final Instant createTimestamp = createDate.toInstant();
+                    asyncService.asyncMono(
+                        () -> {
+                          try {
+                            AutoDetectParser parser = new AutoDetectParser();
+                            BodyContentHandler handler = new BodyContentHandler();
+                            Metadata metadata = new Metadata();
+                            final TikaInputStream inputStream = TikaInputStream.get(file);
+                            parser.parse(inputStream, handler, metadata);
+                            if (!IMPORTING_TYPES.contains(metadata.get(Metadata.CONTENT_TYPE))) {
+                              log.info(
+                                  "Unsupported content type: "
+                                      + metadata.get(Metadata.CONTENT_TYPE));
+                              return (Mono.just(false));
+                            }
+                            final Date createDate = metadata.getDate(TikaCoreProperties.CREATED);
+                            if (createDate == null) {
+                              log.info("No creation timestamp");
+                              return (Mono.just(false));
+                            }
+                            final Instant createTimestamp = createDate.toInstant();
 
-                                      final String prefix =
-                                          DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
-                                              .format(
-                                                  createTimestamp.atZone(ZoneId.systemDefault()));
-                                      final String targetFilename =
-                                          prefix + "-" + file.getFileName().toString();
-                                      monoSink.success(
-                                          albumOf(createTimestamp)
-                                              .flatMap(
-                                                  repositoryId -> {
-                                                    ioExecutor.submit(
-                                                        () -> {
-                                                          getAlbum(repositoryId)
-                                                              .flatMap(GitAccess::getName)
-                                                              .defaultIfEmpty("not found")
-                                                              .subscribe(
-                                                                  name ->
-                                                                      log.info(
-                                                                          "Import " + file + " to "
-                                                                              + name));
-                                                        });
-
-                                                    return pendingUpdaters.computeIfAbsent(
-                                                        repositoryId,
-                                                        k -> reps.get(k).createUpdater().cache());
-                                                  })
-                                              .flatMap(
-                                                  updater ->
-                                                      updater
-                                                          .importFile(file, targetFilename)
-                                                          .onErrorResume(
-                                                              e -> {
-                                                                log.warn(
-                                                                    "Cannot import file " + file,
-                                                                    e);
-                                                                return Mono.just(false);
-                                                              }))
-                                              .defaultIfEmpty(false));
-                                    } catch (TikaException | SAXException | IOException e) {
-                                      log.warn("Cannot access file " + file, e);
-                                      monoSink.success(Mono.just(false));
-                                    }
-                                  });
-                          monoSink.onCancel(() -> submit.cancel(true));
+                            final String prefix =
+                                DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
+                                    .format(createTimestamp.atZone(ZoneId.systemDefault()));
+                            final String targetFilename =
+                                prefix + "-" + file.getFileName().toString();
+                            return (albumOf(createTimestamp)
+                                .flatMap(
+                                    repositoryId ->
+                                        getAlbum(repositoryId)
+                                            .flatMap(GitAccess::getName)
+                                            .defaultIfEmpty("not found")
+                                            .doOnNext(
+                                                name -> log.info("Import " + file + " to " + name))
+                                            .map(name -> repositoryId))
+                                .flatMap(
+                                    repositoryId ->
+                                        pendingUpdaters.computeIfAbsent(
+                                            repositoryId, k -> reps.get(k).createUpdater().cache()))
+                                .flatMap(
+                                    updater ->
+                                        updater
+                                            .importFile(file, targetFilename)
+                                            .onErrorResume(
+                                                e -> {
+                                                  log.warn("Cannot import file " + file, e);
+                                                  return Mono.just(false);
+                                                }))
+                                .defaultIfEmpty(false));
+                          } catch (TikaException | SAXException | IOException e) {
+                            log.warn("Cannot access file " + file, e);
+                            return (Mono.just(false));
+                          }
                         }))
             .flatMap(Function.identity());
       }

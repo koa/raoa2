@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.viewer.service.impl;
 
+import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.FileCache;
 import ch.bergturbenthal.raoa.viewer.service.FileCacheManager;
@@ -21,11 +22,14 @@ import reactor.core.publisher.Mono;
 @Slf4j
 @Service
 public class DefaultFileCacheManager implements FileCacheManager {
-  private final ViewerProperties properties;
+  private final ViewerProperties viewerProperties;
+  private final Properties properties;
   private final Map<String, FileCacheEntry<?>> existingCaches =
       Collections.synchronizedMap(new HashMap<>());
 
-  public DefaultFileCacheManager(final ViewerProperties properties) {
+  public DefaultFileCacheManager(
+      final ViewerProperties viewerProperties, final Properties properties) {
+    this.viewerProperties = viewerProperties;
     this.properties = properties;
   }
 
@@ -40,17 +44,19 @@ public class DefaultFileCacheManager implements FileCacheManager {
             cacheId,
             name ->
                 new FileCacheEntry<>(
-                    new File(properties.getCacheDir(), name), filenameGenerator, objectCreator));
+                    new File(properties.getThumbnailDir(), name),
+                    filenameGenerator,
+                    objectCreator));
   }
 
   @Scheduled(fixedDelay = 60 * 1000)
   public void reduceCache() {
-    final DataSize defaultCacheSize = properties.getDefaultCacheSize();
+    final DataSize defaultCacheSize = viewerProperties.getDefaultCacheSize();
     existingCaches.forEach(
         (name, cache) -> {
           synchronized (cache) {
             final long maxCacheSize =
-                properties.getCacheSize().getOrDefault(name, defaultCacheSize).toBytes();
+                viewerProperties.getCacheSize().getOrDefault(name, defaultCacheSize).toBytes();
             long currentCacheSize = cache.diskUsage();
             if (currentCacheSize > maxCacheSize) {
               cache.removeFiles(currentCacheSize - maxCacheSize);

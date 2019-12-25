@@ -1,6 +1,7 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
+import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,8 +21,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -48,7 +47,6 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.xml.sax.SAXException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoSink;
 import reactor.core.scheduler.Scheduler;
 import reactor.util.function.Tuples;
 
@@ -69,25 +67,26 @@ public class BareGitAccess implements GitAccess {
   private final Mono<Repository> repository;
   private final Mono<AlbumMeta> albumMetaSupplier;
   private final MeterRegistry meterRegistry;
-  private Path relativePath;
-  private ExecutorService ioScheduler;
-  private Scheduler processScheduler;
-  private AtomicReference<Mono<Ref>> cachedMasterRef = new AtomicReference<>();
-  private AtomicReference<Mono<RevTree>> cachedMasterTree = new AtomicReference<>();
+  private final Path relativePath;
+  private final AsyncService asyncService;
+  private final Scheduler processScheduler;
+  private final AtomicReference<Mono<Ref>> cachedMasterRef = new AtomicReference<>();
+  private final AtomicReference<Mono<RevTree>> cachedMasterTree = new AtomicReference<>();
 
   private BareGitAccess(
       final Path path,
       final Path relativePath,
-      ExecutorService ioScheduler,
+      final AsyncService asyncService,
       final Scheduler processScheduler,
       final MeterRegistry meterRegistry) {
     this.relativePath = relativePath;
-    this.ioScheduler = ioScheduler;
+    this.asyncService = asyncService;
     this.processScheduler = processScheduler;
     this.meterRegistry = meterRegistry;
 
     repository =
-        createAsyncMono(
+        this.asyncService
+            .asyncMono(
                 () ->
                     new FileRepositoryBuilder().setGitDir(path.toFile()).readEnvironment().build())
             .cache(REPOSITORY_CACHE_TIME);
@@ -147,7 +146,7 @@ public class BareGitAccess implements GitAccess {
   public static BareGitAccess accessOf(
       Path path,
       final Path relativePath,
-      ExecutorService ioScheduler,
+      AsyncService ioScheduler,
       final Scheduler processScheduler,
       MeterRegistry meterRegistry) {
     return new BareGitAccess(path, relativePath, ioScheduler, processScheduler, meterRegistry);
@@ -189,7 +188,7 @@ public class BareGitAccess implements GitAccess {
                                           tw.setRecursive(true);
                                           while (!done.get() && tw.next()) {
                                             // log.info("Free slots: " + freeSlots);
-                                            final String nameString = tw.getNameString();
+                                            final String nameString = tw.getPathString();
                                             final FileMode fileMode = tw.getFileMode();
                                             final ObjectId fileId = tw.getObjectId(0);
                                             if (!freeSlots.tryAcquire()) {
@@ -240,34 +239,7 @@ public class BareGitAccess implements GitAccess {
   }
 
   private <T> Mono<T> createAsyncMonoOptional(Callable<Optional<T>> callable) {
-    return createAsyncMono(callable).filter(Optional::isPresent).map(Optional::get);
-  }
-
-  private <T> Mono<T> createAsyncMono(Callable<T> callable) {
-    return Mono.create(
-        sink -> {
-          AtomicBoolean requested = new AtomicBoolean(false);
-          sink.onRequest(
-              count -> {
-                if (count > 0) {
-                  if (requested.compareAndSet(false, true)) {
-                    final Future<?> schedule =
-                        ioScheduler.submit(
-                            () -> {
-                              // log.info("Started "+sink.currentContext());
-                              try {
-                                sink.success(callable.call());
-                              } catch (Exception e) {
-                                sink.error(e);
-                              } // finally {
-                              // log.info("Ended");
-                              // }
-                            });
-                    sink.onCancel(() -> schedule.cancel(true));
-                  }
-                }
-              });
-        });
+    return asyncService.asyncMono(callable).filter(Optional::isPresent).map(Optional::get);
   }
 
   @Override
@@ -307,7 +279,7 @@ public class BareGitAccess implements GitAccess {
   private Mono<RevTree> readTree(final Ref ref) {
     // log.info("Read tree " + ref + " at " + relativePath);
     return repository
-        .flatMap(r -> createAsyncMono(() -> r.parseCommit(ref.getObjectId())))
+        .flatMap(r -> asyncService.asyncMono(() -> r.parseCommit(ref.getObjectId())))
         .publishOn(processScheduler)
         .map(RevCommit::getTree);
   }
@@ -326,7 +298,7 @@ public class BareGitAccess implements GitAccess {
                     () ->
                         repository
                             .map(Repository::getRefDatabase)
-                            .flatMap(db -> createAsyncMono(() -> db.findRef("master")))
+                            .flatMap(db -> asyncService.asyncMono(() -> db.findRef("master")))
                             .cache(REPOSITORY_CACHE_TIME)))
         .publishOn(processScheduler);
   }
@@ -358,7 +330,8 @@ public class BareGitAccess implements GitAccess {
         rep ->
             findMasterRef()
                 .flatMap(r -> readTree(r).map(t -> Tuples.of(r, t)))
-                .flatMap(t -> createAsyncMono(() -> createUpdater(rep, t.getT1(), t.getT2()))));
+                .flatMap(
+                    t -> asyncService.asyncMono(() -> createUpdater(rep, t.getT1(), t.getT2()))));
   }
 
   private Updater createUpdater(final Repository rep, final Ref masterRef, final RevTree tree) {
@@ -433,7 +406,7 @@ public class BareGitAccess implements GitAccess {
       @Override
       public Mono<Boolean> importFile(final Path file, final String name, boolean replaceIfExists) {
         if (replaceIfExists) replacedFiles.add(name);
-        return createAsyncMono(
+        return asyncService.asyncMono(
             () -> {
               try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
                 final ObjectId newFileId =
@@ -481,7 +454,7 @@ public class BareGitAccess implements GitAccess {
       public Mono<Boolean> commit(String message) {
         final Mono<String> nameMono = getName();
         return Mono.zip(findMasterRef(), nameMono)
-            .flatMap(t -> exectueCommit(message, t.getT1()).log("Commit " + t.getT2()))
+            .flatMap(t -> executeCommit(message, t.getT1()).log("Commit " + t.getT2()))
             .defaultIfEmpty(Boolean.FALSE)
             .doFinally(
                 signal -> {
@@ -489,106 +462,89 @@ public class BareGitAccess implements GitAccess {
                 });
       }
 
-      Mono<Boolean> exectueCommit(final String message, final Ref currentMasterRef) {
+      private Mono<Boolean> executeCommit(final String message, final Ref currentMasterRef) {
         if (!modified) {
           return Mono.just(true);
         }
-        return Mono.create(
-                (MonoSink<Boolean> sink) -> {
-                  final Future<?> future =
-                      ioScheduler.submit(
-                          () -> {
-                            try {
+        return asyncService.asyncMono(
+            () -> {
+              try {
 
-                              try (ObjectReader reader = rep.newObjectReader()) {
-                                TreeWalk tw = treeWalkSupplier.apply(reader);
-                                while (tw.next()) {
-                                  if (!replacedFiles.contains(tw.getPathString()))
-                                    builder.add(dirCacheEntryCreator.apply(tw));
-                                }
-                              }
-                              builder.finish();
-                              if (!isBareRepository) {
-                                // update index
-                                dirCache.write();
-                                if (!dirCache.commit()) {
-                                  sink.success(false);
-                                  return;
-                                }
-                              }
-                            } catch (IOException e) {
-                              log.warn("Cannot prepare commit", e);
-                              sink.success(false);
-                              return;
-                            }
-                            try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
+                try (ObjectReader reader = rep.newObjectReader()) {
+                  TreeWalk tw = treeWalkSupplier.apply(reader);
+                  while (tw.next()) {
+                    if (!replacedFiles.contains(tw.getPathString()))
+                      builder.add(dirCacheEntryCreator.apply(tw));
+                  }
+                }
+                builder.finish();
+                if (!isBareRepository) {
+                  // update index
+                  dirCache.write();
+                  if (!dirCache.commit()) {
+                    return (false);
+                  }
+                }
+              } catch (IOException e) {
+                log.warn("Cannot prepare commit", e);
+                return (false);
+              }
+              try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
 
-                              final ObjectId treeId = dirCache.writeTree(objectInserter);
-                              final CommitBuilder commit = new CommitBuilder();
-                              final PersonIdent author =
-                                  new PersonIdent("raoa-importer", "photos@teamkoenig.ch");
-                              if (message != null) commit.setMessage(message);
-                              commit.setAuthor(author);
-                              commit.setCommitter(author);
-                              commit.setParentIds(currentMasterRef.getObjectId());
-                              commit.setTreeId(treeId);
-                              final ObjectId commitId = objectInserter.insert(commit);
+                final ObjectId treeId = dirCache.writeTree(objectInserter);
+                final CommitBuilder commit = new CommitBuilder();
+                final PersonIdent author = new PersonIdent("raoa-importer", "photos@teamkoenig.ch");
+                if (message != null) commit.setMessage(message);
+                commit.setAuthor(author);
+                commit.setCommitter(author);
+                commit.setParentIds(currentMasterRef.getObjectId());
+                commit.setTreeId(treeId);
+                final ObjectId commitId = objectInserter.insert(commit);
 
-                              objectInserter.flush();
+                objectInserter.flush();
 
-                              RevCommit revCommit = rep.parseCommit(commitId);
-                              RefUpdate ru = rep.updateRef(Constants.HEAD);
-                              ru.setNewObjectId(commitId);
-                              ru.setRefLogMessage(
-                                  "auto import" + revCommit.getShortMessage(), false);
-                              ru.setExpectedOldObjectId(masterRef.getObjectId());
-                              switch (ru.update()) {
-                                case NOT_ATTEMPTED:
-                                case LOCK_FAILURE:
-                                case REJECTED_OTHER_REASON:
-                                case REJECTED_MISSING_OBJECT:
-                                case IO_FAILURE:
-                                case REJECTED_CURRENT_BRANCH:
-                                case REJECTED:
-                                  return;
+                RevCommit revCommit = rep.parseCommit(commitId);
+                RefUpdate ru = rep.updateRef(Constants.HEAD);
+                ru.setNewObjectId(commitId);
+                ru.setRefLogMessage("auto import" + revCommit.getShortMessage(), false);
+                ru.setExpectedOldObjectId(masterRef.getObjectId());
+                switch (ru.update()) {
+                  case NOT_ATTEMPTED:
+                  case LOCK_FAILURE:
+                  case REJECTED_OTHER_REASON:
+                  case REJECTED_MISSING_OBJECT:
+                  case IO_FAILURE:
+                  case REJECTED_CURRENT_BRANCH:
+                  case REJECTED:
+                    return false;
 
-                                case NO_CHANGE:
-                                case FAST_FORWARD:
-                                case FORCED:
-                                case NEW:
-                                case RENAMED:
-                                  if (!isBareRepository)
-                                    // checkout index
-                                    try (ObjectReader reader = rep.newObjectReader()) {
-                                      final File workTree = rep.getWorkTree();
-                                      for (int i = 0; i < dirCache.getEntryCount(); i++) {
-                                        final DirCacheEntry dirCacheEntry = dirCache.getEntry(i);
-                                        if (dirCacheEntry == null) continue;
-                                        final File file =
-                                            new File(workTree, dirCacheEntry.getPathString());
-                                        if (replacedFiles.contains(dirCacheEntry.getPathString()))
-                                          file.delete();
-                                        if (file.exists()) continue;
-                                        @Cleanup
-                                        final FileOutputStream outputStream =
-                                            new FileOutputStream(file);
-                                        reader
-                                            .open(dirCacheEntry.getObjectId())
-                                            .copyTo(outputStream);
-                                      }
-                                    }
-                                  log.info("Commit successful " + rep.getDirectory());
-                                  sink.success(true);
-                              }
-                            } catch (IOException e) {
-                              log.warn("Cannot finish commit", e);
-                            } finally {
-                              sink.success(false);
-                            }
-                          });
-                  sink.onCancel(() -> future.cancel(false));
-                })
-            .doFinally(signal -> cachedMasterRef.set(null));
+                  case NO_CHANGE:
+                  case FAST_FORWARD:
+                  case FORCED:
+                  case NEW:
+                  case RENAMED:
+                    if (!isBareRepository)
+                      // checkout index
+                      try (ObjectReader reader = rep.newObjectReader()) {
+                        final File workTree = rep.getWorkTree();
+                        for (int i = 0; i < dirCache.getEntryCount(); i++) {
+                          final DirCacheEntry dirCacheEntry = dirCache.getEntry(i);
+                          if (dirCacheEntry == null) continue;
+                          final File file = new File(workTree, dirCacheEntry.getPathString());
+                          if (replacedFiles.contains(dirCacheEntry.getPathString())) file.delete();
+                          if (file.exists()) continue;
+                          @Cleanup final FileOutputStream outputStream = new FileOutputStream(file);
+                          reader.open(dirCacheEntry.getObjectId()).copyTo(outputStream);
+                        }
+                      }
+                    log.info("Commit successful " + rep.getDirectory());
+                    return (true);
+                }
+              } catch (IOException e) {
+                log.warn("Cannot finish commit", e);
+              }
+              return (false);
+            });
       }
     };
   }
@@ -634,7 +590,7 @@ public class BareGitAccess implements GitAccess {
                 readObject(entryId)
                     .flatMap(
                         loader ->
-                            this.createAsyncMono(
+                            asyncService.asyncMono(
                                 () ->
                                     meterRegistry
                                         .timer("git-access.metadata.load")

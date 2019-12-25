@@ -6,9 +6,12 @@ import ch.bergturbenthal.raoa.libs.repository.SyncAlbumDataEntryRepository;
 import ch.bergturbenthal.raoa.libs.service.impl.BareGitAccess;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.data.elasticsearch.ReactiveRestClientProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.context.properties.PropertyMapper;
@@ -68,5 +71,11 @@ public class RaoaLibConfiguration {
               headers.setBasicAuth(username, properties.getPassword());
               builder.withDefaultHeaders(headers);
             });
+  }
+
+  @Bean
+  @ConditionalOnMissingBean
+  ExecutorService executorService() {
+    return Executors.newFixedThreadPool(10);
   }
 }
