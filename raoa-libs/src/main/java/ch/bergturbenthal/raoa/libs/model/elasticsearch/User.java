@@ -9,7 +9,7 @@ import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
-@Document(indexName = "user")
+@Document(indexName = "user", createIndex = true)
 @Value
 @Builder(toBuilder = true)
 public class User {

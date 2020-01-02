@@ -1,0 +1,31 @@
+{{- if .Values.ingress.enabled -}}
+        {{- $fullName := include "raoa.fullname" . -}}
+        {{- $svcPort := .Values.service.port -}}
+        {{- if semverCompare ">=1.14-0" .Capabilities.KubeVersion.GitVersion -}}
+apiVersion: networking.k8s.io/v1beta1
+        {{- else -}}
+apiVersion: extensions/v1beta1
+        {{- end }}
+kind: Ingress
+metadata:
+    name: {{ $fullName }}
+    labels:
+        {{- include "raoa.labels" . | nindent 4 }}
+        {{- with .Values.ingress.annotations }}
+    annotations:
+        {{- toYaml . | nindent 4 }}
+        {{- end }}
+spec:
+    tls:
+        - hosts:
+              - {{.Values.ingress.host}}
+          secretName: {{ include "raoa.tls.name"}}
+    rules:
+        - host: {{.Values.ingress.host}}
+          http:
+              paths:
+                  - path: /
+                    backend:
+                        serviceName: {{ include "raoa.fullname" . }}-viewer
+                        servicePort: http
+        {{- end }}

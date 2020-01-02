@@ -10,6 +10,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class Properties {
   private File repository;
   private File thumbnailDir = new File("/tmp/raoa/thumbnails");
-  private File metadataCache;
   private int maxConcurrent = 30;
 }

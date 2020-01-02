@@ -3,7 +3,10 @@ package ch.bergturbenthal.raoa.coordinator.service.impl;
 import ch.bergturbenthal.raoa.libs.model.kafka.ProcessImageRequest;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
+import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
 import ch.bergturbenthal.raoa.libs.service.impl.ElasticSearchDataViewService;
+import java.io.File;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -23,14 +26,17 @@ public class Poller {
   private final KafkaTemplate<ObjectId, ProcessImageRequest> kafkaTemplate;
   private final AlbumList albumList;
   private final ElasticSearchDataViewService elasticSearchDataViewService;
+  private final ThumbnailFilenameService thumbnailFilenameService;
 
   public Poller(
       final KafkaTemplate<ObjectId, ProcessImageRequest> kafkaTemplate,
       final AlbumList albumList,
-      final ElasticSearchDataViewService elasticSearchDataViewService) {
+      final ElasticSearchDataViewService elasticSearchDataViewService,
+      final ThumbnailFilenameService thumbnailFilenameService) {
     this.kafkaTemplate = kafkaTemplate;
     this.albumList = albumList;
     this.elasticSearchDataViewService = elasticSearchDataViewService;
+    this.thumbnailFilenameService = thumbnailFilenameService;
   }
 
   @Scheduled(fixedDelay = 60 * 60 * 1000, initialDelay = 1000)
@@ -44,14 +50,27 @@ public class Poller {
                         .getAccess()
                         .listFiles(ElasticSearchDataViewService.IMAGE_FILE_FILTER)
                         .filterWhen(
-                            gitFileEntry ->
-                                elasticSearchDataViewService
-                                    .loadEntry(album.getAlbumId(), gitFileEntry.getFileId())
-                                    .map(d -> true)
-                                    .defaultIfEmpty(false)
-                                    .map(b -> !b))
+                            gitFileEntry -> {
+                              final boolean allThumbnailsOk =
+                                  thumbnailFilenameService
+                                      .listThumbnailsOf(
+                                          album.getAlbumId(), gitFileEntry.getFileId())
+                                      .map(ThumbnailFilenameService.FileAndScale::getFile)
+                                      .map(File::exists)
+                                      .collect(
+                                          () -> new AtomicBoolean(true),
+                                          (r, v) -> r.compareAndSet(true, v),
+                                          (r1, r2) -> new AtomicBoolean(r1.get() && r2.get()))
+                                      .get();
+                              if (!allThumbnailsOk) return Mono.just(true);
+                              return elasticSearchDataViewService
+                                  .loadEntry(album.getAlbumId(), gitFileEntry.getFileId())
+                                  .map(d -> true)
+                                  .defaultIfEmpty(false)
+                                  .map(b -> !b);
+                            })
                         .map(e -> Tuples.of(album, e)))
-            .take(500)
+            // .take(500)
             .flatMap(
                 (Tuple2<AlbumList.FoundAlbum, GitAccess.GitFileEntry> entry) -> {
                   final String filename = entry.getT2().getNameString();

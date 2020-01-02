@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "raoa.fullname" . }}-image-processor
+  labels:
+  {{- include "raoa.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.imageProcessorCount }}
+  selector:
+    matchLabels:
+  {{- include "raoa.imageProcessorSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+    {{- include "raoa.imageProcessorSelectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "raoa.serviceAccountName" . }}
+      securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.imageProcessorRepository }}:{{ .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort}}
+            - name: management
+              containerPort: {{ .Values.managementPort}}
+            {{ if .Values.debug.enabled}}
+            - name: debug
+              containerPort: {{ .Values.debug.port}}
+          {{ end}}
+          readinessProbe:
+            httpGet:
+              port: {{ .Values.managementPort}}
+              path: /actuator/health
+            initialDelaySeconds: 10
+            failureThreshold: 30
+            periodSeconds: 3
+          livenessProbe:
+            httpGet:
+              port: {{ .Values.managementPort}}
+              path: /actuator/health
+            initialDelaySeconds: 90
+            failureThreshold: 5
+            periodSeconds: 5
+          env:
+            {{ if .Values.debug.enabled}}
+            - name: JAVA_TOOL_OPTIONS
+              value: {{ printf "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=localhost:%i" .Values.debug.port | quote}}
+            {{ end}}
+            - name: SPRING_DATA_ELASTICSEARCH_CLIENT_REACTIVE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "raoa.fullname" . }}-es-elastic-user
+                  key: elastic
+            - name: SPRING_ELASTICSEARCH_REST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "raoa.fullname" . }}-es-elastic-user
+                  key: elastic
+            - name: SPRING_APPLICATION_NAME
+              value: {{ include "raoa.fullname" . }}-image-processor
+          volumeMounts:
+            - mountPath: /cache
+              name: shared-cache
+            - mountPath: /data
+              name: data
+            - mountPath: /dumps
+              name: dumps
+          resources:
+      {{- toYaml .Values.viewerResources | nindent 12 }}
+      {{ with .Values.affinity }}
+      affinity:
+      {{- toYaml . | nindent 8 }}
+      {{ end }}
+      {{ with .Values.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{ end }}
+      {{ with .Values.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{ end }}
+      volumes:
+        - name: data
+        {{- include "raoa.dataVolume" . | nindent 10 }}
+        - name: shared-cache
+          persistentVolumeClaim:
+            claimName: {{ include "raoa.name" . }}-cache
+        - name: dumps
+          emptyDir: {}

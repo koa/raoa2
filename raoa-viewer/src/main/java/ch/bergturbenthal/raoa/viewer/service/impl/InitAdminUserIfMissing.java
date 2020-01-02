@@ -31,6 +31,7 @@ public class InitAdminUserIfMissing {
   }
 
   @Scheduled(fixedDelay = 1000 * 60)
+  // TODO: Inject Admin-User per API
   public void checkAndFixAdminUser() {
     try {
       final String superuser = viewerProperties.getSuperuser();
@@ -42,6 +43,7 @@ public class InitAdminUserIfMissing {
           existingSuperuser
               .map(Optional::of)
               .defaultIfEmpty(Optional.empty())
+              .onErrorReturn(Optional.empty())
               .flatMap(
                   maybeUser -> {
                     if (maybeUser.isPresent()) {
@@ -63,6 +65,7 @@ public class InitAdminUserIfMissing {
                       dataViewService.updateUserData().cast(User.class).defaultIfEmpty(updatedUser))
               .doOnNext(user -> log.info("Updated superuser" + user))
               .blockOptional(Duration.of(1, ChronoUnit.MINUTES));
+      log.info("Created user: " + createdUser);
     } catch (Exception ex) {
       log.warn("Cannot check superuser", ex);
     }
