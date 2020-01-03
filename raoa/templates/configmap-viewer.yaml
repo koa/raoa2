@@ -3,7 +3,7 @@ apiVersion: v1
 metadata:
   name: {{ include "raoa.fullname" . }}-viewer
   labels:
-  {{- include "raoa.labels" . | nindent 4 }}
+    {{- include "raoa.labels" . | nindent 4 }}
 data:
   {{ include "raoa.common.config" . | nindent 2}}
   raoa.viewer.cache-size.thumbnails: 10GB

@@ -13,4 +13,4 @@ spec:
       protocol: TCP
       name: mgmt
   selector:
-  {{- include "raoa.imageProcessorSelectorLabels" . | nindent 4 }}
+    {{- include "raoa.imageProcessorSelectorLabels" . | nindent 4 }}
