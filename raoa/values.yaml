@@ -73,9 +73,27 @@ viewerResources:
   limits:
     cpu: "8"
     memory: 3Gi
-    ephemeral-storage: 20Gi
+    ephemeral-storage: 2Gi
   requests:
     cpu: 250m
+    memory: 1.5Gi
+    ephemeral-storage: 1Gi
+processorResources:
+  limits:
+    cpu: "2"
+    memory: 3Gi
+    ephemeral-storage: 20Gi
+  requests:
+    cpu: "1"
+    memory: 1.5Gi
+    ephemeral-storage: 10Gi
+coordinatorResources:
+  limits:
+    cpu: "2"
+    memory: 3Gi
+    ephemeral-storage: 20Gi
+  requests:
+    cpu: "1"
     memory: 1.5Gi
     ephemeral-storage: 10Gi
 

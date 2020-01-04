@@ -28,6 +28,7 @@ import org.eclipse.jgit.lib.ObjectStream;
 import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -40,7 +41,7 @@ import reactor.util.function.Tuples;
 @Slf4j
 @Service
 public class ElasticSearchDataViewService implements DataViewService {
-  public static final TreeFilter IMAGE_FILE_FILTER =
+  public static final TreeFilter MEDIA_FILE_FILTER =
       OrTreeFilter.create(
           new TreeFilter[] {
             PathSuffixFilter.create(".jpg"),
@@ -50,6 +51,14 @@ public class ElasticSearchDataViewService implements DataViewService {
             PathSuffixFilter.create(".mp4"),
             PathSuffixFilter.create(".MP4"),
             PathSuffixFilter.create(".mkv")
+          });
+  public static final TreeFilter IMAGE_FILE_FILTER =
+      OrTreeFilter.create(
+          new TreeFilter[] {
+            PathSuffixFilter.create(".jpg"),
+            PathSuffixFilter.create(".jpeg"),
+            PathSuffixFilter.create(".JPG"),
+            PathSuffixFilter.create(".JPEG")
           });
   private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
   private static TreeFilter XMP_FILE_FILTER = PathSuffixFilter.create(".xmp");
@@ -307,7 +316,7 @@ public class ElasticSearchDataViewService implements DataViewService {
                                               xmpMetadata ->
                                                   album
                                                       .getAccess()
-                                                      .listFiles(IMAGE_FILE_FILTER)
+                                                      .listFiles(MEDIA_FILE_FILTER)
                                                       .publishOn(Schedulers.elastic())
                                                       .flatMap(
                                                           gitFileEntry -> {
@@ -362,32 +371,8 @@ public class ElasticSearchDataViewService implements DataViewService {
                                                                     .publishOn(Schedulers.elastic())
                                                                     .flatMapIterable(
                                                                         entities -> {
-                                                                          log.info(
-                                                                              "Store "
-                                                                                  + entities.size()
-                                                                                  + " entries");
-                                                                          try {
-                                                                            final Iterable<
-                                                                                    AlbumEntryData>
-                                                                                albumEntryData =
-                                                                                    syncAlbumDataEntryRepository
-                                                                                        .saveAll(
-                                                                                            entities);
-                                                                            log.info(
-                                                                                "Stored "
-                                                                                    + entities
-                                                                                        .size()
-                                                                                    + " entries");
-
-                                                                            return albumEntryData;
-                                                                          } catch (Exception ex) {
-                                                                            log.error(
-                                                                                "Cannot store", ex);
-                                                                            return Collections
-                                                                                .emptyList();
-                                                                          } finally {
-                                                                            log.info("Done");
-                                                                          }
+                                                                          return storeAlbumEntryDataBatch(
+                                                                              entities);
                                                                         });
                                                             return Flux.merge(passThrough, stored);
                                                           })
@@ -439,6 +424,24 @@ public class ElasticSearchDataViewService implements DataViewService {
                                         }))),
             2)
         .count();
+  }
+
+  @NotNull
+  public Iterable<? extends AlbumEntryData> storeAlbumEntryDataBatch(
+      final List<AlbumEntryData> entities) {
+    log.info("Store " + entities.size() + " entries");
+    try {
+      final Iterable<AlbumEntryData> albumEntryData =
+          syncAlbumDataEntryRepository.saveAll(entities);
+      log.info("Stored " + entities.size() + " entries");
+
+      return albumEntryData;
+    } catch (Exception ex) {
+      log.error("Cannot store", ex);
+      return Collections.emptyList();
+    } finally {
+      log.info("Done");
+    }
   }
 
   private String stripXmpTail(final String filename) {

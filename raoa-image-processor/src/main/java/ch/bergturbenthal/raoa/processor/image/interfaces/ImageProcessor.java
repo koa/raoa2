@@ -2,7 +2,6 @@ package ch.bergturbenthal.raoa.processor.image.interfaces;
 
 import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumEntryData;
 import ch.bergturbenthal.raoa.libs.model.kafka.ProcessImageRequest;
-import ch.bergturbenthal.raoa.libs.repository.AlbumDataEntryRepository;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
@@ -10,13 +9,17 @@ import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
 import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
 import com.adobe.xmp.XMPMeta;
 import com.adobe.xmp.XMPMetaFactory;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
 import lombok.Cleanup;
@@ -29,6 +32,7 @@ import org.apache.commons.imaging.formats.tiff.constants.TiffTagConstants;
 import org.apache.commons.imaging.formats.tiff.write.TiffOutputDirectory;
 import org.apache.commons.imaging.formats.tiff.write.TiffOutputField;
 import org.apache.commons.imaging.formats.tiff.write.TiffOutputSet;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.*;
 import org.apache.tika.parser.AutoDetectParser;
@@ -40,6 +44,7 @@ import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -55,18 +60,21 @@ public class ImageProcessor {
   private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
   private final AlbumList albumList;
   private final AsyncService asyncService;
-  private final AlbumDataEntryRepository albumDataEntryRepository;
   private final ThumbnailFilenameService thumbnailFilenameService;
+  private final KafkaTemplate<ObjectId, AlbumEntryData> kafkaTemplate;
+  private final MeterRegistry meterRegistry;
 
   public ImageProcessor(
       final AlbumList albumList,
       final AsyncService asyncService,
-      final AlbumDataEntryRepository albumDataEntryRepository,
-      final ThumbnailFilenameService thumbnailFilenameService) {
+      final ThumbnailFilenameService thumbnailFilenameService,
+      final KafkaTemplate<ObjectId, AlbumEntryData> kafkaTemplate,
+      final MeterRegistry meterRegistry) {
     this.albumList = albumList;
     this.asyncService = asyncService;
-    this.albumDataEntryRepository = albumDataEntryRepository;
     this.thumbnailFilenameService = thumbnailFilenameService;
+    this.kafkaTemplate = kafkaTemplate;
+    this.meterRegistry = meterRegistry;
   }
 
   private static Optional<Integer> extractTargetWidth(final Metadata m) {
@@ -150,8 +158,6 @@ public class ImageProcessor {
     return albumEntryDataBuilder.build();
   }
 
-  private static void scaleImageDown(final File inFile, final File outFile) {}
-
   private static TiffOutputSet copy(final TiffOutputSet in) throws ImageWriteException {
     final TiffOutputSet out = new TiffOutputSet(in.byteOrder);
     for (TiffOutputDirectory inDir : in.getDirectories()) {
@@ -164,21 +170,21 @@ public class ImageProcessor {
     return out;
   }
 
-  @KafkaListener(
-      id = "image-processor",
-      topics = "process-image",
-      clientIdPrefix = "imgProc"
-      //        ,
-      //  containerFactory = "consumerFactory"
-      )
-  public void processImage(ProcessImageRequest request) {
-    log.info("Should process " + request);
+  @KafkaListener(id = "image-processor", topics = "process-image", clientIdPrefix = "imgProc")
+  public void processImage(ConsumerRecord<ObjectId, ProcessImageRequest> record) {
+    final long startTime = System.nanoTime();
+    final ProcessImageRequest request = record.value();
+    final ObjectId key = record.key();
+    // log.info("Should process " + request);
     final String filename = request.getFilename();
     final String xmpFilename = filename + ".xmp";
     TreeFilter interestingFileFilter =
         OrTreeFilter.create(
             new TreeFilter[] {PathFilter.create(filename), PathFilter.create(xmpFilename)});
     final Mono<GitAccess> album = albumList.getAlbum(request.getAlbumId());
+    AtomicInteger fileCount = new AtomicInteger(0);
+    AtomicLong byteWriteCount = new AtomicLong(0);
+    AtomicLong byteReadCount = new AtomicLong(0);
 
     final Mono<AlbumEntryData> loadedData =
         album.flatMap(
@@ -192,7 +198,7 @@ public class ImageProcessor {
                             final ObjectId t1 = m.get(filename);
                             final ObjectId value = m.get(xmpFilename);
                             if (t1 == null) {
-                              log.info("File not found: " + filename);
+                              log.warn("File not found: " + filename);
                             }
                             return Tuples.of(Optional.ofNullable(t1), Optional.ofNullable(value));
                           })
@@ -209,10 +215,13 @@ public class ImageProcessor {
                                                   () -> {
                                                     final File tempFile1 =
                                                         File.createTempFile("tmp", ".jpg");
-                                                    @Cleanup
-                                                    final FileOutputStream fileOutputStream1 =
-                                                        new FileOutputStream(tempFile1);
-                                                    loader1.copyTo(fileOutputStream1);
+                                                    {
+                                                      @Cleanup
+                                                      final FileOutputStream fileOutputStream1 =
+                                                          new FileOutputStream(tempFile1);
+                                                      loader1.copyTo(fileOutputStream1);
+                                                    }
+                                                    byteReadCount.addAndGet(tempFile1.length());
                                                     return tempFile1;
                                                   })),
                                   t.getT2()
@@ -225,6 +234,8 @@ public class ImageProcessor {
                                                               () -> {
                                                                 try (final ObjectStream stream =
                                                                     loader.openStream()) {
+                                                                  byteReadCount.addAndGet(
+                                                                      stream.getSize());
                                                                   return XMPMetaFactory.parse(
                                                                       stream);
                                                                 }
@@ -376,7 +387,7 @@ public class ImageProcessor {
                                                         graphics.setTransform(t);
                                                         graphics.drawImage(image, 0, 0, null);
                                                         graphics.dispose();
-                                                        log.info("write temp: " + tempFile);
+                                                        // log.info("write temp: " + tempFile);
 
                                                         if (optionalTiffOutputSet.isPresent()) {
                                                           final TiffOutputSet tiffOutputSet =
@@ -417,19 +428,24 @@ public class ImageProcessor {
                                                                       tiffOutputSet);
                                                             }
                                                             tempFile.renameTo(targetFile);
+                                                            fileCount.incrementAndGet();
                                                           }
                                                           return writeOk;
                                                         } else {
                                                           final boolean writeOk =
                                                               ImageIO.write(
                                                                   targetImage, "jpg", tempFile);
-                                                          if (writeOk)
+                                                          if (writeOk) {
                                                             tempFile.renameTo(targetFile);
+                                                            fileCount.incrementAndGet();
+                                                          }
                                                           return writeOk;
                                                         }
                                                       } finally {
                                                         tempFile.delete();
-                                                        log.info("written: " + targetFile);
+                                                        byteWriteCount.addAndGet(
+                                                            targetFile.length());
+                                                        // log.info("written: " + targetFile);
                                                       }
                                                     });
                                               })
@@ -450,11 +466,12 @@ public class ImageProcessor {
                                                         fileMeta,
                                                         optionalXMPMeta));
                                           })
-                                      .flatMap(
-                                          e ->
-                                              albumDataEntryRepository
-                                                  .save(e)
-                                                  .log("el: " + request.getFilename()));
+                                  /*.flatMap(
+                                  e ->
+                                      albumDataEntryRepository
+                                          .save(e)
+                                          .log("el: " + request.getFilename()))*/
+                                  ;
                                 };
                         final Mono<AlbumEntryData> albumEntryDataMono =
                             Mono.zip(metadataMono, inputImage, overrideableMetadata)
@@ -464,7 +481,16 @@ public class ImageProcessor {
                         return albumEntryDataMono.doFinally(signal -> file.delete());
                       }));
             });
-
-    loadedData.log("img: " + request.getFilename()).block();
+    loadedData
+        .flatMap(
+            (AlbumEntryData data) ->
+                Mono.fromFuture(kafkaTemplate.send("processed-image", key, data).completable()))
+        // .log("img: " + request.getFilename())
+        .block();
+    final long endTime = System.nanoTime();
+    meterRegistry.timer("image.processing").record(Duration.ofNanos(endTime - startTime));
+    meterRegistry.counter("image.filewritten").increment(fileCount.get());
+    meterRegistry.counter("image.byteread").increment(byteReadCount.get());
+    meterRegistry.counter("image.bytewritten").increment(byteWriteCount.get());
   }
 }

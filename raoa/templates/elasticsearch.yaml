@@ -1,20 +1,12 @@
-apiVersion: elasticsearch.k8s.elastic.co/v1alpha1
+apiVersion: elasticsearch.k8s.elastic.co/v1beta1
 kind: Elasticsearch
 metadata:
   name: {{ include "raoa.fullname" . }}
 spec:
   version: 7.2.0
-  nodes:
-    - nodeCount: {{.Values.data.elasticsearch.nodeCount}}
-      volumeClaimTemplates:
-        - metadata:
-          name: {{ include "raoa.fullname" . }}-el-data
-          spec:
-            accessModes:
-            - ReadWriteOnce
-            resources:
-              requests:
-                storage: 1Gi
+  nodeSets:
+    - name: raoa
+      count: {{.Values.data.elasticsearch.nodeCount}}
       config:
         node.master: true
         node.data: true

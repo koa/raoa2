@@ -20,11 +20,11 @@ spec:
       {{- end }}
       serviceAccountName: {{ include "raoa.serviceAccountName" . }}
       securityContext:
-      {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
-          {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.viewerRepository }}:{{ .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
@@ -75,7 +75,7 @@ spec:
             - mountPath: /dumps
               name: dumps
           resources:
-      {{- toYaml .Values.viewerResources | nindent 12 }}
+            {{- toYaml .Values.viewerResources | nindent 12 }}
       {{ with .Values.affinity }}
       affinity:
       {{- toYaml . | nindent 8 }}
@@ -90,7 +90,7 @@ spec:
       {{ end }}
       volumes:
         - name: data
-        {{- include "raoa.dataVolume" . | nindent 10 }}
+          {{- include "raoa.dataVolume" . | nindent 10 }}
         - name: shared-cache
           persistentVolumeClaim:
             claimName: {{ include "raoa.name" . }}-cache
