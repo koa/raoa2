@@ -106,4 +106,5 @@ spring.data.elasticsearch.client.reactive.socket-timeout: 1m
 spring.elasticsearch.rest.uris: https://{{ include "raoa.fullname" . }}-es-http:9200
 spring.elasticsearch.rest.username: elastic
 #logging.level.org.springframework.data.elasticsearch.client.WIRE: trace
+#logging.level.org.apache.kafka: debug
 {{- end -}}

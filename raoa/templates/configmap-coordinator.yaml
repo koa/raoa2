@@ -6,4 +6,6 @@ metadata:
     {{- include "raoa.labels" . | nindent 4 }}
 data:
   {{ include "raoa.common.config" . | nindent 2}}
+  raoa.coordinator.concurrentProcessingImages: "500"
+  raoa.coordinator.concurrentProcessingAlbums: "4"
   spring.kafka.bootstrap-servers: {{ include "raoa.fullname" . }}-kafka:9092

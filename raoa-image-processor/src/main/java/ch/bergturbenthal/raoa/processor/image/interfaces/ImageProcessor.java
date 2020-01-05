@@ -500,7 +500,7 @@ public class ImageProcessor {
         .flatMap(
             (AlbumEntryData data) ->
                 Mono.fromFuture(kafkaTemplate.send("processed-image", key, data).completable()))
-        // .log("img: " + request.getFilename())
+        .log("img: " + request.getFilename())
         .block();
     final long endTime = System.nanoTime();
     meterRegistry.timer("image.processing").record(Duration.ofNanos(endTime - startTime));

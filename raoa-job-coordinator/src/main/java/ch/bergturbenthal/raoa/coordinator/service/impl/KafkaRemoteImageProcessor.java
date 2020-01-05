@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -16,6 +17,7 @@ import org.springframework.util.concurrent.ListenableFuture;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
 
+@Slf4j
 @Service
 public class KafkaRemoteImageProcessor implements RemoteImageProcessor {
   private final KafkaTemplate<ObjectId, ProcessImageRequest> kafkaTemplate;
@@ -58,6 +60,7 @@ public class KafkaRemoteImageProcessor implements RemoteImageProcessor {
   public void takeProcessedImageResponse(AlbumEntryData data) {
     final ObjectId entryId = data.getEntryId();
     final MonoSink<AlbumEntryData> foundSink = waitingResponses.remove(entryId);
+    // log.info("response " + entryId.name() + ", match: " + (foundSink != null));
     if (foundSink != null) {
       foundSink.success(data);
     }

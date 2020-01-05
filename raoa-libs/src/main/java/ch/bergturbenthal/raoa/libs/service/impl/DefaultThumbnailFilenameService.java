@@ -33,7 +33,12 @@ public class DefaultThumbnailFilenameService implements ThumbnailFilenameService
   }
 
   private File createThumbnailFile(final UUID album, final ObjectId entryId, final int size) {
-    String targetFilename = album.toString() + "/" + entryId.name() + "-" + size + ".jpg";
+
+    final String name = entryId.name();
+    final String prefix = name.substring(0, 2);
+    final String suffix = name.substring(2);
+    final String targetFilename =
+        album.toString() + "/" + size + "/" + prefix + "/" + suffix + ".jpg";
     return new File(properties.getThumbnailDir(), targetFilename);
   }
 }

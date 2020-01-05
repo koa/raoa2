@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.coordinator.service.impl;
 
+import ch.bergturbenthal.raoa.coordinator.model.CoordinatorProperties;
 import ch.bergturbenthal.raoa.coordinator.service.RemoteImageProcessor;
 import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumData;
 import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumEntryData;
@@ -45,6 +46,7 @@ public class Poller {
   private final AlbumDataEntryRepository albumDataEntryRepository;
   private final AlbumDataRepository albumDataRepository;
   private final AsyncService asyncService;
+  private final CoordinatorProperties coordinatorProperties;
 
   public Poller(
       final KafkaTemplate<ObjectId, ProcessImageRequest> kafkaTemplate,
@@ -55,7 +57,8 @@ public class Poller {
       final SyncAlbumDataEntryRepository syncAlbumDataEntryRepository,
       final AlbumDataEntryRepository albumDataEntryRepository,
       final AlbumDataRepository albumDataRepository,
-      final AsyncService asyncService) {
+      final AsyncService asyncService,
+      final CoordinatorProperties coordinatorProperties) {
     this.kafkaTemplate = kafkaTemplate;
     this.albumList = albumList;
     this.elasticSearchDataViewService = elasticSearchDataViewService;
@@ -65,6 +68,7 @@ public class Poller {
     this.albumDataEntryRepository = albumDataEntryRepository;
     this.albumDataRepository = albumDataRepository;
     this.asyncService = asyncService;
+    this.coordinatorProperties = coordinatorProperties;
   }
 
   @Scheduled(fixedDelay = 60 * 60 * 1000, initialDelay = 500)
@@ -136,12 +140,12 @@ public class Poller {
                                             final ObjectId fileId = entry.getT1().getFileId();
                                             return remoteImageProcessor
                                                 .processImage(fileId, data)
-                                                .timeout(Duration.ofMinutes(20))
+                                                .timeout(coordinatorProperties.getProcessTimeout())
                                                 .map(ret -> Tuples.of(ret, true))
                                             // .log("proc: " + filename)
                                             ;
                                           },
-                                          100)
+                                          coordinatorProperties.getConcurrentProcessingImages())
                                       .groupBy(Tuple2::getT2)
                                       .flatMap(
                                           inFlux -> {
@@ -237,7 +241,7 @@ public class Poller {
                               return Mono.empty();
                             });
                   },
-                  4);
+                  coordinatorProperties.getConcurrentProcessingAlbums());
       try {
         for (Tuple2<Optional<Void>, AlbumData> entry : take.toIterable()) {
           log.info("updated: " + entry.getT2().getName());
