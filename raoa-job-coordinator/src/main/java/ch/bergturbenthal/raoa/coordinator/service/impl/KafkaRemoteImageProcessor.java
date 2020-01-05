@@ -54,7 +54,7 @@ public class KafkaRemoteImageProcessor implements RemoteImageProcessor {
         });
   }
 
-  @KafkaListener(id = "image-coordinator", topics = "processed-image", clientIdPrefix = "imgCoord")
+  @KafkaListener(id = "response-tracker", topics = "processed-image")
   public void takeProcessedImageResponse(AlbumEntryData data) {
     final ObjectId entryId = data.getEntryId();
     final MonoSink<AlbumEntryData> foundSink = waitingResponses.remove(entryId);

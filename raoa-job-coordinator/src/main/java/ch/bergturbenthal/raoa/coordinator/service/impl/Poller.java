@@ -67,6 +67,15 @@ public class Poller {
     this.asyncService = asyncService;
   }
 
+  @Scheduled(fixedDelay = 60 * 60 * 1000, initialDelay = 500)
+  public void updateUsers() {
+    try {
+      elasticSearchDataViewService.updateUserData().block();
+    } catch (Exception ex) {
+      log.warn("Error updating users", ex);
+    }
+  }
+
   @Scheduled(fixedDelay = 60 * 60 * 1000, initialDelay = 1000)
   public void poll() {
     log.info("scheduler started");
@@ -80,6 +89,7 @@ public class Poller {
                     return albumDataEntryRepository
                         .findByAlbumId(album.getAlbumId())
                         .collectMap(AlbumEntryData::getEntryId, k -> k)
+                        .retryBackoff(10, Duration.ofSeconds(10))
                         .flatMap(
                             existingEntries -> {
                               final Mono<List<Tuple2<AlbumEntryData, Boolean>>> updatedData =
@@ -149,6 +159,7 @@ public class Poller {
                                                             });
                                                       },
                                                       1)
+                                                  .retryBackoff(10, Duration.ofSeconds(10))
                                                   .map(e -> Tuples.of(e, true));
                                             } else return inFlux;
                                           })
@@ -217,7 +228,7 @@ public class Poller {
                                                             .map(e -> e.getDocumentId()))
                                                     .map(Optional::of)
                                                     .defaultIfEmpty(Optional.empty()),
-                                                save.retry(10));
+                                                save.retryBackoff(10, Duration.ofSeconds(10)));
                                           }));
                             })
                         .onErrorResume(

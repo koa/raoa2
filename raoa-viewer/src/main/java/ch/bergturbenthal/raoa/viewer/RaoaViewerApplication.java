@@ -4,7 +4,7 @@ import ch.bergturbenthal.raoa.libs.PatchedElasticsearchConfigurationSupport;
 import ch.bergturbenthal.raoa.libs.RaoaLibConfiguration;
 import ch.bergturbenthal.raoa.viewer.interfaces.AlbumListController;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
-import ch.bergturbenthal.raoa.viewer.service.impl.RemoteThumbnailManager;
+import ch.bergturbenthal.raoa.viewer.service.impl.DefaultAuthorizationManager;
 import graphql.schema.*;
 import java.time.Instant;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +26,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
   ResourceServerConfig.class,
   PatchedElasticsearchConfigurationSupport.class
 })
-@ComponentScan(basePackageClasses = {RemoteThumbnailManager.class, AlbumListController.class})
+@ComponentScan(basePackageClasses = {DefaultAuthorizationManager.class, AlbumListController.class})
 @EnableScheduling
 public class RaoaViewerApplication {
 

@@ -58,6 +58,7 @@ import reactor.util.function.Tuples;
 @Service
 public class ImageProcessor {
   private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
+  private static final Set<String> RAW_ENDINGS = Set.of(".nef", ".dng", ".cr2", ".crw", ".cr3");
   private final AlbumList albumList;
   private final AsyncService asyncService;
   private final ThumbnailFilenameService thumbnailFilenameService;
@@ -170,7 +171,21 @@ public class ImageProcessor {
     return out;
   }
 
-  @KafkaListener(id = "image-processor", topics = "process-image", clientIdPrefix = "imgProc")
+  public static BufferedImage loadImage(File file) throws IOException {
+    final String lowerFilename = file.getName().toLowerCase();
+    if (lowerFilename.length() > 4) {
+      final String ending = lowerFilename.substring(lowerFilename.length() - 4);
+      if (RAW_ENDINGS.contains(ending)) {
+        final Process process =
+            Runtime.getRuntime().exec(new String[] {"dcraw", "-c", file.getAbsolutePath()});
+        final InputStream inputStream = process.getInputStream();
+        return ImageIO.read(inputStream);
+      }
+    }
+    return ImageIO.read(file);
+  }
+
+  @KafkaListener(topics = "process-image", groupId = "imgProc")
   public void processImage(ConsumerRecord<ObjectId, ProcessImageRequest> record) {
     final long startTime = System.nanoTime();
     final ProcessImageRequest request = record.value();
@@ -282,7 +297,7 @@ public class ImageProcessor {
                                 .onErrorReturn(Optional.empty())
                                 .defaultIfEmpty(Optional.empty());
                         final Mono<BufferedImage> inputImage =
-                            asyncService.asyncMono(() -> ImageIO.read(file)).cache();
+                            asyncService.asyncMono(() -> loadImage(file)).cache();
                         final Function3<
                                 Metadata,
                                 BufferedImage,

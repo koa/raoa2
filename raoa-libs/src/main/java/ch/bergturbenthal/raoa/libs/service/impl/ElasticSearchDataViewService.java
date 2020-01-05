@@ -48,6 +48,8 @@ public class ElasticSearchDataViewService implements DataViewService {
             PathSuffixFilter.create(".jpeg"),
             PathSuffixFilter.create(".JPG"),
             PathSuffixFilter.create(".JPEG"),
+            PathSuffixFilter.create(".nef"),
+            PathSuffixFilter.create(".NEF"),
             PathSuffixFilter.create(".mp4"),
             PathSuffixFilter.create(".MP4"),
             PathSuffixFilter.create(".mkv")
@@ -58,7 +60,9 @@ public class ElasticSearchDataViewService implements DataViewService {
             PathSuffixFilter.create(".jpg"),
             PathSuffixFilter.create(".jpeg"),
             PathSuffixFilter.create(".JPG"),
-            PathSuffixFilter.create(".JPEG")
+            PathSuffixFilter.create(".JPEG"),
+            PathSuffixFilter.create(".nef"),
+            PathSuffixFilter.create(".NEF")
           });
   private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
   private static TreeFilter XMP_FILE_FILTER = PathSuffixFilter.create(".xmp");

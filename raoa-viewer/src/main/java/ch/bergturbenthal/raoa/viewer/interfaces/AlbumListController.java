@@ -2,21 +2,18 @@ package ch.bergturbenthal.raoa.viewer.interfaces;
 
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
+import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
+import ch.bergturbenthal.raoa.libs.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
-import ch.bergturbenthal.raoa.viewer.service.FileCache;
-import ch.bergturbenthal.raoa.viewer.service.FileCacheManager;
-import ch.bergturbenthal.raoa.viewer.service.ThumbnailManager;
 import ch.bergturbenthal.raoa.viewer.service.impl.GitBlobRessource;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.servlet.http.HttpServletResponse;
@@ -25,8 +22,6 @@ import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
-import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -44,59 +39,27 @@ import reactor.util.function.Tuples;
 @Controller
 @RequestMapping("rest")
 public class AlbumListController {
-  public static final TreeFilter IMAGE_FILE_FILTER =
-      OrTreeFilter.create(
-          new TreeFilter[] {
-            PathSuffixFilter.create(".jpg"),
-            PathSuffixFilter.create(".jpeg"),
-            PathSuffixFilter.create(".JPG"),
-            PathSuffixFilter.create(".JPEG")
-          });
+  public static final TreeFilter IMAGE_FILE_FILTER = ElasticSearchDataViewService.IMAGE_FILE_FILTER;
   private final AlbumList albumList;
   private final ViewerProperties viewerProperties;
-  private final FileCache<CacheKey> thumbnailCache;
+  private final ThumbnailFilenameService thumbnailFilenameService;
   private final AuthorizationManager authorizationManager;
   private final MeterRegistry meterRegistry;
   private final AtomicInteger failCount = new AtomicInteger();
 
   public AlbumListController(
       final AlbumList albumList,
-      final FileCacheManager fileCacheManager,
-      final ThumbnailManager thumbnailManager,
       final ViewerProperties viewerProperties,
+      final ThumbnailFilenameService thumbnailFilenameService,
       final AuthorizationManager authorizationManager,
       MeterRegistry meterRegistry) {
     this.albumList = albumList;
     this.viewerProperties = viewerProperties;
+    this.thumbnailFilenameService = thumbnailFilenameService;
     this.authorizationManager = authorizationManager;
     this.meterRegistry = meterRegistry;
 
     meterRegistry.gauge("limiter2.failed", failCount, AtomicInteger::get);
-
-    final Function<CacheKey, String> cacheKeyStringFunction =
-        cacheKey ->
-            cacheKey.getAlbum().toString()
-                + "/"
-                + cacheKey.getFile().name()
-                + "-"
-                + cacheKey.getMaxLength()
-                + ".jpg";
-    thumbnailCache =
-        fileCacheManager.createCache(
-            "thumbnails",
-            (CacheKey k, File targetDir) ->
-                albumList
-                    .getAlbum(k.getAlbum())
-                    .flatMap(gitAccess -> gitAccess.readObject(k.getFile()))
-                    .flatMap(
-                        loader ->
-                            thumbnailManager.takeThumbnail(
-                                k.getFile(),
-                                loader,
-                                MediaType.IMAGE_JPEG,
-                                k.getMaxLength(),
-                                targetDir)),
-            cacheKeyStringFunction);
   }
 
   @GetMapping("album")
@@ -135,58 +98,23 @@ public class AlbumListController {
 
     final Mono<Boolean> userCanAccess =
         authorizationManager.canUserAccessToAlbum(securityContext, albumId).filter(t -> t).cache();
-    if (maxLength != 1600) {
-      userCanAccess
-          .flatMap(t -> thumbnailCache.take(new CacheKey(albumId, objectId, 1600)))
-          .subscribe(
-              data -> log.debug("preloaded " + data), ex -> log.warn("Cannot preload image", ex));
-    }
 
-    return userCanAccess
-        .flatMap(
-            t ->
-                Mono.zip(
-                    albumList
-                        .getAlbum(albumId)
-                        .flatMap(
-                            g ->
-                                g.listFiles(IMAGE_FILE_FILTER)
-                                    .filter(e -> e.getFileId().name().equals(fileId))
-                                    .take(1)
-                                    .singleOrEmpty())
-                        .map(GitAccess.GitFileEntry::getNameString),
-                    thumbnailCache
-                        .take(new CacheKey(albumId, objectId, maxLength))
-                        .map(FileSystemResource::new)))
-        .<ResponseEntity<Resource>>map(
-            t -> {
-              final HttpHeaders headers1 = new HttpHeaders();
-              headers1.setContentType(MediaType.IMAGE_JPEG);
-              headers1.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
-              headers1.setETag("\"" + fileId + "\"");
-              // headers.setContentDisposition(
-              //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
-              return new ResponseEntity<>(t.getT2(), headers1, HttpStatus.OK);
-            })
-        .timeout(Duration.ofSeconds(33))
-        .map(Optional::of)
-        .onErrorResume(
-            ex -> {
-              log.warn("Cannot generate thumbnail", ex);
-              return Mono.empty();
-            })
-        .defaultIfEmpty(Optional.empty())
-        .doOnNext(value -> failCount.set(0))
-        .map(
-            o ->
-                o.orElseGet(
-                    () -> {
-                      final HttpHeaders headers = new HttpHeaders();
-                      headers.add(
-                          "Retry-After",
-                          Integer.toString(Math.min(failCount.incrementAndGet() / 2 + 1, 120)));
-                      return new ResponseEntity<>(headers, HttpStatus.TOO_MANY_REQUESTS);
-                    }));
+    return userCanAccess.map(
+        allowed -> {
+          if (!allowed) {
+            return new ResponseEntity(HttpStatus.FORBIDDEN);
+          }
+          final File thumbnailFile =
+              thumbnailFilenameService.findThumbnailOf(albumId, objectId, maxLength);
+          Resource res = new FileSystemResource(thumbnailFile);
+          final HttpHeaders headers = new HttpHeaders();
+          headers.setContentType(MediaType.IMAGE_JPEG);
+          headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+          headers.setETag("\"" + fileId + "\"");
+          // headers.setContentDisposition(
+          //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
+          return new ResponseEntity<>(res, headers, HttpStatus.OK);
+        });
   }
 
   @GetMapping("album/{albumId}/{imageId}/original")
@@ -247,12 +175,12 @@ public class AlbumListController {
     for (Tuple2<GitAccess.GitFileEntry, File> fileData :
         gitAccess
             .flatMapMany(g -> g.listFiles(IMAGE_FILE_FILTER))
-            .flatMap(
+            .map(
                 entry ->
-                    thumbnailCache
-                        .take(new CacheKey(album, entry.getFileId(), 1600))
-                        .map(f -> Tuples.of(entry, f)),
-                viewerProperties.getConcurrentThumbnailers())
+                    Tuples.of(
+                        entry,
+                        thumbnailFilenameService.findThumbnailOf(album, entry.getFileId(), 1600)))
+            .filter(e -> e.getT2().exists())
             .toIterable()) {
       zipOutputStream.putNextEntry(new ZipEntry(fileData.getT1().getNameString()));
       @Cleanup final FileInputStream fileInputStream = new FileInputStream(fileData.getT2());

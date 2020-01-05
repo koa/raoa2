@@ -108,7 +108,7 @@
                 </executions>
                 <configuration>
                     <from>
-                        <image>docker.io/library/openjdk:11-slim</image>
+                        <image>docker.io/koa1/raoa-processor-base:latest</image>
                     </from>
                     <to>
                         <image>docker.io/koa1/raoa-image-processor</image>

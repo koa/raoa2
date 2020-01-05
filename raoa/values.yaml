@@ -81,7 +81,7 @@ viewerResources:
 processorResources:
   limits:
     cpu: "2"
-    memory: 3Gi
+    memory: 2Gi
     ephemeral-storage: 20Gi
   requests:
     cpu: "1"
