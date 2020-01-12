@@ -1,15 +1,16 @@
-package ch.bergturbenthal.raoa.processor.image.interfaces;
+package ch.bergturbenthal.raoa.processor.image.service.impl;
 
 import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumEntryData;
-import ch.bergturbenthal.raoa.libs.model.kafka.ProcessImageRequest;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
 import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
+import ch.bergturbenthal.raoa.processor.image.service.ImageProcessor;
 import com.adobe.xmp.XMPMeta;
 import com.adobe.xmp.XMPMetaFactory;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
@@ -32,7 +33,6 @@ import org.apache.commons.imaging.formats.tiff.constants.TiffTagConstants;
 import org.apache.commons.imaging.formats.tiff.write.TiffOutputDirectory;
 import org.apache.commons.imaging.formats.tiff.write.TiffOutputField;
 import org.apache.commons.imaging.formats.tiff.write.TiffOutputSet;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.*;
 import org.apache.tika.parser.AutoDetectParser;
@@ -42,9 +42,8 @@ import org.eclipse.jgit.lib.ObjectStream;
 import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
-import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -56,25 +55,22 @@ import reactor.util.function.Tuples;
 
 @Slf4j
 @Service
-public class ImageProcessor {
+public class DefaultImageProcessor implements ImageProcessor {
   private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
   private static final Set<String> RAW_ENDINGS = Set.of(".nef", ".dng", ".cr2", ".crw", ".cr3");
   private final AlbumList albumList;
   private final AsyncService asyncService;
   private final ThumbnailFilenameService thumbnailFilenameService;
-  private final KafkaTemplate<ObjectId, AlbumEntryData> kafkaTemplate;
   private final MeterRegistry meterRegistry;
 
-  public ImageProcessor(
+  public DefaultImageProcessor(
       final AlbumList albumList,
       final AsyncService asyncService,
       final ThumbnailFilenameService thumbnailFilenameService,
-      final KafkaTemplate<ObjectId, AlbumEntryData> kafkaTemplate,
       final MeterRegistry meterRegistry) {
     this.albumList = albumList;
     this.asyncService = asyncService;
     this.thumbnailFilenameService = thumbnailFilenameService;
-    this.kafkaTemplate = kafkaTemplate;
     this.meterRegistry = meterRegistry;
   }
 
@@ -185,23 +181,20 @@ public class ImageProcessor {
     return ImageIO.read(file);
   }
 
-  @KafkaListener(topics = "process-image", groupId = "imgProc")
-  public void processImage(ConsumerRecord<ObjectId, ProcessImageRequest> record) {
+  @Override
+  @NotNull
+  public Mono<AlbumEntryData> processImage(final UUID albumId, final String filename) {
+    AtomicInteger fileCount = new AtomicInteger(0);
+    AtomicLong byteWriteCount = new AtomicLong(0);
+    AtomicLong byteReadCount = new AtomicLong(0);
     final long startTime = System.nanoTime();
-    final ProcessImageRequest request = record.value();
-    final ObjectId key = record.key();
-    // log.info("Should process " + request);
-    final String filename = request.getFilename();
     final String xmpFilename = filename + ".xmp";
     TreeFilter interestingFileFilter =
         OrTreeFilter.create(
             new TreeFilter[] {PathFilter.create(filename), PathFilter.create(xmpFilename)});
-    final Mono<GitAccess> album = albumList.getAlbum(request.getAlbumId());
-    AtomicInteger fileCount = new AtomicInteger(0);
-    AtomicLong byteWriteCount = new AtomicLong(0);
-    AtomicLong byteReadCount = new AtomicLong(0);
+    final Mono<GitAccess> album = albumList.getAlbum(albumId);
 
-    final Mono<AlbumEntryData> loadedData =
+    final Mono<AlbumEntryData> albumEntryDataMono1 =
         album.flatMap(
             a -> {
               final Mono<Tuple2<ObjectId, Optional<ObjectId>>> foundFilesMono =
@@ -317,7 +310,7 @@ public class ImageProcessor {
                                   final Mono<Boolean> thumbnailsCreated =
                                       Flux.fromStream(
                                               thumbnailFilenameService.listThumbnailsOf(
-                                                  request.getAlbumId(), entryId))
+                                                  albumId, entryId))
                                           .flatMap(
                                               (ThumbnailFilenameService.FileAndScale
                                                       fileAndScale) -> {
@@ -475,7 +468,7 @@ public class ImageProcessor {
                                             return metadataMono.map(
                                                 fileMeta ->
                                                     createAlbumEntry(
-                                                        request.getAlbumId(),
+                                                        albumId,
                                                         entryId,
                                                         filename,
                                                         fileMeta,
@@ -496,16 +489,16 @@ public class ImageProcessor {
                         return albumEntryDataMono.doFinally(signal -> file.delete());
                       }));
             });
-    loadedData
-        .flatMap(
-            (AlbumEntryData data) ->
-                Mono.fromFuture(kafkaTemplate.send("processed-image", key, data).completable()))
-        .log("img: " + request.getFilename())
-        .block();
-    final long endTime = System.nanoTime();
-    meterRegistry.timer("image.processing").record(Duration.ofNanos(endTime - startTime));
-    meterRegistry.counter("image.filewritten").increment(fileCount.get());
-    meterRegistry.counter("image.byteread").increment(byteReadCount.get());
-    meterRegistry.counter("image.bytewritten").increment(byteWriteCount.get());
+    return albumEntryDataMono1.doFinally(
+        signal -> {
+          final long endTime = System.nanoTime();
+          final Tags tags = Tags.of("result", signal.name());
+          meterRegistry
+              .timer("image.processing", tags)
+              .record(Duration.ofNanos(endTime - startTime));
+          meterRegistry.counter("image.filewritten", tags).increment(fileCount.get());
+          meterRegistry.counter("image.byteread", tags).increment(byteReadCount.get());
+          meterRegistry.counter("image.bytewritten", tags).increment(byteWriteCount.get());
+        });
   }
 }

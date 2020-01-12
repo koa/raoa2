@@ -6,7 +6,7 @@ import ch.bergturbenthal.raoa.libs.model.kafka.ProcessImageRequest;
 import ch.bergturbenthal.raoa.libs.serializer.ObjectIdDeserializer;
 import ch.bergturbenthal.raoa.libs.serializer.ObjectIdSerializer;
 import ch.bergturbenthal.raoa.libs.serializer.ProcessImageRequestDeserializer;
-import ch.bergturbenthal.raoa.processor.image.interfaces.ImageProcessor;
+import ch.bergturbenthal.raoa.processor.image.service.impl.DefaultImageProcessor;
 import java.util.Map;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.eclipse.jgit.lib.ObjectId;
@@ -32,7 +32,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication(exclude = {ElasticSearchRestHealthContributorAutoConfiguration.class})
 // @EnableConfigurationProperties(ViewerProperties.class)
 @Import({RaoaLibConfiguration.class, PatchedElasticsearchConfigurationSupport.class})
-@ComponentScan(basePackageClasses = {ImageProcessor.class})
+@ComponentScan(basePackageClasses = {DefaultImageProcessor.class})
 @EnableScheduling
 @EnableKafka
 public class RaoaImageProcessor {

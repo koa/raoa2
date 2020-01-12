@@ -25,7 +25,8 @@
     <properties>
         <java.version>11</java.version>
         <spring-cloud.version>Hoxton.RELEASE</spring-cloud.version>
-        <local.version>latest-auto</local.version>
+        <maven.build.timestamp.format>yyyyMMdd-HHmmss</maven.build.timestamp.format>
+        <local.version>${maven.build.timestamp}</local.version>
     </properties>
     <dependencyManagement>
         <dependencies>
