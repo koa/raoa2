@@ -7,6 +7,11 @@ spec:
   nodeSets:
     - name: raoa
       count: {{.Values.data.elasticsearch.nodeCount}}
+#      podTemplate:
+#        spec:
+#          volumes:
+#            - name: elasticsearch-data
+#              emptyDir: {}
       config:
         node.master: true
         node.data: true

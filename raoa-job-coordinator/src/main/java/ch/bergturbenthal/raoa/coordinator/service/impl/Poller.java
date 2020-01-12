@@ -141,6 +141,7 @@ public class Poller {
                                             return remoteImageProcessor
                                                 .processImage(fileId, data)
                                                 .timeout(coordinatorProperties.getProcessTimeout())
+                                                .retry(5)
                                                 .map(ret -> Tuples.of(ret, true))
                                             // .log("proc: " + filename)
                                             ;
@@ -152,7 +153,7 @@ public class Poller {
                                             if (inFlux.key()) {
                                               return inFlux
                                                   .map(Tuple2::getT1)
-                                                  .buffer(100)
+                                                  .buffer(2000)
                                                   .flatMap(
                                                       updateEntries -> {
                                                         return asyncService.asyncFlux(
