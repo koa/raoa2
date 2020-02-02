@@ -12,7 +12,9 @@ spec:
   template:
     metadata:
       labels:
-    {{- include "raoa.imageProcessorSelectorLabels" . | nindent 8 }}
+        {{- include "raoa.imageProcessorSelectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-image-processor.yaml") . | sha256sum }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -30,6 +32,8 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.containerPort}}
+            - name: grpc
+              containerPort: {{ .Values.grpcPort}}
             - name: management
               containerPort: {{ .Values.managementPort}}
             {{ if .Values.debug.enabled}}

@@ -67,7 +67,11 @@
             <artifactId>org.eclipse.jgit</artifactId>
             <version>5.4.0.201906121030-r</version>
         </dependency>
-
+        <dependency>
+            <groupId>io.github.lognet</groupId>
+            <artifactId>grpc-spring-boot-starter</artifactId>
+            <version>3.5.1</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
@@ -100,7 +104,6 @@
                     </to>
                 </configuration>
             </plugin>
-
         </plugins>
     </build>
 </project>

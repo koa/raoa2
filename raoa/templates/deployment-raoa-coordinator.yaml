@@ -12,7 +12,9 @@ spec:
   template:
     metadata:
       labels:
-    {{- include "raoa.coordinatorSelectorLabels" . | nindent 8 }}
+        {{- include "raoa.coordinatorSelectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-coordinator.yaml") . | sha256sum }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:

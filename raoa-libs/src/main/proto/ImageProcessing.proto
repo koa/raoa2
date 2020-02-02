@@ -1,0 +1,47 @@
+syntax = "proto3";
+package ch.bergturbenthal.raoa.processing.grpc;
+
+import "google/protobuf/timestamp.proto";
+
+service ProcessImageService {
+    rpc processImage (ProcessImageRequest) returns (AlbumEntryMetadata);
+}
+
+message ProcessImageRequest {
+    UUID albumId = 1;
+    string filename = 2;
+}
+
+message UUID {
+    bytes id = 1;
+}
+
+message GitObjectId {
+    bytes id = 1;
+}
+message AlbumEntryMetadata {
+    GitObjectId objectId = 1;
+    int32 width = 2;
+    int32 height = 3;
+    int32 targetWidth = 4;
+    int32 targetHeight = 5;
+    string filename = 6;
+    google.protobuf.Timestamp createTime = 7;
+    string cameraModel = 8;
+    string cameraManufacturer = 9;
+    double focalLength = 10;
+    double focalLength35 = 11;
+    double fNumber = 12;
+    double exposureTime = 13;
+    double isoSpeedRatings = 14;
+    string contentType = 15;
+    repeated string keyword = 16;
+    string description = 17;
+    int32 rating = 18;
+    GeoCoordinates captureCoordinates = 19;
+}
+
+message GeoCoordinates {
+    double latitude = 1;
+    double longitude = 2;
+}

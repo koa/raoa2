@@ -3,11 +3,12 @@ package ch.bergturbenthal.raoa.libs;
 import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.repository.AlbumDataRepository;
 import ch.bergturbenthal.raoa.libs.repository.SyncAlbumDataEntryRepository;
+import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.impl.BareGitAccess;
+import ch.bergturbenthal.raoa.libs.service.impl.ExecutorAsyncService;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
 import org.springframework.data.elasticsearch.repository.config.EnableReactiveElasticsearchRepositories;
 import org.springframework.http.HttpHeaders;
+import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 
 @Configuration
 @EnableConfigurationProperties(Properties.class)
@@ -74,8 +76,18 @@ public class RaoaLibConfiguration {
   }
 
   @Bean
+  public AsyncService asyncService() {
+    final CustomizableThreadFactory factory = new CustomizableThreadFactory("async-service");
+    factory.setDaemon(true);
+    final ThreadPoolExecutor executor =
+        new ThreadPoolExecutor(0, 50, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), factory);
+
+    return new ExecutorAsyncService(executor);
+  }
+
+  @Bean
   @ConditionalOnMissingBean
-  ExecutorService executorService() {
-    return Executors.newFixedThreadPool(10);
+  ScheduledExecutorService executorService() {
+    return Executors.newScheduledThreadPool(10);
   }
 }

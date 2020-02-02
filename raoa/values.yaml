@@ -116,6 +116,7 @@ affinity: {}
 
 containerPort: 8080
 managementPort: 8090
+grpcPort: 8085
 debug:
   enabled: false
   port: 5005

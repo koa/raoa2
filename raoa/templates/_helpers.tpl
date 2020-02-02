@@ -93,6 +93,7 @@ persistentVolumeClaim:
 management.endpoints.web.exposure.include: "*"
 management.server.port: {{.Values.managementPort | quote}}
 server.port: {{.Values.containerPort | quote}}
+grpc.port: {{.Values.grpcPort | quote}}
 management.endpoint.health.show-details: always
 management.endpoint.health.show-components: always
 raoa.repository: /data

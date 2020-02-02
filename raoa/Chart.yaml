@@ -18,7 +18,7 @@ version: 0.0.1
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application.
-appVersion: 20200112-081200
+appVersion: 20200202-080650
 
 dependencies:
   - name: kafka

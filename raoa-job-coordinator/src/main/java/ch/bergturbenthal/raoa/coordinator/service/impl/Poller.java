@@ -11,6 +11,7 @@ import ch.bergturbenthal.raoa.libs.repository.AlbumDataRepository;
 import ch.bergturbenthal.raoa.libs.repository.SyncAlbumDataEntryRepository;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
+import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
 import ch.bergturbenthal.raoa.libs.service.impl.ElasticSearchDataViewService;
 import java.io.File;
@@ -24,6 +25,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectLoader;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -100,33 +103,16 @@ public class Poller {
                                   album
                                       .getAccess()
                                       .listFiles(ElasticSearchDataViewService.IMAGE_FILE_FILTER)
+                                      .filterWhen(gitFileEntry -> isValidEntry(album, gitFileEntry))
                                       .map(
-                                          gitFileEntry -> {
-                                            final boolean allThumbnailsOk =
-                                                thumbnailFilenameService
-                                                    .listThumbnailsOf(
-                                                        album.getAlbumId(),
-                                                        gitFileEntry.getFileId())
-                                                    .map(
-                                                        ThumbnailFilenameService.FileAndScale
-                                                            ::getFile)
-                                                    .map(File::exists)
-                                                    .collect(
-                                                        () -> new AtomicBoolean(true),
-                                                        (r, v) -> r.compareAndSet(true, v),
-                                                        (r1, r2) ->
-                                                            new AtomicBoolean(r1.get() && r2.get()))
-                                                    .get();
-                                            if (!allThumbnailsOk)
-                                              return Tuples.of(
-                                                  gitFileEntry, Optional.<AlbumEntryData>empty());
-                                            else
-                                              return Tuples.of(
+                                          gitFileEntry ->
+                                              Tuples.of(
                                                   gitFileEntry,
-                                                  Optional.ofNullable(
-                                                      existingEntries.get(
-                                                          gitFileEntry.getFileId())));
-                                          })
+                                                  thumbnailsOk(album, gitFileEntry)
+                                                      ? Optional.ofNullable(
+                                                          existingEntries.get(
+                                                              gitFileEntry.getFileId()))
+                                                      : Optional.<AlbumEntryData>empty()))
                                       .flatMap(
                                           entry -> {
                                             if (entry.getT2().isPresent()) {
@@ -260,5 +246,28 @@ public class Poller {
         break;
       }
     }
+  }
+
+  public boolean thumbnailsOk(
+      final AlbumList.FoundAlbum album, final GitAccess.GitFileEntry gitFileEntry) {
+    return thumbnailFilenameService
+        .listThumbnailsOf(album.getAlbumId(), gitFileEntry.getFileId())
+        .map(ThumbnailFilenameService.FileAndScale::getFile)
+        .map(File::exists)
+        .collect(
+            () -> new AtomicBoolean(true),
+            (r, v) -> r.compareAndSet(true, v),
+            (r1, r2) -> new AtomicBoolean(r1.get() && r2.get()))
+        .get();
+  }
+
+  @NotNull
+  public Mono<Boolean> isValidEntry(
+      final AlbumList.FoundAlbum album, final GitAccess.GitFileEntry gitFileEntry) {
+    return album
+        .getAccess()
+        .readObject(gitFileEntry.getFileId())
+        .map(ObjectLoader::getSize)
+        .map(s -> s > 0);
   }
 }
