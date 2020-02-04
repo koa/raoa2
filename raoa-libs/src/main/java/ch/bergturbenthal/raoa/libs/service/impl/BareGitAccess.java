@@ -565,6 +565,10 @@ public class BareGitAccess implements GitAccess {
         });
   }
 
+  public String toString() {
+    return "BareGitAccess[" + relativePath.getFileName().toString() + "]";
+  }
+
   private Mono<String> createName() {
     return repository.map(
         rep -> {

@@ -311,7 +311,7 @@ public class DefaultImageProcessor implements ImageProcessor {
                             asyncService.asyncMono(() -> loadImage(file)).cache();
                         final Mono<AlbumEntryData> albumEntryDataMono =
                             Mono.zip(metadataMono, inputImage, overrideableMetadata)
-                                .log("zip: " + filename)
+                                // .log("zip: " + filename)
                                 .flatMap(
                                     TupleUtils.function(
                                         (Metadata metadata,
@@ -328,27 +328,28 @@ public class DefaultImageProcessor implements ImageProcessor {
                                                 metadata,
                                                 image,
                                                 optionalTiffOutputSet)))
-                                .log("result: " + filename);
+                            // .log("result: " + filename)
+                            ;
                         return albumEntryDataMono.doFinally(
                             signal -> {
-                              log.info("delete finally <" + filename + ">: " + file);
+                              // log.info("delete finally <" + filename + ">: " + file);
                               file.delete();
                             });
                       }));
             });
-    return albumEntryDataMono1
-        .doFinally(
-            signal -> {
-              final long endTime = System.nanoTime();
-              final Tags tags = Tags.of("result", signal.name());
-              meterRegistry
-                  .timer("image.processing", tags)
-                  .record(Duration.ofNanos(endTime - startTime));
-              meterRegistry.counter("image.filewritten", tags).increment(fileCount.get());
-              meterRegistry.counter("image.byteread", tags).increment(byteReadCount.get());
-              meterRegistry.counter("image.bytewritten", tags).increment(byteWriteCount.get());
-            })
-        .log("process " + filename);
+    return albumEntryDataMono1.doFinally(
+        signal -> {
+          final long endTime = System.nanoTime();
+          final Tags tags = Tags.of("result", signal.name());
+          meterRegistry
+              .timer("image.processing", tags)
+              .record(Duration.ofNanos(endTime - startTime));
+          meterRegistry.counter("image.filewritten", tags).increment(fileCount.get());
+          meterRegistry.counter("image.byteread", tags).increment(byteReadCount.get());
+          meterRegistry.counter("image.bytewritten", tags).increment(byteWriteCount.get());
+        })
+    // .log("process " + filename)
+    ;
   }
 
   @NotNull
@@ -377,129 +378,126 @@ public class DefaultImageProcessor implements ImageProcessor {
                 // log.info("Scale " + filename + " to " + size + " already exists");
                 return Mono.<Boolean>just(true);
               }
-              return asyncService
-                  .<Boolean>asyncMono(
-                      () -> {
-                        log.info("Scale " + filename + " to " + size);
-                        final File parentDir = targetFile.getParentFile();
-                        if (!parentDir.exists()) parentDir.mkdirs();
-                        final File tempFile = new File(parentDir, UUID.randomUUID().toString());
-                        try {
-                          AffineTransform t = new AffineTransform();
-                          final boolean flip;
-                          double scale = size * 1.0 / maxLength;
-                          switch (orientation) {
-                            default:
-                            case 1:
-                              flip = false;
-                              break;
-                            case 2: // Flip X
-                              flip = false;
-                              t.scale(-1.0, 1.0);
-                              t.translate(-width * scale, 0);
-                              break;
-                            case 3: // PI rotation
-                              flip = false;
-                              t.translate(width * scale, height * scale);
-                              t.quadrantRotate(2);
-                              break;
-                            case 4: // Flip Y
-                              flip = false;
-                              t.scale(1.0, -1.0);
-                              t.translate(0, -height * scale);
-                              break;
-                            case 5: // - PI/2 and Flip X
-                              flip = true;
-                              t.quadrantRotate(3);
-                              t.scale(-1.0, 1.0);
-                              break;
-                            case 6: // -PI/2 and -width
-                              flip = true;
-                              t.translate(height * scale, 0);
-                              t.quadrantRotate(1);
-                              break;
-                            case 7: // PI/2 and Flip
-                              flip = true;
-                              t.scale(-1.0, 1.0);
-                              t.translate(-height * scale, 0);
-                              t.translate(0, width * scale);
-                              t.quadrantRotate(3);
-                              break;
-                            case 8: // PI / 2
-                              flip = true;
-                              t.translate(0, width * scale);
-                              t.quadrantRotate(3);
-                              break;
-                          }
-                          t.scale(scale, scale);
-                          int targetWith;
-                          int targetHeight;
-                          if (flip) {
-                            targetWith = (int) (height * scale);
-                            targetHeight = (int) (width * scale);
-                          } else {
-                            targetWith = (int) (width * scale);
-                            targetHeight = (int) (height * scale);
-                          }
-                          BufferedImage targetImage =
-                              new BufferedImage(
-                                  targetWith, targetHeight, BufferedImage.TYPE_INT_RGB);
-                          Graphics2D graphics = targetImage.createGraphics();
-                          graphics.setTransform(t);
-                          graphics.drawImage(image, 0, 0, null);
-                          graphics.dispose();
-                          // log.info("write temp: " +
-                          // tempFile);
+              return asyncService.<Boolean>asyncMono(
+                  () -> {
+                    // log.info("Scale " + filename + " to " + size);
+                    final File parentDir = targetFile.getParentFile();
+                    if (!parentDir.exists()) parentDir.mkdirs();
+                    final File tempFile = new File(parentDir, UUID.randomUUID().toString());
+                    try {
+                      AffineTransform t = new AffineTransform();
+                      final boolean flip;
+                      double scale = size * 1.0 / maxLength;
+                      switch (orientation) {
+                        default:
+                        case 1:
+                          flip = false;
+                          break;
+                        case 2: // Flip X
+                          flip = false;
+                          t.scale(-1.0, 1.0);
+                          t.translate(-width * scale, 0);
+                          break;
+                        case 3: // PI rotation
+                          flip = false;
+                          t.translate(width * scale, height * scale);
+                          t.quadrantRotate(2);
+                          break;
+                        case 4: // Flip Y
+                          flip = false;
+                          t.scale(1.0, -1.0);
+                          t.translate(0, -height * scale);
+                          break;
+                        case 5: // - PI/2 and Flip X
+                          flip = true;
+                          t.quadrantRotate(3);
+                          t.scale(-1.0, 1.0);
+                          break;
+                        case 6: // -PI/2 and -width
+                          flip = true;
+                          t.translate(height * scale, 0);
+                          t.quadrantRotate(1);
+                          break;
+                        case 7: // PI/2 and Flip
+                          flip = true;
+                          t.scale(-1.0, 1.0);
+                          t.translate(-height * scale, 0);
+                          t.translate(0, width * scale);
+                          t.quadrantRotate(3);
+                          break;
+                        case 8: // PI / 2
+                          flip = true;
+                          t.translate(0, width * scale);
+                          t.quadrantRotate(3);
+                          break;
+                      }
+                      t.scale(scale, scale);
+                      int targetWith;
+                      int targetHeight;
+                      if (flip) {
+                        targetWith = (int) (height * scale);
+                        targetHeight = (int) (width * scale);
+                      } else {
+                        targetWith = (int) (width * scale);
+                        targetHeight = (int) (height * scale);
+                      }
+                      BufferedImage targetImage =
+                          new BufferedImage(targetWith, targetHeight, BufferedImage.TYPE_INT_RGB);
+                      Graphics2D graphics = targetImage.createGraphics();
+                      graphics.setTransform(t);
+                      graphics.drawImage(image, 0, 0, null);
+                      graphics.dispose();
+                      // log.info("write temp: " +
+                      // tempFile);
 
-                          if (optionalTiffOutputSet.isPresent()) {
-                            final TiffOutputSet tiffOutputSet = copy(optionalTiffOutputSet.get());
+                      if (optionalTiffOutputSet.isPresent()) {
+                        final TiffOutputSet tiffOutputSet = copy(optionalTiffOutputSet.get());
 
-                            final TiffOutputDirectory tiffOutputDirectory =
-                                tiffOutputSet.getRootDirectory();
-                            if (tiffOutputDirectory != null) {
-                              tiffOutputDirectory.removeField(
-                                  TiffTagConstants.TIFF_TAG_ORIENTATION);
-                              tiffOutputDirectory.add(
-                                  TiffTagConstants.TIFF_TAG_ORIENTATION,
-                                  (short) TiffTagConstants.ORIENTATION_VALUE_HORIZONTAL_NORMAL);
-                            }
-
-                            final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                            final boolean writeOk = ImageIO.write(targetImage, "jpg", baos);
-                            if (writeOk) {
-                              {
-                                @Cleanup
-                                final OutputStream os =
-                                    new BufferedOutputStream(
-                                        new FileOutputStream(tempFile), 254 * 1024);
-                                new ExifRewriter()
-                                    .updateExifMetadataLossless(
-                                        baos.toByteArray(), os, tiffOutputSet);
-                              }
-                              tempFile.renameTo(targetFile);
-                              fileCount.incrementAndGet();
-                            }
-                            return writeOk;
-                          } else {
-                            final boolean writeOk = ImageIO.write(targetImage, "jpg", tempFile);
-                            if (writeOk) {
-                              tempFile.renameTo(targetFile);
-                              fileCount.incrementAndGet();
-                            }
-                            return writeOk;
-                          }
-                        } finally {
-                          log.info("delete " + tempFile);
-                          tempFile.delete();
-                          byteWriteCount.addAndGet(targetFile.length());
-                          log.info("written: " + targetFile);
+                        final TiffOutputDirectory tiffOutputDirectory =
+                            tiffOutputSet.getRootDirectory();
+                        if (tiffOutputDirectory != null) {
+                          tiffOutputDirectory.removeField(TiffTagConstants.TIFF_TAG_ORIENTATION);
+                          tiffOutputDirectory.add(
+                              TiffTagConstants.TIFF_TAG_ORIENTATION,
+                              (short) TiffTagConstants.ORIENTATION_VALUE_HORIZONTAL_NORMAL);
                         }
-                      })
-                  .log("thmb " + size);
+
+                        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                        final boolean writeOk = ImageIO.write(targetImage, "jpg", baos);
+                        if (writeOk) {
+                          {
+                            @Cleanup
+                            final OutputStream os =
+                                new BufferedOutputStream(
+                                    new FileOutputStream(tempFile), 254 * 1024);
+                            new ExifRewriter()
+                                .updateExifMetadataLossless(baos.toByteArray(), os, tiffOutputSet);
+                          }
+                          tempFile.renameTo(targetFile);
+                          fileCount.incrementAndGet();
+                        }
+                        return writeOk;
+                      } else {
+                        final boolean writeOk = ImageIO.write(targetImage, "jpg", tempFile);
+                        if (writeOk) {
+                          tempFile.renameTo(targetFile);
+                          fileCount.incrementAndGet();
+                        }
+                        return writeOk;
+                      }
+                    } finally {
+                      // log.info("delete " + tempFile);
+                      tempFile.delete();
+                      byteWriteCount.addAndGet(targetFile.length());
+                      // log.info("written: " + targetFile);
+                    }
+                  })
+              // .log("thmb " + size)
+              ;
             })
         .collect(() -> new AtomicBoolean(true), (ret, value) -> ret.compareAndExchange(true, value))
         .map(AtomicBoolean::get)
-        .log("tmb: " + filename)
+        // .log("tmb: " + filename)
         .filter(b -> b)
         .flatMap(
             ok ->

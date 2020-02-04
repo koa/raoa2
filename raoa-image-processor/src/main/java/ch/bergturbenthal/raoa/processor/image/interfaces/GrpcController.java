@@ -21,7 +21,7 @@ import reactor.core.publisher.Mono;
 @GRpcService
 public class GrpcController extends ProcessImageServiceGrpc.ProcessImageServiceImplBase {
   private final ImageProcessor imageProcessor;
-  private final Semaphore concurrentSemaphore = new Semaphore(5);
+  private final Semaphore concurrentSemaphore = new Semaphore(10);
 
   public GrpcController(final ImageProcessor imageProcessor) {
     this.imageProcessor = imageProcessor;

@@ -22,8 +22,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.map.LRUMap;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.jetbrains.annotations.NotNull;
@@ -50,6 +52,8 @@ public class Poller {
   private final AlbumDataRepository albumDataRepository;
   private final AsyncService asyncService;
   private final CoordinatorProperties coordinatorProperties;
+  private Map<File, Mono<Set<File>>> existingFilesCache =
+      Collections.synchronizedMap(new LRUMap<>(10));
 
   public Poller(
       final KafkaTemplate<ObjectId, ProcessImageRequest> kafkaTemplate,
@@ -91,8 +95,25 @@ public class Poller {
       final Flux<Tuple2<Optional<Void>, AlbumData>> take =
           albumList
               .listAlbums()
+              .filterWhen(
+                  album ->
+                      Mono.zip(
+                              album.getAccess().getCurrentVersion(),
+                              albumDataRepository
+                                  .findById(album.getAlbumId())
+                                  .map(AlbumData::getCurrentVersion))
+                          .map(t -> t.getT1().equals(t.getT2()))
+                          .defaultIfEmpty(false)
+                          .onErrorResume(
+                              ex -> {
+                                log.warn("Cannot check album " + album.getAccess(), ex);
+                                return Mono.just(false);
+                              })
+                          .map(b -> !b),
+                  10)
               .flatMap(
                   album -> {
+                    log.info("Start " + album);
                     return albumDataEntryRepository
                         .findByAlbumId(album.getAlbumId())
                         .collectMap(AlbumEntryData::getEntryId, k -> k)
@@ -104,15 +125,20 @@ public class Poller {
                                       .getAccess()
                                       .listFiles(ElasticSearchDataViewService.IMAGE_FILE_FILTER)
                                       .filterWhen(gitFileEntry -> isValidEntry(album, gitFileEntry))
+                                      .flatMap(
+                                          gitFileEntry -> {
+                                            return entryAlreadyProcessed(album, gitFileEntry)
+                                                .map(exists -> Tuples.of(gitFileEntry, exists));
+                                          })
                                       .map(
-                                          gitFileEntry ->
-                                              Tuples.of(
-                                                  gitFileEntry,
-                                                  thumbnailsOk(album, gitFileEntry)
-                                                      ? Optional.ofNullable(
-                                                          existingEntries.get(
-                                                              gitFileEntry.getFileId()))
-                                                      : Optional.<AlbumEntryData>empty()))
+                                          (Tuple2<GitAccess.GitFileEntry, Boolean> gitFileEntry) ->
+                                              gitFileEntry.mapT2(
+                                                  b ->
+                                                      b
+                                                          ? Optional.ofNullable(
+                                                              existingEntries.get(
+                                                                  gitFileEntry.getT1().getFileId()))
+                                                          : Optional.<AlbumEntryData>empty()))
                                       .flatMap(
                                           entry -> {
                                             if (entry.getT2().isPresent()) {
@@ -124,11 +150,26 @@ public class Poller {
                                                 new ProcessImageRequest(
                                                     album.getAlbumId(), filename);
                                             final ObjectId fileId = entry.getT1().getFileId();
+                                            final long startTime = System.nanoTime();
                                             return remoteImageProcessor
                                                 .processImage(fileId, data)
                                                 .timeout(coordinatorProperties.getProcessTimeout())
                                                 .retry(5)
                                                 .map(ret -> Tuples.of(ret, true))
+                                                .doFinally(
+                                                    signal -> {
+                                                      log.info(
+                                                          "processed ["
+                                                              + data.getAlbumId()
+                                                              + "] "
+                                                              + filename
+                                                              + " in "
+                                                              + Duration.ofNanos(
+                                                                      System.nanoTime() - startTime)
+                                                                  .getSeconds()
+                                                              + "s with "
+                                                              + signal);
+                                                    })
                                             // .log("proc: " + filename)
                                             ;
                                           },
@@ -155,7 +196,8 @@ public class Poller {
                                             } else return inFlux;
                                           })
                                       .collectList()
-                                      .filter(list -> list.stream().anyMatch(t -> t.getT2()));
+                                  // .filter(list -> list.stream().anyMatch(Tuple2::getT2))
+                                  ;
                               final Mono<String> nameMono = album.getAccess().getName();
                               final Mono<ObjectId> versionMono =
                                   album.getAccess().getCurrentVersion();
@@ -215,13 +257,14 @@ public class Poller {
                                                 albumDataEntryRepository
                                                     .deleteById(
                                                         Flux.fromIterable(remainingEntries)
-                                                            .map(id -> existingEntries.get(id))
-                                                            .map(e -> e.getDocumentId()))
+                                                            .map(existingEntries::get)
+                                                            .map(AlbumEntryData::getDocumentId))
                                                     .map(Optional::of)
                                                     .defaultIfEmpty(Optional.empty()),
                                                 save.retryBackoff(10, Duration.ofSeconds(10)));
                                           }));
                             })
+                        // .log("process " + album.getAccess())
                         .onErrorResume(
                             ex -> {
                               log.warn("Error on album", ex);
@@ -248,17 +291,48 @@ public class Poller {
     }
   }
 
-  public boolean thumbnailsOk(
+  Mono<Boolean> fileExists(File file) {
+    File dir = file.getParentFile().getParentFile();
+    return existingFilesCache
+        .computeIfAbsent(
+            dir,
+            k ->
+                asyncService
+                    .<Set<File>>asyncMono(
+                        () -> {
+                          if (!k.exists()) return Collections.emptySet();
+                          Set<File> imageFiles = new HashSet<>();
+                          final File[] subdirList = k.listFiles();
+                          if (subdirList != null)
+                            for (File subdir : Objects.requireNonNull(subdirList)) {
+                              if (subdir.isDirectory()) {
+                                final File[] filesList = subdir.listFiles();
+                                if (filesList != null)
+                                  for (File f : Objects.requireNonNull(filesList)) {
+                                    if (f.isFile()) imageFiles.add(f);
+                                  }
+                              }
+                            }
+                          return imageFiles;
+                        })
+                    .cache())
+        .map(files -> files.contains(file));
+  }
+
+  public Mono<Boolean> entryAlreadyProcessed(
       final AlbumList.FoundAlbum album, final GitAccess.GitFileEntry gitFileEntry) {
-    return thumbnailFilenameService
-        .listThumbnailsOf(album.getAlbumId(), gitFileEntry.getFileId())
-        .map(ThumbnailFilenameService.FileAndScale::getFile)
-        .map(File::exists)
+
+    return Flux.fromStream(
+            thumbnailFilenameService
+                .listThumbnailsOf(album.getAlbumId(), gitFileEntry.getFileId())
+                .map(ThumbnailFilenameService.FileAndScale::getFile))
+        .flatMap(this::fileExists)
         .collect(
-            () -> new AtomicBoolean(true),
-            (r, v) -> r.compareAndSet(true, v),
-            (r1, r2) -> new AtomicBoolean(r1.get() && r2.get()))
-        .get();
+            Collector.of(
+                () -> new AtomicBoolean(true),
+                (r, v) -> r.compareAndSet(true, v),
+                (r1, r2) -> new AtomicBoolean(r1.get() && r2.get())))
+        .map(AtomicBoolean::get);
   }
 
   @NotNull
