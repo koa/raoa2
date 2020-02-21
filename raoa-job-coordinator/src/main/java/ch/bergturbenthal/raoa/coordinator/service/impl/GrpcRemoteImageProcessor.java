@@ -1,7 +1,7 @@
 package ch.bergturbenthal.raoa.coordinator.service.impl;
 
 import ch.bergturbenthal.raoa.coordinator.service.RemoteImageProcessor;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumEntryData;
+import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.libs.model.kafka.ProcessImageRequest;
 import ch.bergturbenthal.raoa.processing.grpc.ImageProcessing;
 import ch.bergturbenthal.raoa.processing.grpc.ProcessImageServiceGrpc;

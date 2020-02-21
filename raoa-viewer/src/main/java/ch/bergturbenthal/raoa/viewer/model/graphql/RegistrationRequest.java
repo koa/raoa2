@@ -1,7 +1,7 @@
 package ch.bergturbenthal.raoa.viewer.model.graphql;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AuthenticationId;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.PersonalUserData;
+import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.PersonalUserData;
 import lombok.Builder;
 import lombok.Value;
 

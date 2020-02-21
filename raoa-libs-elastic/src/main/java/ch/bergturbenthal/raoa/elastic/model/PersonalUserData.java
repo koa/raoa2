@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.libs.model.elasticsearch;
+package ch.bergturbenthal.raoa.elastic.model;
 
 import lombok.Builder;
 import lombok.Value;

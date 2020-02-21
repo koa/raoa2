@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.viewer;
 
-import ch.bergturbenthal.raoa.libs.test.TestConfig;
+import ch.bergturbenthal.raoa.elastic.test.TestConfig;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;

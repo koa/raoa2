@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.viewer.model.graphql;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.PersonalUserData;
+import ch.bergturbenthal.raoa.elastic.model.PersonalUserData;
 import java.util.UUID;
 import lombok.Value;
 

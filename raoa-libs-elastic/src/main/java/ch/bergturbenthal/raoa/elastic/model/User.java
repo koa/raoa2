@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.libs.model.elasticsearch;
+package ch.bergturbenthal.raoa.elastic.model;
 
 import java.util.Set;
 import java.util.UUID;

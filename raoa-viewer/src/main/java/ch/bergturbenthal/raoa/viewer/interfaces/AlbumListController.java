@@ -1,9 +1,9 @@
 package ch.bergturbenthal.raoa.viewer.interfaces;
 
+import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
-import ch.bergturbenthal.raoa.libs.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.impl.GitBlobRessource;

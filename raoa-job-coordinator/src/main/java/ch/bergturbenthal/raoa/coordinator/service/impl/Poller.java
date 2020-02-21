@@ -2,18 +2,18 @@ package ch.bergturbenthal.raoa.coordinator.service.impl;
 
 import ch.bergturbenthal.raoa.coordinator.model.CoordinatorProperties;
 import ch.bergturbenthal.raoa.coordinator.service.RemoteImageProcessor;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumData;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumEntryData;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.KeywordCount;
+import ch.bergturbenthal.raoa.elastic.model.AlbumData;
+import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
+import ch.bergturbenthal.raoa.elastic.model.KeywordCount;
+import ch.bergturbenthal.raoa.elastic.repository.AlbumDataEntryRepository;
+import ch.bergturbenthal.raoa.elastic.repository.AlbumDataRepository;
+import ch.bergturbenthal.raoa.elastic.repository.SyncAlbumDataEntryRepository;
+import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.libs.model.kafka.ProcessImageRequest;
-import ch.bergturbenthal.raoa.libs.repository.AlbumDataEntryRepository;
-import ch.bergturbenthal.raoa.libs.repository.AlbumDataRepository;
-import ch.bergturbenthal.raoa.libs.repository.SyncAlbumDataEntryRepository;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
-import ch.bergturbenthal.raoa.libs.service.impl.ElasticSearchDataViewService;
 import java.io.File;
 import java.time.Duration;
 import java.time.Instant;
@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectLoader;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -53,7 +52,7 @@ public class Poller {
   private final AsyncService asyncService;
   private final CoordinatorProperties coordinatorProperties;
   private Map<File, Mono<Set<File>>> existingFilesCache =
-      Collections.synchronizedMap(new LRUMap<>(10));
+      Collections.synchronizedMap(new LRUMap<>(50));
 
   public Poller(
       final KafkaTemplate<ObjectId, ProcessImageRequest> kafkaTemplate,
@@ -173,7 +172,10 @@ public class Poller {
                                             // .log("proc: " + filename)
                                             ;
                                           },
-                                          coordinatorProperties.getConcurrentProcessingImages())
+                                          coordinatorProperties.getConcurrentProcessingImages(),
+                                          50)
+
+                                      // .log("entry of " + album)
                                       .groupBy(Tuple2::getT2)
                                       .flatMap(
                                           inFlux -> {
@@ -292,15 +294,24 @@ public class Poller {
   }
 
   Mono<Boolean> fileExists(File file) {
-    File dir = file.getParentFile().getParentFile();
-    return existingFilesCache
-        .computeIfAbsent(
-            dir,
+    final Mono<Set<File>> fileOfDir =
+        existingFilesCache.computeIfAbsent(
+            file.getParentFile().getParentFile(),
             k ->
                 asyncService
                     .<Set<File>>asyncMono(
                         () -> {
-                          if (!k.exists()) return Collections.emptySet();
+                          final long startTime = System.nanoTime();
+                          if (!k.exists()) {
+                            log.info(
+                                "Founde empty dir at "
+                                    + k
+                                    + " in "
+                                    + (Duration.ofNanos(System.nanoTime() - startTime).toMillis())
+                                    + "ms");
+
+                            return Collections.emptySet();
+                          }
                           Set<File> imageFiles = new HashSet<>();
                           final File[] subdirList = k.listFiles();
                           if (subdirList != null)
@@ -313,10 +324,18 @@ public class Poller {
                                   }
                               }
                             }
+                          log.info(
+                              "Loaded "
+                                  + imageFiles.size()
+                                  + " at "
+                                  + k
+                                  + " in "
+                                  + (Duration.ofNanos(System.nanoTime() - startTime).toMillis())
+                                  + "ms");
                           return imageFiles;
                         })
-                    .cache())
-        .map(files -> files.contains(file));
+                    .cache());
+    return fileOfDir.map(files -> files.contains(file));
   }
 
   public Mono<Boolean> entryAlreadyProcessed(
@@ -341,7 +360,7 @@ public class Poller {
     return album
         .getAccess()
         .readObject(gitFileEntry.getFileId())
-        .map(ObjectLoader::getSize)
+        .flatMap(loader -> asyncService.asyncMono(loader::getSize))
         .map(s -> s > 0);
   }
 }

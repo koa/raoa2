@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.libs;
+package ch.bergturbenthal.raoa.elastic;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;

@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.processor.image.service;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumEntryData;
+import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
 import java.util.UUID;
 import org.jetbrains.annotations.NotNull;
 import reactor.core.publisher.Mono;

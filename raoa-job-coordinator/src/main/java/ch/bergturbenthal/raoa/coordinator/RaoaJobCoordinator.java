@@ -3,8 +3,8 @@ package ch.bergturbenthal.raoa.coordinator;
 import ch.bergturbenthal.raoa.coordinator.model.CoordinatorProperties;
 import ch.bergturbenthal.raoa.coordinator.resolver.ServiceDiscoveryNameResolver;
 import ch.bergturbenthal.raoa.coordinator.service.impl.Poller;
-import ch.bergturbenthal.raoa.libs.PatchedElasticsearchConfigurationSupport;
-import ch.bergturbenthal.raoa.libs.RaoaLibConfiguration;
+import ch.bergturbenthal.raoa.elastic.PatchedElasticsearchConfigurationSupport;
+import ch.bergturbenthal.raoa.elastic.RaoaElasticConfiguration;
 import ch.bergturbenthal.raoa.processing.grpc.ProcessImageServiceGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -24,7 +24,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(exclude = {ElasticSearchRestHealthContributorAutoConfiguration.class})
 // @EnableConfigurationProperties(ViewerProperties.class)
-@Import({RaoaLibConfiguration.class, PatchedElasticsearchConfigurationSupport.class})
+@Import({RaoaElasticConfiguration.class, PatchedElasticsearchConfigurationSupport.class})
 @ComponentScan(basePackageClasses = {Poller.class})
 @EnableScheduling
 @Slf4j

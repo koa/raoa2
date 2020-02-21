@@ -17,6 +17,7 @@
         <module>raoa-job-coordinator</module>
         <module>raoa-image-processor</module>
         <module>raoa-libs</module>
+        <module>raoa-libs-elastic</module>
         <module>raoa-importer</module>
         <module>raoa-image-thumbnailer</module>
         <module>raoa-viewer</module>

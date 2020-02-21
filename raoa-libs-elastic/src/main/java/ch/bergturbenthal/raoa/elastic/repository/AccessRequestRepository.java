@@ -1,7 +1,7 @@
-package ch.bergturbenthal.raoa.libs.repository;
+package ch.bergturbenthal.raoa.elastic.repository;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AccessRequest;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.AccessRequest;
+import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Flux;
 

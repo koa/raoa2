@@ -1,7 +1,6 @@
 package ch.bergturbenthal.raoa.viewer;
 
-import ch.bergturbenthal.raoa.libs.PatchedElasticsearchConfigurationSupport;
-import ch.bergturbenthal.raoa.libs.RaoaLibConfiguration;
+import ch.bergturbenthal.raoa.elastic.RaoaElasticConfiguration;
 import ch.bergturbenthal.raoa.viewer.interfaces.AlbumListController;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.impl.DefaultAuthorizationManager;
@@ -21,11 +20,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @Slf4j
 @SpringBootApplication(exclude = {ElasticSearchRestHealthContributorAutoConfiguration.class})
 @EnableConfigurationProperties(ViewerProperties.class)
-@Import({
-  RaoaLibConfiguration.class,
-  ResourceServerConfig.class,
-  PatchedElasticsearchConfigurationSupport.class
-})
+@Import({RaoaElasticConfiguration.class, ResourceServerConfig.class})
 @ComponentScan(basePackageClasses = {DefaultAuthorizationManager.class, AlbumListController.class})
 @EnableScheduling
 public class RaoaViewerApplication {

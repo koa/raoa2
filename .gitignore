@@ -2,6 +2,5 @@
 *.iml
 java_*.hprof*
 hs_err*.log
-/raoa-image-processor/target/
-/raoa-job-coordinator/target/
+/*/target/
 /raoa/charts/*.tgz

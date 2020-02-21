@@ -1,11 +1,12 @@
-package ch.bergturbenthal.raoa.libs.service.impl;
+package ch.bergturbenthal.raoa.elastic.service.impl;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AccessRequest;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AuthenticationId;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.User;
+import ch.bergturbenthal.raoa.elastic.model.AccessRequest;
+import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.User;
+import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
-import ch.bergturbenthal.raoa.libs.service.UserManager;
+import ch.bergturbenthal.raoa.libs.service.impl.Limiter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;

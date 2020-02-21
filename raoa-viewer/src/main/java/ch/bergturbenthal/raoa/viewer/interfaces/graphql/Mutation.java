@@ -1,11 +1,11 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AccessRequest;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AuthenticationId;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.PersonalUserData;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.User;
-import ch.bergturbenthal.raoa.libs.service.DataViewService;
-import ch.bergturbenthal.raoa.libs.service.UserManager;
+import ch.bergturbenthal.raoa.elastic.model.AccessRequest;
+import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.PersonalUserData;
+import ch.bergturbenthal.raoa.elastic.model.User;
+import ch.bergturbenthal.raoa.elastic.service.DataViewService;
+import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.UserUpdate;
 import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.UserVisibilityUpdate;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;

@@ -1,8 +1,8 @@
 package ch.bergturbenthal.raoa.viewer.service;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AuthenticationId;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.PersonalUserData;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.User;
+import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.PersonalUserData;
+import ch.bergturbenthal.raoa.elastic.model.User;
 import java.util.Optional;
 import java.util.UUID;
 import org.jetbrains.annotations.NotNull;

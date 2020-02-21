@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.processor.image.service.impl;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumEntryData;
+import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;

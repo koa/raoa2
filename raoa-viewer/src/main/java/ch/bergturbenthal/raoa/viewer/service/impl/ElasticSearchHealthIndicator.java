@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.viewer.service.impl;
 
-import ch.bergturbenthal.raoa.libs.repository.UserRepository;
+import ch.bergturbenthal.raoa.elastic.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;

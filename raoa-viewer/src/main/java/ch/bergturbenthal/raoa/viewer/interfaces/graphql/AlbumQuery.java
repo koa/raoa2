@@ -1,8 +1,8 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumData;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AlbumEntryData;
-import ch.bergturbenthal.raoa.libs.service.DataViewService;
+import ch.bergturbenthal.raoa.elastic.model.AlbumData;
+import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
+import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
 import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;

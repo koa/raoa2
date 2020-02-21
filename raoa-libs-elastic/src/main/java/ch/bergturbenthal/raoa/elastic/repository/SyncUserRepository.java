@@ -1,6 +1,6 @@
-package ch.bergturbenthal.raoa.libs.repository;
+package ch.bergturbenthal.raoa.elastic.repository;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.User;
+import ch.bergturbenthal.raoa.elastic.model.User;
 import java.util.UUID;
 import org.springframework.data.repository.CrudRepository;
 

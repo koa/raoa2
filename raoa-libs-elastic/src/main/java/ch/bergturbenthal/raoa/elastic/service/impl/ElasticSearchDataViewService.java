@@ -1,11 +1,12 @@
-package ch.bergturbenthal.raoa.libs.service.impl;
+package ch.bergturbenthal.raoa.elastic.service.impl;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.*;
-import ch.bergturbenthal.raoa.libs.repository.*;
+import ch.bergturbenthal.raoa.elastic.model.*;
+import ch.bergturbenthal.raoa.elastic.repository.*;
+import ch.bergturbenthal.raoa.elastic.service.DataViewService;
+import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
-import ch.bergturbenthal.raoa.libs.service.DataViewService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
-import ch.bergturbenthal.raoa.libs.service.UserManager;
+import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
 import com.adobe.xmp.XMPException;
 import com.adobe.xmp.XMPMeta;
 import com.adobe.xmp.XMPMetaFactory;

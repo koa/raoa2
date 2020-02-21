@@ -1,9 +1,9 @@
 package ch.bergturbenthal.raoa.viewer.service.impl;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.AuthenticationId;
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.User;
-import ch.bergturbenthal.raoa.libs.service.DataViewService;
-import ch.bergturbenthal.raoa.libs.service.UserManager;
+import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.User;
+import ch.bergturbenthal.raoa.elastic.service.DataViewService;
+import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;

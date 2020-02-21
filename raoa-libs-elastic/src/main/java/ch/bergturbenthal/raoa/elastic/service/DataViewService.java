@@ -1,6 +1,7 @@
-package ch.bergturbenthal.raoa.libs.service;
+package ch.bergturbenthal.raoa.elastic.service;
 
-import ch.bergturbenthal.raoa.libs.model.elasticsearch.*;
+import ch.bergturbenthal.raoa.elastic.model.*;
+import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import java.util.UUID;
 import org.eclipse.jgit.lib.ObjectId;
 import reactor.core.publisher.Flux;

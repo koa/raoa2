@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.libs.test;
+package ch.bergturbenthal.raoa.elastic.test;
 
 import ch.bergturbenthal.raoa.libs.RaoaLibConfiguration;
 import io.micrometer.core.instrument.MeterRegistry;
