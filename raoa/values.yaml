@@ -41,6 +41,8 @@ securityContext:
 security:
   googleClientId: set client id here
   googleClientSecret: set google secret here
+monitoring:
+  enabled: true
 
 ingress:
   enabled: false
@@ -67,8 +69,6 @@ data:
     size: 10Gi
   elasticsearch:
     nodeCount: 1
-kafka:
-  replicas: 1
 viewerResources:
   limits:
     cpu: "8"

@@ -18,11 +18,4 @@ version: 0.0.1
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application.
-appVersion: 20200221-071527
-
-dependencies:
-  - name: kafka
-    version: 0.20.7
-    repository: http://storage.googleapis.com/kubernetes-charts-incubator
-    import-values:
-      - kafka
+appVersion: 20200301-185904

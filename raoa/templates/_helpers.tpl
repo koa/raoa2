@@ -84,6 +84,15 @@ persistentVolumeClaim:
 {{- end -}}
 {{- end -}}
 
+{{- define "raoa.cacheVolume" -}}
+{{- if .Values.data.cache.override -}}
+{{ toYaml .Values.data.cache.definition }}
+{{- else -}}
+persistentVolumeClaim:
+  claimName: {{ include "raoa.name" . }}-cache
+{{- end -}}
+{{- end -}}
+
 {{- define "raoa.tls.name" -}}
 {{- printf "%s-tls" .Values.ingress.host | replace "." "-" | trunc 63 -}}
 {{- end -}}

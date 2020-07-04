@@ -94,9 +94,8 @@ spec:
       {{ end }}
       volumes:
         - name: data
-        {{- include "raoa.dataVolume" . | nindent 10 }}
+          {{- include "raoa.dataVolume" . | nindent 10 }}
         - name: shared-cache
-          persistentVolumeClaim:
-            claimName: {{ include "raoa.name" . }}-cache
+          {{- include "raoa.cacheVolume" . | nindent 10 }}
         - name: dumps
           emptyDir: {}

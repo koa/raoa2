@@ -3,15 +3,19 @@ kind: Elasticsearch
 metadata:
   name: {{ include "raoa.fullname" . }}
 spec:
-  version: 7.2.0
+  version: 7.6.0
+  updateStrategy:
+    changeBudget:
+      maxSurge: 3
+      maxUnavailable: 1
   nodeSets:
-    - name: raoa
+    - name: temp
       count: {{.Values.data.elasticsearch.nodeCount}}
-#      podTemplate:
-#        spec:
-#          volumes:
-#            - name: elasticsearch-data
-#              emptyDir: {}
+      podTemplate:
+        spec:
+          volumes:
+            - name: elasticsearch-data
+              emptyDir: {}
       config:
         node.master: true
         node.data: true
