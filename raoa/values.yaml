@@ -9,6 +9,7 @@ image:
   coordinatorRepository: koa1/raoa-job-koordinator
   imageProcessorRepository: koa1/raoa-image-processor
   pullPolicy: IfNotPresent
+  version: 20200301-185904
 
 imageProcessorCount: 3
 
