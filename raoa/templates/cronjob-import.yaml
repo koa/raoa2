@@ -1,0 +1,49 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: import
+spec:
+  suspend: true
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: {{ include "raoa.serviceAccountName" . }}
+          nodeSelector:
+            kubernetes.io/hostname: nuc01
+          containers:
+            - name: {{ .Chart.Name }}-import
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
+              image: "{{ .Values.image.importerRepository }}:{{ .Values.image.version }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              env:
+              {{ if .Values.debug.enabled}}
+              - name: JAVA_TOOL_OPTIONS
+                value: {{ printf "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=localhost:%i" .Values.debug.port | quote}}
+              {{ end}}
+              - name: SPRING_DATA_ELASTICSEARCH_CLIENT_REACTIVE_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ include "raoa.fullname" . }}-es-elastic-user
+                    key: elastic
+              - name: SPRING_ELASTICSEARCH_REST_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ include "raoa.fullname" . }}-es-elastic-user
+                    key: elastic
+              - name: SPRING_APPLICATION_NAME
+                value: {{ include "raoa.fullname" . }}-importer
+              volumeMounts:
+              - mountPath: /data
+                name: data
+              - mountPath: /source
+                name: source
+          volumes:
+            - name: data
+              {{- include "raoa.dataVolume" . | nindent 14 }}
+            - name: source
+              hostPath:
+                path: /media
+          restartPolicy: OnFailure
