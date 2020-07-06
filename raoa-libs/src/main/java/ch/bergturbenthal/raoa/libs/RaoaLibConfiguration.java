@@ -4,7 +4,8 @@ import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.impl.BareGitAccess;
 import ch.bergturbenthal.raoa.libs.service.impl.ExecutorAsyncService;
-import java.util.concurrent.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -20,16 +21,12 @@ public class RaoaLibConfiguration {
 
   @Bean
   public AsyncService asyncService() {
-    final CustomizableThreadFactory factory = new CustomizableThreadFactory("async-service");
-    factory.setDaemon(true);
-    final ThreadPoolExecutor executor =
-        new ThreadPoolExecutor(20, 20, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), factory);
-
-    return new ExecutorAsyncService(executor);
+    return new ExecutorAsyncService();
   }
 
   @Bean
   ScheduledExecutorService executorService() {
-    return Executors.newScheduledThreadPool(10);
+    return Executors.newScheduledThreadPool(
+        10, new CustomizableThreadFactory("raoa-lib-scheduled"));
   }
 }

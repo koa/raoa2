@@ -12,6 +12,7 @@ import com.adobe.xmp.XMPMeta;
 import com.adobe.xmp.XMPMetaFactory;
 import com.google.common.base.Functions;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -31,6 +32,7 @@ import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
+import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -75,7 +77,8 @@ public class ElasticSearchDataViewService implements DataViewService {
   private final UserRepository userRepository;
   private final AccessRequestRepository accessRequestRepository;
   private final UserManager userManager;
-  private final ExecutorService ioExecutorService = Executors.newFixedThreadPool(3);
+  private final ExecutorService ioExecutorService =
+      Executors.newFixedThreadPool(3, new CustomizableThreadFactory("elastic-data-view"));
 
   public ElasticSearchDataViewService(
       final AlbumDataRepository albumDataRepository,
@@ -195,6 +198,7 @@ public class ElasticSearchDataViewService implements DataViewService {
   public Mono<Void> updateUserData() {
     return userRepository
         .findAll()
+        .retryBackoff(10, Duration.ofSeconds(20))
         .onErrorResume(
             ex -> {
               log.warn("Cannot load existing users", ex);
@@ -479,6 +483,7 @@ public class ElasticSearchDataViewService implements DataViewService {
         .findByAuthenticationsAuthorityAndAuthenticationsId(
             authenticationId.getAuthority(), authenticationId.getId())
         .filter(u -> u.getAuthentications().contains(authenticationId))
+        .retryBackoff(10, Duration.ofSeconds(20))
         .onErrorResume(
             ex -> {
               log.warn("Cannot load user by authentication id " + authenticationId, ex);

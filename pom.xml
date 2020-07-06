@@ -19,7 +19,6 @@
         <module>raoa-libs</module>
         <module>raoa-libs-elastic</module>
         <module>raoa-importer</module>
-        <module>raoa-image-thumbnailer</module>
         <module>raoa-viewer</module>
         <module>raoa-viewer-client-oauth2</module>
     </modules>

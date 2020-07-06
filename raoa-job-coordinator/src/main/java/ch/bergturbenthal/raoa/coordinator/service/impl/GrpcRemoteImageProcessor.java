@@ -2,12 +2,12 @@ package ch.bergturbenthal.raoa.coordinator.service.impl;
 
 import ch.bergturbenthal.raoa.coordinator.service.RemoteImageProcessor;
 import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
+import ch.bergturbenthal.raoa.libs.StreamObserverReactiveHelper;
 import ch.bergturbenthal.raoa.libs.model.kafka.ProcessImageRequest;
 import ch.bergturbenthal.raoa.processing.grpc.ImageProcessing;
 import ch.bergturbenthal.raoa.processing.grpc.ProcessImageServiceGrpc;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Timestamp;
-import io.grpc.stub.StreamObserver;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -48,48 +48,9 @@ public class GrpcRemoteImageProcessor implements RemoteImageProcessor {
             .setAlbumId(convertUUID(albumId))
             .setFilename(data.getFilename())
             .build();
-    return Mono.<ImageProcessing.AlbumEntryMetadata>create(
-            sink -> {
-              sink.onRequest(
-                  count -> {
-                    if (count > 0) {
-                      long startTime = System.nanoTime();
-                      processImageServiceStub.processImage(
-                          request,
-                          new StreamObserver<>() {
-                            private boolean done = false;
-
-                            @Override
-                            public void onNext(final ImageProcessing.AlbumEntryMetadata value) {
-                              meterRegistry
-                                  .timer("image-processor.call", "response", "data")
-                                  .record(Duration.ofNanos(System.nanoTime() - startTime));
-                              sink.success(value);
-                              done = true;
-                            }
-
-                            @Override
-                            public void onError(final Throwable t) {
-                              meterRegistry
-                                  .timer("image-processor.call", "response", "exception")
-                                  .record(Duration.ofNanos(System.nanoTime() - startTime));
-                              sink.error(t);
-                              done = true;
-                            }
-
-                            @Override
-                            public void onCompleted() {
-                              if (!done) {
-                                meterRegistry
-                                    .timer("image-processor.call", "response", "empty")
-                                    .record(Duration.ofNanos(System.nanoTime() - startTime));
-                                sink.success();
-                              }
-                            }
-                          });
-                    }
-                  });
-            })
+    return Mono.from(
+            StreamObserverReactiveHelper.createPublisher(
+                request, processImageServiceStub::processImage))
         // .log(albumId + "; " + request.getFilename())
         .map(
             response -> {

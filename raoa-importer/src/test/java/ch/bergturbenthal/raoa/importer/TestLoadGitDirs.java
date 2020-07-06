@@ -13,7 +13,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.concurrent.*;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -25,10 +24,7 @@ public class TestLoadGitDirs {
     final ConcurrencyLimiter limiter =
         new ConcurrencyLimiter(properties, new SimpleMeterRegistry());
     final MeterRegistry meterRegistry = new SimpleMeterRegistry();
-    final AsyncService asyncService =
-        new ExecutorAsyncService(
-            new ThreadPoolExecutor(
-                0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>()));
+    final AsyncService asyncService = new ExecutorAsyncService();
     final BareAlbumList albumList = new BareAlbumList(properties, meterRegistry, asyncService);
 
     final Path dir = Path.of("/media/akoenig/NIKON D500/DCIM/198ND500");

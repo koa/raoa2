@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.processor.image.interfaces;
 
+import ch.bergturbenthal.raoa.libs.StreamObserverReactiveHelper;
 import ch.bergturbenthal.raoa.processing.grpc.ImageProcessing;
 import ch.bergturbenthal.raoa.processing.grpc.ProcessImageServiceGrpc;
 import ch.bergturbenthal.raoa.processor.image.service.ImageProcessor;
@@ -10,18 +11,15 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.Semaphore;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.lognet.springboot.grpc.GRpcService;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
-import reactor.core.publisher.Mono;
 
 @Slf4j
 @GRpcService
 public class GrpcController extends ProcessImageServiceGrpc.ProcessImageServiceImplBase {
   private final ImageProcessor imageProcessor;
-  private final Semaphore concurrentSemaphore = new Semaphore(10);
 
   public GrpcController(final ImageProcessor imageProcessor) {
     this.imageProcessor = imageProcessor;
@@ -37,65 +35,40 @@ public class GrpcController extends ProcessImageServiceGrpc.ProcessImageServiceI
     final UUID albumId = new UUID(msb, lsb);
     final String filename = request.getFilename();
     // log.info("Take: " + albumId + "; " + filename);
-    try {
-      concurrentSemaphore.acquire();
-      imageProcessor
-          .processImage(albumId, filename)
-          // .log("entry: " + albumId + "; " + filename)
-          .map(Optional::of)
-          .defaultIfEmpty(Optional.empty())
-          .onErrorResume(
-              ex -> {
-                log.warn("Cannot process image " + filename, ex);
-                return Mono.just(Optional.empty());
-              })
-          .doFinally(signal -> concurrentSemaphore.release())
-          // .log("result: " + filename)
-          .subscribe(
-              result -> {
-                result.ifPresent(
-                    data -> {
-                      final ImageProcessing.AlbumEntryMetadata.Builder builder =
-                          ImageProcessing.AlbumEntryMetadata.newBuilder();
-                      builder.setObjectId(objectId2Grpc(data.getEntryId()));
-                      Optional.ofNullable(data.getWidth()).ifPresent(builder::setWidth);
-                      Optional.ofNullable(data.getHeight()).ifPresent(builder::setHeight);
-                      Optional.ofNullable(data.getTargetWidth()).ifPresent(builder::setTargetWidth);
-                      Optional.ofNullable(data.getTargetHeight())
-                          .ifPresent(builder::setTargetHeight);
-                      Optional.ofNullable(data.getFilename()).ifPresent(builder::setFilename);
-                      Optional.ofNullable(data.getCreateTime())
-                          .map(this::convertTime)
-                          .ifPresent(builder::setCreateTime);
-                      Optional.ofNullable(data.getCameraModel()).ifPresent(builder::setCameraModel);
-                      Optional.ofNullable(data.getCameraManufacturer())
-                          .ifPresent(builder::setCameraManufacturer);
-                      Optional.ofNullable(data.getFocalLength()).ifPresent(builder::setFocalLength);
-                      Optional.ofNullable(data.getFocalLength35())
-                          .ifPresent(builder::setFocalLength35);
-                      Optional.ofNullable(data.getFNumber()).ifPresent(builder::setFNumber);
-                      Optional.ofNullable(data.getExposureTime())
-                          .ifPresent(builder::setExposureTime);
-                      Optional.ofNullable(data.getIsoSpeedRatings())
-                          .ifPresent(builder::setIsoSpeedRatings);
-                      Optional.ofNullable(data.getContentType()).ifPresent(builder::setContentType);
-                      Optional.ofNullable(data.getKeywords())
-                          .ifPresent(keywords -> keywords.forEach(builder::addKeyword));
-                      Optional.ofNullable(data.getDescription()).ifPresent(builder::setDescription);
-                      Optional.ofNullable(data.getRating()).ifPresent(builder::setRating);
-                      Optional.ofNullable(data.getCaptureCoordinates())
-                          .map(this::convertCoordinates)
-                          .ifPresent(builder::setCaptureCoordinates);
-
-                      responseObserver.onNext(builder.build());
-                    });
-
-                responseObserver.onCompleted();
-              },
-              responseObserver::onError);
-    } catch (InterruptedException ex) {
-      responseObserver.onError(ex);
-    }
+    imageProcessor
+        .processImage(albumId, filename)
+        .map(
+            data -> {
+              final ImageProcessing.AlbumEntryMetadata.Builder builder =
+                  ImageProcessing.AlbumEntryMetadata.newBuilder();
+              builder.setObjectId(objectId2Grpc(data.getEntryId()));
+              Optional.ofNullable(data.getWidth()).ifPresent(builder::setWidth);
+              Optional.ofNullable(data.getHeight()).ifPresent(builder::setHeight);
+              Optional.ofNullable(data.getTargetWidth()).ifPresent(builder::setTargetWidth);
+              Optional.ofNullable(data.getTargetHeight()).ifPresent(builder::setTargetHeight);
+              Optional.ofNullable(data.getFilename()).ifPresent(builder::setFilename);
+              Optional.ofNullable(data.getCreateTime())
+                  .map(this::convertTime)
+                  .ifPresent(builder::setCreateTime);
+              Optional.ofNullable(data.getCameraModel()).ifPresent(builder::setCameraModel);
+              Optional.ofNullable(data.getCameraManufacturer())
+                  .ifPresent(builder::setCameraManufacturer);
+              Optional.ofNullable(data.getFocalLength()).ifPresent(builder::setFocalLength);
+              Optional.ofNullable(data.getFocalLength35()).ifPresent(builder::setFocalLength35);
+              Optional.ofNullable(data.getFNumber()).ifPresent(builder::setFNumber);
+              Optional.ofNullable(data.getExposureTime()).ifPresent(builder::setExposureTime);
+              Optional.ofNullable(data.getIsoSpeedRatings()).ifPresent(builder::setIsoSpeedRatings);
+              Optional.ofNullable(data.getContentType()).ifPresent(builder::setContentType);
+              Optional.ofNullable(data.getKeywords())
+                  .ifPresent(keywords -> keywords.forEach(builder::addKeyword));
+              Optional.ofNullable(data.getDescription()).ifPresent(builder::setDescription);
+              Optional.ofNullable(data.getRating()).ifPresent(builder::setRating);
+              Optional.ofNullable(data.getCaptureCoordinates())
+                  .map(this::convertCoordinates)
+                  .ifPresent(builder::setCaptureCoordinates);
+              return builder.build();
+            })
+        .subscribe(StreamObserverReactiveHelper.toSubscriber(responseObserver));
   }
 
   private ImageProcessing.GeoCoordinates convertCoordinates(final GeoPoint geoPoint) {

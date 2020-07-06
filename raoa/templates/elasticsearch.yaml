@@ -14,8 +14,7 @@ spec:
       podTemplate:
         spec:
           volumes:
-            - name: elasticsearch-data
-              emptyDir: {}
+            {{- toYaml .Values.data.elasticsearch.volumes | nindent 12 }}
       config:
         node.master: true
         node.data: true

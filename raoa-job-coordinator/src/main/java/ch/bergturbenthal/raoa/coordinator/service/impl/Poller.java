@@ -14,6 +14,7 @@ import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.File;
 import java.time.Duration;
 import java.time.Instant;
@@ -33,6 +34,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.function.TupleUtils;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
@@ -51,6 +53,7 @@ public class Poller {
   private final AlbumDataRepository albumDataRepository;
   private final AsyncService asyncService;
   private final CoordinatorProperties coordinatorProperties;
+  private final MeterRegistry meterRegistry;
   private Map<File, Mono<Set<File>>> existingFilesCache =
       Collections.synchronizedMap(new LRUMap<>(50));
 
@@ -64,7 +67,8 @@ public class Poller {
       final AlbumDataEntryRepository albumDataEntryRepository,
       final AlbumDataRepository albumDataRepository,
       final AsyncService asyncService,
-      final CoordinatorProperties coordinatorProperties) {
+      final CoordinatorProperties coordinatorProperties,
+      final MeterRegistry meterRegistry) {
     this.kafkaTemplate = kafkaTemplate;
     this.albumList = albumList;
     this.elasticSearchDataViewService = elasticSearchDataViewService;
@@ -75,12 +79,13 @@ public class Poller {
     this.albumDataRepository = albumDataRepository;
     this.asyncService = asyncService;
     this.coordinatorProperties = coordinatorProperties;
+    this.meterRegistry = meterRegistry;
   }
 
   @Scheduled(fixedDelay = 60 * 60 * 1000, initialDelay = 500)
   public void updateUsers() {
     try {
-      elasticSearchDataViewService.updateUserData().block();
+      elasticSearchDataViewService.updateUserData().block(Duration.ofSeconds(20));
     } catch (Exception ex) {
       log.warn("Error updating users", ex);
     }
@@ -94,6 +99,7 @@ public class Poller {
       final Flux<Tuple2<Optional<Void>, AlbumData>> take =
           albumList
               .listAlbums()
+              // .log("album-in")
               .filterWhen(
                   album ->
                       Mono.zip(
@@ -108,7 +114,9 @@ public class Poller {
                                 log.warn("Cannot check album " + album.getAccess(), ex);
                                 return Mono.just(false);
                               })
-                          .map(b -> !b),
+                          .map(b -> !b)
+                          .timeout(Duration.ofSeconds(60))
+                          .retryBackoff(10, Duration.ofSeconds(10)),
                   10)
               .flatMap(
                   album -> {
@@ -150,53 +158,101 @@ public class Poller {
                                                     album.getAlbumId(), filename);
                                             final ObjectId fileId = entry.getT1().getFileId();
                                             final long startTime = System.nanoTime();
+                                            /*log.info(
+                                            "start processing ["
+                                                + data.getAlbumId()
+                                                + "] "
+                                                + filename);*/
                                             return remoteImageProcessor
                                                 .processImage(fileId, data)
+                                                // .log(filename)
                                                 .timeout(coordinatorProperties.getProcessTimeout())
-                                                .retry(5)
+                                                .retry(2)
                                                 .map(ret -> Tuples.of(ret, true))
                                                 .doFinally(
-                                                    signal -> {
-                                                      log.info(
-                                                          "processed ["
-                                                              + data.getAlbumId()
-                                                              + "] "
-                                                              + filename
-                                                              + " in "
-                                                              + Duration.ofNanos(
-                                                                      System.nanoTime() - startTime)
-                                                                  .getSeconds()
-                                                              + "s with "
-                                                              + signal);
-                                                    })
+                                                    signal ->
+                                                        log.info(
+                                                            "processed ["
+                                                                + data.getAlbumId()
+                                                                + "] "
+                                                                + filename
+                                                                + " in "
+                                                                + Duration.ofNanos(
+                                                                        System.nanoTime()
+                                                                            - startTime)
+                                                                    .getSeconds()
+                                                                + "s with "
+                                                                + signal))
+
                                             // .log("proc: " + filename)
                                             ;
                                           },
                                           coordinatorProperties.getConcurrentProcessingImages(),
                                           50)
-
                                       // .log("entry of " + album)
+                                      // .log("in")
                                       .groupBy(Tuple2::getT2)
                                       .flatMap(
                                           inFlux -> {
-                                            if (inFlux.key()) {
+                                            final Boolean key = inFlux.key();
+                                            if (key != null && key) {
                                               return inFlux
+                                                  // .log("store")
                                                   .map(Tuple2::getT1)
-                                                  .buffer(2000)
+                                                  .buffer(500)
                                                   .flatMap(
                                                       updateEntries -> {
-                                                        return asyncService.asyncFlux(
-                                                            (Consumer<AlbumEntryData> consumer) -> {
-                                                              syncAlbumDataEntryRepository
-                                                                  .saveAll(updateEntries)
-                                                                  .forEach(consumer);
-                                                            });
+                                                        log.info(
+                                                            "Prepare store of "
+                                                                + updateEntries.size());
+
+                                                        return asyncService
+                                                            .asyncFlux(
+                                                                (Consumer<AlbumEntryData>
+                                                                        consumer) -> {
+                                                                  try {
+                                                                    log.info(
+                                                                        "Start store of "
+                                                                            + updateEntries.size());
+                                                                    final Iterable<AlbumEntryData>
+                                                                        albumEntryData =
+                                                                            meterRegistry
+                                                                                .timer(
+                                                                                    "raoa.poller.storage.flush")
+                                                                                .recordCallable(
+                                                                                    () ->
+                                                                                        syncAlbumDataEntryRepository
+                                                                                            .saveAll(
+                                                                                                updateEntries));
+                                                                    meterRegistry
+                                                                        .counter(
+                                                                            "raoa.poller.storage.entries")
+                                                                        .increment(
+                                                                            updateEntries.size());
+                                                                    log.info(
+                                                                        "Done store of "
+                                                                            + updateEntries.size());
+                                                                    albumEntryData.forEach(
+                                                                        consumer);
+                                                                    log.info(
+                                                                        "Done publish of "
+                                                                            + updateEntries.size());
+                                                                  } catch (Exception ex) {
+                                                                    log.warn("Error storing", ex);
+                                                                    throw ex;
+                                                                  }
+                                                                })
+                                                            .retryBackoff(
+                                                                10, Duration.ofSeconds(10));
                                                       },
                                                       1)
-                                                  .retryBackoff(10, Duration.ofSeconds(10))
+                                                  .publishOn(Schedulers.elastic())
                                                   .map(e -> Tuples.of(e, true));
-                                            } else return inFlux;
+                                            } else
+                                              return inFlux // .log("bypass")
+                                              ;
                                           })
+                                      // .log("joined")
                                       .collectList()
                                   // .filter(list -> list.stream().anyMatch(Tuple2::getT2))
                                   ;
@@ -254,7 +310,9 @@ public class Poller {
                                                                 .build())
                                                     .collect(Collectors.toList()));
                                             final Mono<AlbumData> save =
-                                                albumDataRepository.save(albumDataBuilder.build());
+                                                albumDataRepository
+                                                    .save(albumDataBuilder.build())
+                                                    .timeout(Duration.ofSeconds(20));
                                             return Mono.zip(
                                                 albumDataEntryRepository
                                                     .deleteById(
@@ -262,10 +320,12 @@ public class Poller {
                                                             .map(existingEntries::get)
                                                             .map(AlbumEntryData::getDocumentId))
                                                     .map(Optional::of)
-                                                    .defaultIfEmpty(Optional.empty()),
+                                                    .defaultIfEmpty(Optional.empty())
+                                                    .timeout(Duration.ofSeconds(30)),
                                                 save.retryBackoff(10, Duration.ofSeconds(10)));
                                           }));
                             })
+                        .timeout(Duration.ofMinutes(30))
                         // .log("process " + album.getAccess())
                         .onErrorResume(
                             ex -> {
@@ -275,7 +335,8 @@ public class Poller {
                   },
                   coordinatorProperties.getConcurrentProcessingAlbums());
       try {
-        for (Tuple2<Optional<Void>, AlbumData> entry : take.toIterable()) {
+        for (Tuple2<Optional<Void>, AlbumData> entry :
+            take.timeout(Duration.ofMinutes(20)).toIterable()) {
           log.info("updated: " + entry.getT2().getName());
         }
         break;

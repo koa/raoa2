@@ -74,6 +74,11 @@
             <artifactId>grpc-spring-boot-starter</artifactId>
             <version>3.5.1</version>
         </dependency>
+        <dependency>
+            <groupId>com.netflix.concurrency-limits</groupId>
+            <artifactId>concurrency-limits-grpc</artifactId>
+            <version>0.3.4</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

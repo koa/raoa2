@@ -5,7 +5,9 @@ metadata:
   labels:
   {{- include "raoa.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
   {{- include "raoa.coordinatorSelectorLabels" . | nindent 6 }}
@@ -21,8 +23,19 @@ spec:
       {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "raoa.serviceAccountName" . }}
+      priorityClassName: raoa-essential
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: clean-repos
+          image: library/busybox:1.32.0
+          volumeMounts:
+            - mountPath: /data
+              name: data
+          command:
+            - sh
+            - -c
+            - find /data -name .probe-* -print0 | xargs -0 -n 1 -r rm
       containers:
         - name: {{ .Chart.Name }}
           securityContext:

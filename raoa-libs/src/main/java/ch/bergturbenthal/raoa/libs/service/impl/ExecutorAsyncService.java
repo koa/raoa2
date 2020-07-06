@@ -1,14 +1,13 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
+import java.time.Duration;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -17,8 +16,20 @@ import reactor.core.scheduler.Schedulers;
 public class ExecutorAsyncService implements AsyncService {
   private final ExecutorService executor;
 
-  public ExecutorAsyncService(final ExecutorService executor) {
-    this.executor = executor;
+  public ExecutorAsyncService() {
+
+    final CustomizableThreadFactory threadFactory = new CustomizableThreadFactory("async");
+    threadFactory.setDaemon(true);
+    final LinkedBlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>();
+    final ThreadPoolExecutor executorService =
+        new ThreadPoolExecutor(
+            20,
+            20,
+            Duration.ofMinutes(1).toMillis(),
+            TimeUnit.MILLISECONDS,
+            workQueue,
+            threadFactory);
+    this.executor = executorService;
   }
 
   @Override
@@ -79,8 +90,11 @@ public class ExecutorAsyncService implements AsyncService {
                                         if (done.get())
                                           throw new IllegalStateException("Flux is already closed");
                                         try {
+                                          // log.info("Take " + value);
                                           remainingContingent.acquire();
+                                          // log.info("Semaphore taken");
                                           fluxSink.next(value);
+                                          // log.info("Data processed");
                                         } catch (InterruptedException e) {
                                           throw new IllegalStateException(e);
                                         }

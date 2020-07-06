@@ -80,29 +80,26 @@ public class BareAlbumList implements AlbumList {
                         asyncService,
                         processScheduler,
                         meterRegistry))
-            .flatMap(p -> p.getMetadata().map(m -> Tuples.of(p, m)))
+            .flatMap(p -> p.getMetadata().map(m -> Tuples.of(p, m)), 4)
             .filter(t1 -> t1.getT2().getAlbumId() != null)
             .collectMap(t -> t.getT2().getAlbumId(), Tuple2::getT1)
             .cache(MAX_REPOSITORY_CACHE_TIME);
     autoaddIndex =
         repositories
-            .flatMap(
-                reps -> {
-                  final Mono<SortedMap<Instant, UUID>> collect =
-                      Flux.fromIterable(reps.entrySet())
-                          .flatMap(
-                              e ->
-                                  e.getValue()
-                                      .readAutoadd()
-                                      .map(t -> new AutoaddEntry(t, e.getKey())))
-                          .collect(
-                              Collectors.toMap(
-                                  AutoaddEntry::getTime,
-                                  AutoaddEntry::getId,
-                                  (a, b) -> b,
-                                  TreeMap::new));
-                  return collect;
-                })
+            .<SortedMap<Instant, UUID>>flatMap(
+                reps ->
+                    Flux.fromIterable(reps.entrySet())
+                        .flatMap(
+                            e ->
+                                e.getValue()
+                                    .readAutoadd()
+                                    .map(t -> new AutoaddEntry(t, e.getKey())))
+                        .collect(
+                            Collectors.toMap(
+                                AutoaddEntry::getTime,
+                                AutoaddEntry::getId,
+                                (a, b) -> b,
+                                TreeMap::new)))
             .cache(MAX_AUTOINDEX_CACHE_TIME);
   }
 
@@ -244,7 +241,7 @@ public class BareAlbumList implements AlbumList {
 
   @Value
   private static class AutoaddEntry {
-    private Instant time;
-    private UUID id;
+    Instant time;
+    UUID id;
   }
 }

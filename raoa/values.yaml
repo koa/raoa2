@@ -70,6 +70,9 @@ data:
     size: 10Gi
   elasticsearch:
     nodeCount: 1
+    volumes:
+      - name: elasticsearch-data
+        emptyDir: {}
 viewerResources:
   limits:
     cpu: "8"

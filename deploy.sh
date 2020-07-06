@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
 
-namespace=raoa-dev
+#namespace=raoa-dev
+namespace=raoa-lkw
 
 cd "$(dirname "$0")"
 version=$(date "+%Y%m%d-%H%M%S")
 
 sed 's/^appVersion:.*/appVersion: '$version'/' raoa/Chart.yaml >/tmp/chart.$$ && mv /tmp/chart.$$ raoa/Chart.yaml
 
-mvn -Dlocal.version=$version clean deploy
+mvn -Dlocal.version=$version clean deploy || exit
+
+#helm -n $namespace get values raoa | tail +2 >/tmp/raoa.yaml
+
+#helm upgrade -n $namespace raoa . -f /tmp/raoa.yaml --set image.version=$version
+
+#exit 0
 
 kubectl -n $namespace set image deployment/raoa-image-processor raoa=koa1/raoa-image-processor:$version --record
 kubectl -n $namespace set image deployment/raoa-coordinator raoa=koa1/raoa-job-koordinator:$version --record
