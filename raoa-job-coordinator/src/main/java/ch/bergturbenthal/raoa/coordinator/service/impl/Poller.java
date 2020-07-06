@@ -29,7 +29,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
 import org.eclipse.jgit.lib.ObjectId;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -43,7 +42,6 @@ import reactor.util.function.Tuples;
 @Service
 public class Poller {
 
-  private final KafkaTemplate<ObjectId, ProcessImageRequest> kafkaTemplate;
   private final AlbumList albumList;
   private final ElasticSearchDataViewService elasticSearchDataViewService;
   private final ThumbnailFilenameService thumbnailFilenameService;
@@ -58,7 +56,6 @@ public class Poller {
       Collections.synchronizedMap(new LRUMap<>(50));
 
   public Poller(
-      final KafkaTemplate<ObjectId, ProcessImageRequest> kafkaTemplate,
       final AlbumList albumList,
       final ElasticSearchDataViewService elasticSearchDataViewService,
       final ThumbnailFilenameService thumbnailFilenameService,
@@ -69,7 +66,6 @@ public class Poller {
       final AsyncService asyncService,
       final CoordinatorProperties coordinatorProperties,
       final MeterRegistry meterRegistry) {
-    this.kafkaTemplate = kafkaTemplate;
     this.albumList = albumList;
     this.elasticSearchDataViewService = elasticSearchDataViewService;
     this.thumbnailFilenameService = thumbnailFilenameService;
@@ -82,10 +78,10 @@ public class Poller {
     this.meterRegistry = meterRegistry;
   }
 
-  @Scheduled(fixedDelay = 60 * 60 * 1000, initialDelay = 500)
+  @Scheduled(fixedDelay = 5 * 60 * 1000, initialDelay = 500)
   public void updateUsers() {
     try {
-      elasticSearchDataViewService.updateUserData().block(Duration.ofSeconds(20));
+      elasticSearchDataViewService.updateUserData().block(Duration.ofMinutes(3));
     } catch (Exception ex) {
       log.warn("Error updating users", ex);
     }
