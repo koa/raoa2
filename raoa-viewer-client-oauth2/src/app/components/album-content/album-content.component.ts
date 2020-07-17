@@ -109,7 +109,7 @@ export class AlbumContentComponent implements OnInit {
   public availableDays: string[] = [];
   public filteringDays: Set<string> = new Set();
   public availableNavigationTargets: NavigationTarget[] = [];
-  @ViewChild(CdkVirtualScrollViewport, {static: false}) viewPort: CdkVirtualScrollViewport;
+  @ViewChild(CdkVirtualScrollViewport) viewPort: CdkVirtualScrollViewport;
 
   constructor(private route: ActivatedRoute,
               private router: Router,

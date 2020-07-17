@@ -42,7 +42,6 @@
               "sourceMap": true,
               "extractCss": true,
               "namedChunks": true,
-              "aot": true,
               "extractLicenses": true,
               "vendorChunk": false,
               "buildOptimizer": true,
@@ -124,5 +123,8 @@
       }
     }
   },
-  "defaultProject": "raoa-viewer"
+  "defaultProject": "raoa-viewer",
+  "cli": {
+    "analytics": "5169c96f-d753-409f-b4b7-78c97b0153d1"
+  }
 }
