@@ -12,7 +12,8 @@ import {
   ManageUsersUpdateUserGQL
 } from '../../generated/graphql';
 import {animate, state, style, transition, trigger} from '@angular/animations';
-import {MatSlideToggleChange} from '@angular/material';
+import {MatSlideToggleChange} from '@angular/material/slide-toggle';
+
 
 @Component({
   selector: 'app-manage-users',

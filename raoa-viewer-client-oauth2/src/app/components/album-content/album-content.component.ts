@@ -3,7 +3,6 @@ import {ChangeDetectorRef, Component, Inject, NgZone, OnInit, ViewChild} from '@
 import {ActivatedRoute, ParamMap, Router} from '@angular/router';
 // import {ResizedEvent} from 'angular-resize-event';
 import {DomSanitizer} from '@angular/platform-browser';
-import {MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatListOption} from '@angular/material';
 import {ServerApiService} from '../../services/server-api.service';
 import {
   AlbumContent,
@@ -21,6 +20,8 @@ import {ResizedEvent} from 'angular-resize-event';
 import {MediaMatcher} from '@angular/cdk/layout';
 import {SelectionModel} from '@angular/cdk/collections';
 import {CdkVirtualScrollViewport} from '@angular/cdk/scrolling';
+import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from '@angular/material/dialog';
+import {MatListOption} from '@angular/material/list';
 
 interface AlbumEntry {
   id: string;

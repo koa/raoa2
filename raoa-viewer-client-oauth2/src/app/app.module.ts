@@ -14,7 +14,6 @@ import {MatSidenavModule} from '@angular/material/sidenav';
 import {MatListModule} from '@angular/material/list';
 import {MatToolbarModule} from '@angular/material/toolbar';
 import {AlbumContentComponent, ShowImageDialogComponent} from './components/album-content/album-content.component';
-import {ScrollDispatchModule} from '@angular/cdk/scrolling';
 import {ScrollingModule as ExperimentalScrollingModule} from '@angular/cdk-experimental/scrolling';
 import {MatDialogModule} from '@angular/material/dialog';
 import {AngularResizedEventModule} from 'angular-resize-event';
@@ -29,20 +28,20 @@ import {MatInputModule} from '@angular/material/input';
 import {ManageUsersComponent} from './components/manage-users/manage-users.component';
 import {MatTabsModule} from '@angular/material/tabs';
 import {MatTableModule} from '@angular/material/table';
-import {
-  MatButtonToggleModule,
-  MatChipsModule,
-  MatExpansionModule,
-  MatMenuModule,
-  MatProgressSpinnerModule,
-  MatSelectModule,
-  MatSlideToggleModule,
-  MatTooltipModule
-} from '@angular/material';
+
 
 import {registerLocaleData} from '@angular/common';
 import localeDe from '@angular/common/locales/de';
 import {ExposureTimePipe} from './pipe/exposure-time.pipe';
+import {MatProgressSpinnerModule} from '@angular/material/progress-spinner';
+import {MatSelectModule} from '@angular/material/select';
+import {MatSlideToggleModule} from '@angular/material/slide-toggle';
+import {MatButtonToggleModule} from '@angular/material/button-toggle';
+import {MatTooltipModule} from '@angular/material/tooltip';
+import {MatMenuModule} from '@angular/material/menu';
+import {MatChipsModule} from '@angular/material/chips';
+import {MatExpansionModule} from '@angular/material/expansion';
+import {ScrollingModule} from '@angular/cdk/scrolling';
 
 registerLocaleData(localeDe, 'de');
 
@@ -70,7 +69,6 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     MatSidenavModule,
     MatListModule,
     MatToolbarModule,
-    ScrollDispatchModule,
     ExperimentalScrollingModule,
     MatDialogModule,
     AngularResizedEventModule,
@@ -89,6 +87,7 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     MatMenuModule,
     MatChipsModule,
     MatExpansionModule,
+    ScrollingModule,
   ],
   providers: [
     {provide: LOCALE_ID, useValue: 'de-CH'},
