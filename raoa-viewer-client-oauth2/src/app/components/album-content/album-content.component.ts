@@ -29,7 +29,7 @@ interface AlbumEntry {
   entryUri: string;
   targetWidth: number;
   targetHeight: number;
-  created: string;
+  created: number;
   keywords: string[];
 }
 
@@ -54,7 +54,7 @@ interface HeaderRow {
 type TableRow = ImagesRow | HeaderRow;
 
 interface NavigationTarget {
-  time: string;
+  time: number;
   row: number;
 }
 
@@ -70,8 +70,9 @@ function createImagesRow(rowHeight, shapes: Shape[]): ImagesRow {
 }
 
 
-function dayOfDate(dateValue: string): string {
-  return new Date(dateValue).toDateString();
+function dayOfDate(dateValue: number): string {
+  const date = new Date(dateValue);
+  return date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + (date.getDate());
 }
 
 
@@ -155,7 +156,9 @@ export class AlbumContentComponent implements OnInit {
             this.availableKeywords.clear();
             const availableDays: Set<string> = new Set();
             albumById.entries.forEach(e => {
-              availableDays.add(dayOfDate(e.created));
+              const dateValue = Date.parse(e.created);
+              const value = dayOfDate(dateValue);
+              availableDays.add(value);
               e.keywords.forEach(k => this.availableKeywords.add(k));
             });
             this.availableDays = [];
@@ -173,12 +176,12 @@ export class AlbumContentComponent implements OnInit {
                 entryUri: this.fixUrl(e.entryUri),
                 targetHeight: e.targetHeight,
                 targetWidth: e.targetWidth,
-                created: e.created,
+                created: Date.parse(e.created),
                 id: e.id,
                 keywords: e.keywords
               };
             })
-            .sort((e1, e2) => e1.created.localeCompare(e2.created));
+            .sort((e1, e2) => e1.created - e2.created);
           this.redistributeEntries();
           this.title = albumById.name;
           this.loading = false;
@@ -448,7 +451,7 @@ export class AlbumContentComponent implements OnInit {
           currentRowContent = [];
         }
         this.availableNavigationTargets.push({time: entry.created, row: this.resultRows.length});
-        this.resultRows.push({time: entry.created, kind: 'timestamp'});
+        this.resultRows.push({time: dayOfDate(entry.created), kind: 'timestamp'});
       }
       if (entry.targetWidth == null || entry.targetHeight == null) {
         console.log('Invalid entry:');
