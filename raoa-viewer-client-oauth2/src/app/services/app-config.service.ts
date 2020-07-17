@@ -171,7 +171,7 @@ export class AppConfigService {
     if (authResponse === null) {
       return;
     }
-    this.cookieService.set('access_token', authResponse.id_token, authResponse.expires_at, '/');
+    this.cookieService.set('access_token', authResponse.id_token, authResponse.expires_at, '/', undefined, undefined, 'Strict');
     this.basicProfile = user.getBasicProfile();
 
     const expiresAt = authResponse.expires_at;

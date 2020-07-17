@@ -66,7 +66,7 @@ export class ServerApiService {
         if (result.data) {
           resolve(result.data);
         } else {
-          reject(result.errors);
+          reject('Error');
         }
       })
     );
