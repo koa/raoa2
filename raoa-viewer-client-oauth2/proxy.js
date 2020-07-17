@@ -1,23 +1,23 @@
 const HttpsProxyAgent = require('https-proxy-agent');
 const proxyConfig = [
-  {
-    context: '/config',
-    target: 'http://localhost:8080/',
-    secure: false,
-    //headers: {host: 'raoa.dev.berg-turbenthal.ch'},
-  },
+    {
+      context: '/config',
+      target: 'https://photos.berg-turbenthal.ch/',
+      secure: false,
+      headers: {host: 'photos.berg-turbenthal.ch'},
+    },
     {
       context: '/rest',
-      target: 'http://localhost:8080/',
+      target: 'https://photos.berg-turbenthal.ch/',
       secure: false,
-      //headers: {host: 'raoa.dev.berg-turbenthal.ch'},
+      headers: {host: 'photos.berg-turbenthal.ch'},
     }
     ,
     {
       context: '/graphql',
-      target: 'http://localhost:8080/',
+      target: 'https://photos.berg-turbenthal.ch/',
       secure: false,
-      //headers: {host: 'raoa.dev.berg-turbenthal.ch'},
+      headers: {host: 'photos.berg-turbenthal.ch'},
     }
   ]
 ;
