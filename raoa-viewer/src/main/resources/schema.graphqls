@@ -54,6 +54,7 @@ type User{
 
 type Album {
     id: ID!
+    version: ID!
     name: String
     entries: [AlbumEntry!]!
     albumEntry(entryId: ID): AlbumEntry

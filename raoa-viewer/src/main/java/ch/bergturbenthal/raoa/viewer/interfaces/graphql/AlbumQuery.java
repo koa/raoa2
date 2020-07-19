@@ -88,6 +88,10 @@ public class AlbumQuery implements GraphQLResolver<Album> {
     return extractElField(album, AlbumData::getEntryCount);
   }
 
+  public CompletableFuture<String> getVersion(Album album) {
+    return extractElField(album, albumData -> albumData.getCurrentVersion().name());
+  }
+
   public CompletableFuture<Instant> getAlbumTime(Album album) {
     return extractElField(album, AlbumData::getCreateTime);
   }
