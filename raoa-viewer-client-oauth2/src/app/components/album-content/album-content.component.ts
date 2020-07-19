@@ -5,12 +5,11 @@ import {ActivatedRoute, ParamMap, Router} from '@angular/router';
 import {DomSanitizer} from '@angular/platform-browser';
 import {ServerApiService} from '../../services/server-api.service';
 import {
-  AlbumContent,
+  Album,
   AlbumContentGQL,
   AlbumContentZipGQL,
-  AlbumEntryDetail,
+  AlbumEntry,
   AlbumEntryDetailGQL,
-  AllAlbums,
   AllAlbumsGQL,
   AuthenticationState,
   Maybe
@@ -23,7 +22,7 @@ import {CdkVirtualScrollViewport} from '@angular/cdk/scrolling';
 import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from '@angular/material/dialog';
 import {MatListOption} from '@angular/material/list';
 
-interface AlbumEntry {
+interface ContentAlbumEntry {
   id: string;
   name: string;
   entryUri: string;
@@ -35,7 +34,7 @@ interface AlbumEntry {
 
 interface Shape {
   width: number;
-  entry: AlbumEntry;
+  entry: ContentAlbumEntry;
   entryIndex: number;
 }
 
@@ -60,7 +59,7 @@ interface NavigationTarget {
 
 interface DialogData {
   currentIndex: number;
-  sortedEntries: AlbumEntry[];
+  sortedEntries: ContentAlbumEntry[];
   albumId: string;
 }
 
@@ -76,6 +75,8 @@ function dayOfDate(dateValue: number): string {
 }
 
 
+type ResultAlbum = Maybe<{ __typename?: 'Album' } & Pick<Album, 'id' | 'name' | 'entryCount' | 'albumTime'>>;
+
 @Component({
   selector: 'app-album-content',
   templateUrl: './album-content.component.html',
@@ -87,8 +88,8 @@ export class AlbumContentComponent implements OnInit {
   loading = true;
   error: any;
   width = 100;
-  sortedEntries: AlbumEntry[];
-  filteredEntries: AlbumEntry[];
+  sortedEntries: ContentAlbumEntry[];
+  filteredEntries: ContentAlbumEntry[];
   minWidth = 5;
   title: string;
   scales: number[];
@@ -99,13 +100,13 @@ export class AlbumContentComponent implements OnInit {
   public progressBarValue: number;
   public mobileQuery: MediaQueryList;
   public mobileQueryListener: () => void;
-  public albums: Maybe<AllAlbums.ListAlbums>[] = [];
+  public albums: Maybe<ResultAlbum>[] = [];
   public authenticationState: AuthenticationState;
   public AUTHENTICATED: AuthenticationState = AuthenticationState.Authenticated;
   public UNKNOWN: AuthenticationState = AuthenticationState.Unknown;
   public canManageUsers: Maybe<boolean> = false;
   private albumSearchPattern = '';
-  private availableAlbums: Maybe<AllAlbums.ListAlbums>[] = [];
+  private availableAlbums: Maybe<ResultAlbum>[] = [];
   public availableKeywords: Set<string> = new Set();
   public filteringKeywords: Set<string> = new Set();
   public availableDays: string[] = [];
@@ -151,11 +152,11 @@ export class AlbumContentComponent implements OnInit {
       this.serverApi
         .query(this.albumContentQGL, {albumId: this.albumId})
         .then(result => {
-          const albumById: AlbumContent.AlbumById = result.albumById;
+          const albumById = result.albumById;
           this.ngZone.run(() => {
             this.availableKeywords.clear();
             const availableDays: Set<string> = new Set();
-            albumById.entries.forEach(e => {
+            albumById.entries.forEach((e) => {
               const dateValue = Date.parse(e.created);
               const value = dayOfDate(dateValue);
               availableDays.add(value);
@@ -315,7 +316,7 @@ export class AlbumContentComponent implements OnInit {
             .sort((a, b) => -a.albumTime.localeCompare(b.albumTime));
         }
       })
-      .then(data => {
+      .then((data: ResultAlbum[]) => {
         this.availableAlbums = data;
         this.updateAlbumList();
       }).catch(error => {
@@ -408,7 +409,7 @@ export class AlbumContentComponent implements OnInit {
 
   }
 
-  private createItems(index: number, currentRowContent: AlbumEntry[], currentWidth): ImagesRow {
+  private createItems(index: number, currentRowContent: ContentAlbumEntry[], currentWidth): ImagesRow {
     const startIndex = index - currentRowContent.length + 1;
     const rowHeight = this.width / currentWidth;
     const shapes: Shape[] =
@@ -424,7 +425,7 @@ export class AlbumContentComponent implements OnInit {
   private redistributeEntries() {
     this.resultRows = [];
     this.availableNavigationTargets = [];
-    let keywordFiltered: AlbumEntry[];
+    let keywordFiltered: ContentAlbumEntry[];
     if (this.filteringKeywords.size > 0) {
       keywordFiltered = this.sortedEntries.filter(e => e.keywords.filter(k => this.filteringKeywords.has(k)).length > 0);
     } else {
@@ -437,7 +438,7 @@ export class AlbumContentComponent implements OnInit {
     }
     let currentHeader: string | null = null;
 
-    let currentRowContent: AlbumEntry[] = [];
+    let currentRowContent: ContentAlbumEntry[] = [];
     for (let index = 0; index < this.filteredEntries.length; index++) {
       const entry = this.filteredEntries[index];
       const headerString = dayOfDate(entry.created);
@@ -481,6 +482,9 @@ export class AlbumContentComponent implements OnInit {
   }
 }
 
+type ResponseAlbumEntry = Maybe<{ __typename?: 'AlbumEntry' }
+  & Pick<AlbumEntry, 'created' | 'cameraModel' | 'exposureTime' | 'fNumber' | 'focalLength35' | 'isoSpeedRatings' | 'keywords'>>;
+
 @Component({
   selector: 'app-show-image-dialog',
   templateUrl: 'show-image-dialog.html',
@@ -490,7 +494,7 @@ export class ShowImageDialogComponent {
   public currentIndex = 0;
   public supportShare: boolean;
   public showDetails = true;
-  public imageProperties: Maybe<AlbumEntryDetail.AlbumEntry>;
+  public imageProperties: ResponseAlbumEntry;
 
   constructor(
     public dialogRef: MatDialogRef<ShowImageDialogComponent>,

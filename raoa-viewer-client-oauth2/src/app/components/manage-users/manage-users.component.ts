@@ -1,19 +1,40 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 import {ServerApiService} from '../../services/server-api.service';
 import {
+  Album,
+  AuthenticationId,
   ManageUsersAcceptRequestGQL,
-  ManageUsersOverview,
   ManageUsersOverviewGQL,
   ManageUsersRemoveRequestGQL,
   ManageUsersRemoveUserGQL,
   ManageUsersUpdateAlbumVisibilityGQL,
   ManageUsersUpdateSuperuserGQL,
-  ManageUsersUpdateUser,
-  ManageUsersUpdateUserGQL
+  ManageUsersUpdateUserGQL,
+  ManageUsersUpdateUserMutationVariables,
+  Maybe,
+  RegistrationRequest,
+  User,
+  UserInfo
 } from '../../generated/graphql';
 import {animate, state, style, transition, trigger} from '@angular/animations';
 import {MatSlideToggleChange} from '@angular/material/slide-toggle';
 
+type PendingRequest = Maybe<{ __typename?: 'RegistrationRequest' }
+  & Pick<RegistrationRequest, 'reason'>
+  & {
+  authenticationId?: Maybe<{ __typename?: 'AuthenticationId' }
+    & Pick<AuthenticationId, 'authority' | 'id'>>; data?: Maybe<{ __typename?: 'UserInfo' }
+    & Pick<UserInfo, 'name' | 'email' | 'picture'>>
+}>;
+
+type ResponseUser = Maybe<{ __typename?: 'User' } & Pick<User, 'id' | 'canManageUsers'>
+  & {
+  authentications?: Maybe<Array<Maybe<{ __typename?: 'AuthenticationId' }
+    & Pick<AuthenticationId, 'authority' | 'id'>>>>; canAccess?: Maybe<Array<Maybe<{ __typename?: 'Album' }
+    & Pick<Album, 'id'>>>>; info?: Maybe<{ __typename?: 'UserInfo' }
+    & Pick<UserInfo, 'name' | 'email' | 'picture'>>
+}>;
+type ResponseAlbum = Maybe<{ __typename?: 'Album' } & Pick<Album, 'id' | 'name' | 'albumTime'>>;
 
 @Component({
   selector: 'app-manage-users',
@@ -27,12 +48,13 @@ import {MatSlideToggleChange} from '@angular/material/slide-toggle';
     ]),
   ],
 })
+
 export class ManageUsersComponent implements OnInit {
-  public pendingRequests: ManageUsersOverview.ListPendingRequests[] = [];
-  public users: ManageUsersOverview.ListUsers[];
+  public pendingRequests: PendingRequest[] = [];
+  public users: ResponseUser[];
   public pendingUsersDisplayColumns = ['icon', 'name', 'email', 'acceptButton', 'removeButton'];
-  public albums: ManageUsersOverview.ListAlbums[] | null;
-  public pendingUpdate: ManageUsersUpdateUser.Variables | null = null;
+  public albums: ResponseAlbum[] | null;
+  public pendingUpdate: ManageUsersUpdateUserMutationVariables | null = null;
 
   constructor(private serverApiService: ServerApiService,
               private manageUsersOverviewGQL: ManageUsersOverviewGQL,
@@ -50,7 +72,7 @@ export class ManageUsersComponent implements OnInit {
     this.loadDataFromServer();
   }
 
-  async acceptRequest(element: ManageUsersOverview.ListPendingRequests): Promise<void> {
+  async acceptRequest(element: PendingRequest): Promise<void> {
     await this.serverApiService
       .update(this.manageUsersAcceptRequestGQL, {
         authority: element.authenticationId.authority,
@@ -60,14 +82,14 @@ export class ManageUsersComponent implements OnInit {
   }
 
 
-  public async removeUser(element: ManageUsersOverview.ListUsers): Promise<void> {
+  public async removeUser(element: ResponseUser): Promise<void> {
     await this.serverApiService
       .update(this.manageUsersRemoveUserGQL, {id: element.id});
     return await this.reloadData();
 
   }
 
-  public async removeRequest(element: ManageUsersOverview.ListPendingRequests): Promise<void> {
+  public async removeRequest(element: PendingRequest): Promise<void> {
     await this.serverApiService
       .update(this.manageUsersRemoveRequestGQL, {
         id: element.authenticationId.id,
@@ -99,7 +121,7 @@ export class ManageUsersComponent implements OnInit {
   }
 
   public canUserAccess(userId: string, albumId: string): boolean {
-    const listUsers: ManageUsersOverview.ListUsers = this.users.find(u => u.id === userId);
+    const listUsers: ResponseUser = this.users.find(u => u.id === userId);
     if (listUsers === undefined) {
       return false;
     }
@@ -123,7 +145,7 @@ export class ManageUsersComponent implements OnInit {
 
   storePendingUpdate() {
     if (this.pendingUpdate !== null) {
-      const data: ManageUsersUpdateUser.Variables = this.pendingUpdate;
+      const data = this.pendingUpdate;
       this.pendingUpdate = null;
       this.serverApiService.update(this.manageUsersUpdateUserGQL, data)
         .then(this.loadDataFromServer)

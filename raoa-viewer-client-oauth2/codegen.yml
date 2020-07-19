@@ -7,9 +7,12 @@ config:
 generates:
   ./src/app/generated/graphql.ts:
     plugins:
-      - typescript-common
-      - typescript-client
-      - typescript-apollo-angular
+      - "typescript"
+      - "typescript-operations"
+      - "typescript-apollo-angular"
+    config:
+      wrapFieldDefinitions: true
+      flattenGeneratedTypes: true
   ./schema.json:
     plugins:
       - introspection

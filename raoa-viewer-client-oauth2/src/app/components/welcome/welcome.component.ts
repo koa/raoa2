@@ -23,7 +23,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
   public showRequestAuthorizationButton = false;
   public showRequestPendingInformation = false;
   private currentUser: gapi.auth2.GoogleUser;
-  private runningTimeout: number;
+  private runningTimeout: NodeJS.Timeout;
 
   constructor(public appConfigService: AppConfigService,
               private ngZone: NgZone,
@@ -89,17 +89,17 @@ export class WelcomeComponent implements OnInit, OnDestroy {
               }
             });
           }
-        this.cancelRunningTimeout();
-        if (userInfo.currentUser != null
-          && userInfo.currentUser.newestAlbumCanAccess != null
-          && userInfo.currentUser.newestAlbumCanAccess.id != null
-        ) {
-          this.ngZone.run(() => this.router.navigate(['/album', userInfo.currentUser.newestAlbumCanAccess.id]));
-        } else {
-          this.runningTimeout = setTimeout(() =>
-              this.evaluateUserState(),
-            1000,
-          );
+          this.cancelRunningTimeout();
+          if (userInfo.currentUser != null
+            && userInfo.currentUser.newestAlbumCanAccess != null
+            && userInfo.currentUser.newestAlbumCanAccess.id != null
+          ) {
+            this.ngZone.run(() => this.router.navigate(['/album', userInfo.currentUser.newestAlbumCanAccess.id]));
+          } else {
+            this.runningTimeout = setTimeout(() =>
+                this.evaluateUserState(),
+              1000,
+            );
           }
 
         }
