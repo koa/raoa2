@@ -24,4 +24,6 @@ public interface QueryContext {
   RequestAttributes getRequestAttributes();
 
   String getContexRootPath();
+
+  boolean canAccessGroup(UUID groupId);
 }

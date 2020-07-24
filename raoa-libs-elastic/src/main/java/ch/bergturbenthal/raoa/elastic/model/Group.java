@@ -9,24 +9,13 @@ import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
-@Document(indexName = "user", createIndex = true)
+@Document(indexName = "group", createIndex = true)
 @Value
 @Builder(toBuilder = true)
-public class User {
+public class Group {
   @Id UUID id;
-
-  @Field(type = FieldType.Object)
-  PersonalUserData userData;
+  String name;
 
   @Field(type = FieldType.Keyword)
   Set<UUID> visibleAlbums;
-
-  @Field(type = FieldType.Keyword)
-  Set<UUID> groupMembership;
-
-  @Field(type = FieldType.Object)
-  Set<AuthenticationId> authentications;
-
-  @Field(type = FieldType.Boolean)
-  boolean superuser;
 }

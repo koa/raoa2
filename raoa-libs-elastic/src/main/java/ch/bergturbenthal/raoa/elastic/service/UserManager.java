@@ -2,6 +2,7 @@ package ch.bergturbenthal.raoa.elastic.service;
 
 import ch.bergturbenthal.raoa.elastic.model.AccessRequest;
 import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.Group;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import java.util.UUID;
 import java.util.function.Function;
@@ -12,13 +13,22 @@ public interface UserManager {
 
   Mono<User> createNewUser(AccessRequest baseRequest);
 
+  Mono<Group> createNewGroup(String groupName);
+
   Mono<Boolean> removeUser(UUID id);
+
+  Mono<Boolean> removeGroup(UUID id);
 
   void assignNewIdentity(UUID existingId, AuthenticationId baseRequest);
 
   Flux<User> listUsers();
 
+  Flux<Group> listGroups();
+
   Mono<User> loadUser(UUID userId);
 
   Mono<User> updateUser(UUID userId, Function<User, User> updater, final String updateDescription);
+
+  Mono<Group> updateGroup(
+      UUID groupId, Function<Group, Group> updater, final String updateDescription);
 }

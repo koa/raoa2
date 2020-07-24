@@ -2,9 +2,11 @@ package ch.bergturbenthal.raoa.elastic.service.impl;
 
 import ch.bergturbenthal.raoa.elastic.model.AccessRequest;
 import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.Group;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.impl.Limiter;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,10 +14,11 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import java.io.File;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
@@ -32,20 +35,27 @@ import reactor.core.publisher.Mono;
 public class GitUserManager implements UserManager {
   private static final TreeFilter ALL_USERS_FILTER =
       AndTreeFilter.create(PathFilter.create("users"), PathSuffixFilter.create(".json"));
-  private static final Duration CACHE_DURATION = Duration.ofMinutes(5);
+  private static final TreeFilter ALL_GROUPS_FILTER =
+      AndTreeFilter.create(PathFilter.create("groups"), PathSuffixFilter.create(".json"));
   @org.jetbrains.annotations.NotNull private final AlbumList albumList;
   private final Mono<UUID> metaIdMono;
   private final ObjectReader userReader;
   private final ObjectWriter userWriter;
   private final Limiter limiter;
+  private final AsyncService asyncService;
+  private final ObjectReader groupReader;
+  private final ObjectWriter groupWriter;
 
-  public GitUserManager(AlbumList albumList, final Limiter limiter) {
+  public GitUserManager(AlbumList albumList, final Limiter limiter, AsyncService asyncService) {
     this.albumList = albumList;
     this.limiter = limiter;
+    this.asyncService = asyncService;
     final ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().indentOutput(true).build();
 
     userReader = objectMapper.readerFor(User.class);
     userWriter = objectMapper.writerFor(User.class);
+    groupReader = objectMapper.readerFor(Group.class);
+    groupWriter = objectMapper.writerFor(Group.class);
 
     metaIdMono =
         albumList
@@ -58,27 +68,49 @@ public class GitUserManager implements UserManager {
 
   @Override
   public Mono<User> createNewUser(final AccessRequest foundRequest) {
-    try {
-      final User newUser =
-          User.builder()
-              .userData(foundRequest.getUserData())
-              .superuser(false)
-              .id(UUID.randomUUID())
-              .authentications(Collections.singleton(foundRequest.getAuthenticationId()))
-              .visibleAlbums(
-                  foundRequest.getRequestedAlbum() == null
-                      ? Collections.emptySet()
-                      : Collections.singleton(foundRequest.getRequestedAlbum()))
-              .build();
-      final String userFileName = createUserFile(newUser.getId());
-      final File tempFile = File.createTempFile(newUser.getId().toString(), "json");
-      userWriter.writeValue(tempFile, newUser);
-      return overrideFile(userFileName, tempFile, "created user", false)
-          .filter(t -> t)
-          .map(t -> newUser);
-    } catch (IOException e) {
-      return Mono.error(e);
-    }
+    return asyncService
+        .asyncMono(
+            () -> {
+              final User newUser =
+                  User.builder()
+                      .userData(foundRequest.getUserData())
+                      .superuser(false)
+                      .id(UUID.randomUUID())
+                      .authentications(Collections.singleton(foundRequest.getAuthenticationId()))
+                      .visibleAlbums(
+                          foundRequest.getRequestedAlbum() == null
+                              ? Collections.emptySet()
+                              : Collections.singleton(foundRequest.getRequestedAlbum()))
+                      .build();
+              final String userFileName = createUserFile(newUser.getId());
+              final File tempFile = File.createTempFile(newUser.getId().toString(), "json");
+              userWriter.writeValue(tempFile, newUser);
+              return overrideFile(userFileName, tempFile, "created user", false)
+                  .filter(t -> t)
+                  .map(t -> newUser);
+            })
+        .flatMap(Function.identity());
+  }
+
+  @Override
+  public Mono<Group> createNewGroup(final String groupName) {
+    return asyncService
+        .asyncMono(
+            () -> {
+              final Group group =
+                  Group.builder()
+                      .id(UUID.randomUUID())
+                      .name(groupName)
+                      .visibleAlbums(Collections.emptySet())
+                      .build();
+              final String groupFile = createGroupFile(group.getId());
+              File tempFile = File.createTempFile(group.getId().toString(), "json");
+              groupWriter.writeValue(tempFile, group);
+              return overrideFile(groupFile, tempFile, "created group", false)
+                  .filter(t -> t)
+                  .map(t -> group);
+            })
+        .flatMap(Function.identity());
   }
 
   @NotNull
@@ -115,19 +147,39 @@ public class GitUserManager implements UserManager {
   }
 
   @Override
-  public void assignNewIdentity(final UUID existingId, final AuthenticationId baseRequest) {}
+  public Mono<Boolean> removeGroup(final UUID id) {
+    final String userFileName = createGroupFile(id);
+    return metaIdMono
+        .flatMap(albumList::getAlbum)
+        .flatMap(GitAccess::createUpdater)
+        .flatMap(
+            u -> u.removeFile(userFileName).filter(t -> t).flatMap(t -> u.commit("removed group")))
+        .defaultIfEmpty(false);
+  }
+
+  @Override
+  public void assignNewIdentity(final UUID existingId, final AuthenticationId baseRequest) {
+    updateUser(
+        existingId,
+        user ->
+            user.toBuilder()
+                .authentications(
+                    Stream.concat(user.getAuthentications().stream(), Stream.of(baseRequest))
+                        .collect(Collectors.toSet()))
+                .build(),
+        "added authentication");
+  }
 
   @NotNull
   private synchronized Flux<User> allUsers() {
-    return loadUsers(ALL_USERS_FILTER).cache(CACHE_DURATION);
+    return loadUsers(ALL_USERS_FILTER);
   }
 
   @NotNull
   private Flux<User> loadUsers(final TreeFilter filter) {
-
     return metaIdMono
         .flatMap(albumList::getAlbum)
-        .flatMapMany(
+        .<User>flatMapMany(
             a ->
                 a.listFiles(filter)
                     .flatMap(
@@ -142,7 +194,55 @@ public class GitUserManager implements UserManager {
                                             throw new RuntimeException(ex);
                                           }
                                         }),
-                                "load user ")));
+                                "load user ")))
+        .map(this::cleanupUser);
+  }
+
+  private User cleanupUser(final User user) {
+    return User.builder()
+        .authentications(defaultIfNull(user.getAuthentications(), Collections.emptySet()))
+        .groupMembership(defaultIfNull(user.getGroupMembership(), Collections.emptySet()))
+        .superuser(user.isSuperuser())
+        .userData(user.getUserData())
+        .id(user.getId())
+        .visibleAlbums(defaultIfNull(user.getVisibleAlbums(), Collections.emptySet()))
+        .build();
+  }
+
+  @NotNull
+  private Flux<Group> loadGroup(final TreeFilter filter) {
+    return metaIdMono
+        .flatMap(albumList::getAlbum)
+        .<Group>flatMapMany(
+            a ->
+                a.listFiles(filter)
+                    .flatMap(
+                        e ->
+                            limiter.limit(
+                                a.readObject(e.getFileId())
+                                    .map(
+                                        loader -> {
+                                          try {
+                                            return groupReader.readValue(loader.getBytes());
+                                          } catch (IOException ex) {
+                                            throw new RuntimeException(ex);
+                                          }
+                                        }),
+                                "load user ")))
+        .map(this::cleanupGroup);
+  }
+
+  private Group cleanupGroup(final Group group) {
+    return Group.builder()
+        .id(group.getId())
+        .name(group.getName())
+        .visibleAlbums(defaultIfNull(group.getVisibleAlbums(), Collections.emptySet()))
+        .build();
+  }
+
+  private <T> T defaultIfNull(T value, T defaultValue) {
+    if (value != null) return value;
+    return defaultValue;
   }
 
   @NotNull
@@ -150,9 +250,19 @@ public class GitUserManager implements UserManager {
     return "users/" + id.toString() + ".json";
   }
 
+  @NotNull
+  private String createGroupFile(final UUID id) {
+    return "groups/" + id.toString() + ".json";
+  }
+
   @Override
   public Flux<User> listUsers() {
     return allUsers();
+  }
+
+  @Override
+  public synchronized Flux<Group> listGroups() {
+    return loadGroup(ALL_GROUPS_FILTER);
   }
 
   @Override
@@ -171,17 +281,42 @@ public class GitUserManager implements UserManager {
         .map(updater)
         .singleOrEmpty()
         .flatMap(
-            updatedUser -> {
-              try {
-                final File tempFile = File.createTempFile(userId.toString(), "json");
-                userWriter.writeValue(tempFile, updatedUser);
-                return overrideFile(userFile, tempFile, updateDescription, true)
-                    .filter(t -> t)
-                    .map(t -> updatedUser);
-              } catch (IOException e) {
-                return Mono.error(
-                    new RuntimeException("Cannot write user " + userId + " for update", e));
-              }
-            });
+            updatedUser ->
+                asyncService
+                    .asyncMono(
+                        () -> {
+                          final File tempFile = File.createTempFile(userId.toString(), "json");
+                          userWriter.writeValue(tempFile, updatedUser);
+                          return tempFile;
+                        })
+                    .flatMap(
+                        tempFile ->
+                            overrideFile(userFile, tempFile, updateDescription, true)
+                                .filter(t -> t)
+                                .map(t -> updatedUser)));
+  }
+
+  @Override
+  public Mono<Group> updateGroup(
+      final UUID groupId, final Function<Group, Group> updater, final String updateDescription) {
+    final String groupFile = createGroupFile(groupId);
+    final PathFilter filter = PathFilter.create(groupFile);
+    return loadGroup(filter)
+        .map(updater)
+        .singleOrEmpty()
+        .flatMap(
+            updatedGroup ->
+                asyncService
+                    .asyncMono(
+                        () -> {
+                          final File tempFile = File.createTempFile(groupFile.toString(), "json");
+                          userWriter.writeValue(tempFile, updatedGroup);
+                          return tempFile;
+                        })
+                    .flatMap(
+                        tempFile ->
+                            overrideFile(groupFile, tempFile, updateDescription, true)
+                                .filter(t -> t)
+                                .map(t -> updatedGroup)));
   }
 }

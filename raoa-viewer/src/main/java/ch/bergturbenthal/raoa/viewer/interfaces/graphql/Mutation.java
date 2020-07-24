@@ -1,25 +1,23 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
-import ch.bergturbenthal.raoa.elastic.model.AccessRequest;
-import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
-import ch.bergturbenthal.raoa.elastic.model.PersonalUserData;
-import ch.bergturbenthal.raoa.elastic.model.User;
+import ch.bergturbenthal.raoa.elastic.model.*;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
-import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.UserUpdate;
-import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.UserVisibilityUpdate;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.*;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import com.coxautodev.graphql.tools.GraphQLMutationResolver;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -88,6 +86,139 @@ public class Mutation implements GraphQLMutationResolver {
                     .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
         .timeout(TIMEOUT)
         .toFuture();
+  }
+
+  public CompletableFuture<GroupReference> createGroup(String name) {
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            queryContext ->
+                userManager
+                    .createNewGroup(name)
+                    .map(
+                        group -> new GroupReference(group.getId(), queryContext, Mono.just(group))))
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<UpdateResult> updateCredentials(CredentialUpgrade update) {
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            queryContext -> {
+              Map<UUID, Function<User, User>> userMutations = new HashMap<>();
+              for (SingleUserUpdate userUpdate : update.getUserUpdates()) {
+                userMutations.compute(
+                    userUpdate.getUserId(),
+                    mergeFunction(
+                        userUpdate.isMember()
+                            ? (user ->
+                                user.toBuilder()
+                                    .visibleAlbums(
+                                        Stream.concat(
+                                                user.getVisibleAlbums().stream(),
+                                                Stream.of(userUpdate.getAlbumId()))
+                                            .collect(Collectors.toSet()))
+                                    .build())
+                            : (user ->
+                                user.toBuilder()
+                                    .visibleAlbums(
+                                        user.getVisibleAlbums().stream()
+                                            .filter(aid -> !userUpdate.getAlbumId().equals(aid))
+                                            .collect(Collectors.toSet()))
+                                    .build())));
+              }
+              for (SingleGroupMembershipUpdate groupMembershipUpdate :
+                  update.getGroupMembershipUpdates()) {
+                userMutations.compute(
+                    groupMembershipUpdate.getUserId(),
+                    mergeFunction(
+                        groupMembershipUpdate.isMember()
+                            ? (user ->
+                                user.toBuilder()
+                                    .groupMembership(
+                                        Stream.concat(
+                                                user.getGroupMembership().stream(),
+                                                Stream.of(groupMembershipUpdate.getGroupId()))
+                                            .collect(Collectors.toSet()))
+                                    .build())
+                            : (user ->
+                                user.toBuilder()
+                                    .groupMembership(
+                                        user.getGroupMembership().stream()
+                                            .filter(
+                                                gid ->
+                                                    !groupMembershipUpdate.getGroupId().equals(gid))
+                                            .collect(Collectors.toSet()))
+                                    .build())));
+              }
+              Map<UUID, Function<Group, Group>> groupMutations = new HashMap<>();
+              for (SingleGroupUpdate groupUpdate : update.getGroupUpdates()) {
+                groupMutations.compute(
+                    groupUpdate.getGroupId(),
+                    mergeFunction(
+                        groupUpdate.isMember()
+                            ? (group ->
+                                group
+                                    .toBuilder()
+                                    .visibleAlbums(
+                                        Stream.concat(
+                                                group.getVisibleAlbums().stream(),
+                                                Stream.of(groupUpdate.getAlbumId()))
+                                            .collect(Collectors.toSet()))
+                                    .build())
+                            : (group ->
+                                group
+                                    .toBuilder()
+                                    .visibleAlbums(
+                                        group.getVisibleAlbums().stream()
+                                            .filter(aid -> groupUpdate.getAlbumId().equals(aid))
+                                            .collect(Collectors.toSet()))
+                                    .build())));
+              }
+              return Flux.merge(
+                      Flux.fromIterable(userMutations.entrySet())
+                          .flatMap(
+                              mutEntry ->
+                                  userManager
+                                      .updateUser(
+                                          mutEntry.getKey(),
+                                          mutEntry.getValue(),
+                                          "update user " + mutEntry.getKey())
+                                      .single())
+                          .count(),
+                      Flux.fromIterable(groupMutations.entrySet())
+                          .flatMap(
+                              mutEntry ->
+                                  userManager
+                                      .updateGroup(
+                                          mutEntry.getKey(),
+                                          mutEntry.getValue(),
+                                          "update group " + mutEntry.getKey())
+                                      .single())
+                          .count())
+                  .count()
+                  .flatMap(c -> dataViewService.updateUserData().thenReturn(true))
+                  .onErrorResume(
+                      ex -> {
+                        log.warn("Cannot update", ex);
+                        return Mono.just(false);
+                      });
+            })
+        .map(UpdateResult::new)
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  @NotNull
+  public <K, V> BiFunction<K, Function<V, V>, Function<V, V>> mergeFunction(
+      final Function<V, V> updateFunction) {
+    return (id, existingFunction) -> {
+      if (existingFunction == null) return updateFunction;
+      return existingFunction.andThen(updateFunction);
+    };
   }
 
   public CompletableFuture<Boolean> removeUser(UUID userId) {

@@ -10,7 +10,6 @@ import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
 import com.adobe.xmp.XMPException;
 import com.adobe.xmp.XMPMeta;
 import com.adobe.xmp.XMPMetaFactory;
-import com.google.common.base.Functions;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -20,6 +19,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.Getter;
@@ -75,6 +75,7 @@ public class ElasticSearchDataViewService implements DataViewService {
   private final AlbumList albumList;
   private final SyncAlbumDataEntryRepository syncAlbumDataEntryRepository;
   private final UserRepository userRepository;
+  private final GroupRepository groupRepository;
   private final AccessRequestRepository accessRequestRepository;
   private final UserManager userManager;
   private final ExecutorService ioExecutorService =
@@ -86,6 +87,7 @@ public class ElasticSearchDataViewService implements DataViewService {
       final AlbumList albumList,
       final SyncAlbumDataEntryRepository syncAlbumDataEntryRepository,
       final UserRepository userRepository,
+      final GroupRepository groupRepository,
       final AccessRequestRepository accessRequestRepository,
       final UserManager userManager) {
     this.albumDataRepository = albumDataRepository;
@@ -93,6 +95,7 @@ public class ElasticSearchDataViewService implements DataViewService {
     this.albumList = albumList;
     this.syncAlbumDataEntryRepository = syncAlbumDataEntryRepository;
     this.userRepository = userRepository;
+    this.groupRepository = groupRepository;
     this.accessRequestRepository = accessRequestRepository;
     this.userManager = userManager;
   }
@@ -196,28 +199,54 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   @Override
   public Mono<Void> updateUserData() {
-    return userRepository
-        .findAll()
-        .retryBackoff(10, Duration.ofSeconds(20))
-        .onErrorResume(
-            ex -> {
-              log.warn("Cannot load existing users", ex);
-              return Flux.empty();
-            })
-        .collectMap(User::getId, Functions.identity())
-        .flatMap(
-            (Map<UUID, User> existingUsers) ->
-                userManager
-                    .listUsers()
-                    .flatMap(
-                        storedUser ->
-                            Objects.equals(existingUsers.get(storedUser.getId()), storedUser)
-                                ? Mono.just(storedUser.getId())
-                                : userRepository.save(storedUser).map(User::getId))
-                    .<Set<UUID>>collect(() -> new HashSet<>(existingUsers.keySet()), Set::remove))
-        .flatMapIterable(Functions.identity())
-        .flatMap(userRepository::deleteById)
-        .count()
+    return Flux.merge(
+            userRepository
+                .findAll()
+                .retryBackoff(10, Duration.ofSeconds(20))
+                .onErrorResume(
+                    ex -> {
+                      log.warn("Cannot load existing users", ex);
+                      return Flux.empty();
+                    })
+                .collectMap(User::getId, Function.identity())
+                .flatMap(
+                    (Map<UUID, User> existingUsers) ->
+                        userManager
+                            .listUsers()
+                            .flatMap(
+                                storedUser ->
+                                    Objects.equals(
+                                            existingUsers.get(storedUser.getId()), storedUser)
+                                        ? Mono.just(storedUser.getId())
+                                        : userRepository.save(storedUser).map(User::getId))
+                            .<Set<UUID>>collect(
+                                () -> new HashSet<>(existingUsers.keySet()), Set::remove))
+                .flatMapIterable(Function.identity())
+                .flatMap(userRepository::deleteById)
+                .then(),
+            groupRepository
+                .findAll()
+                .retryBackoff(10, Duration.ofSeconds(20))
+                .onErrorResume(
+                    ex -> {
+                      log.warn("Cannot load existing groups", ex);
+                      return Flux.empty();
+                    })
+                .collectMap(Group::getId, Function.identity())
+                .flatMap(
+                    existingGroups ->
+                        userManager
+                            .listGroups()
+                            .flatMap(
+                                storedGroup ->
+                                    Objects.equals(
+                                            existingGroups.get(storedGroup.getId()), storedGroup)
+                                        ? Mono.just(storedGroup.getId())
+                                        : groupRepository.save(storedGroup).map(Group::getId))
+                            .collect(() -> new HashSet<>(existingGroups.keySet()), Set::remove))
+                .flatMapIterable(Function.identity())
+                .flatMap(groupRepository::deleteById)
+                .then())
         .then();
   }
 
@@ -514,6 +543,11 @@ public class ElasticSearchDataViewService implements DataViewService {
   }
 
   @Override
+  public Mono<Group> findGroupById(final UUID id) {
+    return groupRepository.findById(id);
+  }
+
+  @Override
   public Flux<User> listUserForAlbum(final UUID albumId) {
     return Flux.merge(
             userRepository.findByVisibleAlbums(albumId), userRepository.findBySuperuser(true))
@@ -554,6 +588,11 @@ public class ElasticSearchDataViewService implements DataViewService {
               log.warn("Error listing Users", ex);
               return Flux.empty();
             });
+  }
+
+  @Override
+  public Flux<Group> listGroups() {
+    return groupRepository.findAll();
   }
 
   private static class AlbumStatisticsCollector {

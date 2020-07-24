@@ -126,6 +126,14 @@ public class QueryContextSupplier {
                         0, currentRequestPath.length() - servletPath.length());
                   } else return "";
                 }
+
+                @Override
+                public boolean canAccessGroup(final UUID groupId) {
+                  return u.map(
+                          user1 ->
+                              user1.isSuperuser() || user1.getGroupMembership().contains(groupId))
+                      .orElse(false);
+                }
               };
             });
   }

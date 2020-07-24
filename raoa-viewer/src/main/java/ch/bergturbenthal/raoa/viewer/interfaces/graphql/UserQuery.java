@@ -5,6 +5,7 @@ import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
+import ch.bergturbenthal.raoa.viewer.model.graphql.GroupReference;
 import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
@@ -94,6 +95,22 @@ public class UserQuery implements GraphQLResolver<UserReference> {
       return dataViewService
           .findUserById(user.getId())
           .flatMapIterable(User::getAuthentications)
+          .collectList()
+          .timeout(TIMEOUT)
+          .toFuture();
+    }
+    return CompletableFuture.completedFuture(Collections.emptyList());
+  }
+
+  public CompletableFuture<List<GroupReference>> groups(UserReference user) {
+    if (canShowUserDetails(user)) {
+      return dataViewService
+          .findUserById(user.getId())
+          .flatMapIterable(User::getGroupMembership)
+          .map(
+              groupId ->
+                  new GroupReference(
+                      groupId, user.getContext(), dataViewService.findGroupById(groupId).cache()))
           .collectList()
           .timeout(TIMEOUT)
           .toFuture();

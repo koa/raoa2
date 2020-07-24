@@ -3,9 +3,7 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 import ch.bergturbenthal.raoa.elastic.model.AlbumData;
 import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
-import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
-import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
-import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
+import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
 import java.time.Instant;
@@ -32,7 +30,20 @@ public class AlbumQuery implements GraphQLResolver<Album> {
     return album.getContext().getContexRootPath() + "/rest/album-zip/" + album.getId().toString();
   }
 
+  // TODO: resolve also groups
   public CompletableFuture<List<UserReference>> canAccessedBy(Album album) {
+    if (album.getContext().canUserManageUsers()) {
+      return dataViewService
+          .listUserForAlbum(album.getId())
+          .map(u -> new UserReference(u.getId(), u.getUserData(), album.getContext()))
+          .collectList()
+          .timeout(TIMEOUT)
+          .toFuture();
+    }
+    return CompletableFuture.completedFuture(Collections.emptyList());
+  }
+
+  public CompletableFuture<List<UserReference>> canAccessedByUser(Album album) {
     if (album.getContext().canUserManageUsers()) {
       return dataViewService
           .listUserForAlbum(album.getId())
@@ -94,5 +105,16 @@ public class AlbumQuery implements GraphQLResolver<Album> {
 
   public CompletableFuture<Instant> getAlbumTime(Album album) {
     return extractElField(album, AlbumData::getCreateTime);
+  }
+
+  public CompletableFuture<List<GroupReference>> canAccessedByGroup(Album album) {
+    final QueryContext context = album.getContext();
+    return dataViewService
+        .listGroups()
+        .filter(g -> context.canAccessGroup(g.getId()))
+        .map(group -> new GroupReference(group.getId(), context, Mono.just(group)))
+        .collectList()
+        .timeout(TIMEOUT)
+        .toFuture();
   }
 }

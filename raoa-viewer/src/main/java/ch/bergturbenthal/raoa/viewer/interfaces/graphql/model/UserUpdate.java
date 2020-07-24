@@ -5,6 +5,6 @@ import lombok.Value;
 
 @Value
 public class UserUpdate {
-  private Boolean canManageUsers;
-  private List<UserVisibilityUpdate> visibilityUpdates;
+  Boolean canManageUsers;
+  List<UserVisibilityUpdate> visibilityUpdates;
 }

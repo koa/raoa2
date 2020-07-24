@@ -35,8 +35,8 @@ public interface GitAccess {
 
   @Value
   class GitFileEntry {
-    final String nameString;
-    final FileMode fileMode;
-    final ObjectId fileId;
+    String nameString;
+    FileMode fileMode;
+    ObjectId fileId;
   }
 }

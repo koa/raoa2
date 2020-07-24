@@ -11,6 +11,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @Component
@@ -112,6 +113,20 @@ public class Query implements GraphQLQueryResolver {
         .map(u -> u.getCurrentUser().map(c -> new UserReference(c.getId(), c.getUserData(), u)))
         .filter(Optional::isPresent)
         .map(Optional::get)
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<List<GroupReference>> listGroups() {
+    return queryContextSupplier
+        .createContext()
+        .flatMapMany(
+            context ->
+                dataViewService
+                    .listGroups()
+                    .filter(group -> context.canAccessGroup(group.getId()))
+                    .map(g -> new GroupReference(g.getId(), context, Mono.just(g))))
+        .collectList()
         .timeout(TIMEOUT)
         .toFuture();
   }

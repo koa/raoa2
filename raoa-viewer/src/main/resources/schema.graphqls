@@ -2,11 +2,12 @@ scalar DateTime
 
 type Query {
     albumById(id: ID): Album
-    listAlbums: [Album]
-    authenticationState: AuthenticationState
-    listPendingRequests: [RegistrationRequest]
+    listAlbums: [Album!]!
+    authenticationState: AuthenticationState!
+    listPendingRequests: [RegistrationRequest!]!
     currentUser: User
-    listUsers: [User]
+    listUsers: [User!]!
+    listGroups: [Group!]!
 }
 type Mutation{
     requestAccess(comment: String): RequestAccessResult
@@ -16,6 +17,36 @@ type Mutation{
     setCanManageUserFlag(userId: ID, enabled: Boolean): User
     setAlbumVisibility(userId: ID, albumId: ID, visible: Boolean): User
     updateUser(userId: ID, update: UserUpdate): User
+    createGroup(name: String): Group
+    updateCredentials(update: CredentialUpgrade): UpdateResult
+}
+
+type UpdateResult {
+    done: Boolean!
+}
+
+input CredentialUpgrade{
+    userUpdates: [SingleUserVisibilityUpdate!]!
+    groupUpdates: [SingleGroupVisibilityUpdate!]!
+    groupMembershipUpdates: [SingleGroupMembershipUpdate!]!
+}
+
+input SingleGroupMembershipUpdate {
+    userId: ID!
+    groupId: ID!
+    isMember: Boolean!
+}
+
+input SingleGroupVisibilityUpdate {
+    userId: ID!
+    albumId: ID!
+    visibility: Boolean!
+}
+
+input SingleUserVisibilityUpdate {
+    userId: ID!
+    albumId: ID!
+    visibility: Boolean!
 }
 
 input UserUpdate{
@@ -49,7 +80,15 @@ type User{
     newestAlbumCanAccess: Album
     info: UserInfo
     authentications: [AuthenticationId]
+    groups: [Group]
     canManageUsers: Boolean
+}
+
+type Group {
+    id: ID!
+    name: String!
+    canAccess: [Album!]!
+    members: [User!]!
 }
 
 type Album {
@@ -59,7 +98,9 @@ type Album {
     entries: [AlbumEntry!]!
     albumEntry(entryId: ID): AlbumEntry
     entryCount: Int
-    canAccessedBy: [User]
+    canAccessedBy: [User!]!
+    canAccessedByGroup: [Group!]!
+    canAccessedByUser: [User!]!
     zipDownloadUri: String
     albumTime: DateTime
 }

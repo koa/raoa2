@@ -24,6 +24,8 @@ public interface DataViewService {
 
   Mono<User> findUserById(UUID id);
 
+  Mono<Group> findGroupById(UUID id);
+
   Flux<User> listUserForAlbum(UUID albumId);
 
   Mono<AccessRequest> getPendingRequest(AuthenticationId id);
@@ -35,4 +37,6 @@ public interface DataViewService {
   Mono<Void> removePendingAccessRequest(AuthenticationId id);
 
   Flux<User> listUsers();
+
+  Flux<Group> listGroups();
 }
