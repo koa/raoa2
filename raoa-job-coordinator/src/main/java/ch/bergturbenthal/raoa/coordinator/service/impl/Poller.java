@@ -22,13 +22,13 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Consumer;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
 import org.eclipse.jgit.lib.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.data.elasticsearch.BulkFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -37,6 +37,7 @@ import reactor.core.scheduler.Schedulers;
 import reactor.function.TupleUtils;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
+import reactor.util.retry.Retry;
 
 @Slf4j
 @Service
@@ -119,6 +120,7 @@ public class Poller {
                     log.info("Start " + album);
                     return albumDataEntryRepository
                         .findByAlbumId(album.getAlbumId())
+                        .log("entry before")
                         .collectMap(AlbumEntryData::getEntryId, k -> k)
                         .retryBackoff(10, Duration.ofSeconds(10))
                         .flatMap(
@@ -129,10 +131,9 @@ public class Poller {
                                       .listFiles(ElasticSearchDataViewService.IMAGE_FILE_FILTER)
                                       .filterWhen(gitFileEntry -> isValidEntry(album, gitFileEntry))
                                       .flatMap(
-                                          gitFileEntry -> {
-                                            return entryAlreadyProcessed(album, gitFileEntry)
-                                                .map(exists -> Tuples.of(gitFileEntry, exists));
-                                          })
+                                          gitFileEntry ->
+                                              entryAlreadyProcessed(album, gitFileEntry)
+                                                  .map(exists -> Tuples.of(gitFileEntry, exists)))
                                       .map(
                                           (Tuple2<GitAccess.GitFileEntry, Boolean> gitFileEntry) ->
                                               gitFileEntry.mapT2(
@@ -163,7 +164,12 @@ public class Poller {
                                                 .processImage(fileId, data)
                                                 // .log(filename)
                                                 .timeout(coordinatorProperties.getProcessTimeout())
-                                                .retry(2)
+                                                .retryWhen(
+                                                    Retry.backoff(10, Duration.ofSeconds(5))
+                                                        .maxBackoff(Duration.ofMinutes(2))
+                                                        .jitter(0.5d)
+                                                        .scheduler(Schedulers.parallel())
+                                                        .transientErrors(false))
                                                 .map(ret -> Tuples.of(ret, true))
                                                 .doFinally(
                                                     signal ->
@@ -195,51 +201,55 @@ public class Poller {
                                               return inFlux
                                                   // .log("store")
                                                   .map(Tuple2::getT1)
-                                                  .buffer(500)
+                                                  .bufferTimeout(10, Duration.ofSeconds(30))
                                                   .flatMap(
                                                       updateEntries -> {
                                                         log.info(
                                                             "Prepare store of "
                                                                 + updateEntries.size());
+                                                        return albumDataEntryRepository
+                                                            .saveAll(updateEntries)
+                                                            .log("batch store");
 
-                                                        return asyncService
-                                                            .asyncFlux(
-                                                                (Consumer<AlbumEntryData>
-                                                                        consumer) -> {
-                                                                  try {
-                                                                    log.info(
-                                                                        "Start store of "
-                                                                            + updateEntries.size());
-                                                                    final Iterable<AlbumEntryData>
-                                                                        albumEntryData =
-                                                                            meterRegistry
-                                                                                .timer(
-                                                                                    "raoa.poller.storage.flush")
-                                                                                .recordCallable(
-                                                                                    () ->
-                                                                                        syncAlbumDataEntryRepository
-                                                                                            .saveAll(
-                                                                                                updateEntries));
-                                                                    meterRegistry
-                                                                        .counter(
-                                                                            "raoa.poller.storage.entries")
-                                                                        .increment(
-                                                                            updateEntries.size());
-                                                                    log.info(
-                                                                        "Done store of "
-                                                                            + updateEntries.size());
-                                                                    albumEntryData.forEach(
-                                                                        consumer);
-                                                                    log.info(
-                                                                        "Done publish of "
-                                                                            + updateEntries.size());
-                                                                  } catch (Exception ex) {
-                                                                    log.warn("Error storing", ex);
-                                                                    throw ex;
-                                                                  }
-                                                                })
-                                                            .retryBackoff(
-                                                                10, Duration.ofSeconds(10));
+                                                        /*return asyncService
+                                                        .asyncFlux(
+                                                            (Consumer<AlbumEntryData>
+                                                                    consumer) -> {
+                                                              try {
+                                                                log.info(
+                                                                    "Start store of "
+                                                                        + updateEntries.size());
+                                                                final Iterable<AlbumEntryData>
+                                                                    albumEntryData =
+                                                                        meterRegistry
+                                                                            .timer(
+                                                                                "raoa.poller.storage.flush")
+                                                                            .recordCallable(
+                                                                                () ->
+                                                                                    syncAlbumDataEntryRepository
+                                                                                        .saveAll(
+                                                                                            updateEntries));
+                                                                meterRegistry
+                                                                    .counter(
+                                                                        "raoa.poller.storage.entries")
+                                                                    .increment(
+                                                                        updateEntries.size());
+                                                                log.info(
+                                                                    "Done store of "
+                                                                        + updateEntries.size());
+                                                                albumEntryData.forEach(
+                                                                    consumer);
+                                                                log.info(
+                                                                    "Done publish of "
+                                                                        + updateEntries.size());
+                                                              } catch (Exception ex) {
+                                                                log.warn("Error storing", ex);
+                                                                throw ex;
+                                                              }
+                                                            })
+                                                        .retryWhen(
+                                                            Retry.backoff(
+                                                                10, Duration.ofSeconds(10)));*/
                                                       },
                                                       1)
                                                   .publishOn(Schedulers.elastic())
@@ -326,6 +336,11 @@ public class Poller {
                         .onErrorResume(
                             ex -> {
                               log.warn("Error on album", ex);
+                              if (ex instanceof BulkFailureException) {
+                                ((BulkFailureException) ex)
+                                    .getFailedDocuments()
+                                    .forEach((key, value) -> log.warn(value));
+                              }
                               return Mono.empty();
                             });
                   },
@@ -361,7 +376,7 @@ public class Poller {
                           final long startTime = System.nanoTime();
                           if (!k.exists()) {
                             log.info(
-                                "Founde empty dir at "
+                                "Found empty dir at "
                                     + k
                                     + " in "
                                     + (Duration.ofNanos(System.nanoTime() - startTime).toMillis())

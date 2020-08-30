@@ -1,8 +1,8 @@
 package ch.bergturbenthal.raoa.elastic.service.impl;
 
-import ch.bergturbenthal.raoa.elastic.model.AccessRequest;
 import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
 import ch.bergturbenthal.raoa.elastic.model.Group;
+import ch.bergturbenthal.raoa.elastic.model.RequestAccess;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
@@ -67,7 +67,7 @@ public class GitUserManager implements UserManager {
   }
 
   @Override
-  public Mono<User> createNewUser(final AccessRequest foundRequest) {
+  public Mono<User> createNewUser(final RequestAccess foundRequest) {
     return asyncService
         .asyncMono(
             () -> {

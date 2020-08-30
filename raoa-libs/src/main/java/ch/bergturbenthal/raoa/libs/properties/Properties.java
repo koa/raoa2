@@ -11,4 +11,5 @@ public class Properties {
   private File repository;
   private File thumbnailDir = new File("/tmp/raoa/thumbnails");
   private int maxConcurrent = 30;
+  private String superuser = "107024483334418897627";
 }

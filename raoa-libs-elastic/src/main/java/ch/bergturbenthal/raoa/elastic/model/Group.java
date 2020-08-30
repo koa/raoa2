@@ -14,6 +14,8 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 @Builder(toBuilder = true)
 public class Group {
   @Id UUID id;
+
+  @Field(type = FieldType.Text)
   String name;
 
   @Field(type = FieldType.Keyword)

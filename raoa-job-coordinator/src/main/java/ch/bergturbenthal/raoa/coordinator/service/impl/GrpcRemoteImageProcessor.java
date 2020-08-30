@@ -22,6 +22,8 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
+import reactor.util.retry.Retry;
 
 @Slf4j
 @Service
@@ -48,6 +50,9 @@ public class GrpcRemoteImageProcessor implements RemoteImageProcessor {
             .setAlbumId(convertUUID(albumId))
             .setFilename(data.getFilename())
             .build();
+    // .log(albumId + "; " + request.getFilename())
+    // .log(albumId + "; " + request.getFilename())
+    // .log(albumId + "; " + request.getFilename())
     return Mono.from(
             StreamObserverReactiveHelper.createPublisher(
                 request, processImageServiceStub::processImage))
@@ -93,7 +98,12 @@ public class GrpcRemoteImageProcessor implements RemoteImageProcessor {
 
               return builder.build();
             })
-        .retryBackoff(10, Duration.ofSeconds(2), Duration.ofMinutes(1));
+        .retryWhen(
+            Retry.backoff(10, Duration.ofSeconds(2))
+                .maxBackoff(Duration.ofMinutes(1))
+                .jitter(0.5d)
+                .scheduler(Schedulers.parallel())
+                .transientErrors(false));
   }
 
   private ObjectId convertObjectId(final ImageProcessing.GitObjectId objectId) {

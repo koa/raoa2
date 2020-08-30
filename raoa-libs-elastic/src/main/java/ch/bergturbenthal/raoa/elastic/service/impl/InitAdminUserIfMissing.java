@@ -1,28 +1,29 @@
-package ch.bergturbenthal.raoa.viewer.service.impl;
+package ch.bergturbenthal.raoa.elastic.service.impl;
 
 import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
-import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
+import ch.bergturbenthal.raoa.libs.properties.Properties;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Slf4j
-@Service
 public class InitAdminUserIfMissing {
 
-  private final ViewerProperties viewerProperties;
+  private final Properties viewerProperties;
   private final DataViewService dataViewService;
   private final UserManager userManager;
 
   public InitAdminUserIfMissing(
-      final ViewerProperties viewerProperties,
+      final Properties viewerProperties,
       final DataViewService dataViewService,
       final UserManager userManager) {
     this.viewerProperties = viewerProperties;
@@ -38,22 +39,39 @@ public class InitAdminUserIfMissing {
       if (superuser == null) return;
       final AuthenticationId superUserId =
           AuthenticationId.builder().authority("accounts.google.com").id(superuser).build();
-      final Mono<User> existingSuperuser = dataViewService.findUserForAuthentication(superUserId);
+      final Mono<List<User>> existingSuperusers =
+          dataViewService.findUserForAuthentication(superUserId).collectList();
       final Optional<User> createdUser =
-          existingSuperuser
-              .map(Optional::of)
-              .defaultIfEmpty(Optional.empty())
-              .onErrorReturn(Optional.empty())
+          existingSuperusers
+              .onErrorReturn(Collections.emptyList())
               .flatMap(
                   maybeUser -> {
-                    if (maybeUser.isPresent()) {
-                      if (!maybeUser.get().isSuperuser()) {
-                        return userManager.updateUser(
-                            maybeUser.get().getId(),
-                            user -> user.toBuilder().superuser(true).build(),
-                            "set superuser by config");
+                    if (maybeUser.size() > 0) {
+                      final User existingUser = maybeUser.get(0);
+                      final Mono<User> modifiedUser;
+                      if (!existingUser.isSuperuser()) {
+                        modifiedUser =
+                            userManager.updateUser(
+                                existingUser.getId(),
+                                user -> user.toBuilder().superuser(true).build(),
+                                "set superuser by config");
+                      } else modifiedUser = Mono.empty();
+                      if (maybeUser.size() > 1) {
+                        final List<User> additionalUsers = maybeUser.subList(1, maybeUser.size());
+                        return Flux.fromIterable(additionalUsers)
+                            .map(User::getId)
+                            .flatMap(
+                                id ->
+                                    userManager
+                                        .removeUser(id)
+                                        .doOnNext(
+                                            (done) ->
+                                                log.info(
+                                                    "Removed duplicate user " + id + ", " + done)),
+                                1)
+                            .then(modifiedUser);
                       }
-                      return Mono.empty();
+                      return modifiedUser;
                     } else {
                       return dataViewService
                           .getPendingRequest(superUserId)

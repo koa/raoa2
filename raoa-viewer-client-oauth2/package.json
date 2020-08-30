@@ -1,3 +1,4 @@
+
 {
   "name": "raoa-viewer",
   "version": "0.0.0",
@@ -23,6 +24,7 @@
     "@angular/platform-browser": "^9.1.12",
     "@angular/platform-browser-dynamic": "^9.1.12",
     "@angular/router": "^9.1.12",
+    "@angular/service-worker": "^9.1.12",
     "@types/gapi.auth2": "0.0.52",
     "angular-resize-event": "^1.2.2",
     "apollo-angular": "^1.9.1",

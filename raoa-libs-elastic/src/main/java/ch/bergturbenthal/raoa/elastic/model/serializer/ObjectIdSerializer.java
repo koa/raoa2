@@ -11,11 +11,6 @@ public class ObjectIdSerializer extends JsonSerializer<ObjectId> {
   public void serialize(
       final ObjectId value, final JsonGenerator gen, final SerializerProvider serializers)
       throws IOException {
-    /*byte[] data = new byte[20];
-    value.copyRawTo(data, 0);
-    gen.writeBinary(data);
-
-     */
     gen.writeString(value.name());
   }
 }

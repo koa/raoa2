@@ -20,7 +20,7 @@ public interface DataViewService {
 
   Mono<AlbumEntryData> loadEntry(UUID albumId, ObjectId entriId);
 
-  Mono<User> findUserForAuthentication(AuthenticationId authenticationId);
+  Flux<User> findUserForAuthentication(AuthenticationId authenticationId);
 
   Mono<User> findUserById(UUID id);
 
@@ -28,11 +28,11 @@ public interface DataViewService {
 
   Flux<User> listUserForAlbum(UUID albumId);
 
-  Mono<AccessRequest> getPendingRequest(AuthenticationId id);
+  Mono<RequestAccess> getPendingRequest(AuthenticationId id);
 
-  Mono<AccessRequest> requestAccess(AccessRequest request);
+  Mono<RequestAccess> requestAccess(RequestAccess request);
 
-  Flux<AccessRequest> listAllRequestedAccess();
+  Flux<RequestAccess> listAllRequestedAccess();
 
   Mono<Void> removePendingAccessRequest(AuthenticationId id);
 

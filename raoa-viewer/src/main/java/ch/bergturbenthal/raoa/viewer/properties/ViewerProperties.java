@@ -17,7 +17,6 @@ public class ViewerProperties {
   private DataSize defaultCacheSize = DataSize.ofMegabytes(100);
   private Map<String, DataSize> cacheSize = Collections.emptyMap();
   private boolean enableAuthentication = true;
-  private String superuser = "107024483334418897627";
   private ClientProperties clientProperties = new ClientProperties();
   private boolean alwaysShowLatestRepository = false;
 

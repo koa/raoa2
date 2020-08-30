@@ -104,6 +104,7 @@ public class Query implements GraphQLQueryResolver {
         .createContext()
         .flatMap(QueryContext::getAuthenticationState)
         .timeout(TIMEOUT)
+        .defaultIfEmpty(AuthenticationState.UNKNOWN)
         .toFuture();
   }
 
@@ -124,8 +125,12 @@ public class Query implements GraphQLQueryResolver {
             context ->
                 dataViewService
                     .listGroups()
+                    //            .log("group")
                     .filter(group -> context.canAccessGroup(group.getId()))
-                    .map(g -> new GroupReference(g.getId(), context, Mono.just(g))))
+                    .map(g -> new GroupReference(g.getId(), context, Mono.just(g)))
+            //          .log("group-ref")
+            )
+        // .log("result")
         .collectList()
         .timeout(TIMEOUT)
         .toFuture();

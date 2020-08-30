@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.map.LRUMap;
 import org.apache.tika.metadata.*;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectStream;
@@ -40,6 +41,7 @@ import reactor.core.scheduler.Schedulers;
 import reactor.function.TupleUtils;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
+import reactor.util.retry.Retry;
 
 @Slf4j
 @Service
@@ -67,6 +69,7 @@ public class ElasticSearchDataViewService implements DataViewService {
             PathSuffixFilter.create(".nef"),
             PathSuffixFilter.create(".NEF")
           });
+  public static final Duration CACHE_TIME = Duration.ofSeconds(10);
   private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
   private static TreeFilter XMP_FILE_FILTER = PathSuffixFilter.create(".xmp");
   private final UUID virtualSuperuserId = UUID.randomUUID();
@@ -80,6 +83,8 @@ public class ElasticSearchDataViewService implements DataViewService {
   private final UserManager userManager;
   private final ExecutorService ioExecutorService =
       Executors.newFixedThreadPool(3, new CustomizableThreadFactory("elastic-data-view"));
+  private final Map<UUID, Mono<User>> userCache = Collections.synchronizedMap(new LRUMap<>(20));
+  private final Map<UUID, Mono<Group>> groupCache = Collections.synchronizedMap(new LRUMap<>(200));
 
   public ElasticSearchDataViewService(
       final AlbumDataRepository albumDataRepository,
@@ -202,7 +207,7 @@ public class ElasticSearchDataViewService implements DataViewService {
     return Flux.merge(
             userRepository
                 .findAll()
-                .retryBackoff(10, Duration.ofSeconds(20))
+                .retryWhen(Retry.backoff(10, Duration.ofSeconds(20)))
                 .onErrorResume(
                     ex -> {
                       log.warn("Cannot load existing users", ex);
@@ -226,7 +231,7 @@ public class ElasticSearchDataViewService implements DataViewService {
                 .then(),
             groupRepository
                 .findAll()
-                .retryBackoff(10, Duration.ofSeconds(20))
+                .retryWhen(Retry.backoff(10, Duration.ofSeconds(20)))
                 .onErrorResume(
                     ex -> {
                       log.warn("Cannot load existing groups", ex);
@@ -507,24 +512,23 @@ public class ElasticSearchDataViewService implements DataViewService {
   }
 
   @Override
-  public Mono<User> findUserForAuthentication(final AuthenticationId authenticationId) {
+  public Flux<User> findUserForAuthentication(final AuthenticationId authenticationId) {
     return userRepository
         .findByAuthenticationsAuthorityAndAuthenticationsId(
             authenticationId.getAuthority(), authenticationId.getId())
         .filter(u -> u.getAuthentications().contains(authenticationId))
-        .retryBackoff(10, Duration.ofSeconds(20))
+        .retryWhen(Retry.backoff(10, Duration.ofSeconds(20)))
         .onErrorResume(
             ex -> {
               log.warn("Cannot load user by authentication id " + authenticationId, ex);
               return Flux.empty();
-            })
-        .singleOrEmpty();
+            });
   }
 
   @Override
   public Mono<User> findUserById(final UUID id) {
-    return userRepository
-        .findById(id)
+    return userCache
+        .computeIfAbsent(id, userid -> userRepository.findById(userid).cache(CACHE_TIME))
         .switchIfEmpty(
             Mono.defer(
                 () -> {
@@ -544,28 +548,44 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   @Override
   public Mono<Group> findGroupById(final UUID id) {
-    return groupRepository.findById(id);
+    return groupCache.computeIfAbsent(
+        id, groupId -> groupRepository.findById(groupId).cache(CACHE_TIME));
   }
 
   @Override
   public Flux<User> listUserForAlbum(final UUID albumId) {
-    return Flux.merge(
-            userRepository.findByVisibleAlbums(albumId), userRepository.findBySuperuser(true))
-        .distinct();
+    return listGroups()
+        .filter(g -> g.getVisibleAlbums().contains(albumId))
+        .map(Group::getId)
+        .collect(Collectors.toSet())
+        .flatMapMany(
+            groups ->
+                listUsers()
+                    .filter(
+                        u ->
+                            u.isSuperuser()
+                                || u.getVisibleAlbums().contains(albumId)
+                                || u.getGroupMembership().stream().anyMatch(groups::contains)));
   }
 
   @Override
-  public Mono<AccessRequest> getPendingRequest(final AuthenticationId id) {
-    return accessRequestRepository.findById(AccessRequest.concatId(id));
+  public Mono<RequestAccess> getPendingRequest(final AuthenticationId id) {
+    return accessRequestRepository
+        .findById(RequestAccess.concatId(id))
+        .onErrorResume(
+            ex -> {
+              log.warn("Error listing Users", ex);
+              return Mono.empty();
+            });
   }
 
   @Override
-  public Mono<AccessRequest> requestAccess(final AccessRequest request) {
+  public Mono<RequestAccess> requestAccess(final RequestAccess request) {
     return accessRequestRepository.save(request);
   }
 
   @Override
-  public Flux<AccessRequest> listAllRequestedAccess() {
+  public Flux<RequestAccess> listAllRequestedAccess() {
     return accessRequestRepository
         .findAll()
         .onErrorResume(
@@ -577,7 +597,7 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   @Override
   public Mono<Void> removePendingAccessRequest(final AuthenticationId id) {
-    return accessRequestRepository.deleteById(AccessRequest.concatId(id));
+    return accessRequestRepository.deleteById(RequestAccess.concatId(id));
   }
 
   @Override

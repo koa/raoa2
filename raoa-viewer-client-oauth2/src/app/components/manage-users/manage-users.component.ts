@@ -54,7 +54,7 @@ export class ManageUsersComponent implements OnInit {
   public users: ResponseUser[];
   public pendingUsersDisplayColumns = ['icon', 'name', 'email', 'acceptButton', 'removeButton'];
   public albums: ResponseAlbum[] | null;
-  public pendingUpdate: ManageUsersUpdateUserMutationVariables | null = null;
+  public pendingUserUpdate: ManageUsersUpdateUserMutationVariables | null = null;
 
   constructor(private serverApiService: ServerApiService,
               private manageUsersOverviewGQL: ManageUsersOverviewGQL,
@@ -105,19 +105,19 @@ export class ManageUsersComponent implements OnInit {
 
   public enableSuperuser(userid: string, enable: boolean) {
     this.preparePendingUpdates(userid);
-    this.pendingUpdate.update.canManageUsers = enable;
+    this.pendingUserUpdate.update.canManageUsers = enable;
   }
 
   public updateAlbumVisibility(userId: string, albumId: string, event: MatSlideToggleChange) {
     this.preparePendingUpdates(userId);
     const enabled: boolean = event.checked;
-    for (const update of this.pendingUpdate.update.visibilityUpdates) {
+    for (const update of this.pendingUserUpdate.update.visibilityUpdates) {
       if (update.albumId === albumId) {
         update.visibility = enabled;
         return;
       }
     }
-    this.pendingUpdate.update.visibilityUpdates.push({albumId, visibility: enabled});
+    this.pendingUserUpdate.update.visibilityUpdates.push({albumId, visibility: enabled});
   }
 
   public canUserAccess(userId: string, albumId: string): boolean {
@@ -143,10 +143,10 @@ export class ManageUsersComponent implements OnInit {
 
   }
 
-  storePendingUpdate() {
-    if (this.pendingUpdate !== null) {
-      const data = this.pendingUpdate;
-      this.pendingUpdate = null;
+  storePendingUserUpdate() {
+    if (this.pendingUserUpdate !== null) {
+      const data = this.pendingUserUpdate;
+      this.pendingUserUpdate = null;
       this.serverApiService.update(this.manageUsersUpdateUserGQL, data)
         .then(this.loadDataFromServer)
         .catch(error => console.log(error));
@@ -154,11 +154,11 @@ export class ManageUsersComponent implements OnInit {
   }
 
   private preparePendingUpdates(userId: string) {
-    if (this.pendingUpdate !== null && this.pendingUpdate.id !== userId) {
-      this.storePendingUpdate();
+    if (this.pendingUserUpdate !== null && this.pendingUserUpdate.id !== userId) {
+      this.storePendingUserUpdate();
     }
-    if (this.pendingUpdate === null) {
-      this.pendingUpdate = {
+    if (this.pendingUserUpdate === null) {
+      this.pendingUserUpdate = {
         id: userId, update: {
           canManageUsers: undefined,
           visibilityUpdates: []

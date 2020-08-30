@@ -45,6 +45,7 @@ public class QueryContextSupplier {
             .collect(Collectors.maxBy(Comparator.comparing(Tuple2::getT1)))
             .filter(Optional::isPresent)
             .map(o -> o.map(Tuple2::getT2))
+            .defaultIfEmpty(Optional.empty())
             // .log("latest album")
             .cache(Duration.ofMinutes(1));
     this.viewerProperties = viewerProperties;

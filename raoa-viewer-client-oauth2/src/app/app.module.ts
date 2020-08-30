@@ -42,11 +42,29 @@ import {MatMenuModule} from '@angular/material/menu';
 import {MatChipsModule} from '@angular/material/chips';
 import {MatExpansionModule} from '@angular/material/expansion';
 import {ScrollingModule} from '@angular/cdk/scrolling';
+import {DBConfig, NgxIndexedDBModule} from 'ngx-indexed-db';
+import { ServiceWorkerModule } from '@angular/service-worker';
+import { environment } from '../environments/environment';
 
 registerLocaleData(localeDe, 'de');
 
 const appInitializerFn = (appConfig: AppConfigService) => {
   return () => appConfig.loadAppConfig();
+};
+const dbConfig: DBConfig = {
+  name: 'raoa',
+  version: 1,
+  objectStoresMeta: [{
+    store: 'album',
+    storeConfig: {keyPath: 'id', autoIncrement: false},
+    storeSchema: [
+      {name: 'id', keypath: 'id', options: {unique: true}},
+      {name: 'version', keypath: 'version', options: {unique: true}},
+      {name: 'name', keypath: 'name', options: {unique: false}},
+      {name: 'entryCount', keypath: 'entryCount', options: {unique: false}},
+      {name: 'albumTime', keypath: 'albumTime', options: {unique: false}}
+    ]
+  }]
 };
 
 @NgModule({
@@ -88,6 +106,8 @@ const appInitializerFn = (appConfig: AppConfigService) => {
     MatChipsModule,
     MatExpansionModule,
     ScrollingModule,
+    NgxIndexedDBModule.forRoot(dbConfig),
+    ServiceWorkerModule.register('ngsw-worker.js', { enabled: environment.production }),
   ],
   providers: [
     {provide: LOCALE_ID, useValue: 'de-CH'},

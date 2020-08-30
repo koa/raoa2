@@ -1,6 +1,7 @@
 package ch.bergturbenthal.raoa.viewer.service.impl;
 
 import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.Group;
 import ch.bergturbenthal.raoa.elastic.model.PersonalUserData;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
@@ -18,6 +19,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.provider.OAuth2Authentication;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
@@ -86,14 +88,17 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   @Override
   public Mono<Boolean> canUserAccessToAlbum(final SecurityContext context, final UUID album) {
     final Mono<Boolean> isLatestAlbum = latestAlbum.map(album::equals);
+    final Mono<User> currentUser = currentUser(context);
     final Mono<Boolean> canAccessAlbum =
-        currentUser(context)
-            // .log("current user")
-            .map(
+        currentUser
+            .flatMap(
                 u ->
-                    u.isSuperuser()
-                        || (u.getVisibleAlbums() != null && u.getVisibleAlbums().contains(album)))
-            // .log("can user access")
+                    u.isSuperuser() || u.getVisibleAlbums().contains(album)
+                        ? Mono.just(true)
+                        : Flux.fromIterable(u.getGroupMembership())
+                            .flatMap(dataViewService::findGroupById)
+                            .map(Group::getVisibleAlbums)
+                            .any(ids -> ids.contains(album)))
             .defaultIfEmpty(false);
     return Mono.zip(canAccessAlbum, isLatestAlbum).map(t -> t.getT1() || t.getT2())
     // .log("can access " + album)
@@ -112,7 +117,9 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   @NotNull
   public Mono<User> currentUser(final SecurityContext context) {
     return currentAuthentication(context)
-        .map(dataViewService::findUserForAuthentication)
+        .map(
+            authenticationId ->
+                dataViewService.findUserForAuthentication(authenticationId).singleOrEmpty())
         .orElse(Mono.empty());
   }
 

@@ -21,6 +21,7 @@ import {SelectionModel} from '@angular/cdk/collections';
 import {CdkVirtualScrollViewport} from '@angular/cdk/scrolling';
 import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from '@angular/material/dialog';
 import {MatListOption} from '@angular/material/list';
+import {AlbumListServiceService} from '../../services/album-list-service.service';
 
 interface ContentAlbumEntry {
   id: string;
@@ -125,7 +126,8 @@ export class AlbumContentComponent implements OnInit {
               private albumContentZipGQL: AlbumContentZipGQL,
               private changeDetectorRef: ChangeDetectorRef,
               private media: MediaMatcher,
-              private ngZone: NgZone
+              private ngZone: NgZone,
+              private albumListServiceService: AlbumListServiceService
   ) {
     let size = 1600;
     const scales = [];

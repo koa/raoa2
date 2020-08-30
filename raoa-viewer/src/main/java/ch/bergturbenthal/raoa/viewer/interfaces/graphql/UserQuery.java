@@ -2,6 +2,7 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
 import ch.bergturbenthal.raoa.elastic.model.AlbumData;
 import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.Group;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
@@ -36,7 +37,7 @@ public class UserQuery implements GraphQLResolver<UserReference> {
         .toFuture();
   }
 
-  public Flux<AlbumData> getVisibleAlbums(final UserReference user) {
+  private Flux<AlbumData> getVisibleAlbums(final UserReference user) {
     if (!canShowUserDetails(user)) {
       return Flux.empty();
     }
@@ -47,7 +48,12 @@ public class UserQuery implements GraphQLResolver<UserReference> {
             u ->
                 u.isSuperuser()
                     ? dataViewService.listAlbums()
-                    : Flux.fromIterable(u.getVisibleAlbums()).flatMap(dataViewService::readAlbum));
+                    : Flux.merge(
+                            Flux.fromIterable(u.getGroupMembership())
+                                .flatMap(dataViewService::findGroupById)
+                                .flatMapIterable(Group::getVisibleAlbums),
+                            Flux.fromIterable(u.getVisibleAlbums()))
+                        .flatMap(dataViewService::readAlbum));
   }
 
   public CompletableFuture<Album> newestAlbumCanAccess(UserReference user) {

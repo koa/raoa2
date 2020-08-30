@@ -27,6 +27,13 @@ query ManageUsersOverview{
       picture
     }
   }
+#  listGroups{
+#    id
+#    name
+#    canAccess{
+#      id
+#    }
+#  }
   listAlbums{
     id
     name

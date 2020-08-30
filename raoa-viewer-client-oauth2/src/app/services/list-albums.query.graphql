@@ -1,0 +1,9 @@
+query ListAlbums{
+  listAlbums {
+    id,
+    version,
+    name,
+    entryCount,
+    albumTime
+  }
+}

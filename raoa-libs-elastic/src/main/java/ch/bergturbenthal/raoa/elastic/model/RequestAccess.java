@@ -11,10 +11,10 @@ import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
-@Document(indexName = "request-access")
+@Document(indexName = "request-access", createIndex = true)
 @Value
-@JsonDeserialize(builder = AccessRequest.AccessRequestBuilder.class)
-public class AccessRequest {
+@JsonDeserialize(builder = RequestAccess.RequestAccessBuilder.class)
+public class RequestAccess {
   @Id
   @Field(index = false)
   private String requestId;
@@ -35,7 +35,7 @@ public class AccessRequest {
   private UUID requestedAlbum;
 
   @Builder
-  public AccessRequest(
+  public RequestAccess(
       final PersonalUserData userData,
       final AuthenticationId authenticationId,
       final String comment,
@@ -54,5 +54,5 @@ public class AccessRequest {
   }
 
   @JsonPOJOBuilder(withPrefix = "")
-  public static class AccessRequestBuilder {}
+  public static class RequestAccessBuilder {}
 }

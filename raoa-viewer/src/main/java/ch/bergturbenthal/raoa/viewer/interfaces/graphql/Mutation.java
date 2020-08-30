@@ -252,7 +252,7 @@ public class Mutation implements GraphQLMutationResolver {
                     final PersonalUserData personalUserData =
                         authorizationManager.readPersonalUserData(
                             queryContext.getSecurityContext());
-                    final AccessRequest.AccessRequestBuilder builder = AccessRequest.builder();
+                    final RequestAccess.RequestAccessBuilder builder = RequestAccess.builder();
                     builder.authenticationId(authenticationId.get());
                     builder.comment(comment);
                     builder.requestTime(Instant.now());
