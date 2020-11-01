@@ -20,7 +20,9 @@ spec:
       imagePullSecrets:
       {{- toYaml . | nindent 8 }}
       {{- end }}
-      priorityClassName: raoa-low
+      {{- if .Values.priorityClass.imageProcessor }}
+      priorityClassName: {{ .Values.priorityClass.imageProcessor }}
+      {{- end }}
       serviceAccountName: {{ include "raoa.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}

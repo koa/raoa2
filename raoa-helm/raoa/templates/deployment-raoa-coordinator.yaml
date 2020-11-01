@@ -1,34 +1,48 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "raoa.fullname" . }}-viewer
+  name: {{ include "raoa.fullname" . }}-coordinator
   labels:
   {{- include "raoa.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
-  {{- include "raoa.viewerSelectorLabels" . | nindent 6 }}
+  {{- include "raoa.coordinatorSelectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "raoa.viewerSelectorLabels" . | nindent 8 }}
+        {{- include "raoa.coordinatorSelectorLabels" . | nindent 8 }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap-viewer.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-coordinator.yaml") . | sha256sum }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
       {{- toYaml . | nindent 8 }}
       {{- end }}
-      priorityClassName: raoa-essential
       serviceAccountName: {{ include "raoa.serviceAccountName" . }}
+      {{- if .Values.priorityClass.coordinator }}
+      priorityClassName: {{ .Values.priorityClass.coordinator }}
+      {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: clean-repos
+          image: library/busybox:1.32.0
+          volumeMounts:
+            - mountPath: /data
+              name: data
+          command:
+            - sh
+            - -c
+            - find /data -name .probe-* -print0 | xargs -0 -n 1 -r rm
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.viewerRepository }}:{{ .Values.image.version }}"
+          image: "{{ .Values.image.coordinatorRepository }}:{{ .Values.image.version }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
@@ -69,7 +83,7 @@ spec:
                   name: {{ include "raoa.fullname" . }}-es-elastic-user
                   key: elastic
             - name: SPRING_APPLICATION_NAME
-              value: {{ include "raoa.fullname" . }}-viewer
+              value: {{ include "raoa.fullname" . }}-coordinator
           volumeMounts:
             - mountPath: /cache
               name: shared-cache
@@ -78,7 +92,7 @@ spec:
             - mountPath: /dumps
               name: dumps
           resources:
-            {{- toYaml .Values.viewerResources | nindent 12 }}
+            {{- toYaml .Values.coordinatorResources | nindent 12 }}
       {{ with .Values.affinity }}
       affinity:
       {{- toYaml . | nindent 8 }}

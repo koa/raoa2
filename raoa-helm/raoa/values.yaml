@@ -12,6 +12,12 @@ image:
   pullPolicy: IfNotPresent
   version: 20200301-185904
 
+priorityClass:
+  {}
+  #coordinator: raoa-essential
+  #imageProcessor: raoa-low
+  #viewer: raoa-essential
+
 imageProcessorCount: 3
 
 imagePullSecrets: []
