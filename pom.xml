@@ -108,4 +108,7 @@
             <url>https://repo.spring.io/milestone</url>
         </pluginRepository>
     </pluginRepositories>
+    <scm>
+        <url>scm:git:ssh://github.com/koa/raoa2</url>
+    </scm>
 </project>
