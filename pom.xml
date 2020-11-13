@@ -111,6 +111,6 @@
     <scm>
         <url>https://github.com/koa/raoa2</url>
         <connection>scm:git:git://github.com/koa/raoa2</connection>
-        <developerConnection>scm:git:ssh://github.com/koa/raoa2</developerConnection>
+        <developerConnection>scm:git:git@github.com:koa/raoa2.git</developerConnection>
     </scm>
 </project>
