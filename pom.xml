@@ -109,6 +109,7 @@
         </pluginRepository>
     </pluginRepositories>
     <scm>
-        <url>scm:git:ssh://github.com/koa/raoa2</url>
+        <url>scm:git:git://github.com/koa/raoa2</url>
+        <developerConnection>scm:git:ssh://github.com/koa/raoa2</developerConnection>
     </scm>
 </project>
