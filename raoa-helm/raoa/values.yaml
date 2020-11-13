@@ -5,10 +5,10 @@
 replicaCount: 1
 
 image:
-  viewerRepository: koa1/raoa-viewer
-  coordinatorRepository: koa1/raoa-job-koordinator
-  imageProcessorRepository: koa1/raoa-image-processor
-  importerRepository: koa1/raoa-importer
+  viewerRepository: docker.berg-turbenthal.ch/raoa-viewer
+  coordinatorRepository: docker.berg-turbenthal.ch/raoa-job-koordinator
+  imageProcessorRepository: docker.berg-turbenthal.ch/raoa-image-processor
+  importerRepository: docker.berg-turbenthal.ch/raoa-importer
   pullPolicy: IfNotPresent
   version: 20200301-185904
 
