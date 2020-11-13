@@ -16,9 +16,9 @@ mvn -Dlocal.version=$version clean deploy || exit
 
 #exit 0
 
-kubectl -n $namespace set image deployment/raoa-image-processor raoa=koa1/raoa-image-processor:$version --record
-kubectl -n $namespace set image deployment/raoa-coordinator raoa=koa1/raoa-job-koordinator:$version --record
-kubectl -n $namespace set image deployment/raoa-viewer raoa=koa1/raoa-viewer:$version --record
+kubectl -n $namespace set image deployment/raoa-image-processor raoa=docker-snapshot.berg-turbenthal.ch/raoa-image-processor:$version --record
+kubectl -n $namespace set image deployment/raoa-coordinator raoa=docker-snapshot.berg-turbenthal.ch/raoa-job-koordinator:$version --record
+kubectl -n $namespace set image deployment/raoa-viewer raoa=docker-snapshot.berg-turbenthal.ch/raoa-viewer:$version --record
 
 kubectl -n $namespace rollout history deployment/raoa-image-processor
 kubectl -n $namespace rollout history deployment/raoa-viewer
