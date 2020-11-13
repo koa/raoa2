@@ -11,7 +11,7 @@
 
     <groupId>ch.bergturbenthal.raoa2</groupId>
     <artifactId>parent</artifactId>
-    <version>0.0.1</version>
+    <version>0.0.2-SNAPSHOT</version>
     <modules>
         <module>raoa-job-coordinator</module>
         <module>raoa-image-processor</module>
@@ -111,6 +111,6 @@
         <url>https://github.com/koa/raoa2</url>
         <connection>scm:git:git://github.com/koa/raoa2</connection>
         <developerConnection>scm:git:git@github.com:koa/raoa2.git</developerConnection>
-      <tag>parent-0.0.1</tag>
+      <tag>HEAD</tag>
   </scm>
 </project>
