@@ -118,6 +118,10 @@ coordinatorResources:
   # requests:
   #   cpu: 100m
   #   memory: 128Mi
+coordinatorSettings:
+  raoa.coordinator.concurrentProcessingImages: "500"
+  raoa.coordinator.concurrentProcessingAlbums: "4"
+  raoa.coordinator.processTimeout: "10m"
 
 nodeSelector: {}
 

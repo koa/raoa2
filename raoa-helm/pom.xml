@@ -32,7 +32,7 @@
                 </executions>
                 <configuration>
                     <chartDirectory>${project.basedir}</chartDirectory>
-                    <chartVersion>${project.version}</chartVersion>
+                    <chartVersion>${local.version}</chartVersion>
                     <helmVersion>3.2.1</helmVersion>
                     <uploadRepoStable>
                         <name>stable-repo</name>

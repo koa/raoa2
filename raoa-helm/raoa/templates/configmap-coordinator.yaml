@@ -6,8 +6,5 @@ metadata:
     {{- include "raoa.labels" . | nindent 4 }}
 data:
   {{ include "raoa.common.config" . | nindent 2}}
-  raoa.coordinator.concurrentProcessingImages: "500"
-  raoa.coordinator.concurrentProcessingAlbums: "4"
-  raoa.coordinator.processTimeout: "10m"
-  spring.kafka.bootstrap-servers: {{ include "raoa.fullname" . }}-kafka:9092
+  {{ toYaml .Values.coordinatorSettings | nindent 2 }}
   raoa.coordinator.imageProcessorUrl: discovery://{{ include "raoa.fullname" . }}-img-proc

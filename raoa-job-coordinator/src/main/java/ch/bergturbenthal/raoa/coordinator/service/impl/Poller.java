@@ -32,6 +32,7 @@ import org.springframework.data.elasticsearch.BulkFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.GroupedFlux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.function.TupleUtils;
@@ -118,221 +119,242 @@ public class Poller {
               .flatMap(
                   album -> {
                     log.info("Start " + album);
-                    return albumDataEntryRepository
-                        .findByAlbumId(album.getAlbumId())
-                        .log("entry before")
-                        .collectMap(AlbumEntryData::getEntryId, k -> k)
-                        .retryBackoff(10, Duration.ofSeconds(10))
-                        .flatMap(
-                            existingEntries -> {
-                              final Mono<List<Tuple2<AlbumEntryData, Boolean>>> updatedData =
-                                  album
-                                      .getAccess()
-                                      .listFiles(ElasticSearchDataViewService.IMAGE_FILE_FILTER)
-                                      .filterWhen(gitFileEntry -> isValidEntry(album, gitFileEntry))
+                    final Mono<Tuple2<Optional<Void>, AlbumData>> tuple2Mono =
+                        albumDataEntryRepository
+                            .findByAlbumId(album.getAlbumId())
+                            // .log("entry before")
+                            .collectMap(AlbumEntryData::getEntryId)
+                            .retryWhen(Retry.backoff(10, Duration.ofSeconds(10)))
+                            .flatMap(
+                                existingEntries -> {
+                                  final Mono<List<Tuple2<AlbumEntryData, Boolean>>> updatedData =
+                                      album
+                                          .getAccess()
+                                          .listFiles(ElasticSearchDataViewService.IMAGE_FILE_FILTER)
+                                          .filterWhen(
+                                              gitFileEntry -> isValidEntry(album, gitFileEntry))
+                                          .flatMap(
+                                              gitFileEntry ->
+                                                  entryAlreadyProcessed(album, gitFileEntry)
+                                                      .map(
+                                                          exists ->
+                                                              Tuples.of(gitFileEntry, exists)))
+                                          .map(
+                                              (Tuple2<GitAccess.GitFileEntry, Boolean>
+                                                      gitFileEntry) ->
+                                                  gitFileEntry.mapT2(
+                                                      b ->
+                                                          b
+                                                              ? Optional.ofNullable(
+                                                                  existingEntries.get(
+                                                                      gitFileEntry
+                                                                          .getT1()
+                                                                          .getFileId()))
+                                                              : Optional.<AlbumEntryData>empty()))
+                                          .flatMap(
+                                              entry -> {
+                                                if (entry.getT2().isPresent()) {
+                                                  return Mono.just(
+                                                      Tuples.of(entry.getT2().get(), false));
+                                                }
+                                                final String filename =
+                                                    entry.getT1().getNameString();
+                                                final ProcessImageRequest data =
+                                                    new ProcessImageRequest(
+                                                        album.getAlbumId(), filename);
+                                                final ObjectId fileId = entry.getT1().getFileId();
+                                                final long startTime = System.nanoTime();
+                                                /*log.info(
+                                                "start processing ["
+                                                    + data.getAlbumId()
+                                                    + "] "
+                                                    + filename);*/
+                                                return remoteImageProcessor
+                                                    .processImage(fileId, data)
+                                                    // .log(filename)
+                                                    .timeout(
+                                                        coordinatorProperties.getProcessTimeout())
+                                                    .retryWhen(
+                                                        Retry.backoff(10, Duration.ofSeconds(5))
+                                                            .maxBackoff(Duration.ofMinutes(2))
+                                                            .jitter(0.5d)
+                                                            .scheduler(Schedulers.parallel())
+                                                            .transientErrors(false))
+                                                    .map(ret -> Tuples.of(ret, true))
+                                                    .doFinally(
+                                                        signal ->
+                                                            log.info(
+                                                                "processed ["
+                                                                    + data.getAlbumId()
+                                                                    + "] "
+                                                                    + filename
+                                                                    + " in "
+                                                                    + Duration.ofNanos(
+                                                                            System.nanoTime()
+                                                                                - startTime)
+                                                                        .getSeconds()
+                                                                    + "s with "
+                                                                    + signal))
+
+                                                // .log("proc: " + filename)
+                                                ;
+                                              },
+                                              coordinatorProperties.getConcurrentProcessingImages(),
+                                              50)
+                                          // .log("entry of " + album)
+                                          // .log("in")
+                                          /*.doOnNext(
+                                          data -> {
+                                            if (data.getT2())
+                                              log.info("Processing " + data.getT1());
+                                            else log.info("Bypassing " + data.getT1());
+                                          })*/
+                                          .groupBy(Tuple2::getT2)
+                                          .flatMap(
+                                              (GroupedFlux<Boolean, Tuple2<AlbumEntryData, Boolean>>
+                                                      inFlux) -> {
+                                                final Boolean key = inFlux.key();
+                                                if (key != null && key) {
+                                                  return inFlux
+                                                      // .log("store")
+                                                      .map(Tuple2::getT1)
+                                                      .bufferTimeout(100, Duration.ofSeconds(30))
+                                                      .flatMap(
+                                                          updateEntries -> {
+                                                            log.info(
+                                                                "Prepare store of "
+                                                                    + updateEntries.size());
+                                                            return albumDataEntryRepository.saveAll(
+                                                                updateEntries)
+                                                            // .log("batch store")
+                                                            ;
+
+                                                            /*return asyncService
+                                                            .asyncFlux(
+                                                                (Consumer<AlbumEntryData>
+                                                                        consumer) -> {
+                                                                  try {
+                                                                    log.info(
+                                                                        "Start store of "
+                                                                            + updateEntries.size());
+                                                                    final Iterable<AlbumEntryData>
+                                                                        albumEntryData =
+                                                                            meterRegistry
+                                                                                .timer(
+                                                                                    "raoa.poller.storage.flush")
+                                                                                .recordCallable(
+                                                                                    () ->
+                                                                                        syncAlbumDataEntryRepository
+                                                                                            .saveAll(
+                                                                                                updateEntries));
+                                                                    meterRegistry
+                                                                        .counter(
+                                                                            "raoa.poller.storage.entries")
+                                                                        .increment(
+                                                                            updateEntries.size());
+                                                                    log.info(
+                                                                        "Done store of "
+                                                                            + updateEntries.size());
+                                                                    albumEntryData.forEach(
+                                                                        consumer);
+                                                                    log.info(
+                                                                        "Done publish of "
+                                                                            + updateEntries.size());
+                                                                  } catch (Exception ex) {
+                                                                    log.warn("Error storing", ex);
+                                                                    throw ex;
+                                                                  }
+                                                                })
+                                                            .retryWhen(
+                                                                Retry.backoff(
+                                                                    10, Duration.ofSeconds(10)));*/
+                                                          },
+                                                          2)
+                                                      // .publishOn(Schedulers.elastic())
+                                                      .map(e -> Tuples.of(e, true))
+                                                  // .log("processed")
+                                                  ;
+                                                } else
+                                                  return inFlux // .log("bypass")
+                                                  ;
+                                              })
+                                          // .log("joined")
+                                          .collectList()
+                                      // .filter(list -> list.stream().anyMatch(Tuple2::getT2))
+                                      ;
+                                  final Mono<String> nameMono = album.getAccess().getName();
+                                  final Mono<ObjectId> versionMono =
+                                      album.getAccess().getCurrentVersion();
+                                  return Mono.zip(updatedData, nameMono, versionMono)
                                       .flatMap(
-                                          gitFileEntry ->
-                                              entryAlreadyProcessed(album, gitFileEntry)
-                                                  .map(exists -> Tuples.of(gitFileEntry, exists)))
-                                      .map(
-                                          (Tuple2<GitAccess.GitFileEntry, Boolean> gitFileEntry) ->
-                                              gitFileEntry.mapT2(
-                                                  b ->
-                                                      b
-                                                          ? Optional.ofNullable(
-                                                              existingEntries.get(
-                                                                  gitFileEntry.getT1().getFileId()))
-                                                          : Optional.<AlbumEntryData>empty()))
-                                      .flatMap(
-                                          entry -> {
-                                            if (entry.getT2().isPresent()) {
-                                              return Mono.just(
-                                                  Tuples.of(entry.getT2().get(), false));
-                                            }
-                                            final String filename = entry.getT1().getNameString();
-                                            final ProcessImageRequest data =
-                                                new ProcessImageRequest(
-                                                    album.getAlbumId(), filename);
-                                            final ObjectId fileId = entry.getT1().getFileId();
-                                            final long startTime = System.nanoTime();
-                                            /*log.info(
-                                            "start processing ["
-                                                + data.getAlbumId()
-                                                + "] "
-                                                + filename);*/
-                                            return remoteImageProcessor
-                                                .processImage(fileId, data)
-                                                // .log(filename)
-                                                .timeout(coordinatorProperties.getProcessTimeout())
-                                                .retryWhen(
-                                                    Retry.backoff(10, Duration.ofSeconds(5))
-                                                        .maxBackoff(Duration.ofMinutes(2))
-                                                        .jitter(0.5d)
-                                                        .scheduler(Schedulers.parallel())
-                                                        .transientErrors(false))
-                                                .map(ret -> Tuples.of(ret, true))
-                                                .doFinally(
-                                                    signal ->
-                                                        log.info(
-                                                            "processed ["
-                                                                + data.getAlbumId()
-                                                                + "] "
-                                                                + filename
-                                                                + " in "
-                                                                + Duration.ofNanos(
-                                                                        System.nanoTime()
-                                                                            - startTime)
-                                                                    .getSeconds()
-                                                                + "s with "
-                                                                + signal))
+                                          TupleUtils.function(
+                                              (data, name, currentVersion) -> {
+                                                final LongSummaryStatistics timeSummary =
+                                                    new LongSummaryStatistics();
+                                                final LongAdder entryCount = new LongAdder();
 
-                                            // .log("proc: " + filename)
-                                            ;
-                                          },
-                                          coordinatorProperties.getConcurrentProcessingImages(),
-                                          50)
-                                      // .log("entry of " + album)
-                                      // .log("in")
-                                      .groupBy(Tuple2::getT2)
-                                      .flatMap(
-                                          inFlux -> {
-                                            final Boolean key = inFlux.key();
-                                            if (key != null && key) {
-                                              return inFlux
-                                                  // .log("store")
-                                                  .map(Tuple2::getT1)
-                                                  .bufferTimeout(10, Duration.ofSeconds(30))
-                                                  .flatMap(
-                                                      updateEntries -> {
-                                                        log.info(
-                                                            "Prepare store of "
-                                                                + updateEntries.size());
-                                                        return albumDataEntryRepository
-                                                            .saveAll(updateEntries)
-                                                            .log("batch store");
+                                                final Set<ObjectId> remainingEntries =
+                                                    new HashSet<>(existingEntries.keySet());
+                                                Map<String, AtomicInteger> keywordCounts =
+                                                    Collections.synchronizedMap(new HashMap<>());
 
-                                                        /*return asyncService
-                                                        .asyncFlux(
-                                                            (Consumer<AlbumEntryData>
-                                                                    consumer) -> {
-                                                              try {
-                                                                log.info(
-                                                                    "Start store of "
-                                                                        + updateEntries.size());
-                                                                final Iterable<AlbumEntryData>
-                                                                    albumEntryData =
-                                                                        meterRegistry
-                                                                            .timer(
-                                                                                "raoa.poller.storage.flush")
-                                                                            .recordCallable(
-                                                                                () ->
-                                                                                    syncAlbumDataEntryRepository
-                                                                                        .saveAll(
-                                                                                            updateEntries));
-                                                                meterRegistry
-                                                                    .counter(
-                                                                        "raoa.poller.storage.entries")
-                                                                    .increment(
-                                                                        updateEntries.size());
-                                                                log.info(
-                                                                    "Done store of "
-                                                                        + updateEntries.size());
-                                                                albumEntryData.forEach(
-                                                                    consumer);
-                                                                log.info(
-                                                                    "Done publish of "
-                                                                        + updateEntries.size());
-                                                              } catch (Exception ex) {
-                                                                log.warn("Error storing", ex);
-                                                                throw ex;
-                                                              }
-                                                            })
-                                                        .retryWhen(
-                                                            Retry.backoff(
-                                                                10, Duration.ofSeconds(10)));*/
-                                                      },
-                                                      1)
-                                                  .publishOn(Schedulers.elastic())
-                                                  .map(e -> Tuples.of(e, true));
-                                            } else
-                                              return inFlux // .log("bypass")
-                                              ;
-                                          })
-                                      // .log("joined")
-                                      .collectList()
-                                  // .filter(list -> list.stream().anyMatch(Tuple2::getT2))
-                                  ;
-                              final Mono<String> nameMono = album.getAccess().getName();
-                              final Mono<ObjectId> versionMono =
-                                  album.getAccess().getCurrentVersion();
-                              return Mono.zip(updatedData, nameMono, versionMono)
-                                  .flatMap(
-                                      TupleUtils.function(
-                                          (data, name, currentVersion) -> {
-                                            final LongSummaryStatistics timeSummary =
-                                                new LongSummaryStatistics();
-                                            final LongAdder entryCount = new LongAdder();
-
-                                            final Set<ObjectId> remainingEntries =
-                                                new HashSet<>(existingEntries.keySet());
-                                            Map<String, AtomicInteger> keywordCounts =
-                                                Collections.synchronizedMap(new HashMap<>());
-
-                                            data.forEach(
-                                                t -> {
-                                                  final AlbumEntryData entry = t.getT1();
-                                                  remainingEntries.remove(entry.getEntryId());
-                                                  if (entry.getCreateTime() != null) {
-                                                    timeSummary.accept(
-                                                        entry.getCreateTime().getEpochSecond());
-                                                  }
-                                                  entryCount.increment();
-                                                  final Set<String> keywords = entry.getKeywords();
-                                                  if (keywords != null) {
-                                                    for (String keyword : keywords)
-                                                      keywordCounts
-                                                          .computeIfAbsent(
-                                                              keyword, k -> new AtomicInteger())
-                                                          .incrementAndGet();
-                                                  }
-                                                });
-                                            AlbumData.AlbumDataBuilder albumDataBuilder =
-                                                AlbumData.builder()
-                                                    .repositoryId(album.getAlbumId())
-                                                    .currentVersion(currentVersion)
-                                                    .name(name);
-                                            if (timeSummary.getCount() > 0)
-                                              albumDataBuilder.createTime(
-                                                  Instant.ofEpochSecond(
-                                                      (long) timeSummary.getAverage()));
-                                            albumDataBuilder.entryCount(entryCount.intValue());
-                                            albumDataBuilder.keywordCount(
-                                                keywordCounts.entrySet().stream()
-                                                    .map(
-                                                        e ->
-                                                            KeywordCount.builder()
-                                                                .keyword(e.getKey())
-                                                                .entryCount(e.getValue().get())
-                                                                .build())
-                                                    .collect(Collectors.toList()));
-                                            final Mono<AlbumData> save =
-                                                albumDataRepository
-                                                    .save(albumDataBuilder.build())
-                                                    .timeout(Duration.ofSeconds(20));
-                                            return Mono.zip(
-                                                albumDataEntryRepository
-                                                    .deleteById(
-                                                        Flux.fromIterable(remainingEntries)
-                                                            .map(existingEntries::get)
-                                                            .map(AlbumEntryData::getDocumentId))
-                                                    .map(Optional::of)
-                                                    .defaultIfEmpty(Optional.empty())
-                                                    .timeout(Duration.ofSeconds(30)),
-                                                save.retryBackoff(10, Duration.ofSeconds(10)));
-                                          }));
-                            })
-                        .timeout(Duration.ofMinutes(30))
-                        // .log("process " + album.getAccess())
+                                                data.forEach(
+                                                    t -> {
+                                                      final AlbumEntryData entry = t.getT1();
+                                                      remainingEntries.remove(entry.getEntryId());
+                                                      if (entry.getCreateTime() != null) {
+                                                        timeSummary.accept(
+                                                            entry.getCreateTime().getEpochSecond());
+                                                      }
+                                                      entryCount.increment();
+                                                      final Set<String> keywords =
+                                                          entry.getKeywords();
+                                                      if (keywords != null) {
+                                                        for (String keyword : keywords)
+                                                          keywordCounts
+                                                              .computeIfAbsent(
+                                                                  keyword, k -> new AtomicInteger())
+                                                              .incrementAndGet();
+                                                      }
+                                                    });
+                                                AlbumData.AlbumDataBuilder albumDataBuilder =
+                                                    AlbumData.builder()
+                                                        .repositoryId(album.getAlbumId())
+                                                        .currentVersion(currentVersion)
+                                                        .name(name);
+                                                if (timeSummary.getCount() > 0)
+                                                  albumDataBuilder.createTime(
+                                                      Instant.ofEpochSecond(
+                                                          (long) timeSummary.getAverage()));
+                                                albumDataBuilder.entryCount(entryCount.intValue());
+                                                albumDataBuilder.keywordCount(
+                                                    keywordCounts.entrySet().stream()
+                                                        .map(
+                                                            e ->
+                                                                KeywordCount.builder()
+                                                                    .keyword(e.getKey())
+                                                                    .entryCount(e.getValue().get())
+                                                                    .build())
+                                                        .collect(Collectors.toList()));
+                                                final Mono<AlbumData> save =
+                                                    albumDataRepository
+                                                        .save(albumDataBuilder.build())
+                                                        .timeout(Duration.ofSeconds(20));
+                                                return Mono.zip(
+                                                    albumDataEntryRepository
+                                                        .deleteById(
+                                                            Flux.fromIterable(remainingEntries)
+                                                                .map(existingEntries::get)
+                                                                .map(AlbumEntryData::getDocumentId))
+                                                        .map(Optional::of)
+                                                        .defaultIfEmpty(Optional.empty())
+                                                        .timeout(Duration.ofSeconds(30)),
+                                                    save.retryBackoff(10, Duration.ofSeconds(10)));
+                                              }));
+                                });
+                    return tuple2Mono
+                        // .timeout(Duration.ofMinutes(30))
+                        .log("process " + album.getAlbumId())
                         .onErrorResume(
                             ex -> {
                               log.warn("Error on album", ex);
@@ -347,7 +369,7 @@ public class Poller {
                   coordinatorProperties.getConcurrentProcessingAlbums());
       try {
         for (Tuple2<Optional<Void>, AlbumData> entry :
-            take.timeout(Duration.ofMinutes(20)).toIterable()) {
+            take.timeout(Duration.ofHours(5)).toIterable()) {
           log.info("updated: " + entry.getT2().getName());
         }
         break;

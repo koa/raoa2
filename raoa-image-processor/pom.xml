@@ -118,7 +118,7 @@
                     <to>
                         <image>docker-snapshot.berg-turbenthal.ch/raoa-image-processor</image>
                         <tags>
-                            <tag>${project.version}</tag>
+                            <!--<tag>${project.version}</tag>-->
                             <tag>${local.version}</tag>
                         </tags>
                     </to>

@@ -23,8 +23,9 @@
         <module>raoa-helm</module>
     </modules>
     <properties>
+        <jib.httpTimeout>30000</jib.httpTimeout>
         <java.version>11</java.version>
-        <maven.build.timestamp.format>yyyyMMdd-HHmmss</maven.build.timestamp.format>
+        <maven.build.timestamp.format>yyyyMMddHHmmss</maven.build.timestamp.format>
         <local.version>${maven.build.timestamp}</local.version>
     </properties>
     <dependencyManagement>
