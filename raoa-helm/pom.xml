@@ -4,10 +4,10 @@
     <parent>
         <groupId>ch.bergturbenthal.raoa2</groupId>
         <artifactId>parent</artifactId>
-        <version>0.0.2-SNAPSHOT</version>
+        <version>0.0.2</version>
     </parent>
     <artifactId>raoa-helm</artifactId>
-    <version>0.0.2-SNAPSHOT</version>
+    <version>0.0.2</version>
     <build>
         <plugins>
             <plugin>
