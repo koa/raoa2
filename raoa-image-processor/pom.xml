@@ -101,34 +101,6 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.1.2</version>
-                <executions>
-                    <execution>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>copy</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <artifactItems>
-                        <artifactItem>
-                            <groupId>ch.bergturbenthal.raoa2</groupId>
-                            <artifactId>raoa-dcraw</artifactId>
-                            <version>9.28</version>
-                            <classifier>exe</classifier>
-                            <type>linux</type>
-                            <outputDirectory>${project.build.directory}/binary/usr/bin</outputDirectory>
-                            <destFileName>dcraw</destFileName>
-                        </artifactItem>
-                    </artifactItems>
-                    <overWriteReleases>false</overWriteReleases>
-                    <overWriteSnapshots>true</overWriteSnapshots>
-                </configuration>
-            </plugin>
-            <plugin>
                 <groupId>com.google.cloud.tools</groupId>
                 <artifactId>jib-maven-plugin</artifactId>
                 <version>2.7.0</version>
@@ -141,22 +113,11 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <!--<from>
-                        <image>docker-snapshot.berg-turbenthal.ch/processor-base:20210103074958</image>
-                    </from>-->
-                    <extraDirectories>
-                        <paths>
-                            <path>${project.build.directory}/binary</path>
-                        </paths>
-                        <permissions>
-                            <permission>
-                                <file>/usr/bin/dcraw</file>
-                                <mode>555</mode>
-                            </permission>
-                        </permissions>
-                    </extraDirectories>
+                    <from>
+                        <image>docker.pkg.github.com/koa/raoa-processor-base/distroless-java-dcraw:latest</image>
+                    </from>
                     <to>
-                        <image>docker-snapshot.berg-turbenthal.ch/raoa-image-processor</image>
+                        <image>docker.pkg.github.com/koa/raoa2/raoa-processor-image</image>
                         <tags>
                             <!--<tag>${project.version}</tag>-->
                             <tag>${local.version}</tag>
