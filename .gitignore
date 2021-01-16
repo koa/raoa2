@@ -4,3 +4,5 @@ java_*.hprof*
 hs_err*.log
 /*/target/
 /raoa/charts/*.tgz
+*.releaseBackup
+release.properties

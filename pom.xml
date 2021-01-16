@@ -20,7 +20,7 @@
         <module>raoa-importer</module>
         <module>raoa-viewer</module>
         <module>raoa-viewer-client-oauth2</module>
-        <module>raoa-helm</module>
+        <!--<module>raoa-helm</module>-->
     </modules>
     <properties>
         <jib.httpTimeout>30000</jib.httpTimeout>

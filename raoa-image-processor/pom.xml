@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>raoa-image-processor</artifactId>
@@ -100,9 +101,37 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.1.2</version>
+                <executions>
+                    <execution>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <artifactItems>
+                        <artifactItem>
+                            <groupId>ch.bergturbenthal.raoa2</groupId>
+                            <artifactId>raoa-dcraw</artifactId>
+                            <version>9.28</version>
+                            <classifier>exe</classifier>
+                            <type>linux</type>
+                            <outputDirectory>${project.build.directory}/binary/usr/bin</outputDirectory>
+                            <destFileName>dcraw</destFileName>
+                        </artifactItem>
+                    </artifactItems>
+                    <overWriteReleases>false</overWriteReleases>
+                    <overWriteSnapshots>true</overWriteSnapshots>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>com.google.cloud.tools</groupId>
                 <artifactId>jib-maven-plugin</artifactId>
-                <version>1.8.0</version>
+                <version>2.7.0</version>
                 <executions>
                     <execution>
                         <phase>deploy</phase>
@@ -112,9 +141,20 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <from>
-                        <image>docker.berg-turbenthal.ch/processor-base:openjdk-11.0.9</image>
-                    </from>
+                    <!--<from>
+                        <image>docker-snapshot.berg-turbenthal.ch/processor-base:20210103074958</image>
+                    </from>-->
+                    <extraDirectories>
+                        <paths>
+                            <path>${project.build.directory}/binary</path>
+                        </paths>
+                        <permissions>
+                            <permission>
+                                <file>/usr/bin/dcraw</file>
+                                <mode>555</mode>
+                            </permission>
+                        </permissions>
+                    </extraDirectories>
                     <to>
                         <image>docker-snapshot.berg-turbenthal.ch/raoa-image-processor</image>
                         <tags>
