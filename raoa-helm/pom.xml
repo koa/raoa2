@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>ch.bergturbenthal.raoa2</groupId>
@@ -11,39 +12,29 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>com.kiwigrid</groupId>
+                <groupId>com.deviceinsight.helm</groupId>
                 <artifactId>helm-maven-plugin</artifactId>
-                <version>5.6</version>
+                <version>2.8.1</version>
                 <executions>
                     <execution>
-                        <id>init</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>init</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>package</id>
-                        <phase>package</phase>
                         <goals>
                             <goal>package</goal>
+                            <goal>lint</goal>
+                            <goal>template</goal>
+                            <goal>deploy</goal>
                         </goals>
                     </execution>
                 </executions>
                 <configuration>
-                    <chartDirectory>${project.basedir}</chartDirectory>
+                    <chartName>raoa</chartName>
                     <chartVersion>${local.version}</chartVersion>
-                    <helmVersion>3.2.1</helmVersion>
-                    <uploadRepoStable>
-                        <name>stable-repo</name>
-                        <url>https://repo.example.com/artifactory/helm-stable</url>
-                        <type>ARTIFACTORY</type>
-                    </uploadRepoStable>
-                    <uploadRepoSnapshot>
-                        <name>snapshot-repo</name>
-                        <url>https://my.chart.museum:8080/api/charts</url>
-                        <type>CHARTMUSEUM</type>
-                    </uploadRepoSnapshot>
+                    <helmVersion>3.4.2</helmVersion>
+                    <chartRepoUrl>https://nexus.berg-turbenthal.ch/repository/helm</chartRepoUrl>
+                    <addIncubatorRepo>false</addIncubatorRepo>
+                    <chartPublishMethod>PUT</chartPublishMethod>
+                    <!--<chartPublishUrl>http://nexus.berg-turbenthal.ch/repository/helm-snapshot/</chartPublishUrl>-->
+                    <chartRepoUsername>${settings.servers[0].username}</chartRepoUsername>
+                    <chartRepoPassword>${settings.servers[0].password}</chartRepoPassword>
                 </configuration>
                 <inherited>false</inherited>
             </plugin>
