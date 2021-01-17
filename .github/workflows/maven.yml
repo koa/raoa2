@@ -13,5 +13,11 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 1.11
+    - uses: actions/cache@v2
+      with:
+        path: ~/.m2/repository
+        key: maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: maven-
+    - uses: s4u/maven-settings-action@v2.3.0
     - name: Build with Maven
-      run: mvn deploy -DperformRelease=true -Djib.to.auth.username=${{ github.actor }}  -Djib.to.auth.password=${{ secrets.GITHUB_TOKEN }} --file pom.xml
+      run: mvn deploy -DperformRelease=true --file pom.xml
