@@ -119,7 +119,7 @@
                     <to>
                         <image>docker.pkg.github.com/koa/raoa2/raoa-image-processor</image>
                         <tags>
-                            <!--<tag>${project.version}</tag>-->
+                            <tag>${project.version}</tag>
                             <tag>${local.version}</tag>
                         </tags>
                     </to>
