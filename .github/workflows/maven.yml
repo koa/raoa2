@@ -19,5 +19,12 @@ jobs:
         key: maven-${{ hashFiles('**/pom.xml') }}
         restore-keys: maven-
     - uses: s4u/maven-settings-action@v2.3.0
+      with:
+        servers: |
+          [{
+              "id": "docker.pkg.github.com",
+              "username":"${{ github.actor }}",
+              "password":"${{ secrets.GITHUB_TOKEN }}"
+          }]
     - name: Build with Maven
       run: mvn deploy -DperformRelease=true --file pom.xml
