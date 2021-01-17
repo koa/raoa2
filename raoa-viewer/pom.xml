@@ -154,6 +154,7 @@
                             <tag>${local.version}</tag>
                         </tags>
                     </to>
+                    <!--
                     <container>
                         <jvmFlags>
                             <jvmFlag>-XX:+HeapDumpOnOutOfMemoryError</jvmFlag>
@@ -161,6 +162,7 @@
                             <jvmFlag>-XX:+ExitOnOutOfMemoryError</jvmFlag>
                         </jvmFlags>
                     </container>
+                    -->
                 </configuration>
             </plugin>
         </plugins>
