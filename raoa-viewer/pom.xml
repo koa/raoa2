@@ -147,9 +147,6 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <from>
-                        <image>docker.io/library/openjdk:11-slim</image>
-                    </from>
                     <to>
                         <image>docker.pkg.github.com/koa/raoa2/raoa-viewer</image>
                         <tags>
