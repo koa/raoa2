@@ -46,10 +46,15 @@
     </dependencyManagement>
     <distributionManagement>
         <repository>
-            <id>github</id>
-            <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/koa/raoa2</url>
+            <id>koa-releases</id>
+            <name>Releases</name>
+            <url>https://nexus.berg-turbenthal.ch/repository/maven-releases/</url>
         </repository>
+        <snapshotRepository>
+            <id>koa-snapshots</id>
+            <name>Snapshots</name>
+            <url>https://nexus.berg-turbenthal.ch/repository/maven-snapshots/</url>
+        </snapshotRepository>
     </distributionManagement>
     <build>
         <plugins>

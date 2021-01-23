@@ -114,10 +114,10 @@
                 </executions>
                 <configuration>
                     <from>
-                        <image>docker.pkg.github.com/koa/raoa-processor-base/distroless-java-dcraw:latest</image>
+                        <image>docker.berg-turbenthal.ch/distroless-java-dcraw:1</image>
                     </from>
                     <to>
-                        <image>docker.pkg.github.com/koa/raoa2/raoa-image-processor</image>
+                        <image>docker-snapshot.berg-turbenthal.ch/raoa-image-processor</image>
                         <tags>
                             <tag>${project.version}</tag>
                             <tag>${local.version}</tag>
