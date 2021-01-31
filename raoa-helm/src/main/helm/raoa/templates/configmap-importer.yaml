@@ -1,9 +1,0 @@
-kind: ConfigMap
-apiVersion: v1
-metadata:
-  name: {{ include "raoa.fullname" . }}-importer
-  labels:
-    {{- include "raoa.labels" . | nindent 4 }}
-data:
-  {{ include "raoa.common.config" . | nindent 2}}
-  raoa.import.media: /source
