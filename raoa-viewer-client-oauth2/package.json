@@ -37,7 +37,7 @@
     "graphql-tag": "^2.10.0",
     "graphql-tools": "4.0.3",
     "ngx-cookie-service": "^2.4.0",
-    "ngx-indexed-db": "^5.0.5",
+    "ngx-indexed-db": "^6.1.2",
     "rxjs": "~6.6.0",
     "tslib": "^2.0.0",
     "zone.js": "~0.10.2"

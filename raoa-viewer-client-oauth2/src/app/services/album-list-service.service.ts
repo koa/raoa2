@@ -2,6 +2,7 @@ import {Injectable} from '@angular/core';
 import {ServerApiService} from './server-api.service';
 import {Album, ListAlbumsGQL} from '../generated/graphql';
 import {NgxIndexedDBService} from 'ngx-indexed-db';
+import {Observable} from 'rxjs';
 
 type ResultAlbum = { __typename?: 'Album' } & Pick<Album, 'id' | 'version' | 'name' | 'entryCount' | 'albumTime'>;
 
@@ -19,23 +20,23 @@ export class AlbumListServiceService {
 
   constructor(private serverApiService: ServerApiService,
               private listAlbums: ListAlbumsGQL,
-              private dbService: NgxIndexedDBService) {
+              private dbService: NgxIndexedDBService<ResultAlbum>) {
     Promise.all(
-      [dbService.getAll<ResultAlbum>(STORE_ALBUM).then(albums => albums.map(e => e.id)),
+      [dbService.getAll(STORE_ALBUM).toPromise().then(albums => albums.map(e => e.id)),
         serverApiService.query(listAlbums, {})])
       .then(values => {
         const existingIds = values[0];
         const loadedAlbums = values[1];
         return Promise.all(
           loadedAlbums.listAlbums.map(entry => {
-            return dbService.getByKey<ResultAlbum>(STORE_ALBUM, entry.id).then<MutationResult>(storedData => {
+            return dbService.getByKey(STORE_ALBUM, entry.id).toPromise().then<MutationResult>(storedData => {
               if (storedData == null) {
                 // console.log('new: ' + entry.name);
-                return dbService.add(STORE_ALBUM, entry).then(r => ({album: entry.id, modified: true})
+                return dbService.add(STORE_ALBUM, entry).toPromise().then(r => ({album: entry.id, modified: true})
                 );
               } else if (storedData.version !== entry.version) {
                 // console.log('modified: %o -> %o:' + entry.name, storedData, entry);
-                return dbService.update(STORE_ALBUM, entry).then(r => ({album: entry.id, modified: true}));
+                return dbService.update(STORE_ALBUM, entry).toPromise().then(r => ({album: entry.id, modified: true}));
               } else {
                 return Promise.resolve({album: entry.id, modified: false});
               }
