@@ -18,6 +18,6 @@ mvn -Dlocal.version=$version -Djib.httpTimeout=300000 clean deploy || exit
 
 kubectl -n raoa-dev get helmrelease raoa -o yaml | sed "s/      version:.*/      version: \"$version\"/" | kubectl -n raoa-dev apply -f -
 
-kubectl -n $namespace rollout status -w deployment/raoa-coordinator
-kubectl -n $namespace rollout status -w deployment/raoa-viewer
-kubectl -n $namespace rollout status -w deployment/raoa-image-processor
+#kubectl -n $namespace rollout status -w deployment/raoa-coordinator
+#kubectl -n $namespace rollout status -w deployment/raoa-viewer
+#kubectl -n $namespace rollout status -w deployment/raoa-image-processor

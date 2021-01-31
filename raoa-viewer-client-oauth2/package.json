@@ -9,7 +9,8 @@
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e",
-    "graphql": "gql-gen --config codegen.yml"
+    "graphql": "gql-gen --config codegen.yml",
+    "postinstall": "ngcc"
   },
   "private": true,
   "dependencies": {
