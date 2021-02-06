@@ -18,7 +18,6 @@ public class ElasticSearchHealthIndicator implements HealthIndicator {
 
   @Override
   public Health health() {
-    log.info("Query Elasticsearch");
     return userRepository
         .count()
         .map(c -> Health.up().withDetail("usersCount", c).build())
