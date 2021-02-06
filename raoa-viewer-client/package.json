@@ -5,11 +5,12 @@
   "homepage": "https://ionicframework.com/",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "ng serve --proxy-config proxy.js",
     "build": "ng build",
     "test": "ng test",
     "lint": "ng lint",
-    "e2e": "ng e2e"
+    "e2e": "ng e2e",
+    "graphql": "graphql-codegen --config codegen.yml"
   },
   "private": true,
   "dependencies": {
@@ -26,6 +27,7 @@
     "@ionic-native/splash-screen": "^5.0.0",
     "@ionic-native/status-bar": "^5.0.0",
     "@ionic/angular": "^5.0.0",
+    "@types/gapi.auth2": "0.0.52",
     "apollo-angular": "^2.2.0",
     "graphql": "^15.0.0",
     "rxjs": "~6.5.5",
