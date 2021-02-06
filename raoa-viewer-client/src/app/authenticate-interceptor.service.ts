@@ -14,7 +14,6 @@ export class AuthenticateInterceptor implements HttpInterceptor {
         if (this.login !== undefined) {
             const url = request.url;
             if (url.startsWith('/rest') || url.startsWith('/graphql')) {
-                console.log('login before call ' + url);
                 const auth2 = this.login.auth();
                 return new Observable(observer => {
                     auth2.then(config => {

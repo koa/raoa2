@@ -35,4 +35,23 @@ export class LoginService {
         return this.cachingAuth;
     }
 
+    public async signedInUser(): Promise<gapi.auth2.GoogleUser> {
+        const [auth] = await Promise.all([this.auth()]);
+        if (auth.isSignedIn) {
+            return auth.currentUser.get();
+        }
+        return await auth.signIn();
+    }
+
+    public async idToken(): Promise<string> {
+        const user = await this.signedInUser();
+        const authResponse = user.getAuthResponse(true);
+        if (Date.now() > authResponse.expires_at) {
+            console.log('refresh token');
+            const reloadedResponse = await user.reloadAuthResponse();
+            return reloadedResponse.id_token;
+        }
+        return authResponse.id_token;
+    }
+
 }

@@ -8,7 +8,6 @@ import {StatusBar} from '@ionic-native/status-bar/ngx';
 
 import {AppComponent} from './app.component';
 import {AppRoutingModule} from './app-routing.module';
-import {GraphQLModule} from './graphql.module';
 import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
 import {AuthenticateInterceptor} from './authenticate-interceptor.service';
 
@@ -19,14 +18,13 @@ import {AuthenticateInterceptor} from './authenticate-interceptor.service';
         BrowserModule,
         IonicModule.forRoot(),
         AppRoutingModule,
-        GraphQLModule,
         HttpClientModule
     ],
     providers: [
         StatusBar,
         SplashScreen,
         {provide: RouteReuseStrategy, useClass: IonicRouteStrategy},
-        {provide: HTTP_INTERCEPTORS, useClass: AuthenticateInterceptor, multi: true},
+        {provide: HTTP_INTERCEPTORS, useClass: AuthenticateInterceptor, multi: true}
     ],
     bootstrap: [AppComponent]
 })

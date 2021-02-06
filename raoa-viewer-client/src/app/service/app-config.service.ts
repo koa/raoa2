@@ -21,7 +21,6 @@ export class AppConfigService {
             this.appConfigPromise = config
                 .toPromise()
                 .then((data: AppConfig) => {
-                    console.log('config loaded');
                     this.appConfig = data;
                     return data;
                 });

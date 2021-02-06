@@ -29,3 +29,5 @@ npm-debug.log*
 /platforms
 /plugins
 /www
+/src/app/generated/graphql.ts
+/schema.json
