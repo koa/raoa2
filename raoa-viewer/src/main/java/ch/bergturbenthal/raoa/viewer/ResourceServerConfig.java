@@ -45,7 +45,9 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
     http.authorizeRequests().anyRequest().permitAll();
     http.headers().cacheControl().disable();
     final DefaultBearerTokenResolver defaultBearerTokenResolver = new DefaultBearerTokenResolver();
-    http.oauth2ResourceServer()
+    http.cors()
+        .and()
+        .oauth2ResourceServer()
         .bearerTokenResolver(
             request -> {
               final Optional<String> s =
