@@ -1,19 +1,19 @@
 import { async, ComponentFixture, TestBed } from '@angular/core/testing';
 import { IonicModule } from '@ionic/angular';
 
-import { AlbumPage } from './album.page';
+import { WelcomeComponent } from './welcome.component';
 
-describe('AlbumPage', () => {
-  let component: AlbumPage;
-  let fixture: ComponentFixture<AlbumPage>;
+describe('RedirectStartComponent', () => {
+  let component: WelcomeComponent;
+  let fixture: ComponentFixture<WelcomeComponent>;
 
   beforeEach(async(() => {
     TestBed.configureTestingModule({
-      declarations: [ AlbumPage ],
+      declarations: [ WelcomeComponent ],
       imports: [IonicModule.forRoot()]
     }).compileComponents();
 
-    fixture = TestBed.createComponent(AlbumPage);
+    fixture = TestBed.createComponent(WelcomeComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   }));

@@ -1,9 +1,33 @@
 <ion-header>
-  <ion-toolbar>
-    <ion-title>album {{albumId}}</ion-title>
-  </ion-toolbar>
+    <ion-toolbar>
+        <ion-title>{{title}}</ion-title>
+    </ion-toolbar>
 </ion-header>
 
 <ion-content>
+    <!--<div class="imagelist">
+        <div *ngFor="let row of rows" class="row">
+            <div *ngIf="row.kind=='timestamp'">
+                {{row.time | date:'fullDate' }}
+            </div>
+            <div *ngIf="row.kind=='images'" class="image-row" [ngStyle]="{'height':(100/row.width)+'vw'}">
+                <img *ngFor="let shape of row.shapes"
+                     [src]="'/rest/album/'+albumId+'/'+shape.entry.id+'/thumbnail' | authImage |async" loading="lazy">
+            </div>
+        </div>
+    </div>-->
+
+    <ion-virtual-scroll [items]="rows" approx-item-height="80vw">
+        <div *virtualItem="let row;let itemBounds=bounds;">
+            <div *ngIf="row.kind=='timestamp'">
+                {{row.time | date:'fullDate' }}
+            </div>
+            <div *ngIf="row.kind=='images'" class="image-row" [ngStyle]="{'height':(100/row.width)+'vw'}">
+                <ion-img *ngFor="let shape of row.shapes"
+                         [src]="'/rest/album/'+albumId+'/'+shape.entry.id+'/thumbnail'"
+                         [ngStyle]="{'height':(100/row.width)+'vw','width':(100*shape.width/row.width)+'vw'}"></ion-img>
+            </div>
+        </div>
+    </ion-virtual-scroll>
 
 </ion-content>

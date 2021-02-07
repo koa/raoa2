@@ -25,7 +25,7 @@ export class ServerApiService {
             // Return the headers as usual
             return {
                 headers: {
-                    Authorization: `Bearer ${token}`,
+                    //    Authorization: `Bearer ${token}`,
                 },
             };
         });
