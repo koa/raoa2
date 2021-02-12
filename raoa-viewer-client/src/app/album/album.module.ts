@@ -8,15 +8,18 @@ import {AlbumPageRoutingModule} from './album-routing.module';
 
 import {AlbumPage} from './album.page';
 import {AuthImagePipe} from './pipe/auth-image.pipe';
+import {AngularResizedEventModule} from 'angular-resize-event';
+import { InViewportDirective } from './in-viewport.directive';
 
 @NgModule({
     imports: [
         CommonModule,
         FormsModule,
         IonicModule,
-        AlbumPageRoutingModule
+        AlbumPageRoutingModule,
+        AngularResizedEventModule
     ],
-    declarations: [AlbumPage, AuthImagePipe],
+    declarations: [AlbumPage, AuthImagePipe, InViewportDirective],
     exports: [
         AuthImagePipe
     ]

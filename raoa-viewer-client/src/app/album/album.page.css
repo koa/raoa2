@@ -1,6 +1,11 @@
 .image-row {
     display: flex;
     /*height: 100% !important;*/
+    width: 100%;
+}
+
+ion-content {
+    width: 100%;
 }
 
 .image-row > div {

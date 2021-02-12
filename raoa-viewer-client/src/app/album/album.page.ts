@@ -1,7 +1,8 @@
-import {Component, NgZone, OnInit} from '@angular/core';
+import {Component, ElementRef, NgZone, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {ServerApiService} from '../service/server-api.service';
 import {AlbumContentGQL, AlbumEntry} from '../generated/graphql';
+import {HttpClient} from '@angular/common/http';
 
 type AlbumEntryType =
     { __typename?: 'AlbumEntry' }
@@ -17,13 +18,22 @@ export class AlbumPage implements OnInit {
     public title: string;
     public rows: Array<TableRow> = [];
 
+    @ViewChild('imageList') private element: ElementRef;
+    public elementWidth = 10;
+
 
     constructor(private activatedRoute: ActivatedRoute, private serverApi: ServerApiService,
                 private albumContentGQL: AlbumContentGQL,
-                private ngZone: NgZone) {
+                private ngZone: NgZone, private http: HttpClient) {
+    }
+
+    resized() {
+        this.elementWidth = this.element.nativeElement.offsetWidth;
     }
 
     ngOnInit() {
+
+
         this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
         this.serverApi.query(this.albumContentGQL, {albumId: this.albumId})
             .then(content => {
@@ -37,29 +47,43 @@ export class AlbumPage implements OnInit {
                     let index = 0;
                     let currentRow: Shape[] = [];
                     let currentRowWidth = 0;
+                    let currentBlock: ImageBlock[] = [];
+                    let currentBlockLength = 0;
                     const flushRow = () => {
                         if (currentRow.length > 0) {
-                            this.rows.push({
-                                kind: 'images',
+                            currentBlock.push({
                                 shapes: currentRow,
                                 width: currentRowWidth
                             });
+                            currentBlockLength += 1 / currentRowWidth;
                         }
                         currentRowWidth = 0;
                         currentRow = [];
                     };
+                    const flushBlock = () => {
+                        flushRow();
+                        if (currentBlock.length > 0) {
+                            this.rows.push({kind: 'images', blocks: currentBlock, height: currentBlockLength});
+                        }
+                        currentBlock = [];
+                        currentBlockLength = 0;
+                    };
                     const appender = (shape: Shape, date: number) => {
                         if (currentImageDate === undefined || currentImageDate !== date) {
-                            flushRow();
+                            flushBlock();
                             this.rows.push({kind: 'timestamp', time: new Date(date)});
                         }
                         currentImageDate = date;
                         const totalWidth = currentRowWidth;
                         if (totalWidth + shape.width > maxWidth) {
                             flushRow();
+                            if (currentBlock.length >= 10) {
+                                flushBlock();
+                            }
                         }
                         currentRow.push(shape);
                         currentRowWidth += shape.width;
+
                     };
 
                     content.albumById.entries
@@ -83,7 +107,7 @@ export class AlbumPage implements OnInit {
                             };
                             appender(imageShape, imageDate);
                         });
-                    flushRow();
+                    flushBlock();
                 });
             })
         ;
@@ -102,10 +126,15 @@ interface Shape {
     entryIndex: number;
 }
 
-interface ImagesRow {
-    kind: 'images';
+interface ImageBlock {
     shapes: Shape[];
     width: number;
+}
+
+interface ImagesRow {
+    kind: 'images';
+    blocks: ImageBlock[];
+    height: number;
 }
 
 interface HeaderRow {
