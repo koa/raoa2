@@ -28,16 +28,12 @@ export class InViewportDirective implements AfterViewInit {
 
     renderContents(isInView) {
         if (isInView && !this.alreadyRendered) {
-            console.log('show');
             this.vcRef.clear();
             this.vcRef.createEmbeddedView(this.tplRef);
             this.alreadyRendered = true;
         } else if (!isInView && this.alreadyRendered) {
-            console.log('hide');
             this.vcRef.clear();
             this.alreadyRendered = false;
-        } else {
-            console.log('keep');
         }
     }
 
