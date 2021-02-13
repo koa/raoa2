@@ -1,6 +1,7 @@
 <ion-header>
     <ion-toolbar>
         <ion-title>{{title}}</ion-title>
+        <ion-icon name="" ></ion-icon>
     </ion-toolbar>
 </ion-header>
 
@@ -17,7 +18,7 @@
                             <div *ngFor="let shape of blockPart.shapes"
                                  [ngStyle]="{'height.px':(elementWidth/blockPart.width),'width.px':elementWidth/blockPart.width*shape.width}">
                                 <picture>
-                                    <img [src]="'/rest/album/'+albumId+'/'+shape.entry.id+'/thumbnail' | authImage | async">
+                                    <img [src]="loadImage(blockPart, shape) | authImage | async">
                                 </picture>
                             </div>
                         </div>
