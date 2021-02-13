@@ -33,11 +33,13 @@ export class AlbumPage implements OnInit {
     private sortedEntries: AlbumEntryType[] = [];
 
     public resized() {
-        if (this.elementWidth === this.element.nativeElement.offsetWidth) {
+        if (this.elementWidth === this.element.nativeElement.clientWidth) {
             return;
         }
-        this.elementWidth = this.element.nativeElement.offsetWidth;
-        const newMaxWidth = Math.round(this.elementWidth / 200);
+        this.elementWidth = this.element.nativeElement.clientWidth;
+
+        const maxRowHeight = 2 * Math.sqrt((window.innerWidth * window.innerHeight) / 6 / 6);
+        const newMaxWidth = Math.min(10, Math.round(this.elementWidth / (Math.min(100 * window.devicePixelRatio, maxRowHeight)) * 4) / 4);
         if (this.maxWidth !== newMaxWidth) {
             this.maxWidth = newMaxWidth;
             this.calculateRows();
