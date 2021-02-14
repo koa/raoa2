@@ -1,0 +1,44 @@
+.image {
+    height: 100%;
+    background-color: black;
+}
+
+.image > img {
+    height: 100%;
+    width: 100%;
+    display: block;
+    object-fit: contain;
+}
+
+.overlay {
+    position: absolute;
+    display: grid;
+    right: 0;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+
+    color: white;
+}
+
+.right-button {
+    grid-column: 3;
+    grid-row: 2;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+.left-button {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+}
+ion-icon{
+    font-size: 5ex;
+    backdrop-filter: blur(0.3em);
+    border-radius: 50%;
+}

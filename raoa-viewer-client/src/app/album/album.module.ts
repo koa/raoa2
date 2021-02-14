@@ -9,7 +9,8 @@ import {AlbumPageRoutingModule} from './album-routing.module';
 import {AlbumPage} from './album.page';
 import {AuthImagePipe} from './pipe/auth-image.pipe';
 import {AngularResizedEventModule} from 'angular-resize-event';
-import { InViewportDirective } from './in-viewport.directive';
+import {InViewportDirective} from './in-viewport.directive';
+import {ShowSingleMediaComponent} from './show-single-media/show-single-media.component';
 
 @NgModule({
     imports: [
@@ -19,7 +20,7 @@ import { InViewportDirective } from './in-viewport.directive';
         AlbumPageRoutingModule,
         AngularResizedEventModule
     ],
-    declarations: [AlbumPage, AuthImagePipe, InViewportDirective],
+    declarations: [AlbumPage, AuthImagePipe, InViewportDirective, ShowSingleMediaComponent],
     exports: [
         AuthImagePipe
     ]

@@ -137,8 +137,7 @@ export class AlbumPage implements OnInit {
         const maxLength: number = shape.width < 1 ? imgWidthPixels / shape.width : imgWidthPixels;
 
         const entryId = shape.entry.id;
-        const albumId = this.albumId;
-        return this.mediaResolver.lookupImage(albumId, entryId, maxLength);
+        return this.mediaResolver.lookupImage(this.albumId, entryId, maxLength);
     }
 
 

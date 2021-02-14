@@ -1,7 +1,7 @@
 <ion-header>
     <ion-toolbar>
         <ion-title>{{title}}</ion-title>
-        <ion-icon name="" ></ion-icon>
+        <ion-icon name=""></ion-icon>
     </ion-toolbar>
 </ion-header>
 
@@ -11,14 +11,18 @@
             <div *ngIf="row.kind=='timestamp'">
                 {{row.time | date:'fullDate' }}
             </div>
-            <div *ngIf="row.kind=='images'" [ngStyle]="{'height.px':(elementWidth*row.height), 'width.%':100}" class="image-block">
+            <div *ngIf="row.kind=='images'" [ngStyle]="{'height.px':(elementWidth*row.height), 'width.%':100}"
+                 class="image-block">
                 <div *appInViewport>
-                    <div *ngFor="let blockPart of row.blocks" [ngStyle]="{'height.px':(elementWidth/blockPart.width), 'width.%':100}">
+                    <div *ngFor="let blockPart of row.blocks"
+                         [ngStyle]="{'height.px':(elementWidth/blockPart.width), 'width.%':100}">
                         <div *appInViewport class="image-row">
                             <div *ngFor="let shape of blockPart.shapes"
                                  [ngStyle]="{'height.px':(elementWidth/blockPart.width),'width.px':elementWidth/blockPart.width*shape.width}">
                                 <picture>
-                                    <img [src]="loadImage(blockPart, shape) | authImage | async">
+                                    <a [routerLink]="'/album/'+albumId+'/media/'+shape.entry.id">
+                                        <img [src]="loadImage(blockPart, shape) | authImage | async">
+                                    </a>
                                 </picture>
                             </div>
                         </div>

@@ -49,7 +49,7 @@ export class AppComponent implements OnInit {
                 this.appPages = entries;
                 const path = window.location.pathname;
                 if (path !== undefined) {
-                    this.selectedIndex = this.appPages.findIndex(page => page.url === path);
+                    this.selectedIndex = this.appPages.findIndex(page => path.startsWith(page.url));
                 }
             });
         });
