@@ -6,6 +6,8 @@ import {StatusBar} from '@ionic-native/status-bar/ngx';
 import {ServerApiService} from './service/server-api.service';
 import {AllAlbumsGQL} from './generated/graphql';
 
+type MenuEntry = { title: string | null; url: string, albumId: string };
+
 @Component({
     selector: 'app-root',
     templateUrl: 'app.component.html',
@@ -13,7 +15,7 @@ import {AllAlbumsGQL} from './generated/graphql';
 })
 export class AppComponent implements OnInit {
     public selectedIndex = 0;
-    public appPages = [];
+    public appPages: MenuEntry[] = [];
     public labels = ['Family', 'Friends', 'Notes', 'Work', 'Travel', 'Reminders'];
 
     constructor(
@@ -40,16 +42,17 @@ export class AppComponent implements OnInit {
             return result.listAlbums.filter(a => a.albumTime != null)
                 .sort((a, b) => -a.albumTime.localeCompare(b.albumTime))
                 .map(entry => ({
-                    title: entry.name, url: '/album/' + entry.id
-                }))
-                ;
-        }).then(entries => {
-            this.ngZone.run(() => this.appPages = entries);
+                    title: entry.name, url: '/album/' + entry.id, albumId: entry.id
+                }));
+        }).then((entries: MenuEntry[]) => {
+            this.ngZone.run(() => {
+                this.appPages = entries;
+                const path = window.location.pathname;
+                if (path !== undefined) {
+                    this.selectedIndex = this.appPages.findIndex(page => page.url === path);
+                }
+            });
         });
-        const path = window.location.pathname.split('folder/')[1];
-        if (path !== undefined) {
-            this.selectedIndex = this.appPages.findIndex(page => page.title.toLowerCase() === path.toLowerCase());
-        }
     }
 
     authenticate() {
