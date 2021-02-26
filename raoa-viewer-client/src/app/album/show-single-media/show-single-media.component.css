@@ -1,5 +1,16 @@
+ion-slides {
+    height: 100%;
+    width: 100%;
+}
+
+ion-slide {
+    height: 100%;
+    width: 100%;
+}
+
 .image {
     height: 100%;
+    width: 100%;
     background-color: black;
 }
 
@@ -30,6 +41,7 @@
     justify-content: flex-end;
     align-items: center;
 }
+
 .left-button {
     grid-column: 1;
     grid-row: 2;
@@ -37,7 +49,8 @@
     justify-content: flex-start;
     align-items: center;
 }
-ion-icon{
+
+ion-icon {
     font-size: 5ex;
     backdrop-filter: blur(0.3em);
     border-radius: 50%;

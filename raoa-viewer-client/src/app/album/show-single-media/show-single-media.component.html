@@ -1,11 +1,25 @@
-<div class="image" (keyup.arrowLeft)="showImage(previousMediaId)" (keyup.arrowRight)="showImage(nextMediaId)">
-    <img [src]="loadImage() | authImage | async">
-    <div class="overlay">
-        <div *ngIf="previousMediaId" class="left-button">
-            <ion-icon name="arrow-back" (click)="showImage(previousMediaId)"></ion-icon>
+<ion-slides (ionSlideTransitionEnd)="slided()" #imageSlider>
+    <ion-slide>
+        <div *ngIf="previousMediaId" class="image">
+            <img [src]="loadImage(this.previousMediaId) | authImage | async">
         </div>
-        <div *ngIf="nextMediaId" class="right-button">
-            <ion-icon name="arrow-forward" (click)="showImage(nextMediaId)"></ion-icon>
+    </ion-slide>
+    <ion-slide>
+        <div class="image" (keyup.arrowLeft)="showImage(previousMediaId)" (keyup.arrowRight)="showImage(nextMediaId)">
+            <img [src]="loadImage(this.mediaId) | authImage | async">
+            <div class="overlay">
+                <div *ngIf="previousMediaId" class="left-button">
+                    <ion-icon name="arrow-back" (click)="showImage(previousMediaId)"></ion-icon>
+                </div>
+                <div *ngIf="nextMediaId" class="right-button">
+                    <ion-icon name="arrow-forward" (click)="showImage(nextMediaId)"></ion-icon>
+                </div>
+            </div>
         </div>
-    </div>
-</div>
+    </ion-slide>
+    <ion-slide>
+        <div *ngIf="nextMediaId" class="image">
+            <img [src]="loadImage(this.nextMediaId) | authImage | async">
+        </div>
+    </ion-slide>
+</ion-slides>
