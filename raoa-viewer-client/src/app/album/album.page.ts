@@ -4,6 +4,7 @@ import {ServerApiService} from '../service/server-api.service';
 import {AlbumContentGQL, AlbumEntry} from '../generated/graphql';
 import {HttpClient} from '@angular/common/http';
 import {MediaResolverService} from './service/media-resolver.service';
+import {AlbumListService} from './service/album-list.service';
 
 type AlbumEntryType =
     { __typename?: 'AlbumEntry' }
@@ -19,6 +20,7 @@ export class AlbumPage implements OnInit {
 
     constructor(private activatedRoute: ActivatedRoute, private serverApi: ServerApiService,
                 private albumContentGQL: AlbumContentGQL,
+                private albumListService: AlbumListService,
                 private ngZone: NgZone, private http: HttpClient, private mediaResolver: MediaResolverService) {
     }
 
@@ -48,21 +50,13 @@ export class AlbumPage implements OnInit {
 
     ngOnInit() {
         this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
-        this.serverApi.query(this.albumContentGQL, {albumId: this.albumId})
-            .then(content => {
-                this.ngZone.run(() => {
-                    this.title = content.albumById.name;
-                    this.sortedEntries = content.albumById.entries
-                        .slice()
-                        .sort((e1, e2) => {
-                            const c1 = e1?.created;
-                            const c2 = e2?.created;
-                            return c1 === c2 ? e1.name.localeCompare(e2.name) : c1 === null || c1 === undefined ? 1 : c1.localeCompare(c2);
-                        });
-                    this.calculateRows();
-                });
-            })
-        ;
+        this.albumListService.listAlbum(this.albumId).then(result => {
+            this.ngZone.run(() => {
+                this.title = result.title;
+                this.sortedEntries = result.sortedEntries;
+                this.calculateRows();
+            });
+        });
     }
 
     private calculateRows() {

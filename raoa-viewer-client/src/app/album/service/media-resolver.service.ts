@@ -4,12 +4,16 @@ import {Injectable} from '@angular/core';
     providedIn: 'root'
 })
 export class MediaResolverService {
+    private lastAlbumId: string;
     private bestLoadedImage = {};
 
     constructor() {
     }
 
     public lookupImage(albumId: string, entryId: string, maxLength: number) {
+        if (albumId !== this.lastAlbumId) {
+            this.bestLoadedImage = {};
+        }
         const loadedSize = this.bestLoadedImage[entryId];
         const nextStepMaxLength = findNextStep(maxLength);
         let selectedMaxLength: number;

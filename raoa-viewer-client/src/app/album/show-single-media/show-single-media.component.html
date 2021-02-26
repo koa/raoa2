@@ -1,11 +1,11 @@
-<div class="image">
+<div class="image" (keyup.arrowLeft)="showImage(previousMediaId)" (keyup.arrowRight)="showImage(nextMediaId)">
     <img [src]="loadImage() | authImage | async">
     <div class="overlay">
-        <div class="left-button">
-            <ion-icon name="arrow-back"></ion-icon>
+        <div *ngIf="previousMediaId" class="left-button">
+            <ion-icon name="arrow-back" (click)="showImage(previousMediaId)"></ion-icon>
         </div>
-        <div class="right-button">
-            <ion-icon name="arrow-forward"></ion-icon>
+        <div *ngIf="nextMediaId" class="right-button">
+            <ion-icon name="arrow-forward" (click)="showImage(nextMediaId)"></ion-icon>
         </div>
     </div>
 </div>
