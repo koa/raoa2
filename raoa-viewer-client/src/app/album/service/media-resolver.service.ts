@@ -25,6 +25,10 @@ export class MediaResolverService {
         }
         return '/rest/album/' + albumId + '/' + entryId + '/thumbnail?maxLength=' + selectedMaxLength;
     }
+
+    public lookupOriginal(albumId: string, entryId: string) {
+        return 'rest/album/' + albumId + '/' + entryId + '/original';
+    }
 }
 
 function findNextStep(maxLength: number): number {

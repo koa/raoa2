@@ -4,6 +4,14 @@ import {MediaResolverService} from '../service/media-resolver.service';
 import {AlbumListService, QueryAlbumEntry} from '../service/album-list.service';
 import {Location} from '@angular/common';
 import {IonSlides} from '@ionic/angular';
+import {HttpClient} from '@angular/common/http';
+import {AlbumEntry, AlbumEntryDetailGQL} from '../../generated/graphql';
+import {ServerApiService} from '../../service/server-api.service';
+
+type AlbumEntryMetadata =
+    { __typename?: 'AlbumEntry' }
+    & Pick<AlbumEntry, 'name' |
+    'created' | 'cameraModel' | 'exposureTime' | 'fNumber' | 'focalLength35' | 'isoSpeedRatings' | 'keywords' | 'contentType'>;
 
 @Component({
     selector: 'app-show-single-media',
@@ -15,27 +23,25 @@ export class ShowSingleMediaComponent implements OnInit {
     public mediaId: string;
     public previousMediaId: string;
     public nextMediaId: string;
-    private alreadySlidedNext = false;
     @ViewChild('imageSlider', {static: true})
     private imageSlider: IonSlides;
-
-    public slideOpts = {
-        initialSlide: 1
-    };
+    public supportShare: boolean;
+    public metadata: AlbumEntryMetadata;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
                 private albumListService: AlbumListService,
                 private ngZone: NgZone,
-                private location: Location) {
+                private location: Location,
+                private http: HttpClient,
+                private serverApi: ServerApiService,
+                private albumEntryDetailGQL: AlbumEntryDetailGQL) {
+        let hackNavi: any;
+        hackNavi = window.navigator;
+        this.supportShare = hackNavi.share !== undefined;
+
     }
 
-    imageSliderReady(imageSlider: IonSlides) {
-        setTimeout(() => {
-            console.log('Image slider: ' + imageSlider);
-            this.imageSlider = imageSlider;
-        }, 0);
-    }
 
     ngOnInit() {
         this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
@@ -65,6 +71,9 @@ export class ShowSingleMediaComponent implements OnInit {
                 this.imageSlider.lockSwipeToPrev(previousMediaId === undefined);
             });
         });
+        this.serverApi.query(this.albumEntryDetailGQL, {albumId: this.albumId, entryId: this.mediaId})
+            .then(result => this.ngZone.run(() => this.metadata = result.albumById.albumEntry))
+        ;
     }
 
     loadImage(mediaId: string): string {
@@ -72,11 +81,10 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     showImage(mediaId: string) {
-        this.alreadySlidedNext = false;
         this.mediaId = mediaId;
         this.nextMediaId = undefined;
         this.previousMediaId = undefined;
-        this.location.replaceState('/album/' + this.albumId + '/media/' + mediaId);
+        this.location.replaceState(this.mediaPath(mediaId));
         this.imageSlider.lockSwipeToNext(false);
         this.imageSlider.lockSwipeToPrev(false);
         this.imageSlider.slideTo(1, 0, false);
@@ -85,6 +93,10 @@ export class ShowSingleMediaComponent implements OnInit {
         this.updateMetadata();
     }
 
+
+    private mediaPath(mediaId: string) {
+        return '/album/' + this.albumId + '/media/' + mediaId;
+    }
 
     slided() {
         this.imageSlider.getActiveIndex().then(index => {
@@ -96,4 +108,50 @@ export class ShowSingleMediaComponent implements OnInit {
         });
     }
 
+
+    async downloadCurrentFile() {
+        const imageBlob = await this.loadOriginal();
+        const a = document.createElement('a');
+        const objectUrl = URL.createObjectURL(imageBlob);
+        a.href = objectUrl;
+        const filename = this.metadata.name || 'original.jpg';
+        a.download = filename;
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objectUrl);
+    }
+
+    private async loadOriginal(): Promise<Blob> {
+        const src = this.mediaResolver.lookupOriginal(this.albumId, this.mediaId);
+        console.log('src: ' + src);
+        return await this.http.get(src, {responseType: 'blob'}).toPromise();
+    }
+
+    async shareCurrentFile() {
+        const contentType = this.metadata.contentType || 'image/jpeg';
+        const filename = this.metadata.name || 'original.jpg';
+        const imageBlob = await this.loadOriginal();
+        const lastModified = Date.parse(this.metadata.created);
+        const file = new File([imageBlob], filename, {type: contentType, lastModified});
+        const data = {
+            title: filename,
+            files: [file],
+            url: window.location.origin + this.location.prepareExternalUrl(this.mediaPath(this.mediaId))
+        };
+        console.log('Data: ');
+        console.log(data);
+        await navigator.share(data);
+    }
+
+    back() {
+        this.location.back();
+    }
+
+    calcTime(exposureTime: number): string {
+        if (exposureTime < 1) {
+            return '1/' + (1 / exposureTime).toFixed(0);
+        } else {
+            return exposureTime.toFixed(0);
+        }
+    }
 }

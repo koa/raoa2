@@ -18,7 +18,16 @@ export class ServerApiService {
         httpLink: HttpLink,
         private login: LoginService
     ) {
-        this.cache = new InMemoryCache();
+        this.cache = new InMemoryCache({
+            typePolicies: {
+                Album: {
+                    keyFields: ['id']
+                },
+                AlbumEntry: {
+                    keyFields: ['id']
+                }
+            }
+        });
         const auth: ApolloLink = setContext(async (_, {headers}) => {
             // Grab token if there is one in storage or hasn't expired
             const token = await this.login.idToken();

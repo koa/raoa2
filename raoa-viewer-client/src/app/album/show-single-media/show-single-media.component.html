@@ -9,10 +9,46 @@
             <img [src]="loadImage(this.mediaId) | authImage | async">
             <div class="overlay">
                 <div *ngIf="previousMediaId" class="left-button">
-                    <ion-icon name="arrow-back" (click)="showImage(previousMediaId)"></ion-icon>
+                    <ion-icon class="button" name="arrow-back" (click)="showImage(previousMediaId)"></ion-icon>
                 </div>
                 <div *ngIf="nextMediaId" class="right-button">
-                    <ion-icon name="arrow-forward" (click)="showImage(nextMediaId)"></ion-icon>
+                    <ion-icon class="button" name="arrow-forward" (click)="showImage(nextMediaId)"></ion-icon>
+                </div>
+                <div class="left-actions">
+                    <ion-icon (click)="back()" class="button" name="close-outline"></ion-icon>
+                </div>
+                <div class="right-actions">
+                    <ion-icon *ngIf="!supportShare" name="download-outline" class="button" (click)="downloadCurrentFile()"></ion-icon>
+                    <ion-icon *ngIf="supportShare" class="button" name="share-social-outline"
+                              (click)="shareCurrentFile()"></ion-icon>
+                </div>
+                <div class="file-meta">
+                    <ion-label *ngIf="metadata?.name">
+                        <ion-icon name="document"></ion-icon>
+                        {{metadata.name}}</ion-label>
+                    <ion-label *ngIf="metadata?.cameraModel">
+                        <ion-icon name="camera"></ion-icon>
+                        {{metadata.cameraModel}}
+                    </ion-label>
+                    <ion-label *ngIf="metadata?.exposureTime">
+                        <ion-icon name="stopwatch"></ion-icon>
+                        {{calcTime(metadata.exposureTime)}}
+                    </ion-label>
+                    <ion-label *ngIf="metadata?.fNumber">
+                        <ion-icon name="aperture"></ion-icon>
+                        F{{metadata.fNumber}}
+                    </ion-label>
+                    <ion-label *ngIf="metadata?.focalLength35">
+                        {{metadata.focalLength35}} mm
+                    </ion-label>
+                    <ion-label *ngIf="metadata?.isoSpeedRatings">
+                        ISO {{metadata.isoSpeedRatings}}
+                    </ion-label>
+                    <ion-label *ngFor="let keyword of metadata?.keywords">
+                        <ion-icon name="bookmark"></ion-icon>
+                        {{keyword}}
+                    </ion-label>
+
                 </div>
             </div>
         </div>

@@ -1,6 +1,9 @@
 query AlbumEntryDetail($albumId: ID, $entryId: ID) {
   albumById(id:  $albumId){
+    id
     albumEntry(entryId: $entryId){
+      id
+      name
       created
       cameraModel
       exposureTime
@@ -8,6 +11,7 @@ query AlbumEntryDetail($albumId: ID, $entryId: ID) {
       focalLength35
       isoSpeedRatings
       keywords
+      contentType
     }
   }
 }

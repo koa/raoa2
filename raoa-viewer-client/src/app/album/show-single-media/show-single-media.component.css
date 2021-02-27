@@ -50,8 +50,40 @@ ion-slide {
     align-items: center;
 }
 
-ion-icon {
-    font-size: 5ex;
+.right-actions {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.left-actions {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.file-meta {
+    grid-row: 3;
+    grid-column-start: 1;
+    grid-column-end: 4;
+    align-self: end;
+    line-height: 2em;
+}
+
+.file-meta > ion-label {
+    border-radius: 2ex;
+    padding: 0.5ex;
+    background-color: #00000040;
+    margin: 0.4em;
+    white-space: nowrap;
+}
+
+ion-icon.button {
+    font-size: 3ex;
+    color: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(0.3em);
+    padding: 0.5ex;
     border-radius: 50%;
 }

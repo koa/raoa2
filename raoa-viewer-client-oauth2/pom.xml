@@ -8,6 +8,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <artifactId>raoa-viewer-client-oauth2</artifactId>
+  <!--
   <build>
     <plugins>
       <plugin>
@@ -52,7 +53,7 @@
               <goal>npm</goal>
             </goals>
             <configuration>
-              <arguments>run-script build -- --prod --outputPath=target/classes/resources</arguments>
+              <arguments>run-script build - - - -prod - -outputPath=target/classes/resources</arguments>
             </configuration>
             <phase>generate-resources</phase>
           </execution>
@@ -60,6 +61,6 @@
       </plugin>
     </plugins>
   </build>
-
+  -->
 
 </project>

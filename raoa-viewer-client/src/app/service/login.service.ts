@@ -20,8 +20,10 @@ export class LoginService {
         //  Create a new Promise where the resolve
         // function is the callback passed to gapi.load
         const pload = new Promise((resolve) => {
-            gapi.load('auth2', resolve);
+            window.onload = () => gapi.load('auth2', resolve);
+            // gapi.load('auth2', resolve);
         });
+
         // When the first promise resolves, it means we have gapi
         // loaded and that we can call gapi.init
         const config = this.configService.loadAppConfig();
@@ -29,7 +31,8 @@ export class LoginService {
             return gapi.auth2
                 .init({
                     client_id: values[1].googleClientId,
-                    scope: 'profile'
+                    scope: 'profile email openid',
+                    fetch_basic_profile: false
                 })
                 .then(auth => {
                     this.cachingAuth = Promise.resolve(auth);
@@ -44,9 +47,19 @@ export class LoginService {
         if (auth.isSignedIn.get()) {
             return auth.currentUser.get();
         }
-        const url = new URL(window.location.origin);
+        const lastTry = sessionStorage.getItem('try_login');
+        const firstTry = lastTry == null || Date.now() - parseInt(lastTry, 10) > 1000 * 60;
+        const uxMode = firstTry ? 'redirect' : 'popup';
         sessionStorage.setItem('redirect_route', this.router.url);
-        return await auth.signIn({ux_mode: 'redirect', redirect_uri: window.location.origin});
+        sessionStorage.setItem('try_login', Date.now().toString(10));
+        return await auth.signIn({
+            ux_mode: uxMode,
+            redirect_uri: window.location.origin,
+            // scope: 'profile email'
+        }).then((result) => {
+            sessionStorage.removeItem('try_login');
+            return result;
+        });
     }
 
     public async idToken(): Promise<string> {
