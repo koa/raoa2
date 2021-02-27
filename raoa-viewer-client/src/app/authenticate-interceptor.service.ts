@@ -13,7 +13,7 @@ export class AuthenticateInterceptor implements HttpInterceptor {
     intercept(request: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
         if (this.login !== undefined) {
             const url = request.url;
-            if (url.startsWith('/rest') || url.startsWith('/graphql')) {
+            if (url.startsWith('/rest') || url.startsWith('/graphql') || url.startsWith('rest') || url.startsWith('graphql')) {
                 const auth2 = this.login.idToken();
                 // Return the headers as usual
                 return new Observable(observer => {
@@ -24,8 +24,6 @@ export class AuthenticateInterceptor implements HttpInterceptor {
                     }).catch(error => observer.error(error));
                 });
             }
-        } else {
-            console.log('undefined');
         }
         return next.handle(request);
     }
