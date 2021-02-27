@@ -3,7 +3,7 @@ import {ActivatedRoute} from '@angular/router';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {AlbumListService, QueryAlbumEntry} from '../service/album-list.service';
 import {Location} from '@angular/common';
-import {IonSlides} from '@ionic/angular';
+import {IonSlides, MenuController} from '@ionic/angular';
 import {HttpClient} from '@angular/common/http';
 import {AlbumEntry, AlbumEntryDetailGQL} from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
@@ -35,7 +35,9 @@ export class ShowSingleMediaComponent implements OnInit {
                 private location: Location,
                 private http: HttpClient,
                 private serverApi: ServerApiService,
-                private albumEntryDetailGQL: AlbumEntryDetailGQL) {
+                private albumEntryDetailGQL: AlbumEntryDetailGQL,
+                private menu: MenuController
+    ) {
         let hackNavi: any;
         hackNavi = window.navigator;
         this.supportShare = hackNavi.share !== undefined;
@@ -153,5 +155,9 @@ export class ShowSingleMediaComponent implements OnInit {
         } else {
             return exposureTime.toFixed(0);
         }
+    }
+
+    openMenu() {
+        this.menu.open();
     }
 }

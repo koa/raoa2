@@ -15,10 +15,12 @@
                     <ion-icon class="button" name="arrow-forward" (click)="showImage(nextMediaId)"></ion-icon>
                 </div>
                 <div class="left-actions">
-                    <ion-icon (click)="back()" class="button" name="close-outline"></ion-icon>
+                    <ion-icon name="menu" (click)="openMenu()" class="button"></ion-icon>
+                    <ion-icon (click)="back()" class="button" name="arrow-back"></ion-icon>
                 </div>
                 <div class="right-actions">
-                    <ion-icon *ngIf="!supportShare" name="download-outline" class="button" (click)="downloadCurrentFile()"></ion-icon>
+                    <ion-icon *ngIf="!supportShare" name="download-outline" class="button"
+                              (click)="downloadCurrentFile()"></ion-icon>
                     <ion-icon *ngIf="supportShare" class="button" name="share-social-outline"
                               (click)="shareCurrentFile()"></ion-icon>
                 </div>

@@ -1,6 +1,6 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 
-import {Platform} from '@ionic/angular';
+import {MenuController, Platform} from '@ionic/angular';
 import {SplashScreen} from '@ionic-native/splash-screen/ngx';
 import {StatusBar} from '@ionic-native/status-bar/ngx';
 import {ServerApiService} from './service/server-api.service';
@@ -15,7 +15,7 @@ type MenuEntry = { title: string | null; url: string, albumId: string };
 })
 export class AppComponent implements OnInit {
     public selectedIndex = 0;
-    public appPages: MenuEntry[] = [];
+    public photoCollections: MenuEntry[] = [];
     public labels = ['Family', 'Friends', 'Notes', 'Work', 'Travel', 'Reminders'];
 
     constructor(
@@ -46,10 +46,10 @@ export class AppComponent implements OnInit {
                 }));
         }).then((entries: MenuEntry[]) => {
             this.ngZone.run(() => {
-                this.appPages = entries;
+                this.photoCollections = entries;
                 const path = window.location.pathname;
                 if (path !== undefined) {
-                    this.selectedIndex = this.appPages.findIndex(page => path.startsWith(page.url));
+                    this.selectedIndex = this.photoCollections.findIndex(page => path.startsWith(page.url));
                 }
             });
         });
