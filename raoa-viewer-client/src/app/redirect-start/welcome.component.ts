@@ -1,5 +1,7 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, NgZone, OnInit} from '@angular/core';
 import {Router} from '@angular/router';
+import {MenuController} from '@ionic/angular';
+import {CommonServerApiService} from '../service/common-server-api.service';
 
 @Component({
     selector: 'app-redirect-start',
@@ -8,7 +10,12 @@ import {Router} from '@angular/router';
 })
 export class WelcomeComponent implements OnInit {
 
-    constructor(private router: Router) {
+    public totalPhotoCount: number;
+
+    constructor(private router: Router,
+                private menu: MenuController,
+                private commonServerApiService: CommonServerApiService,
+                private ngZone: NgZone) {
     }
 
     ngOnInit() {
@@ -17,6 +24,12 @@ export class WelcomeComponent implements OnInit {
             sessionStorage.removeItem('redirect_route');
             this.router.navigateByUrl(redirectRoute);
         }
+        this.commonServerApiService.listCollections().then(list => {
+            this.ngZone.run(() => this.totalPhotoCount = list.reduce((sum, e) => e.data.entryCount + sum, 0));
+        });
     }
 
+    openMenu() {
+        this.menu.open();
+    }
 }

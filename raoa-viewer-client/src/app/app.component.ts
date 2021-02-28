@@ -1,12 +1,10 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 
-import {MenuController, Platform} from '@ionic/angular';
+import {Platform} from '@ionic/angular';
 import {SplashScreen} from '@ionic-native/splash-screen/ngx';
 import {StatusBar} from '@ionic-native/status-bar/ngx';
-import {ServerApiService} from './service/server-api.service';
-import {AllAlbumsGQL} from './generated/graphql';
+import {CommonServerApiService, MenuEntry} from './service/common-server-api.service';
 
-type MenuEntry = { title: string | null; url: string, albumId: string };
 
 @Component({
     selector: 'app-root',
@@ -14,13 +12,14 @@ type MenuEntry = { title: string | null; url: string, albumId: string };
     styleUrls: ['app.component.scss']
 })
 export class AppComponent implements OnInit {
-    public selectedIndex = 0;
+    public selectedCollectionIndex = -1;
     public photoCollections: MenuEntry[] = [];
+    public visibleCollections: MenuEntry[] = [];
     public labels = ['Family', 'Friends', 'Notes', 'Work', 'Travel', 'Reminders'];
+    private photoCollectionFilter = '';
 
     constructor(
-        private serverApi: ServerApiService,
-        private albumListGQL: AllAlbumsGQL,
+        private commonServerApiService: CommonServerApiService,
         private ngZone: NgZone,
         private platform: Platform,
         private splashScreen: SplashScreen,
@@ -38,24 +37,25 @@ export class AppComponent implements OnInit {
     }
 
     ngOnInit() {
-        this.serverApi.query(this.albumListGQL, {}).then(result => {
-            return result.listAlbums.filter(a => a.albumTime != null)
-                .sort((a, b) => -a.albumTime.localeCompare(b.albumTime))
-                .map(entry => ({
-                    title: entry.name, url: '/album/' + entry.id, albumId: entry.id
-                }));
-        }).then((entries: MenuEntry[]) => {
+        this.updatePhotoCollectionList();
+    }
+
+    updatePhotoCollectionList() {
+        this.commonServerApiService.listCollections(this.photoCollectionFilter).then((entries: MenuEntry[]) => {
             this.ngZone.run(() => {
-                this.photoCollections = entries;
+                this.visibleCollections = entries;
                 const path = window.location.pathname;
                 if (path !== undefined) {
-                    this.selectedIndex = this.photoCollections.findIndex(page => path.startsWith(page.url));
+                    this.selectedCollectionIndex = this.visibleCollections.findIndex(page => path.startsWith(page.url));
+                } else {
+                    this.selectedCollectionIndex = -1;
                 }
             });
         });
     }
 
-    authenticate() {
-
+    updateSearch(event: CustomEvent) {
+        this.photoCollectionFilter = event.detail.value;
+        this.updatePhotoCollectionList();
     }
 }

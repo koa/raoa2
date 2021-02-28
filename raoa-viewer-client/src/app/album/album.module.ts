@@ -6,11 +6,12 @@ import {IonicModule} from '@ionic/angular';
 
 import {AlbumPageRoutingModule} from './album-routing.module';
 
-import {AlbumPage} from './album.page';
+import {AlbumPage} from './single-album/album.page';
 import {AuthImagePipe} from './pipe/auth-image.pipe';
 import {AngularResizedEventModule} from 'angular-resize-event';
 import {InViewportDirective} from './in-viewport.directive';
 import {ShowSingleMediaComponent} from './show-single-media/show-single-media.component';
+import {AlbumListComponent} from './album-list/album-list.component';
 
 @NgModule({
     imports: [
@@ -20,7 +21,7 @@ import {ShowSingleMediaComponent} from './show-single-media/show-single-media.co
         AlbumPageRoutingModule,
         AngularResizedEventModule
     ],
-    declarations: [AlbumPage, AuthImagePipe, InViewportDirective, ShowSingleMediaComponent],
+    declarations: [AlbumPage, AuthImagePipe, InViewportDirective, ShowSingleMediaComponent, AlbumListComponent],
     exports: [
         AuthImagePipe
     ]

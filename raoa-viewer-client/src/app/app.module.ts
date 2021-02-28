@@ -14,6 +14,7 @@ import {registerLocaleData} from '@angular/common';
 import localeDe from '@angular/common/locales/de';
 import localeFr from '@angular/common/locales/fr';
 import localeEn from '@angular/common/locales/en';
+import {WelcomeComponent} from './redirect-start/welcome.component';
 
 registerLocaleData(localeDe, 'de');
 registerLocaleData(localeFr, 'fr');
@@ -21,7 +22,7 @@ registerLocaleData(localeEn, 'en');
 
 
 @NgModule({
-    declarations: [AppComponent],
+    declarations: [AppComponent, WelcomeComponent],
     entryComponents: [],
     imports: [
         BrowserModule,

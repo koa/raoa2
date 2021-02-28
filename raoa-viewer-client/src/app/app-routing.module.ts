@@ -9,11 +9,7 @@ const routes: Routes = [
         pathMatch: 'full'
     },
     {
-        path: 'folder/:id',
-        loadChildren: () => import('./folder/folder.module').then(m => m.FolderPageModule)
-    },
-    {
-        path: 'album/:id',
+        path: 'album',
         loadChildren: () => import('./album/album.module').then(m => m.AlbumPageModule)
     }
 ];

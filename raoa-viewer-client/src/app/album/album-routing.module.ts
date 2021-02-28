@@ -1,16 +1,18 @@
 import {NgModule} from '@angular/core';
 import {RouterModule, Routes} from '@angular/router';
 
-import {AlbumPage} from './album.page';
 import {ShowSingleMediaComponent} from './show-single-media/show-single-media.component';
+import {AlbumPage} from './single-album/album.page';
+import {AlbumListComponent} from './album-list/album-list.component';
 
 const routes: Routes = [
+    {path: '', component: AlbumListComponent},
     {
-        path: '',
+        path: ':id',
         component: AlbumPage
     },
     {
-        path: 'media/:mediaId',
+        path: ':id/media/:mediaId',
         component: ShowSingleMediaComponent
     }
 ];

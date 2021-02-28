@@ -1,10 +1,12 @@
 import {Component, ElementRef, NgZone, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
-import {ServerApiService} from '../service/server-api.service';
-import {AlbumContentGQL, AlbumEntry} from '../generated/graphql';
+import {ServerApiService} from '../../service/server-api.service';
+import {AlbumContentGQL, AlbumEntry} from '../../generated/graphql';
 import {HttpClient} from '@angular/common/http';
-import {MediaResolverService} from './service/media-resolver.service';
-import {AlbumListService} from './service/album-list.service';
+import {MediaResolverService} from '../service/media-resolver.service';
+import {AlbumListService} from '../service/album-list.service';
+import {Location} from '@angular/common';
+import {LoadingController} from '@ionic/angular';
 
 type AlbumEntryType =
     { __typename?: 'AlbumEntry' }
@@ -21,7 +23,12 @@ export class AlbumPage implements OnInit {
     constructor(private activatedRoute: ActivatedRoute, private serverApi: ServerApiService,
                 private albumContentGQL: AlbumContentGQL,
                 private albumListService: AlbumListService,
-                private ngZone: NgZone, private http: HttpClient, private mediaResolver: MediaResolverService) {
+                private ngZone: NgZone,
+                private http: HttpClient,
+                private mediaResolver: MediaResolverService,
+                private location: Location,
+                private loadingController: LoadingController
+    ) {
     }
 
     public albumId: string;
@@ -33,8 +40,10 @@ export class AlbumPage implements OnInit {
     public elementWidth = 10;
 
     private sortedEntries: AlbumEntryType[] = [];
+    private loadingElement: HTMLIonLoadingElement;
+    private waitCount = 0;
 
-    public resized() {
+    public async resized() {
         if (this.elementWidth === this.element.nativeElement.clientWidth) {
             return;
         }
@@ -44,22 +53,39 @@ export class AlbumPage implements OnInit {
         const newMaxWidth = Math.min(10, Math.round(this.elementWidth / (Math.min(100 * window.devicePixelRatio, maxRowHeight)) * 4) / 4);
         if (this.maxWidth !== newMaxWidth) {
             this.maxWidth = newMaxWidth;
-            this.calculateRows();
+            await this.calculateRows();
         }
     }
 
-    ngOnInit() {
+    async enterWait(): Promise<void> {
+        const newCount = ++this.waitCount;
+        if (newCount === 1) {
+            await this.loadingElement.present();
+        }
+    }
+
+    async leaveWait(): Promise<void> {
+        const newCount = --this.waitCount;
+        if (newCount === 0) {
+            await this.loadingElement.remove();
+        }
+    }
+
+    async ngOnInit() {
         this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
-        this.albumListService.listAlbum(this.albumId).then(result => {
-            this.ngZone.run(() => {
-                this.title = result.title;
-                this.sortedEntries = result.sortedEntries;
-                this.calculateRows();
-            });
+        this.loadingElement = await this.loadingController.create();
+        await this.enterWait();
+        const result = await this.albumListService.listAlbum(this.albumId);
+        await this.leaveWait();
+        this.ngZone.run(() => {
+            this.title = result.title;
+            this.sortedEntries = result.sortedEntries;
+            this.calculateRows();
         });
     }
 
-    private calculateRows() {
+    private async calculateRows() {
+        await this.enterWait();
         this.rows = [];
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const optimalMediaCount = Math.sqrt(this.sortedEntries.length);
@@ -124,6 +150,7 @@ export class AlbumPage implements OnInit {
                 appender(imageShape, imageDate);
             });
         flushBlock();
+        await this.leaveWait();
     }
 
     public loadImage(blockPart: ImageBlock, shape: Shape): string {
@@ -135,6 +162,9 @@ export class AlbumPage implements OnInit {
     }
 
 
+    back() {
+        this.location.back();
+    }
 }
 
 interface Shape {
