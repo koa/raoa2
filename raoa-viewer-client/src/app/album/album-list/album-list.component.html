@@ -2,19 +2,12 @@
     <ion-toolbar>
         <ion-title>
             <ion-icon (click)="back()" name="arrow-back"></ion-icon>
-            </ion-title>
+            <ion-searchbar placeholder="Album Suchen" (ionChange)="updateSearch($event)"></ion-searchbar>
+        </ion-title>
     </ion-toolbar>
 </ion-header>
 <ion-content>
     <p>
-        <ion-card>
-            <ion-card-header>
-                <ion-card-title>Suchen</ion-card-title>
-            </ion-card-header>
-            <ion-card-content>
-                <ion-input placeholder="Album Suchen" (ionChange)="updateSearch($event)" inputmode="search"></ion-input>
-            </ion-card-content>
-        </ion-card>
         <ion-card *ngFor="let entry of foundAlbums; let i = index" [routerLink]="[entry.url]">
             <ion-card-header>
                 <ion-card-subtitle>{{entry.data.albumTime | date:'fullDate'}}</ion-card-subtitle>

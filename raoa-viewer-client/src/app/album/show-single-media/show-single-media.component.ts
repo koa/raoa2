@@ -27,6 +27,8 @@ export class ShowSingleMediaComponent implements OnInit {
     private imageSlider: IonSlides;
     public supportShare: boolean;
     public metadata: AlbumEntryMetadata;
+    public previousMetadata: AlbumEntryMetadata;
+    public nextMetadata: AlbumEntryMetadata;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
@@ -51,48 +53,67 @@ export class ShowSingleMediaComponent implements OnInit {
         this.showImage(this.mediaId);
     }
 
-    private updateMetadata() {
+    loadImage(mediaId: string): string {
+        return this.mediaResolver.lookupImage(this.albumId, mediaId, 3200);
+    }
+
+    showImage(mediaId: string) {
+        const metadataPromise = this.serverApi.query(this.albumEntryDetailGQL, {albumId: this.albumId, entryId: mediaId})
+            .then(result => result.albumById.albumEntry);
+
         this.albumListService.listAlbum(this.albumId).then(albumData => {
             let lastAlbumEntry: QueryAlbumEntry;
             let previousMediaId: string;
             let nextMediaId: string;
             for (const entry of albumData.sortedEntries) {
                 if (lastAlbumEntry !== undefined) {
-                    if (entry.id === this.mediaId) {
+                    if (entry.id === mediaId) {
                         previousMediaId = lastAlbumEntry.id;
-                    } else if (lastAlbumEntry.id === this.mediaId) {
+                    } else if (lastAlbumEntry.id === mediaId) {
                         nextMediaId = entry.id;
                     }
                 }
                 lastAlbumEntry = entry;
             }
-            this.ngZone.run(() => {
-                this.previousMediaId = previousMediaId;
-                this.nextMediaId = nextMediaId;
-                this.imageSlider.lockSwipeToNext(nextMediaId === undefined);
-                this.imageSlider.lockSwipeToPrev(previousMediaId === undefined);
+
+            const previousMetadataPromise: Promise<AlbumEntryMetadata> = previousMediaId !== undefined ?
+                this.serverApi.query(this.albumEntryDetailGQL, {
+                    albumId: this.albumId,
+                    entryId: previousMediaId
+                }).then(result => result.albumById.albumEntry)
+                : Promise.resolve(undefined)
+            ;
+
+            const nextMetadataPromise: Promise<AlbumEntryMetadata> = nextMediaId !== undefined ?
+                this.serverApi.query(this.albumEntryDetailGQL, {
+                    albumId: this.albumId,
+                    entryId: nextMediaId
+                })
+                    .then(result => result.albumById.albumEntry)
+                : Promise.resolve(undefined)
+            ;
+            Promise.all([metadataPromise, previousMetadataPromise, nextMetadataPromise]).then(([metadata, prevMetadata, nextMetadata]) => {
+                this.ngZone.run(() => {
+
+                    this.mediaId = mediaId;
+                    this.metadata = metadata;
+                    this.location.replaceState(this.mediaPath(mediaId));
+
+                    this.previousMediaId = previousMediaId;
+                    this.previousMetadata = prevMetadata;
+
+                    this.nextMediaId = nextMediaId;
+                    this.nextMetadata = nextMetadata;
+
+                    this.imageSlider.lockSwipeToNext(false);
+                    this.imageSlider.lockSwipeToPrev(false);
+                    this.imageSlider.slideTo(1, 0, false);
+                    this.imageSlider.lockSwipeToNext(nextMediaId === undefined);
+                    this.imageSlider.lockSwipeToPrev(previousMediaId === undefined);
+                });
+
             });
         });
-        this.serverApi.query(this.albumEntryDetailGQL, {albumId: this.albumId, entryId: this.mediaId})
-            .then(result => this.ngZone.run(() => this.metadata = result.albumById.albumEntry))
-        ;
-    }
-
-    loadImage(mediaId: string): string {
-        return this.mediaResolver.lookupImage(this.albumId, mediaId, 3200);
-    }
-
-    showImage(mediaId: string) {
-        this.mediaId = mediaId;
-        this.nextMediaId = undefined;
-        this.previousMediaId = undefined;
-        this.location.replaceState(this.mediaPath(mediaId));
-        this.imageSlider.lockSwipeToNext(false);
-        this.imageSlider.lockSwipeToPrev(false);
-        this.imageSlider.slideTo(1, 0, false);
-        this.imageSlider.lockSwipeToNext(true);
-        this.imageSlider.lockSwipeToPrev(true);
-        this.updateMetadata();
     }
 
 
@@ -111,29 +132,29 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
 
-    async downloadCurrentFile() {
-        const imageBlob = await this.loadOriginal();
+    async downloadCurrentFile(entryId: string, metadata: AlbumEntryMetadata) {
+        const imageBlob = await this.loadOriginal(entryId);
         const a = document.createElement('a');
         const objectUrl = URL.createObjectURL(imageBlob);
         a.href = objectUrl;
-        const filename = this.metadata.name || 'original.jpg';
+        const filename = metadata.name || 'original.jpg';
         a.download = filename;
         a.click();
         a.remove();
         URL.revokeObjectURL(objectUrl);
     }
 
-    private async loadOriginal(): Promise<Blob> {
-        const src = this.mediaResolver.lookupOriginal(this.albumId, this.mediaId);
+    private async loadOriginal(entryId: string): Promise<Blob> {
+        const src = this.mediaResolver.lookupOriginal(this.albumId, entryId);
         console.log('src: ' + src);
         return await this.http.get(src, {responseType: 'blob'}).toPromise();
     }
 
-    async shareCurrentFile() {
-        const contentType = this.metadata.contentType || 'image/jpeg';
-        const filename = this.metadata.name || 'original.jpg';
-        const imageBlob = await this.loadOriginal();
-        const lastModified = Date.parse(this.metadata.created);
+    async shareCurrentFile(entryId: string, metadata: AlbumEntryMetadata) {
+        const contentType = metadata.contentType || 'image/jpeg';
+        const filename = metadata.name || 'original.jpg';
+        const imageBlob = await this.loadOriginal(entryId);
+        const lastModified = Date.parse(metadata.created);
         const file = new File([imageBlob], filename, {type: contentType, lastModified});
         const data = {
             title: filename,

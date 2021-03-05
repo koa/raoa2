@@ -34,6 +34,7 @@ export class AlbumPage implements OnInit {
     public albumId: string;
     public title: string;
     public rows: Array<TableRow> = [];
+    public days: string[] = [];
     public maxWidth = 8;
 
     @ViewChild('imageList') private element: ElementRef;
@@ -59,14 +60,14 @@ export class AlbumPage implements OnInit {
 
     async enterWait(): Promise<void> {
         const newCount = ++this.waitCount;
-        if (newCount === 1) {
+        if (newCount === 1 && this.loadingElement !== undefined) {
             await this.loadingElement.present();
         }
     }
 
     async leaveWait(): Promise<void> {
         const newCount = --this.waitCount;
-        if (newCount === 0) {
+        if (newCount === 0 && this.loadingElement !== undefined) {
             await this.loadingElement.remove();
         }
     }
