@@ -7,16 +7,17 @@
                     <ion-icon class="button" name="arrow-forward" (click)="showImage(this.mediaId)"></ion-icon>
                 </div>
                 <div class="left-actions">
-                    <ion-icon name="menu" (click)="openMenu()" class="button"></ion-icon>
                     <ion-icon (click)="back()" class="button" name="arrow-back"></ion-icon>
+                    <ion-icon name="menu" (click)="openMenu()" class="button"></ion-icon>
                 </div>
                 <div class="right-actions">
                     <ion-icon *ngIf="!supportShare" name="download-outline" class="button"
                               (click)="downloadCurrentFile(this.previousMediaId, this.previousMetadata)"></ion-icon>
                     <ion-icon *ngIf="supportShare" class="button" name="share-social-outline"
                               (click)="shareCurrentFile(this.previousMediaId, this.previousMetadata)"></ion-icon>
+                    <ion-icon name="information-circle-outline" class="button" (click)="toggleMetadata()"></ion-icon>
                 </div>
-                <div class="file-meta">
+                <div *ngIf="showMetadata" class="file-meta">
                     <ion-label *ngIf="previousMetadata?.name">
                         <ion-icon name="document"></ion-icon>
                         {{previousMetadata.name}}</ion-label>
@@ -58,16 +59,17 @@
                     <ion-icon class="button" name="arrow-forward" (click)="showImage(nextMediaId)"></ion-icon>
                 </div>
                 <div class="left-actions">
-                    <ion-icon name="menu" (click)="openMenu()" class="button"></ion-icon>
                     <ion-icon (click)="back()" class="button" name="arrow-back"></ion-icon>
+                    <ion-icon name="menu" (click)="openMenu()" class="button"></ion-icon>
                 </div>
                 <div class="right-actions">
                     <ion-icon *ngIf="!supportShare" name="download-outline" class="button"
                               (click)="downloadCurrentFile(mediaId, metadata)"></ion-icon>
                     <ion-icon *ngIf="supportShare" class="button" name="share-social-outline"
                               (click)="shareCurrentFile(mediaId, metadata)"></ion-icon>
+                    <ion-icon name="information-circle-outline" class="button" (click)="toggleMetadata()"></ion-icon>
                 </div>
-                <div class="file-meta">
+                <div *ngIf="showMetadata" class="file-meta">
                     <ion-label *ngIf="metadata?.name">
                         <ion-icon name="document"></ion-icon>
                         {{metadata.name}}</ion-label>
@@ -107,16 +109,17 @@
                 <ion-icon class="button" name="arrow-back" (click)="showImage(mediaId)"></ion-icon>
             </div>
             <div class="left-actions">
-                <ion-icon name="menu" (click)="openMenu()" class="button"></ion-icon>
                 <ion-icon (click)="back()" class="button" name="arrow-back"></ion-icon>
+                <ion-icon name="menu" (click)="openMenu()" class="button"></ion-icon>
             </div>
             <div class="right-actions">
                 <ion-icon *ngIf="!supportShare" name="download-outline" class="button"
                           (click)="downloadCurrentFile(nextMediaId, nextMetadata)"></ion-icon>
                 <ion-icon *ngIf="supportShare" class="button" name="share-social-outline"
                           (click)="shareCurrentFile(nextMediaId, nextMetadata)"></ion-icon>
+                <ion-icon name="information-circle-outline" class="button" (click)="toggleMetadata()"></ion-icon>
             </div>
-            <div class="file-meta">
+            <div *ngIf="showMetadata" class="file-meta">
                 <ion-label *ngIf="nextMetadata?.name">
                     <ion-icon name="document"></ion-icon>
                     {{nextMetadata.name}}</ion-label>

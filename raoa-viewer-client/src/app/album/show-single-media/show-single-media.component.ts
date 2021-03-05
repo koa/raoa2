@@ -29,6 +29,8 @@ export class ShowSingleMediaComponent implements OnInit {
     public metadata: AlbumEntryMetadata;
     public previousMetadata: AlbumEntryMetadata;
     public nextMetadata: AlbumEntryMetadata;
+    public boolean;
+    showMetadata = false;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
@@ -166,7 +168,6 @@ export class ShowSingleMediaComponent implements OnInit {
     private async loadOriginal(entryId: string): Promise<Blob> {
         const loadingOriginalIndicator = await this.loadingController.create({message: 'Original wird geladen...'});
         const src = this.mediaResolver.lookupOriginal(this.albumId, entryId);
-        console.log('src: ' + src);
         await loadingOriginalIndicator.present();
         return await this.http.get(src, {responseType: 'blob'}).toPromise().finally(() => {
             loadingOriginalIndicator.dismiss();
@@ -208,5 +209,9 @@ export class ShowSingleMediaComponent implements OnInit {
 
     openMenu() {
         this.menu.open();
+    }
+
+    toggleMetadata() {
+        this.showMetadata = !this.showMetadata;
     }
 }

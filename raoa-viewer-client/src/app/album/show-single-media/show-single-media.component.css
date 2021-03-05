@@ -50,17 +50,34 @@ ion-slide {
     align-items: center;
 }
 
+@media (pointer: coarse) {
+    .left-button {
+        visibility: hidden;
+    }
+
+    .right-button {
+        visibility: hidden;
+    }
+
+    ion-icon.button {
+        font-size: 4ex;
+    }
+}
+
 .right-actions {
     grid-column: 3;
     grid-row: 1;
     display: flex;
-    justify-content: flex-end;
+    align-items: flex-end;
+    flex-direction: column;
+    /*justify-content: flex-end;*/
 }
 
 .left-actions {
     grid-column: 1;
     grid-row: 1;
     display: flex;
+    flex-direction: column;
     justify-content: flex-start;
 }
 
@@ -80,7 +97,7 @@ ion-slide {
     white-space: nowrap;
 }
 
-ion-icon.button {
+.button {
     font-size: 3ex;
     color: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(0.3em);
