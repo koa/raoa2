@@ -18,6 +18,7 @@ type AlbumEntryType =
     styleUrls: ['./album.page.css'],
 })
 export class AlbumPage implements OnInit {
+    private loadingElement: HTMLIonLoadingElement;
 
 
     constructor(private activatedRoute: ActivatedRoute, private serverApi: ServerApiService,
@@ -41,7 +42,6 @@ export class AlbumPage implements OnInit {
     public elementWidth = 10;
 
     private sortedEntries: AlbumEntryType[] = [];
-    private loadingElement: HTMLIonLoadingElement;
     private waitCount = 0;
 
     public async resized() {
@@ -60,21 +60,29 @@ export class AlbumPage implements OnInit {
 
     async enterWait(): Promise<void> {
         const newCount = ++this.waitCount;
-        if (newCount === 1 && this.loadingElement !== undefined) {
-            await this.loadingElement.present();
+        if (newCount === 1 && this.loadingElement === undefined) {
+            const element = await this.loadingController.create({message: this.title ? ('Lade ' + this.title + ' ...') : 'Lade Album ...'});
+            await element.present();
+            if (this.waitCount === 0) {
+                await element.dismiss();
+            } else {
+                this.loadingElement = element;
+            }
         }
     }
 
     async leaveWait(): Promise<void> {
         const newCount = --this.waitCount;
-        if (newCount === 0 && this.loadingElement !== undefined) {
-            await this.loadingElement.remove();
+        if (newCount === 0) {
+            if (this.loadingElement !== undefined) {
+                await this.loadingElement.dismiss();
+                this.loadingElement = undefined;
+            }
         }
     }
 
     async ngOnInit() {
         this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
-        this.loadingElement = await this.loadingController.create();
         await this.enterWait();
         const result = await this.albumListService.listAlbum(this.albumId);
         await this.leaveWait();

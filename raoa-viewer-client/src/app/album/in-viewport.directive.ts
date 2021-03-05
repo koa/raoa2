@@ -1,4 +1,4 @@
-import {AfterViewInit, Directive, TemplateRef, ViewContainerRef} from '@angular/core';
+import {AfterViewInit, Directive, Input, TemplateRef, ViewContainerRef} from '@angular/core';
 
 
 @Directive({
@@ -6,6 +6,8 @@ import {AfterViewInit, Directive, TemplateRef, ViewContainerRef} from '@angular/
 })
 export class InViewportDirective implements AfterViewInit {
     alreadyRendered: boolean; // checking if visible already
+    private downlink = 1000;
+    private maxDownlinkSpeed: number;
 
     constructor(
         private vcRef: ViewContainerRef,
@@ -13,14 +15,23 @@ export class InViewportDirective implements AfterViewInit {
     ) {
     }
 
+    @Input() set appInViewport(maxSpeed: number) {
+        this.maxDownlinkSpeed = maxSpeed;
+    }
+
     ngAfterViewInit() {
+        const connection = (navigator as any).connection;
+        if (connection) {
+            this.downlink = connection.downlink;
+        }
+        const alwaysEnabled = (this.maxDownlinkSpeed !== undefined && this.downlink !== undefined && this.downlink > this.maxDownlinkSpeed);
         const commentEl = this.vcRef.element.nativeElement; // template
         const elToObserve = commentEl.parentElement;
         this.setMinWidthHeight(elToObserve);
 
         const observer = new IntersectionObserver(entries => {
             entries.forEach(entry => {
-                this.renderContents(entry.isIntersecting);
+                this.renderContents(alwaysEnabled || entry.isIntersecting);
             });
         }, {threshold: [0, .1, .9, 1]});
         observer.observe(elToObserve);

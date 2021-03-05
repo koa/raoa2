@@ -3,7 +3,7 @@ import {ActivatedRoute} from '@angular/router';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {AlbumListService, QueryAlbumEntry} from '../service/album-list.service';
 import {Location} from '@angular/common';
-import {IonSlides, MenuController} from '@ionic/angular';
+import {IonSlides, LoadingController, MenuController} from '@ionic/angular';
 import {HttpClient} from '@angular/common/http';
 import {AlbumEntry, AlbumEntryDetailGQL} from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
@@ -38,7 +38,8 @@ export class ShowSingleMediaComponent implements OnInit {
                 private http: HttpClient,
                 private serverApi: ServerApiService,
                 private albumEntryDetailGQL: AlbumEntryDetailGQL,
-                private menu: MenuController
+                private menu: MenuController,
+                private loadingController: LoadingController
     ) {
         let hackNavi: any;
         hackNavi = window.navigator;
@@ -47,17 +48,33 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
 
-    ngOnInit() {
+    public async ngOnInit(): Promise<void> {
+
         this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
         this.mediaId = this.activatedRoute.snapshot.paramMap.get('mediaId');
-        this.showImage(this.mediaId);
+        await this.showImage(this.mediaId);
     }
 
     loadImage(mediaId: string): string {
+        if (mediaId === undefined) {
+            return '/assets/icon/favicon.ico';
+        }
         return this.mediaResolver.lookupImage(this.albumId, mediaId, 3200);
     }
 
-    showImage(mediaId: string) {
+    async showImage(mediaId: string) {
+        let waitIndicator;
+        const waitTimeoutHandler = window.setTimeout(() => {
+            this.loadingController.create({
+                cssClass: 'transparent-spinner',
+                message: 'Daten werden geladen...',
+                translucent: true
+            }).then(ind => {
+                waitIndicator = ind;
+                ind.present();
+            });
+        }, 500);
+
         const metadataPromise = this.serverApi.query(this.albumEntryDetailGQL, {albumId: this.albumId, entryId: mediaId})
             .then(result => result.albumById.albumEntry);
 
@@ -92,26 +109,29 @@ export class ShowSingleMediaComponent implements OnInit {
                     .then(result => result.albumById.albumEntry)
                 : Promise.resolve(undefined)
             ;
-            Promise.all([metadataPromise, previousMetadataPromise, nextMetadataPromise]).then(([metadata, prevMetadata, nextMetadata]) => {
-                this.ngZone.run(() => {
+            metadataPromise.then(metadata => {
+                this.mediaId = mediaId;
+                this.metadata = metadata;
+                this.location.replaceState(this.mediaPath(mediaId));
 
-                    this.mediaId = mediaId;
-                    this.metadata = metadata;
-                    this.location.replaceState(this.mediaPath(mediaId));
+                this.previousMediaId = previousMediaId;
 
-                    this.previousMediaId = previousMediaId;
-                    this.previousMetadata = prevMetadata;
+                this.nextMediaId = nextMediaId;
 
-                    this.nextMediaId = nextMediaId;
-                    this.nextMetadata = nextMetadata;
-
-                    this.imageSlider.lockSwipeToNext(false);
-                    this.imageSlider.lockSwipeToPrev(false);
-                    this.imageSlider.slideTo(1, 0, false);
-                    this.imageSlider.lockSwipeToNext(nextMediaId === undefined);
-                    this.imageSlider.lockSwipeToPrev(previousMediaId === undefined);
-                });
-
+                this.imageSlider.lockSwipeToNext(false);
+                this.imageSlider.lockSwipeToPrev(false);
+                this.imageSlider.slideTo(1, 0, false);
+                this.imageSlider.lockSwipeToNext(nextMediaId === undefined);
+                this.imageSlider.lockSwipeToPrev(previousMediaId === undefined);
+                window.clearTimeout(waitTimeoutHandler);
+                if (waitIndicator !== undefined) {
+                    return waitIndicator.dismiss();
+                }
+                return Promise.resolve();
+            });
+            Promise.all([previousMetadataPromise, nextMetadataPromise]).then(([prevMetadata, nextMetadata]) => {
+                this.previousMetadata = prevMetadata;
+                this.nextMetadata = nextMetadata;
             });
         });
     }
@@ -137,23 +157,27 @@ export class ShowSingleMediaComponent implements OnInit {
         const a = document.createElement('a');
         const objectUrl = URL.createObjectURL(imageBlob);
         a.href = objectUrl;
-        const filename = metadata.name || 'original.jpg';
-        a.download = filename;
+        a.download = metadata.name || 'original.jpg';
         a.click();
         a.remove();
         URL.revokeObjectURL(objectUrl);
     }
 
     private async loadOriginal(entryId: string): Promise<Blob> {
+        const loadingOriginalIndicator = await this.loadingController.create({message: 'Original wird geladen...'});
         const src = this.mediaResolver.lookupOriginal(this.albumId, entryId);
         console.log('src: ' + src);
-        return await this.http.get(src, {responseType: 'blob'}).toPromise();
+        await loadingOriginalIndicator.present();
+        return await this.http.get(src, {responseType: 'blob'}).toPromise().finally(() => {
+            loadingOriginalIndicator.dismiss();
+        });
     }
 
     async shareCurrentFile(entryId: string, metadata: AlbumEntryMetadata) {
         const contentType = metadata.contentType || 'image/jpeg';
         const filename = metadata.name || 'original.jpg';
         const imageBlob = await this.loadOriginal(entryId);
+        console.log('image loaded');
         const lastModified = Date.parse(metadata.created);
         const file = new File([imageBlob], filename, {type: contentType, lastModified});
         const data = {
@@ -163,7 +187,11 @@ export class ShowSingleMediaComponent implements OnInit {
         };
         console.log('Data: ');
         console.log(data);
-        await navigator.share(data);
+        await navigator.share(data).catch(error => {
+            console.log('Share error');
+            console.log(error.class);
+            console.log(error);
+        });
     }
 
     back() {

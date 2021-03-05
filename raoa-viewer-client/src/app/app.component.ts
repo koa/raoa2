@@ -9,7 +9,7 @@ import {CommonServerApiService, MenuEntry} from './service/common-server-api.ser
 @Component({
     selector: 'app-root',
     templateUrl: 'app.component.html',
-    styleUrls: ['app.component.scss']
+    styleUrls: ['app.component.css']
 })
 export class AppComponent implements OnInit {
     public selectedCollectionIndex = -1;

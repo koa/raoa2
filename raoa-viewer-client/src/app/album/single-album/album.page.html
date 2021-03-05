@@ -17,7 +17,7 @@
                 <div *appInViewport>
                     <div *ngFor="let blockPart of row.blocks"
                          [ngStyle]="{'height.px':(elementWidth/blockPart.width), 'width.%':100}">
-                        <div class="image-row">
+                        <div *appInViewport="8" class="image-row">
                             <div *ngFor="let shape of blockPart.shapes"
                                  [ngStyle]="{'height.px':(elementWidth/blockPart.width),'width.px':elementWidth/blockPart.width*shape.width}">
                                 <a [routerLink]="'/album/'+albumId+'/media/'+shape.entry.id">

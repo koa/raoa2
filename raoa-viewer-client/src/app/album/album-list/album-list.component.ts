@@ -10,7 +10,6 @@ import {LoadingController} from '@ionic/angular';
 })
 export class AlbumListComponent implements OnInit {
     private photoCollectionFilter: string;
-    private loadingElement: HTMLIonLoadingElement;
     public foundAlbums: MenuEntry[];
 
     constructor(private commonServerApi: CommonServerApiService,
@@ -20,7 +19,6 @@ export class AlbumListComponent implements OnInit {
     }
 
     async ngOnInit() {
-        this.loadingElement = await this.loadingController.create();
         await this.updatePhotoCollectionList();
     }
 
@@ -30,11 +28,12 @@ export class AlbumListComponent implements OnInit {
     }
 
     private async updatePhotoCollectionList() {
-        await this.loadingElement.present();
+        const loadingElement = await this.loadingController.create({message: 'Daten werden geladen...'});
+        await loadingElement.present();
         const entries = await this.commonServerApi.listCollections(this.photoCollectionFilter);
         this.ngZone.run(() => {
             this.foundAlbums = entries;
-            this.loadingElement.remove();
+            loadingElement.dismiss();
         });
     }
 
