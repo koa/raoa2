@@ -34,6 +34,8 @@ input CredentialUpgrade{
 input SingleGroupMembershipUpdate {
     userId: ID!
     groupId: ID!
+    from: DateTime
+    until: DateTime
     isMember: Boolean!
 }
 
@@ -80,8 +82,14 @@ type User{
     newestAlbumCanAccess: Album
     info: UserInfo
     authentications: [AuthenticationId]
-    groups: [Group]
+    groups: [GroupMembership]
     canManageUsers: Boolean
+}
+
+type GroupMembership {
+    group: Group!
+    from: DateTime
+    until: DateTime
 }
 
 type Group {

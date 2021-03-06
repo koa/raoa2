@@ -12,6 +12,7 @@ import {AngularResizedEventModule} from 'angular-resize-event';
 import {InViewportDirective} from './in-viewport.directive';
 import {ShowSingleMediaComponent} from './show-single-media/show-single-media.component';
 import {AlbumListComponent} from './album-list/album-list.component';
+import {ManageAlbumComponent} from './manage-album/manage-album.component';
 
 @NgModule({
     imports: [
@@ -21,7 +22,7 @@ import {AlbumListComponent} from './album-list/album-list.component';
         AlbumPageRoutingModule,
         AngularResizedEventModule
     ],
-    declarations: [AlbumPage, AuthImagePipe, InViewportDirective, ShowSingleMediaComponent, AlbumListComponent],
+    declarations: [AlbumPage, AuthImagePipe, InViewportDirective, ShowSingleMediaComponent, AlbumListComponent, ManageAlbumComponent],
     exports: [
         AuthImagePipe
     ]

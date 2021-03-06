@@ -2,12 +2,13 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
 import ch.bergturbenthal.raoa.elastic.model.AlbumData;
 import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
-import ch.bergturbenthal.raoa.elastic.model.Group;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
+import ch.bergturbenthal.raoa.viewer.model.graphql.GroupMembershipReference;
 import ch.bergturbenthal.raoa.viewer.model.graphql.GroupReference;
 import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
+import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
 import java.time.Instant;
@@ -24,9 +25,12 @@ import reactor.core.publisher.Mono;
 public class UserQuery implements GraphQLResolver<UserReference> {
   private static final Duration TIMEOUT = Duration.ofMinutes(5);
   private final DataViewService dataViewService;
+  private final AuthorizationManager authorizationManager;
 
-  public UserQuery(final DataViewService dataViewService) {
+  public UserQuery(
+      final DataViewService dataViewService, final AuthorizationManager authorizationManager) {
     this.dataViewService = dataViewService;
+    this.authorizationManager = authorizationManager;
   }
 
   public CompletableFuture<List<Album>> canAccess(UserReference user) {
@@ -41,19 +45,11 @@ public class UserQuery implements GraphQLResolver<UserReference> {
     if (!canShowUserDetails(user)) {
       return Flux.empty();
     }
+
     return dataViewService
         .findUserById(user.getId())
         // .log("user")
-        .flatMapMany(
-            u ->
-                u.isSuperuser()
-                    ? dataViewService.listAlbums()
-                    : Flux.merge(
-                            Flux.fromIterable(u.getGroupMembership())
-                                .flatMap(dataViewService::findGroupById)
-                                .flatMapIterable(Group::getVisibleAlbums),
-                            Flux.fromIterable(u.getVisibleAlbums()))
-                        .flatMap(dataViewService::readAlbum));
+        .flatMapMany(authorizationManager::findVisibleAlbumsOfUser);
   }
 
   public CompletableFuture<Album> newestAlbumCanAccess(UserReference user) {
@@ -108,15 +104,23 @@ public class UserQuery implements GraphQLResolver<UserReference> {
     return CompletableFuture.completedFuture(Collections.emptyList());
   }
 
-  public CompletableFuture<List<GroupReference>> groups(UserReference user) {
+  public CompletableFuture<List<GroupMembershipReference>> groups(UserReference user) {
     if (canShowUserDetails(user)) {
       return dataViewService
           .findUserById(user.getId())
           .flatMapIterable(User::getGroupMembership)
           .map(
-              groupId ->
-                  new GroupReference(
-                      groupId, user.getContext(), dataViewService.findGroupById(groupId).cache()))
+              membership -> {
+                final GroupReference groupReference =
+                    new GroupReference(
+                        membership.getGroup(),
+                        user.getContext(),
+                        dataViewService.findGroupById(membership.getGroup()).cache());
+                return new GroupMembershipReference(
+                    membership.getFrom().orElse(null),
+                    membership.getUntil().orElse(null),
+                    groupReference);
+              })
           .collectList()
           .timeout(TIMEOUT)
           .toFuture();

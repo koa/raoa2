@@ -32,6 +32,8 @@ import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
+import org.springframework.data.elasticsearch.core.IndexOperations;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import org.springframework.stereotype.Service;
@@ -85,6 +87,7 @@ public class ElasticSearchDataViewService implements DataViewService {
       Executors.newFixedThreadPool(3, new CustomizableThreadFactory("elastic-data-view"));
   private final Map<UUID, Mono<User>> userCache = Collections.synchronizedMap(new LRUMap<>(20));
   private final Map<UUID, Mono<Group>> groupCache = Collections.synchronizedMap(new LRUMap<>(200));
+  private final ElasticsearchRestTemplate elasticsearchTemplate;
 
   public ElasticSearchDataViewService(
       final AlbumDataRepository albumDataRepository,
@@ -94,7 +97,8 @@ public class ElasticSearchDataViewService implements DataViewService {
       final UserRepository userRepository,
       final GroupRepository groupRepository,
       final AccessRequestRepository accessRequestRepository,
-      final UserManager userManager) {
+      final UserManager userManager,
+      final ElasticsearchRestTemplate elasticsearchTemplate) {
     this.albumDataRepository = albumDataRepository;
     this.albumDataEntryRepository = albumDataEntryRepository;
     this.albumList = albumList;
@@ -103,6 +107,7 @@ public class ElasticSearchDataViewService implements DataViewService {
     this.groupRepository = groupRepository;
     this.accessRequestRepository = accessRequestRepository;
     this.userManager = userManager;
+    this.elasticsearchTemplate = elasticsearchTemplate;
   }
 
   private static Optional<Integer> extractTargetWidth(final Metadata m) {
@@ -199,6 +204,8 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   // @Scheduled(fixedDelay = 5 * 60 * 1000, initialDelay = 2 * 1000)
   public void doUpdateUserData() {
+    createIndexIfMissing(Group.class);
+    createIndexIfMissing(User.class);
     updateUserData().block();
   }
 
@@ -253,6 +260,13 @@ public class ElasticSearchDataViewService implements DataViewService {
                 .flatMap(groupRepository::deleteById)
                 .then())
         .then();
+  }
+
+  private void createIndexIfMissing(final Class<?> clazz) {
+    final IndexOperations indexOperations = elasticsearchTemplate.indexOps(clazz);
+    if (!indexOperations.exists()) {
+      indexOperations.create();
+    }
   }
 
   @Override

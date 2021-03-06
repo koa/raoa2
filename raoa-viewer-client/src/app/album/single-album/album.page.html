@@ -2,7 +2,9 @@
     <ion-toolbar>
         <ion-title>
             <ion-icon (click)="back()" name="arrow-back"></ion-icon>
-            {{title}}</ion-title>
+            <span>{{title}}</span>
+            <ion-icon *ngIf="enableSettings" name="settings" [routerLink]="'/album/'+albumId+'/manage'"></ion-icon>
+        </ion-title>
     </ion-toolbar>
 </ion-header>
 

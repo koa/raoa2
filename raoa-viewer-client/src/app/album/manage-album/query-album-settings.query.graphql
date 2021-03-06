@@ -1,0 +1,23 @@
+query queryAlbumSettings($albumId: ID) {
+    albumById(id: $albumId){
+        name,
+        canAccessedByGroup{
+            id
+        }
+        canAccessedByUser{
+            id
+        }
+    }
+    listGroups{
+        id
+        name
+    }
+    listUsers{
+        id
+        info{
+            name
+            email
+            picture
+        }
+    }
+}

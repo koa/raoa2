@@ -45,6 +45,16 @@ public class Mutation implements GraphQLMutationResolver {
     this.dataViewService = dataViewService;
   }
 
+  @NotNull
+  private static Optional<Instant> filterEnd(final Optional<Instant> end) {
+    return end.filter(v -> !v.equals(Instant.MAX));
+  }
+
+  @NotNull
+  private static Optional<Instant> filterBegin(final Optional<Instant> begin) {
+    return begin.filter(v -> !v.equals(Instant.MIN));
+  }
+
   public CompletableFuture<UserReference> createUser(AuthenticationId authenticationId) {
     return queryContextSupplier
         .createContext()
@@ -132,27 +142,115 @@ public class Mutation implements GraphQLMutationResolver {
               }
               for (SingleGroupMembershipUpdate groupMembershipUpdate :
                   update.getGroupMembershipUpdates()) {
+                final Function<User, User> updateFunction;
+                final UUID groupId = groupMembershipUpdate.getGroupId();
+                updateFunction =
+                    groupMembershipUpdate.isMember()
+                        ? (user -> {
+                          final GroupMembership newMembership =
+                              GroupMembership.builder()
+                                  .group(groupId)
+                                  .from(Optional.ofNullable(groupMembershipUpdate.getFrom()))
+                                  .until(Optional.ofNullable(groupMembershipUpdate.getUntil()))
+                                  .build();
+                          Map<UUID, List<GroupMembership>> openMemberships = new HashMap<>();
+                          Set<GroupMembership> resultingMemberships = new HashSet<>();
+                          Stream.concat(
+                                  user.getGroupMembership().stream(), Stream.of(newMembership))
+                              .sorted(Comparator.comparing(m -> m.getFrom().orElse(Instant.MIN)))
+                              .forEach(
+                                  groupMembership -> {
+                                    final UUID group = groupMembership.getGroup();
+                                    final List<GroupMembership> membershipList =
+                                        openMemberships.computeIfAbsent(
+                                            group, k -> new ArrayList<>());
+                                    final Optional<Instant> endOfList =
+                                        findEndOfList(membershipList);
+                                    final Optional<Instant> beginOfList =
+                                        findBeginOfList(membershipList);
+                                    final Instant entryStart =
+                                        groupMembership.getFrom().orElse(Instant.MIN);
+                                    if (endOfList.isPresent() && beginOfList.isPresent()) {
+                                      Instant windowStart = beginOfList.get();
+                                      Instant windowEnd = endOfList.get();
+                                      if (entryStart.isAfter(windowEnd)) {
+                                        resultingMemberships.add(
+                                            GroupMembership.builder()
+                                                .group(group)
+                                                .from(filterBegin(Optional.of(windowStart)))
+                                                .until(filterEnd(Optional.of(windowEnd)))
+                                                .build());
+                                        membershipList.clear();
+                                      } else {
+                                        membershipList.add(groupMembership);
+                                      }
+                                    } else membershipList.add(groupMembership);
+                                  });
+                          openMemberships.forEach(
+                              (group, membershipList) -> {
+                                if (membershipList.isEmpty()) return;
+                                final Optional<Instant> beginOfList =
+                                    filterBegin(findBeginOfList(membershipList));
+                                final Optional<Instant> endOfList =
+                                    filterEnd(findEndOfList(membershipList));
+                                resultingMemberships.add(
+                                    GroupMembership.builder()
+                                        .group(group)
+                                        .from(beginOfList)
+                                        .until(endOfList)
+                                        .build());
+                              });
+
+                          return user.toBuilder().groupMembership(resultingMemberships).build();
+                        })
+                        : (user -> {
+                          final Instant timeWindowBegin =
+                              Optional.ofNullable(groupMembershipUpdate.getFrom())
+                                  .orElse(Instant.MIN);
+                          final Instant timeWindowEnd =
+                              Optional.ofNullable(groupMembershipUpdate.getUntil())
+                                  .orElse(Instant.MAX);
+                          return user.toBuilder()
+                              .groupMembership(
+                                  user.getGroupMembership().stream()
+                                      .flatMap(
+                                          existingMembership -> {
+                                            if (!existingMembership.getGroup().equals(groupId))
+                                              return Stream.of(existingMembership);
+                                            final Instant membershipBegin =
+                                                existingMembership.getFrom().orElse(Instant.MIN);
+                                            final Instant membershipEnd =
+                                                existingMembership.getUntil().orElse(Instant.MAX);
+                                            if (membershipEnd.isBefore(timeWindowBegin)
+                                                || membershipBegin.isAfter(timeWindowEnd))
+                                              return Stream.of(existingMembership);
+                                            final Stream.Builder<GroupMembership>
+                                                remainingSlicesBuilder = Stream.builder();
+                                            if (membershipBegin.isBefore(timeWindowBegin)) {
+                                              remainingSlicesBuilder.add(
+                                                  GroupMembership.builder()
+                                                      .group(groupId)
+                                                      .from(
+                                                          filterBegin(Optional.of(membershipBegin)))
+                                                      .until(
+                                                          filterEnd(Optional.of(timeWindowBegin)))
+                                                      .build());
+                                            }
+                                            if (membershipEnd.isAfter(timeWindowEnd)) {
+                                              remainingSlicesBuilder.add(
+                                                  GroupMembership.builder()
+                                                      .group(groupId)
+                                                      .from(filterBegin(Optional.of(timeWindowEnd)))
+                                                      .until(filterEnd(Optional.of(membershipEnd)))
+                                                      .build());
+                                            }
+                                            return remainingSlicesBuilder.build();
+                                          })
+                                      .collect(Collectors.toSet()))
+                              .build();
+                        });
                 userMutations.compute(
-                    groupMembershipUpdate.getUserId(),
-                    mergeFunction(
-                        groupMembershipUpdate.isMember()
-                            ? (user ->
-                                user.toBuilder()
-                                    .groupMembership(
-                                        Stream.concat(
-                                                user.getGroupMembership().stream(),
-                                                Stream.of(groupMembershipUpdate.getGroupId()))
-                                            .collect(Collectors.toSet()))
-                                    .build())
-                            : (user ->
-                                user.toBuilder()
-                                    .groupMembership(
-                                        user.getGroupMembership().stream()
-                                            .filter(
-                                                gid ->
-                                                    !groupMembershipUpdate.getGroupId().equals(gid))
-                                            .collect(Collectors.toSet()))
-                                    .build())));
+                    groupMembershipUpdate.getUserId(), mergeFunction(updateFunction));
               }
               Map<UUID, Function<Group, Group>> groupMutations = new HashMap<>();
               for (SingleGroupUpdate groupUpdate : update.getGroupUpdates()) {
@@ -213,7 +311,23 @@ public class Mutation implements GraphQLMutationResolver {
   }
 
   @NotNull
-  public <K, V> BiFunction<K, Function<V, V>, Function<V, V>> mergeFunction(
+  private static Optional<Instant> findBeginOfList(final List<GroupMembership> membershipList) {
+    return membershipList.stream()
+        .map(GroupMembership::getUntil)
+        .map(o -> o.orElse(Instant.MIN))
+        .min(Comparator.naturalOrder());
+  }
+
+  @NotNull
+  private static Optional<Instant> findEndOfList(final List<GroupMembership> membershipList) {
+    return membershipList.stream()
+        .map(GroupMembership::getUntil)
+        .map(o -> o.orElse(Instant.MAX))
+        .max(Comparator.naturalOrder());
+  }
+
+  @NotNull
+  private static <K, V> BiFunction<K, Function<V, V>, Function<V, V>> mergeFunction(
       final Function<V, V> updateFunction) {
     return (id, existingFunction) -> {
       if (existingFunction == null) return updateFunction;

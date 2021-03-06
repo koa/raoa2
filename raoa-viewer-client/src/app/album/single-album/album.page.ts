@@ -43,6 +43,7 @@ export class AlbumPage implements OnInit {
 
     private sortedEntries: AlbumEntryType[] = [];
     private waitCount = 0;
+    public enableSettings = false;
 
     public async resized() {
         if (this.elementWidth === this.element.nativeElement.clientWidth) {
@@ -89,6 +90,7 @@ export class AlbumPage implements OnInit {
         this.ngZone.run(() => {
             this.title = result.title;
             this.sortedEntries = result.sortedEntries;
+            this.enableSettings = result.canManageUsers;
             this.calculateRows();
         });
     }

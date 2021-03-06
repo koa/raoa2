@@ -1,17 +1,12 @@
 package ch.bergturbenthal.raoa.viewer.service.impl;
 
-import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
-import ch.bergturbenthal.raoa.elastic.model.Group;
-import ch.bergturbenthal.raoa.elastic.model.PersonalUserData;
-import ch.bergturbenthal.raoa.elastic.model.User;
+import ch.bergturbenthal.raoa.elastic.model.*;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import java.time.Duration;
-import java.util.Comparator;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.time.Instant;
+import java.util.*;
 import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.security.core.Authentication;
@@ -46,6 +41,12 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
             .map(Tuple2::getT2)
             .cache(Duration.ofMinutes(5));
     this.dataViewService = dataViewService;
+  }
+
+  private static boolean membershipMatches(
+      final GroupMembership groupMembership, final Instant createTime) {
+    return groupMembership.getFrom().map(from -> from.isBefore(createTime)).orElse(true)
+        && groupMembership.getUntil().map(until -> until.isAfter(createTime)).orElse(true);
   }
 
   @Override
@@ -86,19 +87,50 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   }
 
   @Override
+  public Flux<AlbumData> findVisibleAlbumsOfUser(User user) {
+    final Set<UUID> directVisibleAlbums = user.getVisibleAlbums();
+    return dataViewService
+        .listAlbums()
+        .filterWhen(
+            album -> {
+              if (user.isSuperuser() || directVisibleAlbums.contains(album.getRepositoryId()))
+                return Mono.just(true);
+              final Instant createTime = album.getCreateTime();
+              return Flux.fromIterable(user.getGroupMembership())
+                  .filter(groupMembership -> membershipMatches(groupMembership, createTime))
+                  .map(GroupMembership::getGroup)
+                  .flatMap(dataViewService::findGroupById)
+                  .any(g -> g.getVisibleAlbums().contains(album.getRepositoryId()));
+            });
+  }
+
+  @Override
   public Mono<Boolean> canUserAccessToAlbum(final SecurityContext context, final UUID album) {
     final Mono<Boolean> isLatestAlbum = latestAlbum.map(album::equals);
     final Mono<User> currentUser = currentUser(context);
     final Mono<Boolean> canAccessAlbum =
         currentUser
             .flatMap(
-                u ->
-                    u.isSuperuser() || u.getVisibleAlbums().contains(album)
-                        ? Mono.just(true)
-                        : Flux.fromIterable(u.getGroupMembership())
-                            .flatMap(dataViewService::findGroupById)
-                            .map(Group::getVisibleAlbums)
-                            .any(ids -> ids.contains(album)))
+                u -> {
+                  if (u.isSuperuser() || u.getVisibleAlbums().contains(album))
+                    return Mono.just(true);
+
+                  final Mono<Instant> createAlbumTimeMono =
+                      dataViewService.readAlbum(album).map(AlbumData::getCreateTime).cache();
+                  return Flux.fromIterable(u.getGroupMembership())
+                      .flatMap(
+                          groupMembership ->
+                              dataViewService
+                                  .findGroupById(groupMembership.getGroup())
+                                  .filterWhen(
+                                      group ->
+                                          createAlbumTimeMono.map(
+                                              createAlbumTime ->
+                                                  membershipMatches(
+                                                      groupMembership, createAlbumTime))))
+                      .flatMapIterable(Group::getVisibleAlbums)
+                      .any(album::equals);
+                })
             .defaultIfEmpty(false);
     return Mono.zip(canAccessAlbum, isLatestAlbum).map(t -> t.getT1() || t.getT2())
     // .log("can access " + album)

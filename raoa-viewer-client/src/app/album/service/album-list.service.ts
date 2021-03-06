@@ -13,6 +13,7 @@ type AlbumListResult = Maybe<{ __typename?: 'Query' } &
 export interface AlbumData {
     title: string | null;
     sortedEntries: (QueryAlbumEntry)[];
+    canManageUsers: boolean;
 }
 
 @Injectable({
@@ -38,7 +39,7 @@ export class AlbumListService {
                     const c2 = e2?.created;
                     return c1 === c2 ? e1.name.localeCompare(e2.name) : c1 === null || c1 === undefined ? 1 : c1.localeCompare(c2);
                 });
-            const result = {title, sortedEntries};
+            const result = {title, sortedEntries, canManageUsers: content.currentUser.canManageUsers};
             this.lastAlbumId = albumId;
             this.lastResult = result;
             return result;

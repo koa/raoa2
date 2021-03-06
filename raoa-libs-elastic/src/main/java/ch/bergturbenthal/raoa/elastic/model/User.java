@@ -21,8 +21,8 @@ public class User {
   @Field(type = FieldType.Keyword)
   Set<UUID> visibleAlbums;
 
-  @Field(type = FieldType.Keyword)
-  Set<UUID> groupMembership;
+  @Field(type = FieldType.Object)
+  Set<GroupMembership> groupMembership;
 
   @Field(type = FieldType.Object)
   Set<AuthenticationId> authentications;
