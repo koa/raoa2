@@ -117,9 +117,7 @@ public class UserQuery implements GraphQLResolver<UserReference> {
                         user.getContext(),
                         dataViewService.findGroupById(membership.getGroup()).cache());
                 return new GroupMembershipReference(
-                    membership.getFrom().orElse(null),
-                    membership.getUntil().orElse(null),
-                    groupReference);
+                    membership.getFrom(), membership.getUntil(), groupReference);
               })
           .collectList()
           .timeout(TIMEOUT)

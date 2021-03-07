@@ -2,13 +2,12 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
 import ch.bergturbenthal.raoa.elastic.model.Group;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
-import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
-import ch.bergturbenthal.raoa.viewer.model.graphql.GroupReference;
-import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
+import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -37,12 +36,35 @@ public class GroupQuery implements GraphQLResolver<GroupReference> {
         .toFuture();
   }
 
-  public CompletableFuture<List<UserReference>> members(GroupReference groupReference) {
+  public CompletableFuture<List<UserMembershipReference>> members(GroupReference groupReference) {
     return dataViewService
         .listUsers()
-        .filter(u -> u.getGroupMembership().contains(groupReference.getId()))
-        .map(u -> new UserReference(u.getId(), u.getUserData(), groupReference.getContext()))
+        .flatMapIterable(
+            u ->
+                () ->
+                    u.getGroupMembership().stream()
+                        .filter(membership -> membership.getGroup().equals(groupReference.getId()))
+                        .map(
+                            membership ->
+                                new UserMembershipReference(
+                                    membership.getFrom(),
+                                    membership.getUntil(),
+                                    new UserReference(
+                                        u.getId(), u.getUserData(), groupReference.getContext())))
+                        .iterator())
         .collectList()
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<List<LabelValue>> labels(GroupReference groupReference) {
+    return groupReference
+        .getGroup()
+        .map(
+            g ->
+                g.getLabels().entrySet().stream()
+                    .map(e -> new LabelValue(e.getKey(), e.getValue()))
+                    .collect(Collectors.toList()))
         .timeout(TIMEOUT)
         .toFuture();
   }

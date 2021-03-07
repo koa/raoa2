@@ -1,0 +1,20 @@
+<super-tabs>
+    <super-tabs-toolbar>
+        <super-tab-button>
+            <ion-label>Gruppen</ion-label>
+        </super-tab-button>
+        <super-tab-button>
+            <ion-label>Alben</ion-label>
+        </super-tab-button>
+    </super-tabs-toolbar>
+    <super-tabs-container>
+        <super-tab>
+            <app-group-list-editor [selectedGroups]="selectedGroups" (valueChanged)="groupChanged($event)"></app-group-list-editor>
+        </super-tab>
+        <super-tab>
+        </super-tab>
+    </super-tabs-container>
+</super-tabs>
+<ion-footer>
+    <ion-button (click)="apply()">Speichern</ion-button>
+</ion-footer>

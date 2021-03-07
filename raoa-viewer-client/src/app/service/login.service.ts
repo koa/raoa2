@@ -75,4 +75,12 @@ export class LoginService {
         return authResponse.id_token;
     }
 
+    public async logout(): Promise<void> {
+        const [auth] = await Promise.all([this.auth()]);
+        auth.signOut();
+        auth.disconnect();
+        sessionStorage.removeItem('try_login');
+        location.reload();
+    }
+
 }

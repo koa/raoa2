@@ -1,12 +1,8 @@
 query AllAlbums{
-  listAlbums {
-    id,
-    name,
-    entryCount,
-    albumTime
-  }
-  currentUser{
-    canManageUsers
-  }
-  authenticationState
+    listAlbums {
+        id,
+        name,
+        entryCount,
+        albumTime
+    }
 }

@@ -1,4 +1,4 @@
-query AlbumContent($albumId: ID) {
+query AlbumContent($albumId: ID!) {
     albumById(id: $albumId){
         id
         name

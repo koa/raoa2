@@ -20,6 +20,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
@@ -111,6 +112,11 @@ public class GitUserManager implements UserManager {
                   .map(t -> group);
             })
         .flatMap(Function.identity());
+  }
+
+  @Override
+  public Mono<ObjectId> getMetaVersion() {
+    return metaIdMono.flatMap(albumList::getAlbum).flatMap(GitAccess::getCurrentVersion);
   }
 
   @NotNull
@@ -278,8 +284,8 @@ public class GitUserManager implements UserManager {
     final PathFilter filter = PathFilter.create(userFile);
 
     return loadUsers(filter)
-        .map(updater)
         .singleOrEmpty()
+        .map(updater)
         .flatMap(
             updatedUser ->
                 asyncService
@@ -302,15 +308,15 @@ public class GitUserManager implements UserManager {
     final String groupFile = createGroupFile(groupId);
     final PathFilter filter = PathFilter.create(groupFile);
     return loadGroup(filter)
-        .map(updater)
         .singleOrEmpty()
+        .map(updater)
         .flatMap(
             updatedGroup ->
                 asyncService
                     .asyncMono(
                         () -> {
                           final File tempFile = File.createTempFile(groupFile.toString(), "json");
-                          userWriter.writeValue(tempFile, updatedGroup);
+                          groupWriter.writeValue(tempFile, updatedGroup);
                           return tempFile;
                         })
                     .flatMap(

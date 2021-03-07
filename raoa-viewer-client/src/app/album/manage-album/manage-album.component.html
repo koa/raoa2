@@ -1,14 +1,60 @@
 <ion-header>
-    <ion-button>Gruppen</ion-button>
-    <ion-button>User</ion-button>
+    <ion-toolbar>
+        <ion-title>
+            <ion-icon (click)="back()" name="arrow-back"></ion-icon>
+            <span *ngIf="albumName">{{albumName}}</span>
+            <ion-button (click)="store()">Speichern</ion-button>
+        </ion-title>
+    </ion-toolbar>
 </ion-header>
-<ion-content>
-    <ion-slides>
-        <ion-slide>
-            Gruppen
-        </ion-slide>
-        <ion-slide>
-            User
-        </ion-slide>
-    </ion-slides>
-</ion-content>
+<super-tabs>
+    <super-tabs-toolbar>
+        <super-tab-button>
+            <ion-label>Gruppen</ion-label>
+        </super-tab-button>
+        <super-tab-button>
+            <ion-label>User</ion-label>
+        </super-tab-button>
+    </super-tabs-toolbar>
+    <super-tabs-container>
+        <super-tab>
+            <ion-header>
+                <ion-searchbar (ionChange)="searchGroup($event)"></ion-searchbar>
+            </ion-header>
+            <ion-content>
+                <ion-list>
+                    <ion-list-header>
+                        <ion-input [value]="newGroupName" (ionChange)="updateNewGroupName($event)"
+                                   (keyup.enter)="createNewGroup()"
+                                   placeholder="Gruppe hinzufügen"></ion-input>
+                        <ion-icon name="add-outline" *ngIf="newGroupName.length>0"
+                                  (click)="createNewGroup()"></ion-icon>
+                    </ion-list-header>
+                    <ion-item *ngFor="let group of filteredGroups">
+                        <ion-label>{{group.data.name}}</ion-label>
+                        <ion-checkbox [(ngModel)]="group.newSelected"></ion-checkbox>
+                    </ion-item>
+                </ion-list>
+            </ion-content>
+        </super-tab>
+        <super-tab>
+            <ion-header>
+                <ion-searchbar (ionChange)="searchUser($event)"></ion-searchbar>
+            </ion-header>
+            <ion-content>
+                <ion-list>
+                    <ion-card *ngFor="let user of filteredUsers">
+                        <img [src]="user.data.info.picture">
+                        <ion-card-header>
+                            <ion-card-title>{{user.data.info.name}}</ion-card-title>
+                            <ion-card-subtitle>{{user.data.info.email}}</ion-card-subtitle>
+                        </ion-card-header>
+                        <ion-card-content>
+                            <ion-checkbox [(ngModel)]="user.newSelected"></ion-checkbox>
+                        </ion-card-content>
+                    </ion-card>
+                </ion-list>
+            </ion-content>
+        </super-tab>
+    </super-tabs-container>
+</super-tabs>

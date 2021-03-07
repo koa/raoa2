@@ -80,7 +80,7 @@ public class Poller {
     this.meterRegistry = meterRegistry;
   }
 
-  @Scheduled(fixedDelay = 5 * 60 * 1000, initialDelay = 500)
+  @Scheduled(fixedDelay = 5 * 1000, initialDelay = 500)
   public void updateUsers() {
     try {
       elasticSearchDataViewService.updateUserData().block(Duration.ofMinutes(3));

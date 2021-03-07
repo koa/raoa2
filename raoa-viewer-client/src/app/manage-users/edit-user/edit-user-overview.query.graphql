@@ -1,0 +1,22 @@
+query editUserOverview($userid: ID!){
+    userById(id: $userid){
+        id
+        canManageUsers
+        info{
+            name
+            email
+            picture
+        }
+        groups{
+            from
+            until
+            group{
+                id
+            }
+        }
+    }
+    listGroups{
+        id
+        name
+    }
+}

@@ -94,23 +94,6 @@ public class QueryContextSupplier {
                 }
 
                 @Override
-                public boolean canAccessAlbum(final UUID albumId) {
-                  // log.info("can access " + albumId + " ?");
-                  final boolean isLatestAlbum =
-                      viewerProperties.isAlwaysShowLatestRepository()
-                          && latestAlbum.map(albumId::equals).orElse(false);
-                  final boolean b =
-                      isLatestAlbum
-                          || u.map(
-                                  user ->
-                                      user.isSuperuser()
-                                          || user.getVisibleAlbums().contains(albumId))
-                              .orElse(false);
-                  //                  log.info("Can access " + albumId + ": " + b);
-                  return b;
-                }
-
-                @Override
                 public RequestAttributes getRequestAttributes() {
                   return requestAttributes;
                 }

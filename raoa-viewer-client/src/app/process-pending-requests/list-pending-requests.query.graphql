@@ -1,0 +1,14 @@
+query ListPendingRequests{
+    listPendingRequests{
+        authenticationId{
+            authority
+            id
+        }
+        data{
+            email
+            name
+            picture
+        }
+        reason
+    }
+}

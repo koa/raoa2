@@ -11,6 +11,15 @@ const routes: Routes = [
     {
         path: 'album',
         loadChildren: () => import('./album/album.module').then(m => m.AlbumPageModule)
+    },
+    {
+        path: 'process-pending-requests',
+        loadChildren: () => import('./process-pending-requests/process-pending-requests.module')
+            .then(m => m.ProcessPendingRequestsPageModule)
+    },
+    {
+        path: 'manage-users',
+        loadChildren: () => import('./manage-users/manage-users.module').then(m => m.ManageUsersPageModule)
     }
 ];
 

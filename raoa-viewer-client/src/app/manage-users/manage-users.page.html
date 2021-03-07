@@ -1,0 +1,17 @@
+<ion-header>
+    <ion-toolbar>
+        <ion-title>Nutzer</ion-title>
+        <ion-searchbar (ionChange)="updateSearch($event)"></ion-searchbar>
+    </ion-toolbar>
+</ion-header>
+<ion-content>
+    <ion-list>
+        <ion-item *ngFor="let user of filteredUserList" [routerLink]="'user/'+user.id">
+            <ion-avatar><img [src]="user.info.picture"></ion-avatar>
+            <ion-label>
+                <h2>{{user.info.name}}</h2>
+                <h3>{{user.info.email}}</h3>
+            </ion-label>
+        </ion-item>
+    </ion-list>
+</ion-content>

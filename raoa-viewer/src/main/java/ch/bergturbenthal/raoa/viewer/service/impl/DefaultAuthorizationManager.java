@@ -45,8 +45,12 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
 
   private static boolean membershipMatches(
       final GroupMembership groupMembership, final Instant createTime) {
-    return groupMembership.getFrom().map(from -> from.isBefore(createTime)).orElse(true)
-        && groupMembership.getUntil().map(until -> until.isAfter(createTime)).orElse(true);
+    return Optional.ofNullable(groupMembership.getFrom())
+            .map(from -> from.isBefore(createTime))
+            .orElse(true)
+        && Optional.ofNullable(groupMembership.getUntil())
+            .map(until -> until.isAfter(createTime))
+            .orElse(true);
   }
 
   @Override

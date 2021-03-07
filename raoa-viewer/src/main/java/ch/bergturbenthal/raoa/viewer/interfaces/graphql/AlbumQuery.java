@@ -112,6 +112,7 @@ public class AlbumQuery implements GraphQLResolver<Album> {
     return dataViewService
         .listGroups()
         .filter(g -> context.canAccessGroup(g.getId()))
+        .filter(g -> g.getVisibleAlbums().contains(album.getId()))
         .map(group -> new GroupReference(group.getId(), context, Mono.just(group)))
         .collectList()
         .timeout(TIMEOUT)

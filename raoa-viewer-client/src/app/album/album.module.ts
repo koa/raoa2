@@ -13,6 +13,7 @@ import {InViewportDirective} from './in-viewport.directive';
 import {ShowSingleMediaComponent} from './show-single-media/show-single-media.component';
 import {AlbumListComponent} from './album-list/album-list.component';
 import {ManageAlbumComponent} from './manage-album/manage-album.component';
+import {SuperTabsModule} from '@ionic-super-tabs/angular';
 
 @NgModule({
     imports: [
@@ -20,7 +21,8 @@ import {ManageAlbumComponent} from './manage-album/manage-album.component';
         FormsModule,
         IonicModule,
         AlbumPageRoutingModule,
-        AngularResizedEventModule
+        AngularResizedEventModule,
+        SuperTabsModule
     ],
     declarations: [AlbumPage, AuthImagePipe, InViewportDirective, ShowSingleMediaComponent, AlbumListComponent, ManageAlbumComponent],
     exports: [

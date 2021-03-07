@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.elastic.model;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.Builder;
@@ -20,4 +21,7 @@ public class Group {
 
   @Field(type = FieldType.Keyword)
   Set<UUID> visibleAlbums;
+
+  @Field(type = FieldType.Object)
+  Map<String, String> labels;
 }

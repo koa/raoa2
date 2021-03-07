@@ -6,6 +6,7 @@ import ch.bergturbenthal.raoa.elastic.model.RequestAccess;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import java.util.UUID;
 import java.util.function.Function;
+import org.eclipse.jgit.lib.ObjectId;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -14,6 +15,8 @@ public interface UserManager {
   Mono<User> createNewUser(RequestAccess baseRequest);
 
   Mono<Group> createNewGroup(String groupName);
+
+  Mono<ObjectId> getMetaVersion();
 
   Mono<Boolean> removeUser(UUID id);
 

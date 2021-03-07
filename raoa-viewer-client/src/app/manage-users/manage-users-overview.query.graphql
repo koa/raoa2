@@ -1,0 +1,10 @@
+query ManageUsersOverview{
+    listUsers{
+        id
+        info{
+            name
+            email
+            picture
+        }
+    }
+}

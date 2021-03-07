@@ -5,7 +5,7 @@ import {ApolloLink, InMemoryCache} from '@apollo/client/core';
 import {setContext} from '@apollo/client/link/context';
 import {Maybe} from '../generated/graphql';
 import * as Apollo from 'apollo-angular';
-
+import {ToastController} from '@ionic/angular';
 
 
 @Injectable({
@@ -18,7 +18,8 @@ export class ServerApiService {
     constructor(
         apollo: Apollo.Apollo,
         httpLink: HttpLink,
-        private login: LoginService
+        private login: LoginService,
+        private toastController: ToastController
     ) {
         this.cache = new InMemoryCache({
             typePolicies: {
@@ -68,6 +69,43 @@ export class ServerApiService {
             }, error => {
                 reject(error);
             })
-        );
+        ).catch(error => {
+            this.toastController.create({
+                message: 'Error from server "' + error.message + '"',
+                duration: 10000,
+                color: 'danger'
+            }).then(e => e.present());
+            return null;
+        });
+    }
+
+    public async update<T, V>(mutation: Apollo.Mutation<T, V>, variables: V): Promise<Maybe<T>> {
+        if (!(await this.readyPromise)) {
+            return Promise.reject('Cannot init');
+        }
+        return new Promise<T>((resolve, reject) => {
+                return mutation.mutate(variables).subscribe(result => {
+                    if (result.data) {
+                        resolve(result.data);
+                    } else {
+                        reject(result.errors);
+                    }
+                }, error => {
+                    reject(error);
+                });
+            }
+        ).catch(error => {
+            this.toastController.create({
+                message: 'Error from server "' + error.message + '"',
+                duration: 10000,
+                color: 'danger'
+            }).then(e => e.present());
+            return null;
+        });
+
+    }
+
+    clear(): Promise<void> {
+        return this.cache.reset();
     }
 }

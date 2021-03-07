@@ -1,5 +1,6 @@
-query queryAlbumSettings($albumId: ID) {
+query queryAlbumSettings($albumId: ID!) {
     albumById(id: $albumId){
+        id,
         name,
         canAccessedByGroup{
             id

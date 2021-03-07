@@ -15,6 +15,7 @@ import localeDe from '@angular/common/locales/de';
 import localeFr from '@angular/common/locales/fr';
 import localeEn from '@angular/common/locales/en';
 import {WelcomeComponent} from './redirect-start/welcome.component';
+import {SuperTabsModule} from '@ionic-super-tabs/angular';
 
 registerLocaleData(localeDe, 'de');
 registerLocaleData(localeFr, 'fr');
@@ -28,7 +29,8 @@ registerLocaleData(localeEn, 'en');
         BrowserModule,
         IonicModule.forRoot(),
         AppRoutingModule,
-        HttpClientModule
+        HttpClientModule,
+        SuperTabsModule.forRoot()
     ],
     providers: [
         {provide: LOCALE_ID, useValue: 'de-CH'},

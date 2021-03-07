@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 import ch.bergturbenthal.raoa.elastic.model.AlbumData;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
+import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import com.coxautodev.graphql.tools.GraphQLQueryResolver;
 import java.time.Duration;
 import java.util.List;
@@ -19,17 +20,24 @@ public class Query implements GraphQLQueryResolver {
   private static final Duration TIMEOUT = Duration.ofMinutes(5);
   private final QueryContextSupplier queryContextSupplier;
   private final DataViewService dataViewService;
+  private final AuthorizationManager authorizationManager;
 
   public Query(
-      final QueryContextSupplier queryContextSupplier, final DataViewService dataViewService) {
+      final QueryContextSupplier queryContextSupplier,
+      final DataViewService dataViewService,
+      final AuthorizationManager authorizationManager) {
     this.queryContextSupplier = queryContextSupplier;
     this.dataViewService = dataViewService;
+    this.authorizationManager = authorizationManager;
   }
 
   public CompletableFuture<Album> getAlbumById(UUID albumId) {
     return queryContextSupplier
         .createContext()
-        .filter(q -> q.canAccessAlbum(albumId))
+        .filterWhen(
+            queryContext ->
+                authorizationManager.canUserAccessToAlbum(
+                    queryContext.getSecurityContext(), albumId))
         .map(c -> new Album(albumId, c, dataViewService.readAlbum(albumId).cache()))
         .timeout(TIMEOUT)
         .toFuture();
@@ -74,7 +82,10 @@ public class Query implements GraphQLQueryResolver {
                     .listAlbums()
                     // .log("album")
                     .map(AlbumData::getRepositoryId)
-                    .filter(queryContext::canAccessAlbum)
+                    .filterWhen(
+                        id ->
+                            authorizationManager.canUserAccessToAlbum(
+                                queryContext.getSecurityContext(), id))
                     .map(
                         albumId ->
                             new Album(
@@ -94,6 +105,19 @@ public class Query implements GraphQLQueryResolver {
                     .listUsers()
                     .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext))
                     .collectList())
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<UserReference> userById(UUID userid) {
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            queryContext ->
+                dataViewService
+                    .findUserById(userid)
+                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
         .timeout(TIMEOUT)
         .toFuture();
   }

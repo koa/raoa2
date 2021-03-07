@@ -18,6 +18,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -88,6 +89,7 @@ public class ElasticSearchDataViewService implements DataViewService {
   private final Map<UUID, Mono<User>> userCache = Collections.synchronizedMap(new LRUMap<>(20));
   private final Map<UUID, Mono<Group>> groupCache = Collections.synchronizedMap(new LRUMap<>(200));
   private final ElasticsearchRestTemplate elasticsearchTemplate;
+  private final AtomicReference<ObjectId> lastMetaVersion = new AtomicReference<>();
 
   public ElasticSearchDataViewService(
       final AlbumDataRepository albumDataRepository,
@@ -204,62 +206,78 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   // @Scheduled(fixedDelay = 5 * 60 * 1000, initialDelay = 2 * 1000)
   public void doUpdateUserData() {
-    createIndexIfMissing(Group.class);
-    createIndexIfMissing(User.class);
     updateUserData().block();
   }
 
   @Override
   public Mono<Void> updateUserData() {
-    return Flux.merge(
-            userRepository
-                .findAll()
-                .retryWhen(Retry.backoff(10, Duration.ofSeconds(20)))
-                .onErrorResume(
-                    ex -> {
-                      log.warn("Cannot load existing users", ex);
-                      return Flux.empty();
-                    })
-                .collectMap(User::getId, Function.identity())
-                .flatMap(
-                    (Map<UUID, User> existingUsers) ->
-                        userManager
-                            .listUsers()
-                            .flatMap(
-                                storedUser ->
-                                    Objects.equals(
-                                            existingUsers.get(storedUser.getId()), storedUser)
-                                        ? Mono.just(storedUser.getId())
-                                        : userRepository.save(storedUser).map(User::getId))
-                            .<Set<UUID>>collect(
-                                () -> new HashSet<>(existingUsers.keySet()), Set::remove))
-                .flatMapIterable(Function.identity())
-                .flatMap(userRepository::deleteById)
-                .then(),
-            groupRepository
-                .findAll()
-                .retryWhen(Retry.backoff(10, Duration.ofSeconds(20)))
-                .onErrorResume(
-                    ex -> {
-                      log.warn("Cannot load existing groups", ex);
-                      return Flux.empty();
-                    })
-                .collectMap(Group::getId, Function.identity())
-                .flatMap(
-                    existingGroups ->
-                        userManager
-                            .listGroups()
-                            .flatMap(
-                                storedGroup ->
-                                    Objects.equals(
-                                            existingGroups.get(storedGroup.getId()), storedGroup)
-                                        ? Mono.just(storedGroup.getId())
-                                        : groupRepository.save(storedGroup).map(Group::getId))
-                            .collect(() -> new HashSet<>(existingGroups.keySet()), Set::remove))
-                .flatMapIterable(Function.identity())
-                .flatMap(groupRepository::deleteById)
-                .then())
-        .then();
+    createIndexIfMissing(Group.class);
+    createIndexIfMissing(User.class);
+    return userManager
+        .getMetaVersion()
+        .flatMap(
+            version ->
+                Objects.equals(lastMetaVersion.get(), version)
+                    ? Mono.empty()
+                    : Flux.merge(
+                            userRepository
+                                .findAll()
+                                .retryWhen(Retry.backoff(10, Duration.ofSeconds(20)))
+                                .onErrorResume(
+                                    ex -> {
+                                      log.warn("Cannot load existing users", ex);
+                                      return Flux.empty();
+                                    })
+                                .collectMap(User::getId, Function.identity())
+                                .flatMap(
+                                    (Map<UUID, User> existingUsers) ->
+                                        userManager
+                                            .listUsers()
+                                            .flatMap(
+                                                storedUser ->
+                                                    Objects.equals(
+                                                            existingUsers.get(storedUser.getId()),
+                                                            storedUser)
+                                                        ? Mono.just(storedUser.getId())
+                                                        : userRepository
+                                                            .save(storedUser)
+                                                            .map(User::getId))
+                                            .<Set<UUID>>collect(
+                                                () -> new HashSet<>(existingUsers.keySet()),
+                                                Set::remove))
+                                .flatMapIterable(Function.identity())
+                                .flatMap(userRepository::deleteById)
+                                .then(),
+                            groupRepository
+                                .findAll()
+                                .retryWhen(Retry.backoff(10, Duration.ofSeconds(20)))
+                                .onErrorResume(
+                                    ex -> {
+                                      log.warn("Cannot load existing groups", ex);
+                                      return Flux.empty();
+                                    })
+                                .collectMap(Group::getId, Function.identity())
+                                .flatMap(
+                                    existingGroups ->
+                                        userManager
+                                            .listGroups()
+                                            .flatMap(
+                                                storedGroup ->
+                                                    Objects.equals(
+                                                            existingGroups.get(storedGroup.getId()),
+                                                            storedGroup)
+                                                        ? Mono.just(storedGroup.getId())
+                                                        : groupRepository
+                                                            .save(storedGroup)
+                                                            .map(Group::getId))
+                                            .collect(
+                                                () -> new HashSet<>(existingGroups.keySet()),
+                                                Set::remove))
+                                .flatMapIterable(Function.identity())
+                                .flatMap(groupRepository::deleteById)
+                                .then())
+                        .doOnComplete(() -> lastMetaVersion.set(version))
+                        .then());
   }
 
   private void createIndexIfMissing(final Class<?> clazz) {

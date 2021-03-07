@@ -1,25 +1,28 @@
 scalar DateTime
 
 type Query {
-    albumById(id: ID): Album
+    albumById(id: ID!): Album
     listAlbums: [Album!]!
     authenticationState: AuthenticationState!
     listPendingRequests: [RegistrationRequest!]!
     currentUser: User
     listUsers: [User!]!
     listGroups: [Group!]!
+    userById(id: ID!):User
 }
 type Mutation{
     requestAccess(comment: String): RequestAccessResult
-    removeRequest(id: AuthenticationKey): Boolean
-    createUser(id: AuthenticationKey): User
-    removeUser(id: ID): Boolean
+    removeRequest(id: AuthenticationKey!): Boolean
+    createUser(id: AuthenticationKey!): User
+    removeUser(id: ID!): Boolean
     setCanManageUserFlag(userId: ID, enabled: Boolean): User
-    setAlbumVisibility(userId: ID, albumId: ID, visible: Boolean): User
-    updateUser(userId: ID, update: UserUpdate): User
-    createGroup(name: String): Group
-    updateCredentials(update: CredentialUpgrade): UpdateResult
+    setAlbumVisibility(userId: ID!, albumId: ID!, visible: Boolean!): User
+    updateUser(userId: ID!, update: UserUpdate): User
+    createGroup(name: String!): Group
+    updateGroup(groupId: ID!, update: GroupUpdate): Group
+    updateCredentials(update: CredentialUpgrade!): UpdateResult
 }
+
 
 type UpdateResult {
     done: Boolean!
@@ -31,6 +34,17 @@ input CredentialUpgrade{
     groupMembershipUpdates: [SingleGroupMembershipUpdate!]!
 }
 
+input GroupUpdate {
+    newName: String
+    newLabels: [LabelInput!]!
+    removeLabels: [String!]!
+}
+
+input LabelInput {
+    labelName: String!
+    labelValue: String!
+}
+
 input SingleGroupMembershipUpdate {
     userId: ID!
     groupId: ID!
@@ -40,15 +54,15 @@ input SingleGroupMembershipUpdate {
 }
 
 input SingleGroupVisibilityUpdate {
-    userId: ID!
+    groupId: ID!
     albumId: ID!
-    visibility: Boolean!
+    isMember: Boolean!
 }
 
 input SingleUserVisibilityUpdate {
     userId: ID!
     albumId: ID!
-    visibility: Boolean!
+    isMember: Boolean!
 }
 
 input UserUpdate{
@@ -96,7 +110,19 @@ type Group {
     id: ID!
     name: String!
     canAccess: [Album!]!
-    members: [User!]!
+    members: [UserMembership!]!
+    labels: [Label!]!
+}
+
+type UserMembership {
+    user: User!
+    from: DateTime
+    until: DateTime
+}
+
+type Label{
+    labelName: String!
+    labelValue: String!
 }
 
 type Album {

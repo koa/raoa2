@@ -1,0 +1,17 @@
+query GetUserstate{
+    currentUser{
+        canManageUsers
+        info{
+            name
+            email
+            picture
+        }
+    }
+    authenticationState
+    listPendingRequests{
+        authenticationId{
+            authority
+            id
+        }
+    }
+}

@@ -1,4 +1,4 @@
-query AlbumEntryDetail($albumId: ID, $entryId: ID) {
+query AlbumEntryDetail($albumId: ID!, $entryId: ID!) {
   albumById(id:  $albumId){
     id
     albumEntry(entryId: $entryId){

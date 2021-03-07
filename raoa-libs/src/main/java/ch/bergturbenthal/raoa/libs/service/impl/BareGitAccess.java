@@ -414,21 +414,21 @@ public class BareGitAccess implements GitAccess {
                         Constants.OBJ_BLOB, Files.size(file), Files.newInputStream(file));
                 synchronized (alreadyExistingFiles) {
                   final String existingFileName = alreadyExistingFiles.get(newFileId);
-                  if (existingFileName != null) {
+                  if (existingFileName != null && existingFileName.equals(name)) {
                     log.info(
                         "File "
                             + file
                             + " already imported as "
                             + existingFileName
-                            + " -> merging");
-                  } else {
-                    alreadyExistingFiles.put(newFileId, name);
-                    final DirCacheEntry newEntry = new DirCacheEntry(name);
-                    newEntry.setFileMode(FileMode.REGULAR_FILE);
-                    newEntry.setObjectId(newFileId);
-                    builder.add(newEntry);
-                    modified = true;
+                            + " -> skipping");
+                    return false;
                   }
+                  alreadyExistingFiles.put(newFileId, name);
+                  final DirCacheEntry newEntry = new DirCacheEntry(name);
+                  newEntry.setFileMode(FileMode.REGULAR_FILE);
+                  newEntry.setObjectId(newFileId);
+                  builder.add(newEntry);
+                  modified = true;
                 }
                 return true;
               }
@@ -454,7 +454,10 @@ public class BareGitAccess implements GitAccess {
       public Mono<Boolean> commit(String message) {
         final Mono<String> nameMono = getName();
         return Mono.zip(findMasterRef(), nameMono)
-            .flatMap(t -> executeCommit(message, t.getT1()).log("Commit " + t.getT2()))
+            .flatMap(
+                t -> executeCommit(message, t.getT1())
+                // .log("Commit " + t.getT2())
+                )
             .defaultIfEmpty(Boolean.FALSE)
             .doFinally(
                 signal -> {

@@ -14,7 +14,7 @@ export class CommonServerApiService {
     private lastCollectionList: MenuEntry[];
 
     constructor(private serverApi: ServerApiService,
-                private albumListGQL: AllAlbumsGQL,
+                private albumListGQL: AllAlbumsGQL
     ) {
     }
 

@@ -2,12 +2,84 @@
     <ion-header>
         <ion-icon name="menu" (click)="openMenu()" class="button"></ion-icon>
     </ion-header>
-    <ion-card routerLink="/album">
+    <ion-card routerLink="/album" *ngIf="userState?.authenticationState== 'AUTHORIZED'">
         <ion-card-header>
             <ion-card-title>Photos</ion-card-title>
         </ion-card-header>
         <ion-card-content>
+            <p *ngIf="totalPhotoCount===0">
+                Du hast jetzt Zugang erhalten, aber dir sind noch keine Photos freigegeben. Wende dich an den <a
+                    href="mailto:photos@teamkoenig.ch">Administrator</a> um Zugang zu den interessanten Photos zu
+                erhalten.
+            </p>
             <p *ngIf="totalPhotoCount>0">{{totalPhotoCount | number}} Photos</p>
         </ion-card-content>
     </ion-card>
+    <ion-card *ngIf="userState && userState.currentUser">
+        <ion-card-header class="person">
+            <div>
+                <ion-card-title>{{userState.currentUser.info.name}}</ion-card-title>
+                <ion-card-subtitle>{{userState.currentUser.info.email}}</ion-card-subtitle>
+            </div>
+            <img [src]="userState.currentUser.info.picture">
+        </ion-card-header>
+        <ion-card-content>
+            <ion-button (click)="logout()">logout</ion-button>
+        </ion-card-content>
+    </ion-card>
+    <ion-card *ngIf="userState?.authenticationState === 'AUTHENTICATED' && user">
+        <ion-card-header class="person">
+            <div>
+                <ion-card-title>{{user.getBasicProfile().getName()}}</ion-card-title>
+                <ion-card-subtitle>{{user.getBasicProfile().getEmail()}}</ion-card-subtitle>
+            </div>
+            <img [src]="user.getBasicProfile().getImageUrl()">
+        </ion-card-header>
+        <ion-card-content>
+            <h2>Hallo {{user.getBasicProfile().getName()}}</h2>
+            <p>Du hast dich mit deinem GMail-Account angemeldet.</p>
+            <p>Jetzt kannst du den Zugang beantragen. Wenn du das machst, wird dein Foto (das oben rechts), dein Name
+                ({{user.getBasicProfile().getName()}}) und deine eMail-Adresse ({{user.getBasicProfile().getEmail()}})
+                an den Server übermittelt und dort gespeichert. Damit kann der <a href="mailto:photos@teamkoenig.ch">Administrator</a>
+                dir die Fotos frei schalten.
+            </p>
+            <p>
+                Bei der optionalen Nachricht kannst du einen zusätzlichen Text hinzufügen (z.B. für welche Fotos du dich
+                interessierst, usw.).
+            </p>
+            <ion-input #message placeholder="Optionale Nachricht"></ion-input>
+            <ion-button (click)="subscribe()">Zugang Beantragen</ion-button>
+        </ion-card-content>
+    </ion-card>
+    <ion-card *ngIf="userState?.authenticationState=='AUTHORIZATION_REQUESTED' && user">
+        <ion-card-header class="person">
+            <div>
+                <ion-card-title>{{user.getBasicProfile().getName()}}</ion-card-title>
+                <ion-card-subtitle>{{user.getBasicProfile().getEmail()}}</ion-card-subtitle>
+            </div>
+            <img [src]="user.getBasicProfile().getImageUrl()">
+        </ion-card-header>
+        <ion-card-content>
+            <h2>Hallo {{user.getBasicProfile().getName()}}</h2>
+            <p>Du hast dich mit deinem GMail-Account angemeldet und den Zugang beantragt</p>
+            <p>Jetzt musst du warten bis der <a href="mailto:photos@teamkoenig.ch">Administrator</a>
+                dir den Zugang und die Fotos frei geschaltet hat.
+            </p>
+        </ion-card-content>
+    </ion-card>
+    <ion-card *ngIf="userState?.listPendingRequests?.length>0">
+        <ion-card-header>
+            <ion-card-title>Neue Anträge</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+            <ion-button routerLink="/process-pending-requests">{{userState?.listPendingRequests?.length}} neue User
+            </ion-button>
+        </ion-card-content>
+    </ion-card>
+    <ion-card *ngIf="userState?.currentUser?.canManageUsers" routerLink="/manage-users">
+        <ion-card-header>
+            <ion-card-title>Nutzer bearbeiten</ion-card-title>
+        </ion-card-header>
+    </ion-card>
+
 </ion-content>

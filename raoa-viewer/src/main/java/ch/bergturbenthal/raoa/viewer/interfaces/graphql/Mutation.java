@@ -55,6 +55,31 @@ public class Mutation implements GraphQLMutationResolver {
     return begin.filter(v -> !v.equals(Instant.MIN));
   }
 
+  @NotNull
+  private static Optional<Instant> findBeginOfList(final List<GroupMembership> membershipList) {
+    return membershipList.stream()
+        .map(membership -> Optional.ofNullable(membership.getFrom()))
+        .map(o -> o.orElse(Instant.MIN))
+        .min(Comparator.naturalOrder());
+  }
+
+  @NotNull
+  private static Optional<Instant> findEndOfList(final List<GroupMembership> membershipList) {
+    return membershipList.stream()
+        .map(membership -> Optional.ofNullable(membership.getUntil()))
+        .map(o -> o.orElse(Instant.MAX))
+        .max(Comparator.naturalOrder());
+  }
+
+  @NotNull
+  private static <K, V> BiFunction<K, Function<V, V>, Function<V, V>> mergeFunction(
+      final Function<V, V> updateFunction) {
+    return (id, existingFunction) -> {
+      if (existingFunction == null) return updateFunction;
+      return existingFunction.andThen(updateFunction);
+    };
+  }
+
   public CompletableFuture<UserReference> createUser(AuthenticationId authenticationId) {
     return queryContextSupplier
         .createContext()
@@ -150,14 +175,16 @@ public class Mutation implements GraphQLMutationResolver {
                           final GroupMembership newMembership =
                               GroupMembership.builder()
                                   .group(groupId)
-                                  .from(Optional.ofNullable(groupMembershipUpdate.getFrom()))
-                                  .until(Optional.ofNullable(groupMembershipUpdate.getUntil()))
+                                  .from(groupMembershipUpdate.getFrom())
+                                  .until(groupMembershipUpdate.getUntil())
                                   .build();
                           Map<UUID, List<GroupMembership>> openMemberships = new HashMap<>();
                           Set<GroupMembership> resultingMemberships = new HashSet<>();
                           Stream.concat(
                                   user.getGroupMembership().stream(), Stream.of(newMembership))
-                              .sorted(Comparator.comparing(m -> m.getFrom().orElse(Instant.MIN)))
+                              .sorted(
+                                  Comparator.comparing(
+                                      m -> Optional.ofNullable(m.getFrom()).orElse(Instant.MIN)))
                               .forEach(
                                   groupMembership -> {
                                     final UUID group = groupMembership.getGroup();
@@ -169,7 +196,8 @@ public class Mutation implements GraphQLMutationResolver {
                                     final Optional<Instant> beginOfList =
                                         findBeginOfList(membershipList);
                                     final Instant entryStart =
-                                        groupMembership.getFrom().orElse(Instant.MIN);
+                                        Optional.ofNullable(groupMembership.getFrom())
+                                            .orElse(Instant.MIN);
                                     if (endOfList.isPresent() && beginOfList.isPresent()) {
                                       Instant windowStart = beginOfList.get();
                                       Instant windowEnd = endOfList.get();
@@ -177,8 +205,11 @@ public class Mutation implements GraphQLMutationResolver {
                                         resultingMemberships.add(
                                             GroupMembership.builder()
                                                 .group(group)
-                                                .from(filterBegin(Optional.of(windowStart)))
-                                                .until(filterEnd(Optional.of(windowEnd)))
+                                                .from(
+                                                    filterBegin(Optional.of(windowStart))
+                                                        .orElse(null))
+                                                .until(
+                                                    filterEnd(Optional.of(windowEnd)).orElse(null))
                                                 .build());
                                         membershipList.clear();
                                       } else {
@@ -196,8 +227,8 @@ public class Mutation implements GraphQLMutationResolver {
                                 resultingMemberships.add(
                                     GroupMembership.builder()
                                         .group(group)
-                                        .from(beginOfList)
-                                        .until(endOfList)
+                                        .from(beginOfList.orElse(null))
+                                        .until(endOfList.orElse(null))
                                         .build());
                               });
 
@@ -218,9 +249,11 @@ public class Mutation implements GraphQLMutationResolver {
                                             if (!existingMembership.getGroup().equals(groupId))
                                               return Stream.of(existingMembership);
                                             final Instant membershipBegin =
-                                                existingMembership.getFrom().orElse(Instant.MIN);
+                                                Optional.ofNullable(existingMembership.getFrom())
+                                                    .orElse(Instant.MIN);
                                             final Instant membershipEnd =
-                                                existingMembership.getUntil().orElse(Instant.MAX);
+                                                Optional.ofNullable(existingMembership.getUntil())
+                                                    .orElse(Instant.MAX);
                                             if (membershipEnd.isBefore(timeWindowBegin)
                                                 || membershipBegin.isAfter(timeWindowEnd))
                                               return Stream.of(existingMembership);
@@ -231,17 +264,23 @@ public class Mutation implements GraphQLMutationResolver {
                                                   GroupMembership.builder()
                                                       .group(groupId)
                                                       .from(
-                                                          filterBegin(Optional.of(membershipBegin)))
+                                                          filterBegin(Optional.of(membershipBegin))
+                                                              .orElse(null))
                                                       .until(
-                                                          filterEnd(Optional.of(timeWindowBegin)))
+                                                          filterEnd(Optional.of(timeWindowBegin))
+                                                              .orElse(null))
                                                       .build());
                                             }
                                             if (membershipEnd.isAfter(timeWindowEnd)) {
                                               remainingSlicesBuilder.add(
                                                   GroupMembership.builder()
                                                       .group(groupId)
-                                                      .from(filterBegin(Optional.of(timeWindowEnd)))
-                                                      .until(filterEnd(Optional.of(membershipEnd)))
+                                                      .from(
+                                                          filterBegin(Optional.of(timeWindowEnd))
+                                                              .orElse(null))
+                                                      .until(
+                                                          filterEnd(Optional.of(membershipEnd))
+                                                              .orElse(null))
                                                       .build());
                                             }
                                             return remainingSlicesBuilder.build();
@@ -308,31 +347,6 @@ public class Mutation implements GraphQLMutationResolver {
         .map(UpdateResult::new)
         .timeout(TIMEOUT)
         .toFuture();
-  }
-
-  @NotNull
-  private static Optional<Instant> findBeginOfList(final List<GroupMembership> membershipList) {
-    return membershipList.stream()
-        .map(GroupMembership::getUntil)
-        .map(o -> o.orElse(Instant.MIN))
-        .min(Comparator.naturalOrder());
-  }
-
-  @NotNull
-  private static Optional<Instant> findEndOfList(final List<GroupMembership> membershipList) {
-    return membershipList.stream()
-        .map(GroupMembership::getUntil)
-        .map(o -> o.orElse(Instant.MAX))
-        .max(Comparator.naturalOrder());
-  }
-
-  @NotNull
-  private static <K, V> BiFunction<K, Function<V, V>, Function<V, V>> mergeFunction(
-      final Function<V, V> updateFunction) {
-    return (id, existingFunction) -> {
-      if (existingFunction == null) return updateFunction;
-      return existingFunction.andThen(updateFunction);
-    };
   }
 
   public CompletableFuture<Boolean> removeUser(UUID userId) {
@@ -484,6 +498,47 @@ public class Mutation implements GraphQLMutationResolver {
                             + userId)
                     .flatMap(user -> dataViewService.updateUserData().thenReturn(user))
                     .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<GroupReference> updateGroup(UUID groupId, GroupUpdate update) {
+    log.info("update: " + update);
+
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            queryContext ->
+                userManager
+                    .updateGroup(
+                        groupId,
+                        group -> {
+                          final Group.GroupBuilder builder = group.toBuilder();
+                          Optional.ofNullable(update.getName())
+                              .map(String::trim)
+                              .filter(v -> !v.isEmpty())
+                              .ifPresent(builder::name);
+                          final HashMap<String, String> labels =
+                              new HashMap<>(
+                                  Objects.requireNonNullElse(
+                                      group.getLabels(), Collections.emptyMap()));
+                          Optional.ofNullable(update.getRemoveLabels())
+                              .ifPresent(rem -> labels.keySet().removeAll(rem));
+                          Optional.ofNullable(update.getNewLabels()).stream()
+                              .flatMap(Collection::stream)
+                              .forEach(lv -> labels.put(lv.getLabelName(), lv.getLabelValue()));
+                          builder.labels(labels);
+                          return builder.build();
+                        },
+                        queryContext.getCurrentUser().orElseThrow().getUserData().getName()
+                            + " updates "
+                            + groupId)
+                    .flatMap(user -> dataViewService.updateUserData().thenReturn(user.getId()))
+                    .map(
+                        u ->
+                            new GroupReference(
+                                u, queryContext, dataViewService.findGroupById(u).cache())))
         .timeout(TIMEOUT)
         .toFuture();
   }
