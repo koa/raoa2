@@ -1,0 +1,14 @@
+query manageTeamsListAllGroups{
+    listGroups{
+        id
+        name
+        canAccess{
+            id
+        }
+        members{
+            user{
+                id
+            }
+        }
+    }
+}

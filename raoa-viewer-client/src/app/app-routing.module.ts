@@ -20,7 +20,11 @@ const routes: Routes = [
     {
         path: 'manage-users',
         loadChildren: () => import('./manage-users/manage-users.module').then(m => m.ManageUsersPageModule)
-    }
+    },
+  {
+    path: 'manage-teams',
+    loadChildren: () => import('./manage-teams/manage-teams.module').then( m => m.ManageTeamsPageModule)
+  }
 ];
 
 @NgModule({

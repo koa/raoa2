@@ -2,19 +2,6 @@
     <ion-header>
         <ion-icon name="menu" (click)="openMenu()" class="button"></ion-icon>
     </ion-header>
-    <ion-card routerLink="/album" *ngIf="userState?.authenticationState== 'AUTHORIZED'">
-        <ion-card-header>
-            <ion-card-title>Photos</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-            <p *ngIf="totalPhotoCount===0">
-                Du hast jetzt Zugang erhalten, aber dir sind noch keine Photos freigegeben. Wende dich an den <a
-                    href="mailto:photos@teamkoenig.ch">Administrator</a> um Zugang zu den interessanten Photos zu
-                erhalten.
-            </p>
-            <p *ngIf="totalPhotoCount>0">{{totalPhotoCount | number}} Photos</p>
-        </ion-card-content>
-    </ion-card>
     <ion-card *ngIf="userState && userState.currentUser">
         <ion-card-header class="person">
             <div>
@@ -76,9 +63,27 @@
             </ion-button>
         </ion-card-content>
     </ion-card>
+    <ion-card routerLink="/album" *ngIf="userState?.authenticationState== 'AUTHORIZED'">
+        <ion-card-header>
+            <ion-card-title>Photos</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+            <p *ngIf="totalPhotoCount===0">
+                Du hast jetzt Zugang erhalten, aber dir sind noch keine Photos freigegeben. Wende dich an den <a
+                    href="mailto:photos@teamkoenig.ch">Administrator</a> um Zugang zu den interessanten Photos zu
+                erhalten.
+            </p>
+            <p *ngIf="totalPhotoCount>0">{{totalPhotoCount | number}} Photos</p>
+        </ion-card-content>
+    </ion-card>
     <ion-card *ngIf="userState?.currentUser?.canManageUsers" routerLink="/manage-users">
         <ion-card-header>
             <ion-card-title>Nutzer bearbeiten</ion-card-title>
+        </ion-card-header>
+    </ion-card>
+    <ion-card *ngIf="userState?.currentUser?.canManageUsers" routerLink="/manage-teams">
+        <ion-card-header>
+            <ion-card-title>Gruppen bearbeiten</ion-card-title>
         </ion-card-header>
     </ion-card>
 
