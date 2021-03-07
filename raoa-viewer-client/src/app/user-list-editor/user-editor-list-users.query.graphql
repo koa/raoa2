@@ -1,0 +1,10 @@
+query userEditorListAllUsers{
+    listUsers{
+        id
+        info{
+            name
+            email
+            picture
+        }
+    }
+}

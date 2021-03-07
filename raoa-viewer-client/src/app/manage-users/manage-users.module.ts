@@ -19,6 +19,9 @@ import {GroupListEditorComponent} from '../group-list-editor/group-list-editor.c
         ManageUsersPageRoutingModule,
         SuperTabsModule
     ],
+    exports: [
+        GroupListEditorComponent
+    ],
     declarations: [ManageUsersPage, EditUserComponent, GroupListEditorComponent]
 })
 export class ManageUsersPageModule {

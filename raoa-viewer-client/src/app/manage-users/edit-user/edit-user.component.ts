@@ -25,7 +25,7 @@ export class EditUserComponent implements OnInit {
     private userId: string;
     public selectedGroups: Set<string> = new Set();
     private originalSelectedGroups: Set<string> = new Set();
-    private data: ({ __typename?: 'Query' } & {
+    public data: ({ __typename?: 'Query' } & {
         userById?: Maybe<{ __typename?: 'User' } &
             Pick<User, 'id' | 'canManageUsers'> & {
             info?: Maybe<{ __typename?: 'UserInfo' } &
@@ -54,6 +54,7 @@ export class EditUserComponent implements OnInit {
         this.ngZone.run(() => {
             this.data = data;
             const groups = this.data.userById.groups.map(g => g.group.id);
+            console.log(groups);
             this.selectedGroups = new Set(groups);
             this.originalSelectedGroups = new Set<string>(groups);
         });
@@ -92,7 +93,6 @@ export class EditUserComponent implements OnInit {
                     userUpdates,
                     groupUpdates,
                     groupMembershipUpdates
-
                 }
             };
             await this.serverApi.update(this.updateCredentialsGQL, data);

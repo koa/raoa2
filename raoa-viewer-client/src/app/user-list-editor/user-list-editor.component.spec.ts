@@ -1,19 +1,19 @@
 import { async, ComponentFixture, TestBed } from '@angular/core/testing';
 import { IonicModule } from '@ionic/angular';
 
-import { ProcessPendingRequestsPage } from './process-pending-requests.page';
+import { UserListEditorComponent } from './user-list-editor.component';
 
-describe('ProcessPendingRequestsPage', () => {
-  let component: ProcessPendingRequestsPage;
-  let fixture: ComponentFixture<ProcessPendingRequestsPage>;
+describe('UserListEditorComponent', () => {
+  let component: UserListEditorComponent;
+  let fixture: ComponentFixture<UserListEditorComponent>;
 
   beforeEach(async(() => {
     TestBed.configureTestingModule({
-      declarations: [ ProcessPendingRequestsPage ],
+      declarations: [ UserListEditorComponent ],
       imports: [IonicModule.forRoot()]
     }).compileComponents();
 
-    fixture = TestBed.createComponent(ProcessPendingRequestsPage);
+    fixture = TestBed.createComponent(UserListEditorComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   }));

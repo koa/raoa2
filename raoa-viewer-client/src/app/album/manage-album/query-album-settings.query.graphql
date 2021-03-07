@@ -9,16 +9,4 @@ query queryAlbumSettings($albumId: ID!) {
             id
         }
     }
-    listGroups{
-        id
-        name
-    }
-    listUsers{
-        id
-        info{
-            name
-            email
-            picture
-        }
-    }
 }

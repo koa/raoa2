@@ -3,7 +3,6 @@ import {ActivatedRoute} from '@angular/router';
 import {ServerApiService} from '../../service/server-api.service';
 import {
     CreateGroupGQL,
-    Group,
     Maybe,
     QueryAlbumSettingsGQL,
     SingleGroupVisibilityUpdate,
@@ -16,13 +15,6 @@ import {
 import {LoadingController, ToastController} from '@ionic/angular';
 import {Location} from '@angular/common';
 
-type GroupDataType = { __typename?: 'Group' } & Pick<Group, 'id' | 'name'>;
-
-interface GroupEntry {
-    selectedBefore: boolean;
-    newSelected: boolean;
-    data: GroupDataType;
-}
 
 type UserDataType =
     { __typename?: 'User' }
@@ -43,19 +35,16 @@ interface UserEntry {
 export class ManageAlbumComponent implements OnInit {
     public albumId: string;
     public albumName: string;
-    public groups: GroupEntry[] = [];
-    public filteredGroups: GroupEntry[] = [];
-    public newGroupName = '';
-    public users: UserEntry[] = [];
-    private userFilter = '';
-    public filteredUsers: UserEntry[] = [];
-    private groupFilter = '';
+    public selectedGroups: Set<string> = new Set();
+    private activeGroups: Set<string> = new Set();
+    public selectedUsers: Set<string> = new Set();
+    private activeUsers: Set<string> = new Set();
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
                 private queryAlbumSettingsGQL: QueryAlbumSettingsGQL,
                 private createGroupGQL: CreateGroupGQL,
-                private updateCredentitalsGQL: UpdateCredentitalsGQL,
+                private updateCredentialsGQL: UpdateCredentitalsGQL,
                 private ngZone: NgZone,
                 private loadController: LoadingController,
                 private toastController: ToastController,
@@ -78,28 +67,17 @@ export class ManageAlbumComponent implements OnInit {
         }
         this.ngZone.run(() => {
             this.albumName = data.albumById.name;
-            const activeGroups: Set<string> = new Set(data.albumById.canAccessedByGroup.map(g => g.id));
-            const activeUsers: Set<string> = new Set(data.albumById.canAccessedByUser.map(u => u.id));
+            const activeGroups = data.albumById.canAccessedByGroup.map(u => u.id);
+            this.activeGroups = new Set<string>(activeGroups);
+            if (this.selectedGroups.size === 0) {
+                this.selectedGroups = new Set(activeGroups);
+            }
 
-            const prevActivatedGroups = new Map<string, boolean>();
-            this.groups.forEach(entry => prevActivatedGroups[entry.data.id] = entry.newSelected);
-            this.groups = data.listGroups.map((group: GroupDataType) => ({
-                selectedBefore: activeGroups.has(group.id),
-                newSelected: prevActivatedGroups.has(group.id) ? prevActivatedGroups.get(group.id) : activeGroups.has(group.id),
-                data: group
-            })).sort((g1, g2) => g1.data.name.localeCompare(g2.data.name));
-            const prevActivatedUsers = new Map<string, boolean>();
-            this.users.forEach(entry => prevActivatedUsers[entry.data.id] = entry.newSelected);
-            this.users = data.listUsers.map((user: UserDataType) => {
-                const ret: UserEntry = {
-                    selectedBefore: activeUsers.has(user.id),
-                    newSelected: prevActivatedUsers.has(user.id) ? prevActivatedUsers.get(user.id) : activeUsers.has(user.id),
-                    data: user
-                };
-                return ret;
-            }).sort((u1, u2) => u1.data.info.name.localeCompare(u2.data.info.name));
-            this.filterUser();
-            this.filterGroup();
+            const activeUsers = data.albumById.canAccessedByUser.map(u => u.id);
+            this.activeUsers = new Set(activeUsers);
+            if (this.selectedUsers.size === 0) {
+                this.selectedUsers = new Set(activeUsers);
+            }
             loadingElement.dismiss();
         });
     }
@@ -108,60 +86,28 @@ export class ManageAlbumComponent implements OnInit {
         this.location.back();
     }
 
-    updateNewGroupName($event: CustomEvent) {
-        this.newGroupName = $event.detail.value;
-    }
-
-    async createNewGroup() {
-        const groupName = this.newGroupName;
-        if (groupName.length === 0) {
-            return;
-        }
-        if (this.groups.filter(g => g.data.name === groupName).length > 0) {
-            return;
-        }
-        this.newGroupName = '';
-        const loadingElement = await this.loadController.create({message: 'Erstelle Gruppe ' + groupName});
-        await loadingElement.present();
-        const result = await this.serverApi.update(this.createGroupGQL, {name: groupName});
-        await loadingElement.dismiss();
-        await this.refreshData();
-    }
-
-    searchUser($event: CustomEvent) {
-        this.userFilter = $event.detail.value;
-        this.filterUser();
-    }
-
-    private filterUser() {
-        const pattern = this.userFilter.toLowerCase();
-        this.filteredUsers = this.users
-            .filter(e => e.data.info.name.toLowerCase().indexOf(pattern) >= 0 || e.data.info.email.toLowerCase().indexOf(pattern) >= 0);
-    }
-
-    searchGroup($event: CustomEvent) {
-        this.groupFilter = $event.detail.value;
-        this.filterGroup();
-
-    }
-
-    private filterGroup() {
-        const pattern = this.groupFilter.toLowerCase();
-        this.filteredGroups = this.groups
-            .filter(e => e.data.name.toLowerCase().indexOf(pattern) >= 0);
-    }
 
     async store() {
         const userUpdates: SingleUserVisibilityUpdate[] = [];
-        this.users.forEach(userEntry => {
-            if (userEntry.selectedBefore !== userEntry.newSelected) {
-                userUpdates.push({albumId: this.albumId, userId: userEntry.data.id, isMember: userEntry.newSelected});
+        this.selectedUsers.forEach(uid => {
+            if (!this.activeUsers.has(uid)) {
+                userUpdates.push({albumId: this.albumId, userId: uid, isMember: true});
+            }
+        });
+        this.activeUsers.forEach(uid => {
+            if (!this.selectedUsers.has(uid)) {
+                userUpdates.push({albumId: this.albumId, userId: uid, isMember: false});
             }
         });
         const groupUpdates: SingleGroupVisibilityUpdate[] = [];
-        this.groups.forEach(groupEntry => {
-            if (groupEntry.selectedBefore !== groupEntry.newSelected) {
-                groupUpdates.push({albumId: this.albumId, groupId: groupEntry.data.id, isMember: groupEntry.newSelected});
+        this.selectedGroups.forEach(gid => {
+            if (!this.activeGroups.has(gid)) {
+                groupUpdates.push({albumId: this.albumId, groupId: gid, isMember: true});
+            }
+        });
+        this.activeGroups.forEach(gid => {
+            if (!this.selectedGroups.has(gid)) {
+                groupUpdates.push({albumId: this.albumId, groupId: gid, isMember: false});
             }
         });
         const data: UpdateCredentitalsMutationVariables = {
@@ -172,8 +118,16 @@ export class ManageAlbumComponent implements OnInit {
 
             }
         };
-        await this.serverApi.update(this.updateCredentitalsGQL, data);
+        await this.serverApi.update(this.updateCredentialsGQL, data);
         await this.serverApi.clear();
         await this.refreshData();
+    }
+
+    public groupChanged($event: Set<string>) {
+        this.selectedGroups = $event;
+    }
+
+    public usersChanged($event: Set<string>) {
+        this.selectedUsers = $event;
     }
 }

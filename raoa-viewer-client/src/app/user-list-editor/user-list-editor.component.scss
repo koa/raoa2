@@ -1,0 +1,9 @@
+ion-card-header.person {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+ion-card.checked {
+  background-color: mediumspringgreen;
+}

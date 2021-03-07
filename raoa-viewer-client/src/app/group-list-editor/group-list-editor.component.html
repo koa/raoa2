@@ -1,18 +1,14 @@
-<ion-header>
-  <ion-searchbar (ionChange)="searchGroup($event)"></ion-searchbar>
-</ion-header>
-<ion-content>
-  <ion-list>
+<ion-list>
     <ion-list-header>
-      <ion-input [value]="newGroupName" (ionChange)="updateNewGroupName($event)"
-                 (keyup.enter)="createNewGroup()"
-                 placeholder="Gruppe hinzufügen"></ion-input>
-      <ion-icon name="add-outline" *ngIf="newGroupName.length>0"
-                (click)="createNewGroup()"></ion-icon>
+        <ion-searchbar (ionChange)="searchGroup($event)"></ion-searchbar>
+        <ion-input [value]="newGroupName" (ionChange)="updateNewGroupName($event)"
+                   (keyup.enter)="createNewGroup()"
+                   placeholder="Gruppe hinzufügen"></ion-input>
+        <ion-icon name="add-outline" *ngIf="newGroupName.length>0"
+                  (click)="createNewGroup()"></ion-icon>
     </ion-list-header>
-    <ion-item *ngFor="let group of filteredGroups">
-      <ion-label>{{group.name}}</ion-label>
-      <ion-checkbox [value]="selectedGroups.has(group.id)" (ionChange)="toggle(group.id)"></ion-checkbox>
+    <ion-item *ngFor="let group of filteredGroups" (click)="toggle(group.id)"
+              [color]="selectedGroups.has(group.id)?'primary':''">
+        <ion-label>{{group.name}}</ion-label>
     </ion-item>
-  </ion-list>
-</ion-content>
+</ion-list>
