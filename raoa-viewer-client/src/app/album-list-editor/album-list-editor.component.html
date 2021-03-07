@@ -1,0 +1,7 @@
+<ion-searchbar (ionChange)="filterChanged($event)"></ion-searchbar>
+<ion-card *ngFor="let album of filteredList" [color]="selectedCollections.has(album.id)?'primary':''" (click)="toggle(album.id)">
+    <ion-card-header>
+        <ion-card-subtitle>{{album.albumTime | date}}</ion-card-subtitle>
+        <ion-card-title>{{album.name}}</ion-card-title>
+    </ion-card-header>
+</ion-card>

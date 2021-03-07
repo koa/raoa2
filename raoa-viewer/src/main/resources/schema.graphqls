@@ -93,6 +93,7 @@ input AuthenticationKey{
 type User{
     id: ID!
     canAccess: [Album]
+    canAccessDirect: [Album]
     newestAlbumCanAccess: Album
     info: UserInfo
     authentications: [AuthenticationId]

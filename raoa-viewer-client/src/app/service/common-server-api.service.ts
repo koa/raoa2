@@ -38,8 +38,7 @@ export class CommonServerApiService {
                 .sort((a, b) => -a.albumTime.localeCompare(b.albumTime))
                 .map((entry: AlbumEntryDataType) => ({
                     url: '/album/' + entry.id, data: entry
-                }))
-                ;
+                }));
         }).then(result => {
             this.lastCollectionList = result;
             return result;

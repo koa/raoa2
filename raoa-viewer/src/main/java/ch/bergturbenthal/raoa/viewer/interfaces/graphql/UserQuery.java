@@ -41,6 +41,25 @@ public class UserQuery implements GraphQLResolver<UserReference> {
         .toFuture();
   }
 
+  public CompletableFuture<List<Album>> canAccessDirect(UserReference user) {
+    return getDirectVisibleAlbums(user)
+        .map(a -> new Album(a, user.getContext(), dataViewService.readAlbum(a).cache()))
+        .collectList()
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  private Flux<UUID> getDirectVisibleAlbums(final UserReference user) {
+    if (!canShowUserDetails(user)) {
+      return Flux.empty();
+    }
+
+    return dataViewService
+        .findUserById(user.getId())
+        // .log("user")
+        .flatMapIterable(User::getVisibleAlbums);
+  }
+
   private Flux<AlbumData> getVisibleAlbums(final UserReference user) {
     if (!canShowUserDetails(user)) {
       return Flux.empty();

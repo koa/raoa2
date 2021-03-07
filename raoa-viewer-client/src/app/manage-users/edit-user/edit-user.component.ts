@@ -2,16 +2,12 @@ import {Component, NgZone, OnInit} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {
     EditUserOverviewGQL,
-    Group,
-    GroupMembership,
-    Maybe,
     SingleGroupMembershipUpdate,
     SingleGroupVisibilityUpdate,
     SingleUserVisibilityUpdate,
     UpdateCredentitalsGQL,
     UpdateCredentitalsMutationVariables,
-    User,
-    UserInfo
+    User
 } from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
 
@@ -25,15 +21,9 @@ export class EditUserComponent implements OnInit {
     private userId: string;
     public selectedGroups: Set<string> = new Set();
     private originalSelectedGroups: Set<string> = new Set();
-    public data: ({ __typename?: 'Query' } & {
-        userById?: Maybe<{ __typename?: 'User' } &
-            Pick<User, 'id' | 'canManageUsers'> & {
-            info?: Maybe<{ __typename?: 'UserInfo' } &
-                Pick<UserInfo, 'name' | 'email' | 'picture'>>;
-            groups?: Maybe<Array<Maybe<{ __typename?: 'GroupMembership' } &
-                Pick<GroupMembership, 'from' | 'until'> & { group: { __typename?: 'Group' } & Pick<Group, 'id'> }>>>
-        }>
-    }) | null;
+    public selectedAlbums: Set<string> = new Set();
+    private originalSelectedAlbums: Set<string> = new Set();
+    public user: User;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
@@ -52,16 +42,29 @@ export class EditUserComponent implements OnInit {
     private async refreshData() {
         const data = await this.serverApiService.query(this.editUserOverviewGQL, {userid: this.userId});
         this.ngZone.run(() => {
-            this.data = data;
-            const groups = this.data.userById.groups.map(g => g.group.id);
-            console.log(groups);
+            this.user = data.userById as User;
+            const groups = this.user.groups.map(g => g.group.id);
             this.selectedGroups = new Set(groups);
             this.originalSelectedGroups = new Set<string>(groups);
+            const albums = this.user.canAccessDirect.map(a => a.id);
+            this.selectedAlbums = new Set<string>(albums);
+            this.originalSelectedAlbums = new Set<string>(albums);
+
         });
     }
 
     public async apply() {
         const userUpdates: SingleUserVisibilityUpdate[] = [];
+        this.selectedAlbums.forEach(id => {
+            if (!this.originalSelectedAlbums.has(id)) {
+                userUpdates.push({albumId: id, userId: this.userId, isMember: true});
+            }
+        });
+        this.originalSelectedAlbums.forEach(id => {
+            if (!this.selectedAlbums.has(id)) {
+                userUpdates.push({albumId: id, userId: this.userId, isMember: false});
+            }
+        });
         const groupUpdates: SingleGroupVisibilityUpdate[] = [];
         const groupMembershipUpdates: SingleGroupMembershipUpdate[] = [];
         this.originalSelectedGroups.forEach(gid => {

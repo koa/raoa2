@@ -10,6 +10,7 @@ import {ManageUsersPage} from './manage-users.page';
 import {EditUserComponent} from './edit-user/edit-user.component';
 import {SuperTabsModule} from '@ionic-super-tabs/angular';
 import {GroupListEditorComponent} from '../group-list-editor/group-list-editor.component';
+import {AlbumListEditorComponent} from '../album-list-editor/album-list-editor.component';
 
 @NgModule({
     imports: [
@@ -22,7 +23,7 @@ import {GroupListEditorComponent} from '../group-list-editor/group-list-editor.c
     exports: [
         GroupListEditorComponent
     ],
-    declarations: [ManageUsersPage, EditUserComponent, GroupListEditorComponent]
+    declarations: [ManageUsersPage, EditUserComponent, GroupListEditorComponent, AlbumListEditorComponent]
 })
 export class ManageUsersPageModule {
 }

@@ -14,6 +14,9 @@ query editUserOverview($userid: ID!){
                 id
             }
         }
+        canAccessDirect{
+            id
+        }
     }
     listGroups{
         id
