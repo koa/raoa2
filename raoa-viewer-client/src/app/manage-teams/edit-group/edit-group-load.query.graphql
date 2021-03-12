@@ -1,0 +1,20 @@
+query editGroupLoad($id: ID!){
+    groupById(id:$id){
+        id
+        name
+        members{
+            user{
+                id
+            }
+            from
+            until
+        }
+        canAccess{
+            id
+        }
+        labels{
+            labelName
+            labelValue
+        }
+    }
+}

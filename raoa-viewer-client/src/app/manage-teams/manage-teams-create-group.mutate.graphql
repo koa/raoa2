@@ -1,0 +1,14 @@
+mutation manageGroupsCreateGroup($name: String!){
+    createGroup(name: $name){
+        id
+        name
+        canAccess{
+            id
+        }
+        members{
+            user{
+                id
+            }
+        }
+    }
+}

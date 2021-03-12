@@ -122,6 +122,19 @@ public class Query implements GraphQLQueryResolver {
         .toFuture();
   }
 
+  public CompletableFuture<GroupReference> groupById(UUID userid) {
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            queryContext ->
+                dataViewService
+                    .findGroupById(userid)
+                    .map(u -> new GroupReference(u.getId(), queryContext, Mono.just(u))))
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
   public CompletableFuture<AuthenticationState> authenticationState() {
     // log.info("Query for authentication state");
     return queryContextSupplier

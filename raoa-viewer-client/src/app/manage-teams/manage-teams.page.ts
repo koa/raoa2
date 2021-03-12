@@ -1,7 +1,7 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 import {ServerApiService} from '../service/server-api.service';
-import {Album, CreateGroupGQL, Group, ManageTeamsListAllGroupsGQL, User} from '../generated/graphql';
-import {LoadingController} from '@ionic/angular';
+import {Album, Group, ManageGroupsCreateGroupGQL, ManageTeamsListAllGroupsGQL, User} from '../generated/graphql';
+import {IonInput, LoadingController} from '@ionic/angular';
 
 type GroupEntry = { __typename?: 'Group' } & Pick<Group, 'id' | 'name'> &
     {
@@ -20,15 +20,24 @@ export class ManageTeamsPage implements OnInit {
     private allGroups: Array<GroupEntry> = [];
 
     constructor(private serverApi: ServerApiService,
-                private createGroupGQL: CreateGroupGQL,
+                private createGroupGQL: ManageGroupsCreateGroupGQL,
                 private manageTeamsListAllGroupsGQL: ManageTeamsListAllGroupsGQL,
                 private loadController: LoadingController,
                 private ngZone: NgZone) {
     }
 
     async ngOnInit() {
+        await this.refreshData();
+    }
+
+    private async refreshData() {
         this.allGroups = (await this.serverApi.query(this.manageTeamsListAllGroupsGQL, {})).listGroups;
+        this.sortGroups();
         this.refreshFilter();
+    }
+
+    private sortGroups() {
+        this.allGroups = this.allGroups.slice().sort((g1, g2) => g1.name.localeCompare(g2.name));
     }
 
     updateFilter($event: CustomEvent) {
@@ -38,5 +47,23 @@ export class ManageTeamsPage implements OnInit {
 
     private refreshFilter() {
         this.filteredGroups = this.allGroups.filter(g => g.name.toLowerCase().indexOf(this.groupFilter) >= 0);
+    }
+
+
+    async createGroup($event: KeyboardEvent) {
+        const loadingElement = await this.loadController.create({message: 'Gruppe erstellen'});
+        await loadingElement.present();
+        const input = ($event.target as unknown) as IonInput;
+        const groupName = input.value;
+        const result = await this.serverApi.update(this.createGroupGQL, {name: groupName});
+        await loadingElement.dismiss();
+        await this.refreshData();
+        this.ngZone.run(() => {
+            input.value = '';
+        });
+    }
+
+    getGroupName(group: Group) {
+        return group.name;
     }
 }

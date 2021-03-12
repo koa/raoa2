@@ -4,7 +4,14 @@
     </ion-toolbar>
 </ion-header>
 <ion-content>
-    <ion-card *ngFor="let group of filteredGroups">
+    <ion-card>
+        <ion-card-header>
+            <ion-card-title>
+                <ion-input placeholder="Neue Gruppe" (keyup.enter)="createGroup($event)"></ion-input>
+            </ion-card-title>
+        </ion-card-header>
+    </ion-card>
+    <ion-card *ngFor="let group of filteredGroups" [routerLink]="group.id">
         <ion-card-header>
             <ion-card-title>{{group.name}}</ion-card-title>
             <ion-card-subtitle>{{group.members.length}} Mitglieder</ion-card-subtitle>

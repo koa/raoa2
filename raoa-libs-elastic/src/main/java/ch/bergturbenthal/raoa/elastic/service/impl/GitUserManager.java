@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.function.Function;
@@ -30,6 +31,7 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 @Slf4j
 @Service
@@ -126,19 +128,20 @@ public class GitUserManager implements UserManager {
       final String commitComment,
       final boolean replaceIfExists) {
     return metaIdMono
-        .flatMap(albumList::getAlbum)
-        .flatMap(GitAccess::createUpdater)
         .flatMap(
-            u ->
-                u.importFile(srcData.toPath(), newFilename, replaceIfExists)
-                    .filter(t -> t)
-                    .flatMap(t -> u.commit(commitComment))
-                    .filter(t -> t)
-                    .doFinally(
-                        signal -> {
-                          u.close();
-                          srcData.delete();
-                        }));
+            albumId ->
+                albumList
+                    .getAlbum(albumId)
+                    .flatMap(GitAccess::createUpdater)
+                    .flatMap(
+                        u ->
+                            u.importFile(srcData.toPath(), newFilename, replaceIfExists)
+                                .filter(t -> t)
+                                .flatMap(t -> u.commit(commitComment))
+                                .filter(t -> t)
+                                .doFinally(signal -> u.close())))
+        .retryWhen(Retry.backoff(5, Duration.ofMillis(500)))
+        .doFinally(signal -> srcData.delete());
   }
 
   @Override

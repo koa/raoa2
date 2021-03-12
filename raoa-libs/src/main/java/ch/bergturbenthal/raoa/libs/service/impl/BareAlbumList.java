@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -39,8 +40,7 @@ public class BareAlbumList implements AlbumList {
   public static final Duration MAX_AUTOINDEX_CACHE_TIME = Duration.ofMinutes(1);
   private static final Collection<String> IMPORTING_TYPES =
       new HashSet<>(Arrays.asList("image/jpeg", "image/tiff", "application/mp4", "video/mp4"));
-  private final Mono<SortedMap<Instant, UUID>> autoaddIndex;
-  private final Mono<Map<UUID, GitAccess>> repositories;
+  private final AtomicReference<CachedData> scanCache = new AtomicReference<>();
   /*private final ExecutorService ioExecutor =
   Executors.newFixedThreadPool(
       50,
@@ -53,15 +53,18 @@ public class BareAlbumList implements AlbumList {
         }
       });*/
   private final AsyncService asyncService;
-  private Properties properties;
+  private final MeterRegistry meterRegistry;
+  private final Scheduler processScheduler;
+  private final Path repoRootPath;
+  private final Properties properties;
 
   public BareAlbumList(
       Properties properties, MeterRegistry meterRegistry, final AsyncService asyncService) {
     this.properties = properties;
     this.asyncService = asyncService;
 
-    final Scheduler processScheduler = Schedulers.newElastic("process");
-    final Path repoRootPath = this.properties.getRepository().toPath();
+    processScheduler = Schedulers.newElastic("process");
+    repoRootPath = this.properties.getRepository().toPath();
     if (!Files.isDirectory(repoRootPath)) {
       try {
         Files.createDirectories(repoRootPath);
@@ -69,38 +72,8 @@ public class BareAlbumList implements AlbumList {
         throw new RuntimeException(e);
       }
     }
-    repositories =
-        listSubdirs(repoRootPath)
-            .publishOn(processScheduler, 5)
-            .<GitAccess>map(
-                p ->
-                    BareGitAccess.accessOf(
-                        p,
-                        repoRootPath.relativize(p),
-                        asyncService,
-                        processScheduler,
-                        meterRegistry))
-            .flatMap(p -> p.getMetadata().map(m -> Tuples.of(p, m)), 4)
-            .filter(t1 -> t1.getT2().getAlbumId() != null)
-            .collectMap(t -> t.getT2().getAlbumId(), Tuple2::getT1)
-            .cache(MAX_REPOSITORY_CACHE_TIME);
-    autoaddIndex =
-        repositories
-            .<SortedMap<Instant, UUID>>flatMap(
-                reps ->
-                    Flux.fromIterable(reps.entrySet())
-                        .flatMap(
-                            e ->
-                                e.getValue()
-                                    .readAutoadd()
-                                    .map(t -> new AutoaddEntry(t, e.getKey())))
-                        .collect(
-                            Collectors.toMap(
-                                AutoaddEntry::getTime,
-                                AutoaddEntry::getId,
-                                (a, b) -> b,
-                                TreeMap::new)))
-            .cache(MAX_AUTOINDEX_CACHE_TIME);
+    this.meterRegistry = meterRegistry;
+    resetCache();
   }
 
   private static void listSubdirs(final Path dir, final Consumer<Path> fluxSink)
@@ -120,6 +93,43 @@ public class BareAlbumList implements AlbumList {
         }
       }
     }
+  }
+
+  @Override
+  public void resetCache() {
+    final Mono<Map<UUID, GitAccess>> repositories =
+        listSubdirs(repoRootPath)
+            .publishOn(processScheduler, 5)
+            .<GitAccess>map(
+                p ->
+                    BareGitAccess.accessOf(
+                        p,
+                        repoRootPath.relativize(p),
+                        asyncService,
+                        processScheduler,
+                        meterRegistry))
+            .flatMap(p -> p.getMetadata().map(m -> Tuples.of(p, m)), 4)
+            .filter(t1 -> t1.getT2().getAlbumId() != null)
+            .collectMap(t -> t.getT2().getAlbumId(), Tuple2::getT1)
+            .cache(MAX_REPOSITORY_CACHE_TIME);
+    final Mono<SortedMap<Instant, UUID>> autoaddIndex =
+        repositories
+            .<SortedMap<Instant, UUID>>flatMap(
+                reps ->
+                    Flux.fromIterable(reps.entrySet())
+                        .flatMap(
+                            e ->
+                                e.getValue()
+                                    .readAutoadd()
+                                    .map(t -> new AutoaddEntry(t, e.getKey())))
+                        .collect(
+                            Collectors.toMap(
+                                AutoaddEntry::getTime,
+                                AutoaddEntry::getId,
+                                (a, b) -> b,
+                                TreeMap::new)))
+            .cache(MAX_AUTOINDEX_CACHE_TIME);
+    scanCache.set(new CachedData(autoaddIndex, repositories));
   }
 
   private Flux<Path> listSubdirs(Path dir) {
@@ -145,7 +155,9 @@ public class BareAlbumList implements AlbumList {
       }
 
       public Mono<Boolean> importFile(final Path file) {
-        return repositories
+        return scanCache
+            .get()
+            .getRepositories()
             .flatMap(
                 reps ->
                     asyncService.asyncMono(
@@ -219,21 +231,27 @@ public class BareAlbumList implements AlbumList {
 
   @Override
   public Flux<FoundAlbum> listAlbums() {
-    return repositories
+    return scanCache
+        .get()
+        .getRepositories()
         .flatMapIterable(Map::entrySet)
         .map(e -> new FoundAlbum(e.getKey(), e.getValue()));
   }
 
   @Override
   public Mono<GitAccess> getAlbum(final UUID albumId) {
-    return repositories
+    return scanCache
+        .get()
+        .getRepositories()
         .map(reps -> Optional.ofNullable(reps.get(albumId)))
         .filter(Optional::isPresent)
         .map(Optional::get);
   }
 
   private Mono<UUID> albumOf(final Instant timestamp) {
-    return autoaddIndex
+    return scanCache
+        .get()
+        .getAutoaddIndex()
         .map(i -> i.headMap(timestamp))
         .filter(t -> !t.isEmpty())
         .map(t -> t.get(t.lastKey()));
@@ -243,5 +261,11 @@ public class BareAlbumList implements AlbumList {
   private static class AutoaddEntry {
     Instant time;
     UUID id;
+  }
+
+  @Value
+  private static class CachedData {
+    Mono<SortedMap<Instant, UUID>> autoaddIndex;
+    Mono<Map<UUID, GitAccess>> repositories;
   }
 }

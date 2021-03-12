@@ -29,7 +29,8 @@ import {UserListEditorComponent} from '../user-list-editor/user-list-editor.comp
     ],
     declarations: [AlbumPage, AuthImagePipe, InViewportDirective, ShowSingleMediaComponent, AlbumListComponent, ManageAlbumComponent, UserListEditorComponent],
     exports: [
-        AuthImagePipe
+        AuthImagePipe,
+        UserListEditorComponent
     ]
 })
 export class AlbumPageModule {

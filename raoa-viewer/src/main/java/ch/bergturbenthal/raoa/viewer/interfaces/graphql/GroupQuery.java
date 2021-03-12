@@ -5,7 +5,10 @@ import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +65,8 @@ public class GroupQuery implements GraphQLResolver<GroupReference> {
         .getGroup()
         .map(
             g ->
-                g.getLabels().entrySet().stream()
+                Optional.ofNullable(g.getLabels()).map(Map::entrySet).stream()
+                    .flatMap(Collection::stream)
                     .map(e -> new LabelValue(e.getKey(), e.getValue()))
                     .collect(Collectors.toList()))
         .timeout(TIMEOUT)

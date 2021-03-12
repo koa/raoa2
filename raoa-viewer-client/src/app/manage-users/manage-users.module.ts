@@ -21,7 +21,8 @@ import {AlbumListEditorComponent} from '../album-list-editor/album-list-editor.c
         SuperTabsModule
     ],
     exports: [
-        GroupListEditorComponent
+        GroupListEditorComponent,
+        AlbumListEditorComponent
     ],
     declarations: [ManageUsersPage, EditUserComponent, GroupListEditorComponent, AlbumListEditorComponent]
 })

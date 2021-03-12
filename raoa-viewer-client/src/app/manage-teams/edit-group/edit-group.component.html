@@ -1,0 +1,40 @@
+<ion-header>
+    <ion-title>
+        {{groupData?.name}}</ion-title>
+</ion-header>
+<ion-content>
+    <super-tabs>
+        <super-tabs-toolbar color="">
+            <super-tab-button>
+                <ion-label>Übersicht</ion-label>
+            </super-tab-button>
+            <super-tab-button>
+                <ion-label>User</ion-label>
+            </super-tab-button>
+            <super-tab-button>
+                <ion-label>Alben</ion-label>
+            </super-tab-button>
+        </super-tabs-toolbar>
+        <super-tabs-container>
+            <super-tab>
+                <ion-card *ngIf="groupData?.name">
+                    <ion-card-title>
+                        <ion-card-subtitle>Name Anpassen</ion-card-subtitle>
+                        <ion-input [(ngModel)]="groupName"></ion-input>
+                    </ion-card-title>
+                </ion-card>
+            </super-tab>
+            <super-tab>
+                <app-user-list-editor [selectedUsers]="selectedUsers"
+                                      (valueChanged)="usersChanged($event)"></app-user-list-editor>
+            </super-tab>
+            <super-tab>
+                <app-album-list-editor [selectedCollections]="selectedAlbums"
+                                       (valueChanged)="albumsChanged($event)"></app-album-list-editor>
+            </super-tab>
+        </super-tabs-container>
+    </super-tabs>
+</ion-content>
+<ion-footer>
+    <ion-button (click)="apply()">Speichern</ion-button>
+</ion-footer>

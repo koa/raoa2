@@ -395,7 +395,7 @@ public class BareGitAccess implements GitAccess {
 
       @Override
       public void close() {
-        dirCache.unlock();
+        if (!isBareRepository) dirCache.unlock();
       }
 
       @Override
@@ -490,7 +490,7 @@ public class BareGitAccess implements GitAccess {
                 }
               } catch (IOException e) {
                 log.warn("Cannot prepare commit", e);
-                return (false);
+                return false;
               }
               try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
 
@@ -511,14 +511,17 @@ public class BareGitAccess implements GitAccess {
                 ru.setNewObjectId(commitId);
                 ru.setRefLogMessage("auto import" + revCommit.getShortMessage(), false);
                 ru.setExpectedOldObjectId(masterRef.getObjectId());
-                switch (ru.update()) {
-                  case NOT_ATTEMPTED:
+                final RefUpdate.Result updateResult = ru.update();
+                switch (updateResult) {
                   case LOCK_FAILURE:
+                    throw new IllegalStateException("Lock Failure");
+                  case NOT_ATTEMPTED:
                   case REJECTED_OTHER_REASON:
                   case REJECTED_MISSING_OBJECT:
                   case IO_FAILURE:
                   case REJECTED_CURRENT_BRANCH:
                   case REJECTED:
+                    log.warn("Error committing: " + updateResult);
                     return false;
 
                   case NO_CHANGE:
@@ -541,12 +544,15 @@ public class BareGitAccess implements GitAccess {
                         }
                       }
                     log.info("Commit successful " + rep.getDirectory());
-                    return (true);
+                    cachedMasterRef.set(null);
+                    cachedMasterTree.set(null);
+                    return true;
                 }
               } catch (IOException e) {
                 log.warn("Cannot finish commit", e);
               }
-              return (false);
+              log.warn("Commit not executed");
+              return false;
             });
       }
     };

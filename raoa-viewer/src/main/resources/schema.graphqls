@@ -9,6 +9,7 @@ type Query {
     listUsers: [User!]!
     listGroups: [Group!]!
     userById(id: ID!):User
+    groupById(id: ID!):Group
 }
 type Mutation{
     requestAccess(comment: String): RequestAccessResult

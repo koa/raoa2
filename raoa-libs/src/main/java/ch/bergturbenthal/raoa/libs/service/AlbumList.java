@@ -7,6 +7,8 @@ import reactor.core.publisher.Mono;
 
 public interface AlbumList {
 
+  void resetCache();
+
   FileImporter createImporter();
 
   Flux<FoundAlbum> listAlbums();

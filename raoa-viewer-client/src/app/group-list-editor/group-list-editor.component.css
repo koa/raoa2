@@ -1,0 +1,4 @@
+ion-list-header{
+    display: flex;
+    flex-direction: column;
+}
