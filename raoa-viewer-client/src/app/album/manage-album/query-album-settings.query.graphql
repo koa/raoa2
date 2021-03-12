@@ -8,5 +8,9 @@ query queryAlbumSettings($albumId: ID!) {
         canAccessedByUser{
             id
         }
+        labels{
+            labelName
+            labelValue
+        }
     }
 }

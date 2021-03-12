@@ -2,6 +2,7 @@ package ch.bergturbenthal.raoa.libs.service;
 
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import java.time.Instant;
+import java.util.function.Function;
 import lombok.Value;
 import org.apache.tika.metadata.Metadata;
 import org.eclipse.jgit.lib.AnyObjectId;
@@ -30,6 +31,8 @@ public interface GitAccess {
   Mono<String> getFullPath();
 
   Mono<AlbumMeta> getMetadata();
+
+  Mono<Boolean> updateMetadata(Function<AlbumMeta, AlbumMeta> mutation);
 
   Mono<Metadata> entryMetdata(AnyObjectId entryId);
 

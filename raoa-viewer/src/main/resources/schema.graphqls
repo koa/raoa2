@@ -22,6 +22,14 @@ type Mutation{
     createGroup(name: String!): Group
     updateGroup(groupId: ID!, update: GroupUpdate): Group
     updateCredentials(update: CredentialUpgrade!): UpdateResult
+    updateAlbum(albumId: ID!, update: AlbumUpdate!):Album
+}
+
+input AlbumUpdate {
+    newAlbumTitle: String
+    newTitleEntry: ID
+    newLabels: [LabelInput!]!
+    removeLabels: [String!]!
 }
 
 
@@ -139,6 +147,7 @@ type Album {
     canAccessedByUser: [User!]!
     zipDownloadUri: String
     albumTime: DateTime
+    labels: [Label!]!
 }
 
 type AlbumEntry {

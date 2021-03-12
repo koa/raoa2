@@ -1,0 +1,5 @@
+mutation manageAlbumUpdate($id: ID!, $update: AlbumUpdate!){
+    updateAlbum(albumId: $id, update: $update){
+        id
+    }
+}

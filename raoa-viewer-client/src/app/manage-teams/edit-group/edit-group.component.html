@@ -23,6 +23,10 @@
                         <ion-input [(ngModel)]="groupName"></ion-input>
                     </ion-card-title>
                 </ion-card>
+                <ion-card>
+                    <ion-card-subtitle>FNCH Teilnehmer-ID</ion-card-subtitle>
+                    <ion-card-title><ion-input [(ngModel)]="fnchCompetitorId"></ion-input></ion-card-title>
+                </ion-card>
             </super-tab>
             <super-tab>
                 <app-user-list-editor [selectedUsers]="selectedUsers"

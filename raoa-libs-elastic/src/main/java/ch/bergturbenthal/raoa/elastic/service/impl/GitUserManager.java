@@ -232,7 +232,7 @@ public class GitUserManager implements UserManager {
                                     .map(
                                         loader -> {
                                           try {
-                                            return groupReader.readValue(loader.getBytes());
+                                            return groupReader.<Group>readValue(loader.getBytes());
                                           } catch (IOException ex) {
                                             throw new RuntimeException(ex);
                                           }
@@ -246,6 +246,7 @@ public class GitUserManager implements UserManager {
         .id(group.getId())
         .name(group.getName())
         .visibleAlbums(defaultIfNull(group.getVisibleAlbums(), Collections.emptySet()))
+        .labels(defaultIfNull(group.getLabels(), Collections.emptyMap()))
         .build();
   }
 

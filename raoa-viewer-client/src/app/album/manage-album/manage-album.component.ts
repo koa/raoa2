@@ -3,6 +3,9 @@ import {ActivatedRoute} from '@angular/router';
 import {ServerApiService} from '../../service/server-api.service';
 import {
     CreateGroupGQL,
+    LabelInput,
+    ManageAlbumUpdateGQL,
+    ManageAlbumUpdateMutationVariables,
     Maybe,
     QueryAlbumSettingsGQL,
     SingleGroupVisibilityUpdate,
@@ -27,6 +30,8 @@ interface UserEntry {
     data: UserDataType;
 }
 
+const FNCH_COMPETITION_ID = 'fnch-competition-id';
+
 @Component({
     selector: 'app-manage-album',
     templateUrl: './manage-album.component.html',
@@ -39,12 +44,14 @@ export class ManageAlbumComponent implements OnInit {
     private activeGroups: Set<string> = new Set();
     public selectedUsers: Set<string> = new Set();
     private activeUsers: Set<string> = new Set();
+    fnchCompetitionId: string;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
                 private queryAlbumSettingsGQL: QueryAlbumSettingsGQL,
                 private createGroupGQL: CreateGroupGQL,
                 private updateCredentialsGQL: UpdateCredentitalsGQL,
+                private manageAlbumUpdateGQL: ManageAlbumUpdateGQL,
                 private ngZone: NgZone,
                 private loadController: LoadingController,
                 private toastController: ToastController,
@@ -78,6 +85,11 @@ export class ManageAlbumComponent implements OnInit {
             if (this.selectedUsers.size === 0) {
                 this.selectedUsers = new Set(activeUsers);
             }
+            const labels: Map<string, string> = new Map<string, string>();
+            data.albumById.labels.forEach(lv => {
+                labels.set(lv.labelName, lv.labelValue);
+            });
+            this.fnchCompetitionId = labels.get(FNCH_COMPETITION_ID);
             loadingElement.dismiss();
         });
     }
@@ -119,6 +131,25 @@ export class ManageAlbumComponent implements OnInit {
             }
         };
         await this.serverApi.update(this.updateCredentialsGQL, data);
+        const newAlbumTitle: string | null = null;
+        const newTitleEntry: string | null = null;
+        const newLabels: LabelInput[] = [];
+        const removeLabels: string[] = [];
+        if (this.fnchCompetitionId && this.fnchCompetitionId.trim().length > 0) {
+            newLabels.push({labelName: FNCH_COMPETITION_ID, labelValue: this.fnchCompetitionId.trim()});
+        } else {
+            removeLabels.push(FNCH_COMPETITION_ID);
+        }
+        const albumUpdate: ManageAlbumUpdateMutationVariables = {
+            id: this.albumId,
+            update: {
+                newAlbumTitle,
+                newLabels,
+                newTitleEntry,
+                removeLabels
+            }
+        };
+        await this.serverApi.update(this.manageAlbumUpdateGQL, albumUpdate);
         await this.serverApi.clear();
         await this.refreshData();
     }

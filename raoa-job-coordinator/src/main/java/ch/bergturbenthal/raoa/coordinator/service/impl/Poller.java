@@ -285,10 +285,14 @@ public class Poller {
                                   final Mono<String> nameMono = album.getAccess().getName();
                                   final Mono<ObjectId> versionMono =
                                       album.getAccess().getCurrentVersion();
-                                  return Mono.zip(updatedData, nameMono, versionMono)
+                                  return Mono.zip(
+                                          updatedData,
+                                          nameMono,
+                                          versionMono,
+                                          album.getAccess().getMetadata())
                                       .flatMap(
                                           TupleUtils.function(
-                                              (data, name, currentVersion) -> {
+                                              (data, name, currentVersion, metadata) -> {
                                                 final LongSummaryStatistics timeSummary =
                                                     new LongSummaryStatistics();
                                                 final LongAdder entryCount = new LongAdder();
@@ -322,6 +326,8 @@ public class Poller {
                                                         .repositoryId(album.getAlbumId())
                                                         .currentVersion(currentVersion)
                                                         .name(name);
+                                                Optional.ofNullable(metadata.getLabels())
+                                                    .ifPresent(albumDataBuilder::labels);
                                                 if (timeSummary.getCount() > 0)
                                                   albumDataBuilder.createTime(
                                                       Instant.ofEpochSecond(
@@ -336,6 +342,7 @@ public class Poller {
                                                                     .entryCount(e.getValue().get())
                                                                     .build())
                                                         .collect(Collectors.toList()));
+
                                                 final Mono<AlbumData> save =
                                                     albumDataRepository
                                                         .save(albumDataBuilder.build())

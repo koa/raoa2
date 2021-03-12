@@ -445,10 +445,8 @@ public class ElasticSearchDataViewService implements DataViewService {
                                                                     .buffer(100)
                                                                     .publishOn(Schedulers.elastic())
                                                                     .flatMapIterable(
-                                                                        entities -> {
-                                                                          return storeAlbumEntryDataBatch(
-                                                                              entities);
-                                                                        });
+                                                                        this
+                                                                            ::storeAlbumEntryDataBatch);
                                                             return Flux.merge(passThrough, stored);
                                                           })
                                                       .collect(
@@ -476,20 +474,35 @@ public class ElasticSearchDataViewService implements DataViewService {
                                                                                 .defaultIfEmpty(1))
                                                                     .count();
                                                             final Mono<AlbumData> albumDataMono =
-                                                                statResult
+                                                                Mono.zip(
+                                                                        statResult,
+                                                                        album
+                                                                            .getAccess()
+                                                                            .getMetadata())
                                                                     .map(
-                                                                        s ->
-                                                                            s.fill(
-                                                                                    AlbumData
-                                                                                        .builder()
-                                                                                        .repositoryId(
-                                                                                            album
-                                                                                                .getAlbumId())
-                                                                                        .currentVersion(
-                                                                                            currentVersion)
-                                                                                        .name(
-                                                                                            currentName))
-                                                                                .build())
+                                                                        TupleUtils.function(
+                                                                            (s, metadata) -> {
+                                                                              final AlbumData
+                                                                                      .AlbumDataBuilder
+                                                                                  builder =
+                                                                                      AlbumData
+                                                                                          .builder()
+                                                                                          .repositoryId(
+                                                                                              album
+                                                                                                  .getAlbumId())
+                                                                                          .currentVersion(
+                                                                                              currentVersion)
+                                                                                          .name(
+                                                                                              currentName);
+                                                                              Optional.ofNullable(
+                                                                                      metadata
+                                                                                          .getLabels())
+                                                                                  .ifPresent(
+                                                                                      builder
+                                                                                          ::labels);
+                                                                              return s.fill(builder)
+                                                                                  .build();
+                                                                            }))
                                                                     .flatMap(
                                                                         albumDataRepository::save);
 

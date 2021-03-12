@@ -7,7 +7,10 @@
     </ion-toolbar>
 </ion-header>
 <super-tabs>
-    <super-tabs-toolbar>
+    <super-tabs-toolbar color="">
+        <super-tab-button>
+            <ion-label>Einstellungen</ion-label>
+        </super-tab-button>
         <super-tab-button>
             <ion-label>Gruppen</ion-label>
         </super-tab-button>
@@ -16,6 +19,12 @@
         </super-tab-button>
     </super-tabs-toolbar>
     <super-tabs-container>
+        <super-tab>
+            <ion-card>
+                <ion-card-subtitle>FNCH Veranstaltungs-ID</ion-card-subtitle>
+                <ion-card-title><ion-input [(ngModel)]="fnchCompetitionId"></ion-input></ion-card-title>
+            </ion-card>
+        </super-tab>
         <super-tab>
             <app-group-list-editor [selectedGroups]="selectedGroups" (valueChanged)="groupChanged($event)"></app-group-list-editor>
         </super-tab>

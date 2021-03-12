@@ -42,6 +42,7 @@ import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.jetbrains.annotations.NotNull;
 import org.joda.time.format.ISODateTimeFormat;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.xml.sax.SAXException;
@@ -53,10 +54,10 @@ import reactor.util.function.Tuples;
 @Slf4j
 @ToString
 public class BareGitAccess implements GitAccess {
+  public static final String METADATA_FILENAME = ".raoa.json";
   private static final Duration REPOSITORY_CACHE_TIME = Duration.ofSeconds(20);
-
-  private static ObjectWriter albumMetaWriter;
-  private static com.fasterxml.jackson.databind.ObjectReader albumMetaRader;
+  private static final ObjectWriter albumMetaWriter;
+  private static final com.fasterxml.jackson.databind.ObjectReader albumMetaRader;
 
   static {
     final ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().build();
@@ -92,22 +93,12 @@ public class BareGitAccess implements GitAccess {
             .cache(REPOSITORY_CACHE_TIME);
 
     Consumer<AlbumMeta> metaUpdater =
-        newMetadata -> {
-          try {
-            final File tempFile = File.createTempFile("metadata", ".json");
-            albumMetaWriter.writeValue(tempFile, newMetadata);
-            createUpdater()
-                .flatMap(u -> u.importFile(tempFile.toPath(), ".raoa.json", true).map(l -> u))
-                .flatMap(u -> u.commit("Metadata updated").map(l -> u))
-                .doFinally(signal -> tempFile.delete())
+        newMetadata ->
+            writeNewMetadata(newMetadata)
                 .subscribe(Updater::close, ex -> log.warn("Cannot update metadata", ex));
-          } catch (IOException e) {
-            throw new RuntimeException(e);
-          }
-        };
 
     albumMetaSupplier =
-        readObject(".raoa.json")
+        readObject(METADATA_FILENAME)
             .flatMap(
                 l ->
                     createAsyncMonoOptional(
@@ -150,6 +141,23 @@ public class BareGitAccess implements GitAccess {
       final Scheduler processScheduler,
       MeterRegistry meterRegistry) {
     return new BareGitAccess(path, relativePath, ioScheduler, processScheduler, meterRegistry);
+  }
+
+  @NotNull
+  private Mono<Updater> writeNewMetadata(final AlbumMeta newMetadata) {
+    return asyncService
+        .asyncMono(
+            () -> {
+              final File newFile = File.createTempFile("metadata", ".json");
+              albumMetaWriter.writeValue(newFile, newMetadata);
+              return newFile;
+            })
+        .flatMap(
+            tempFile ->
+                createUpdater()
+                    .flatMap(u -> u.importFile(tempFile.toPath(), ".raoa.json", true).map(l -> u))
+                    .flatMap(u -> u.commit("Metadata updated").map(l -> u))
+                    .doFinally(signal -> tempFile.delete()));
   }
 
   @Override
@@ -593,6 +601,15 @@ public class BareGitAccess implements GitAccess {
   @Override
   public Mono<AlbumMeta> getMetadata() {
     return albumMetaSupplier;
+  }
+
+  @Override
+  public Mono<Boolean> updateMetadata(final Function<AlbumMeta, AlbumMeta> mutation) {
+    return albumMetaSupplier
+        .map(mutation)
+        .flatMap(this::writeNewMetadata)
+        .map(u -> true)
+        .defaultIfEmpty(false);
   }
 
   @Override

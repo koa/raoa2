@@ -3,6 +3,8 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 import ch.bergturbenthal.raoa.elastic.model.*;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
+import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
+import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.*;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
@@ -33,16 +35,19 @@ public class Mutation implements GraphQLMutationResolver {
   private final AuthorizationManager authorizationManager;
   private final QueryContextSupplier queryContextSupplier;
   private final DataViewService dataViewService;
+  private final AlbumList albumList;
 
   public Mutation(
       final UserManager userManager,
       final AuthorizationManager authorizationManager,
       final QueryContextSupplier queryContextSupplier,
-      final DataViewService dataViewService) {
+      final DataViewService dataViewService,
+      final AlbumList albumList) {
     this.userManager = userManager;
     this.authorizationManager = authorizationManager;
     this.queryContextSupplier = queryContextSupplier;
     this.dataViewService = dataViewService;
+    this.albumList = albumList;
   }
 
   @NotNull
@@ -510,7 +515,6 @@ public class Mutation implements GraphQLMutationResolver {
   }
 
   public CompletableFuture<GroupReference> updateGroup(UUID groupId, GroupUpdate update) {
-    log.info("update: " + update);
 
     return queryContextSupplier
         .createContext()
@@ -546,6 +550,48 @@ public class Mutation implements GraphQLMutationResolver {
                         u ->
                             new GroupReference(
                                 u, queryContext, dataViewService.findGroupById(u).cache())))
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<Album> updateAlbum(UUID albumId, AlbumUpdate update) {
+
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            queryContext ->
+                albumList
+                    .getAlbum(albumId)
+                    .flatMap(
+                        ga ->
+                            ga.updateMetadata(
+                                albumMeta -> {
+                                  final AlbumMeta.AlbumMetaBuilder builder = albumMeta.toBuilder();
+                                  Optional.ofNullable(update.getNewAlbumTitle())
+                                      .map(String::trim)
+                                      .filter(v -> !v.isEmpty())
+                                      .ifPresent(builder::albumTitle);
+                                  Optional.ofNullable(update.getNewTitleEntry())
+                                      .ifPresent(builder::titleEntry);
+                                  final HashMap<String, String> labels =
+                                      new HashMap<>(
+                                          Objects.requireNonNullElse(
+                                              albumMeta.getLabels(), Collections.emptyMap()));
+                                  Optional.ofNullable(update.getRemoveLabels())
+                                      .ifPresent(rem -> labels.keySet().removeAll(rem));
+                                  Optional.ofNullable(update.getNewLabels()).stream()
+                                      .flatMap(Collection::stream)
+                                      .forEach(
+                                          lv -> labels.put(lv.getLabelName(), lv.getLabelValue()));
+                                  builder.labels(labels);
+                                  return builder.build();
+                                }))
+                    .flatMap(t -> dataViewService.updateAlbums(albumList.listAlbums()))
+                    .map(
+                        c ->
+                            new Album(
+                                albumId, queryContext, dataViewService.readAlbum(albumId).cache())))
         .timeout(TIMEOUT)
         .toFuture();
   }

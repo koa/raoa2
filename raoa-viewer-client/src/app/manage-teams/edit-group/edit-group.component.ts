@@ -7,6 +7,7 @@ import {
     EditGroupUpdateGroupMutationVariables,
     Group,
     Label,
+    LabelInput,
     Maybe,
     SingleGroupMembershipUpdate,
     SingleGroupVisibilityUpdate,
@@ -17,6 +18,9 @@ import {
     UserMembership
 } from '../../generated/graphql';
 import {ActivatedRoute} from '@angular/router';
+
+
+const FNCH_COMPETITOR_ID = 'fnch-competitor-id';
 
 @Component({
     selector: 'app-edit-group',
@@ -42,6 +46,7 @@ export class EditGroupComponent implements OnInit {
         labels: Array<({ __typename?: 'Label' } & Pick<Label, 'labelName' | 'labelValue'>)>
     }
         )>;
+    public fnchCompetitorId: string | null;
 
 
     constructor(private activatedRoute: ActivatedRoute,
@@ -74,6 +79,12 @@ export class EditGroupComponent implements OnInit {
                         this.selectedAlbums.add(album.id);
                     });
                 }
+                const labels: Map<string, string> = new Map<string, string>();
+                groupData.labels.forEach(lv => {
+                    labels.set(lv.labelName, lv.labelValue);
+                });
+                this.fnchCompetitorId = labels.get(FNCH_COMPETITOR_ID);
+
                 this.groupData = groupData;
             });
         }
@@ -123,17 +134,22 @@ export class EditGroupComponent implements OnInit {
             };
             await this.serverApiService.update(this.updateCredentitalsGQL, updateRequest);
         }
-        if (this.groupName !== this.groupData.name) {
-            const update: EditGroupUpdateGroupMutationVariables = {
-                id: this.groupId,
-                update: {
-                    newName: this.groupName,
-                    newLabels: [],
-                    removeLabels: []
-                }
-            };
-            await this.serverApiService.update(this.editGroupUpdateGroupGQL, update);
+        const newLabels: LabelInput[] = [];
+        const removeLabels: string[] = [];
+        if (this.fnchCompetitorId && this.fnchCompetitorId.trim().length > 0) {
+            newLabels.push({labelName: FNCH_COMPETITOR_ID, labelValue: this.fnchCompetitorId.trim()});
+        } else {
+            removeLabels.push(FNCH_COMPETITOR_ID);
         }
+        const update: EditGroupUpdateGroupMutationVariables = {
+            id: this.groupId,
+            update: {
+                newName: this.groupName,
+                newLabels,
+                removeLabels
+            }
+        };
+        await this.serverApiService.update(this.editGroupUpdateGroupGQL, update);
         await this.serverApiService.clear();
         await this.refreshData();
     }

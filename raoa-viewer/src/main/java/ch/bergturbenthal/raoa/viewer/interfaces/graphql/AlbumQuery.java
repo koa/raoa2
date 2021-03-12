@@ -9,6 +9,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import org.eclipse.jgit.lib.ObjectId;
@@ -115,6 +117,20 @@ public class AlbumQuery implements GraphQLResolver<Album> {
         .filter(g -> g.getVisibleAlbums().contains(album.getId()))
         .map(group -> new GroupReference(group.getId(), context, Mono.just(group)))
         .collectList()
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<List<LabelValue>> labels(Album album) {
+    return album
+        .getElAlbumData()
+        .map(d -> Optional.ofNullable(d.getLabels()))
+        .filter(Optional::isPresent)
+        .map(Optional::get)
+        .flatMapIterable(Map::entrySet)
+        .map(e -> new LabelValue(e.getKey(), e.getValue()))
+        .collectList()
+        .defaultIfEmpty(Collections.emptyList())
         .timeout(TIMEOUT)
         .toFuture();
   }
