@@ -86,5 +86,10 @@
             <ion-card-title>Gruppen bearbeiten</ion-card-title>
         </ion-card-header>
     </ion-card>
+    <ion-card *ngIf="userState?.currentUser?.canManageUsers" (click)="updateFnchGroups()">
+        <ion-card-header>
+            <ion-card-title>Gruppen von FNCH updaten</ion-card-title>
+        </ion-card-header>
+    </ion-card>
 
 </ion-content>

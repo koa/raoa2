@@ -1,0 +1,16 @@
+query welcomListFetchFnchData{
+    listGroups{
+        id
+        labels{
+            labelName
+            labelValue
+        }
+    }
+    listAlbums{
+        id
+        labels{
+            labelName
+            labelValue
+        }
+    }
+}

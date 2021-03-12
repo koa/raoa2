@@ -340,12 +340,10 @@ public class Mutation implements GraphQLMutationResolver {
                       Flux.fromIterable(groupMutations.entrySet())
                           .flatMap(
                               mutEntry ->
-                                  userManager
-                                      .updateGroup(
-                                          mutEntry.getKey(),
-                                          mutEntry.getValue(),
-                                          "update group " + mutEntry.getKey())
-                                      .single(),
+                                  userManager.updateGroup(
+                                      mutEntry.getKey(),
+                                      mutEntry.getValue(),
+                                      "update group " + mutEntry.getKey()),
                               1)
                           .count())
                   .count()
