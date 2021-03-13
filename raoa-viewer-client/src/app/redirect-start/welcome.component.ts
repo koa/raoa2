@@ -141,7 +141,7 @@ export class WelcomeComponent implements OnInit {
         for (const [eventId, albumId] of events.entries()) {
             const competitors = new Set<number>();
             const eventData: FnchEvent = await this.httpClient
-                .get<FnchEvent>(`http://info.fnch.ch/resultate/veranstaltungen/${eventId}.json`)
+                .get<FnchEvent>(`https://info.fnch.ch/resultate/veranstaltungen/${eventId}.json`)
                 .toPromise()
                 .catch(error => {
                     this.toastController.create({
@@ -156,7 +156,7 @@ export class WelcomeComponent implements OnInit {
             }
             for (const competitionId of eventData.pruefungen.map(comp => comp.id)) {
                 const competitionData: FnchCompetition = await this.httpClient
-                    .get<FnchCompetition>(`http://info.fnch.ch/resultate/veranstaltungen/${eventId}.json?pruefung_id=${competitionId}`)
+                    .get<FnchCompetition>(`https://info.fnch.ch/resultate/veranstaltungen/${eventId}.json?pruefung_id=${competitionId}`)
                     .toPromise();
                 competitionData.resultate.map(e => e.reiter_id).forEach(id => competitors.add(id));
             }
