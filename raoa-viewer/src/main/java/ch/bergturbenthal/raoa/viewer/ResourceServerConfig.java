@@ -7,9 +7,9 @@ import com.nimbusds.jwt.JWTParser;
 import java.text.ParseException;
 import java.time.Instant;
 import java.util.*;
+import javax.servlet.Filter;
 import javax.servlet.http.Cookie;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.ResourceServerProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,6 +30,7 @@ import org.springframework.security.oauth2.provider.token.TokenStore;
 import org.springframework.security.oauth2.provider.token.UserAuthenticationConverter;
 import org.springframework.security.oauth2.provider.token.store.jwk.JwkTokenStore;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.web.filter.ShallowEtagHeaderFilter;
 
 @Slf4j
 @Configuration
@@ -37,7 +38,11 @@ import org.springframework.security.oauth2.server.resource.web.DefaultBearerToke
 @EnableWebSecurity
 public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
 
-  @Autowired private ViewerProperties oAuthProperties;
+  private final ViewerProperties oAuthProperties;
+
+  public ResourceServerConfig(final ViewerProperties oAuthProperties) {
+    this.oAuthProperties = oAuthProperties;
+  }
 
   @Override
   public void configure(final HttpSecurity http) throws Exception {
@@ -103,5 +108,10 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
   @Override
   public void configure(ResourceServerSecurityConfigurer resources) throws Exception {
     resources.resourceId(oAuthProperties.getClientProperties().getGoogleClientId());
+  }
+
+  @Bean
+  public Filter shallowEtagHeaderFilter() {
+    return new ShallowEtagHeaderFilter();
   }
 }

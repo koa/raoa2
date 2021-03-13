@@ -114,7 +114,7 @@ public class Poller {
                               })
                           .map(b -> !b)
                           .timeout(Duration.ofSeconds(60))
-                          .retryBackoff(10, Duration.ofSeconds(10)),
+                          .retryWhen(Retry.backoff(10, Duration.ofSeconds(10))),
                   10)
               .flatMap(
                   album -> {
@@ -356,7 +356,8 @@ public class Poller {
                                                         .map(Optional::of)
                                                         .defaultIfEmpty(Optional.empty())
                                                         .timeout(Duration.ofSeconds(30)),
-                                                    save.retryBackoff(10, Duration.ofSeconds(10)));
+                                                    save.retryWhen(
+                                                        Retry.backoff(10, Duration.ofSeconds(10))));
                                               }));
                                 });
                     return tuple2Mono
