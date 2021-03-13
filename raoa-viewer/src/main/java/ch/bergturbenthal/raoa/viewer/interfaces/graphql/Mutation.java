@@ -585,7 +585,6 @@ public class Mutation implements GraphQLMutationResolver {
                                   builder.labels(labels);
                                   return builder.build();
                                 }))
-                    .flatMap(t -> dataViewService.updateAlbums(albumList.listAlbums()))
                     .map(
                         c ->
                             new Album(

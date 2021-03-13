@@ -17,6 +17,7 @@ import {
 } from '../../generated/graphql';
 import {LoadingController, ToastController} from '@ionic/angular';
 import {Location} from '@angular/common';
+import {FNCH_COMPETITION_ID} from '../../constants';
 
 
 type UserDataType =
@@ -29,8 +30,6 @@ interface UserEntry {
     newSelected: boolean;
     data: UserDataType;
 }
-
-const FNCH_COMPETITION_ID = 'fnch-competition-id';
 
 @Component({
     selector: 'app-manage-album',

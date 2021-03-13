@@ -1,6 +1,6 @@
 import {Component, NgZone, OnInit, ViewChild} from '@angular/core';
 import {Router} from '@angular/router';
-import {IonInput, LoadingController, MenuController} from '@ionic/angular';
+import {IonInput, LoadingController, MenuController, ToastController} from '@ionic/angular';
 import {CommonServerApiService} from '../service/common-server-api.service';
 import {
     AuthenticationId,
@@ -18,6 +18,7 @@ import {
 import {ServerApiService} from '../service/server-api.service';
 import {LoginService} from '../service/login.service';
 import {HttpClient} from '@angular/common/http';
+import {FNCH_COMPETITION_ID, FNCH_COMPETITOR_ID} from '../constants';
 
 interface FnchEvent {
     pruefungen: FnchCompetition[];
@@ -67,6 +68,7 @@ export class WelcomeComponent implements OnInit {
                 private welcomListFetchFnchDataGQL: WelcomListFetchFnchDataGQL,
                 private updateCredentitalsGQL: UpdateCredentitalsGQL,
                 private loadingController: LoadingController,
+                private toastController: ToastController,
                 private httpClient: HttpClient
     ) {
     }
@@ -114,18 +116,22 @@ export class WelcomeComponent implements OnInit {
     }
 
     async updateFnchGroups() {
+        const loading = await this.loadingController.create({message: 'Daten von info.fnch.ch laden'});
+        await loading.present();
         const metadata = await this.serverApiService.query(this.welcomListFetchFnchDataGQL, {});
         const events = new Map<number, string>();
+        const eventNames = new Map<number, string>();
         metadata.listAlbums.forEach(albumData => {
-            const found = albumData.labels.filter(e => e.labelName === 'fnch-competition-id').map(e => e.labelValue);
+            const found = albumData.labels.filter(e => e.labelName === FNCH_COMPETITION_ID).map(e => e.labelValue);
             if (found.length > 0) {
                 const eventId = Number.parseInt(found[0], 10);
                 events.set(eventId, albumData.id);
+                eventNames.set(eventId, albumData.name);
             }
         });
         const groups = new Map<number, string>();
         metadata.listGroups.forEach(groupData => {
-            const found = groupData.labels.filter(e => e.labelName === 'fnch-competitor-id').map(e => e.labelValue);
+            const found = groupData.labels.filter(e => e.labelName === FNCH_COMPETITOR_ID).map(e => e.labelValue);
             if (found.length > 0) {
                 const competitorId = Number.parseInt(found[0], 10);
                 groups.set(competitorId, groupData.id);
@@ -136,7 +142,18 @@ export class WelcomeComponent implements OnInit {
             const competitors = new Set<number>();
             const eventData: FnchEvent = await this.httpClient
                 .get<FnchEvent>(`http://info.fnch.ch/resultate/veranstaltungen/${eventId}.json`)
-                .toPromise();
+                .toPromise()
+                .catch(error => {
+                    this.toastController.create({
+                        message: 'Fehler bei ' + eventNames.get(eventId) + ': ' + error,
+                        duration: 5000,
+                        color: 'danger'
+                    }).then(elem => elem.present());
+                    return null;
+                });
+            if (!eventData) {
+                continue;
+            }
             for (const competitionId of eventData.pruefungen.map(comp => comp.id)) {
                 const competitionData: FnchCompetition = await this.httpClient
                     .get<FnchCompetition>(`http://info.fnch.ch/resultate/veranstaltungen/${eventId}.json?pruefung_id=${competitionId}`)
@@ -155,6 +172,9 @@ export class WelcomeComponent implements OnInit {
                 });
             }
         }
+        await loading.dismiss();
+        const updating = await this.loadingController.create({message: 'Berechtigungen updaten'});
+        await updating.present();
         const update: UpdateCredentitalsMutationVariables = {
             update: {
                 userUpdates: [],
@@ -163,5 +183,11 @@ export class WelcomeComponent implements OnInit {
             }
         };
         await this.serverApiService.update(this.updateCredentitalsGQL, update);
+        await updating.dismiss();
+        const toast = await this.toastController.create({
+            message: `${groupUpdates.length} Teilnahmen gefunden in ${events.size} Veranstaltungen`,
+            duration: 5000
+        });
+        await toast.present();
     }
 }

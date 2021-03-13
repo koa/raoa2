@@ -1,0 +1,5 @@
+query CanManageUsers{
+    currentUser{
+        canManageUsers
+    }
+}

@@ -8,12 +8,16 @@
 </ion-header>
 <ion-content>
     <p>
-        <ion-card *ngFor="let entry of foundAlbums; let i = index" [routerLink]="[entry.url]">
-            <ion-card-header>
+        <ion-card *ngFor="let entry of foundAlbums; let i = index">
+            <ion-card-header [routerLink]="[entry.url]">
                 <ion-card-subtitle>{{entry.data.albumTime | date:'fullDate'}}</ion-card-subtitle>
                 <ion-card-title>{{entry.data.name}}</ion-card-title>
+                <ion-card-subtitle *ngIf="this.canManageUsers && getFnchId(entry.data)">
+                    FNCH ID: {{getFnchId(entry.data)}}
+                </ion-card-subtitle>
             </ion-card-header>
             <ion-card-content>
+                <ion-icon *ngIf="this.canManageUsers" name="settings" [routerLink]="[entry.url,'manage']"></ion-icon>
             </ion-card-content>
         </ion-card>
     </p>

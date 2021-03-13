@@ -1,9 +1,13 @@
 import {Injectable} from '@angular/core';
 import {ServerApiService} from './server-api.service';
-import {Album, AllAlbumsGQL} from '../generated/graphql';
+import {Album, AllAlbumsGQL, Label} from '../generated/graphql';
 
 
-export type AlbumEntryDataType = { __typename?: 'Album' } & Pick<Album, 'id' | 'name' | 'entryCount' | 'albumTime'>;
+export type AlbumEntryDataType = { __typename?: 'Album' } &
+    Pick<Album, 'id' | 'name' | 'entryCount' | 'albumTime'> &
+    {
+        labels: Array<{ __typename?: 'Label' } & Pick<Label, 'labelName' | 'labelValue'>>
+    };
 export type MenuEntry = { url: string, data: AlbumEntryDataType };
 
 

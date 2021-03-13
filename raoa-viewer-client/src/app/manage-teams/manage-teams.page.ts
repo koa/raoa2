@@ -1,12 +1,14 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 import {ServerApiService} from '../service/server-api.service';
-import {Album, Group, ManageGroupsCreateGroupGQL, ManageTeamsListAllGroupsGQL, User} from '../generated/graphql';
+import {Album, Group, Label, ManageGroupsCreateGroupGQL, ManageTeamsListAllGroupsGQL, User} from '../generated/graphql';
 import {IonInput, LoadingController} from '@ionic/angular';
+import {FNCH_COMPETITOR_ID} from '../constants';
 
 type GroupEntry = { __typename?: 'Group' } & Pick<Group, 'id' | 'name'> &
     {
         canAccess: Array<{ __typename?: 'Album' } & Pick<Album, 'id'>>;
-        members: Array<{ __typename?: 'UserMembership' } & { user: { __typename?: 'User' } & Pick<User, 'id'> }>
+        members: Array<{ __typename?: 'UserMembership' } & { user: { __typename?: 'User' } & Pick<User, 'id'> }>;
+        labels: Array<{ __typename?: 'Label' } & Pick<Label, 'labelName' | 'labelValue'>>
     };
 
 @Component({
@@ -65,5 +67,23 @@ export class ManageTeamsPage implements OnInit {
 
     getGroupName(group: Group) {
         return group.name;
+    }
+
+    hasFnchId(group: GroupEntry): boolean {
+        if (!group.labels) {
+            return false;
+        }
+        return group.labels.filter(e => e.labelName === FNCH_COMPETITOR_ID).length > 0;
+    }
+
+    getFnchId(group: GroupEntry): string | null {
+        if (!group.labels) {
+            return null;
+        }
+        const foundLabels = group.labels.filter(e => e.labelName === FNCH_COMPETITOR_ID);
+        if (foundLabels.length === 0) {
+            return null;
+        }
+        return foundLabels[0].labelValue;
     }
 }

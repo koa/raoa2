@@ -18,9 +18,8 @@ import {
     UserMembership
 } from '../../generated/graphql';
 import {ActivatedRoute} from '@angular/router';
+import {FNCH_COMPETITOR_ID} from '../../constants';
 
-
-const FNCH_COMPETITOR_ID = 'fnch-competitor-id';
 
 @Component({
     selector: 'app-edit-group',

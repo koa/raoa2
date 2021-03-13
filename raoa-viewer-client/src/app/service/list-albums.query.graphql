@@ -4,5 +4,9 @@ query AllAlbums{
         name,
         entryCount,
         albumTime
+        labels{
+            labelName
+            labelValue
+        }
     }
 }
