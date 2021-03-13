@@ -7,7 +7,6 @@ import com.nimbusds.jwt.JWTParser;
 import java.text.ParseException;
 import java.time.Instant;
 import java.util.*;
-import javax.servlet.Filter;
 import javax.servlet.http.Cookie;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.ResourceServerProperties;
@@ -30,7 +29,6 @@ import org.springframework.security.oauth2.provider.token.TokenStore;
 import org.springframework.security.oauth2.provider.token.UserAuthenticationConverter;
 import org.springframework.security.oauth2.provider.token.store.jwk.JwkTokenStore;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
-import org.springframework.web.filter.ShallowEtagHeaderFilter;
 
 @Slf4j
 @Configuration
@@ -108,10 +106,5 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
   @Override
   public void configure(ResourceServerSecurityConfigurer resources) throws Exception {
     resources.resourceId(oAuthProperties.getClientProperties().getGoogleClientId());
-  }
-
-  @Bean
-  public Filter shallowEtagHeaderFilter() {
-    return new ShallowEtagHeaderFilter();
   }
 }
