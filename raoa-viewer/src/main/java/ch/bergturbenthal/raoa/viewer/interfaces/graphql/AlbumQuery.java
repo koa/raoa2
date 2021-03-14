@@ -130,4 +130,14 @@ public class AlbumQuery implements GraphQLResolver<Album> {
         .timeout(TIMEOUT)
         .toFuture();
   }
+
+  public CompletableFuture<List<KeywordCount>> keywordCounts(Album album) {
+    return album
+        .getElAlbumData()
+        .flatMapIterable(AlbumData::getKeywordCount)
+        .map(k -> new KeywordCount(k.getKeyword(), k.getEntryCount()))
+        .collectList()
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
 }

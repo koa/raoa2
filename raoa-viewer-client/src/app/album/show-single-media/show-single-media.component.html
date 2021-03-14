@@ -16,8 +16,9 @@
                     <ion-icon *ngIf="supportShare" class="button" name="share-social-outline"
                               (click)="shareCurrentFile(this.previousMediaId, this.previousMetadata)"></ion-icon>
                     <ion-icon name="information-circle-outline" class="button" (click)="toggleMetadata()"></ion-icon>
+                    <ion-icon name="bookmark-outline" class="button" (click)="toggleKeywords()"></ion-icon>
                 </div>
-                <div *ngIf="showMetadata" class="file-meta">
+                <div *ngIf="showDetails=='Metadata'" class="file-meta">
                     <ion-label *ngIf="previousMetadata?.name">
                         <ion-icon name="document"></ion-icon>
                         {{previousMetadata.name}}</ion-label>
@@ -68,8 +69,9 @@
                     <ion-icon *ngIf="supportShare" class="button" name="share-social-outline"
                               (click)="shareCurrentFile(mediaId, metadata)"></ion-icon>
                     <ion-icon name="information-circle-outline" class="button" (click)="toggleMetadata()"></ion-icon>
+                    <ion-icon name="bookmark-outline" class="button" (click)="toggleKeywords()"></ion-icon>
                 </div>
-                <div *ngIf="showMetadata" class="file-meta">
+                <div *ngIf="showDetails=='Metadata'" class="file-meta">
                     <ion-label *ngIf="metadata?.name">
                         <ion-icon name="document"></ion-icon>
                         {{metadata.name}}</ion-label>
@@ -95,6 +97,16 @@
                         <ion-icon name="bookmark"></ion-icon>
                         {{keyword}}
                     </ion-label>
+                </div>
+                <div *ngIf="showDetails=='Keyword'" class="file-meta">
+                    <ion-chip *ngFor="let keyword of albumKeywords"
+                              [color]="currentSelectedKeywords.has(keyword)?'primary':'light'"
+                              [outline]="!currentSelectedKeywords.has(keyword)" (click)="toggleKeyword(keyword)">
+                        <ion-icon *ngIf="!currentSelectedKeywords.has(keyword)" name="bookmark-outline"></ion-icon>
+                        <ion-icon *ngIf="currentSelectedKeywords.has(keyword)" name="bookmark"></ion-icon>
+                        <ion-label>{{keyword}}</ion-label>
+                    </ion-chip>
+                    <ion-input placeholder="Neues Stichwort" (keyup.enter)="addKeyword($event)"></ion-input>
 
                 </div>
             </div>
@@ -118,8 +130,9 @@
                 <ion-icon *ngIf="supportShare" class="button" name="share-social-outline"
                           (click)="shareCurrentFile(nextMediaId, nextMetadata)"></ion-icon>
                 <ion-icon name="information-circle-outline" class="button" (click)="toggleMetadata()"></ion-icon>
+                <ion-icon name="bookmark-outline" class="button" (click)="toggleKeywords()"></ion-icon>
             </div>
-            <div *ngIf="showMetadata" class="file-meta">
+            <div *ngIf="showDetails=='Metadata'" class="file-meta">
                 <ion-label *ngIf="nextMetadata?.name">
                     <ion-icon name="document"></ion-icon>
                     {{nextMetadata.name}}</ion-label>

@@ -14,6 +14,7 @@ export interface AlbumData {
     title: string | null;
     sortedEntries: (QueryAlbumEntry)[];
     canManageUsers: boolean;
+    keywords: Map<string, number>;
 }
 
 @Injectable({
@@ -39,7 +40,9 @@ export class AlbumListService {
                     const c2 = e2?.created;
                     return c1 === c2 ? e1.name.localeCompare(e2.name) : c1 === null || c1 === undefined ? 1 : c1.localeCompare(c2);
                 });
-            const result = {title, sortedEntries, canManageUsers: content.currentUser.canManageUsers};
+            const keywords = new Map<string, number>();
+            content.albumById.keywordCounts.forEach(e => keywords.set(e.keyword, e.count));
+            const result = {title, sortedEntries, canManageUsers: content.currentUser.canManageUsers, keywords};
             this.lastAlbumId = albumId;
             this.lastResult = result;
             return result;

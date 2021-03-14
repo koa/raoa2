@@ -6,6 +6,10 @@ query AlbumContent($albumId: ID!) {
             id, name, entryUri, targetWidth, targetHeight, created
             keywords
         }
+        keywordCounts{
+            keyword
+            count
+        }
     }
     currentUser{
         canManageUsers

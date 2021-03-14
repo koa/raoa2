@@ -1,0 +1,5 @@
+mutation showSingleMediaEditKeywords($albumId: ID!, $albumEntryId: ID!,$mutation: AlbumEntryUpdate!){
+    updateAlbumEntry(albumId: $albumId, albumEntryId: $albumEntryId, update: $mutation){
+        id
+    }
+}

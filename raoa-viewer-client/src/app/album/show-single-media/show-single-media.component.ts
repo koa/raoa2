@@ -3,9 +3,9 @@ import {ActivatedRoute} from '@angular/router';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {AlbumListService, QueryAlbumEntry} from '../service/album-list.service';
 import {Location} from '@angular/common';
-import {IonSlides, LoadingController, MenuController} from '@ionic/angular';
+import {IonInput, IonSlides, LoadingController, MenuController} from '@ionic/angular';
 import {HttpClient} from '@angular/common/http';
-import {AlbumEntry, AlbumEntryDetailGQL} from '../../generated/graphql';
+import {AlbumEntry, AlbumEntryDetailGQL, ShowSingleMediaEditKeywordsGQL} from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
 
 type AlbumEntryMetadata =
@@ -29,8 +29,9 @@ export class ShowSingleMediaComponent implements OnInit {
     public metadata: AlbumEntryMetadata;
     public previousMetadata: AlbumEntryMetadata;
     public nextMetadata: AlbumEntryMetadata;
-    public boolean;
-    showMetadata = false;
+    public showDetails: 'Metadata' | 'Keyword' | null = null;
+    public albumKeywords: string[] = [];
+    public currentSelectedKeywords = new Set<string>();
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
@@ -40,6 +41,7 @@ export class ShowSingleMediaComponent implements OnInit {
                 private http: HttpClient,
                 private serverApi: ServerApiService,
                 private albumEntryDetailGQL: AlbumEntryDetailGQL,
+                private showSingleMediaEditKeywordsGQL: ShowSingleMediaEditKeywordsGQL,
                 private menu: MenuController,
                 private loadingController: LoadingController
     ) {
@@ -76,68 +78,97 @@ export class ShowSingleMediaComponent implements OnInit {
                 ind.present();
             });
         }, 500);
-
-        const metadataPromise = this.serverApi.query(this.albumEntryDetailGQL, {albumId: this.albumId, entryId: mediaId})
-            .then(result => result.albumById.albumEntry);
-
-        this.albumListService.listAlbum(this.albumId).then(albumData => {
-            let lastAlbumEntry: QueryAlbumEntry;
-            let previousMediaId: string;
-            let nextMediaId: string;
-            for (const entry of albumData.sortedEntries) {
-                if (lastAlbumEntry !== undefined) {
-                    if (entry.id === mediaId) {
-                        previousMediaId = lastAlbumEntry.id;
-                    } else if (lastAlbumEntry.id === mediaId) {
-                        nextMediaId = entry.id;
-                    }
+        await this.storeKeywordMutation();
+        const albumData = await this.albumListService.listAlbum(this.albumId);
+        let lastAlbumEntry: QueryAlbumEntry;
+        let previousMediaId: string;
+        let nextMediaId: string;
+        for (const entry of albumData.sortedEntries) {
+            if (lastAlbumEntry !== undefined) {
+                if (entry.id === mediaId) {
+                    previousMediaId = lastAlbumEntry.id;
+                } else if (lastAlbumEntry.id === mediaId) {
+                    nextMediaId = entry.id;
                 }
-                lastAlbumEntry = entry;
             }
+            lastAlbumEntry = entry;
+        }
 
-            const previousMetadataPromise: Promise<AlbumEntryMetadata> = previousMediaId !== undefined ?
-                this.serverApi.query(this.albumEntryDetailGQL, {
-                    albumId: this.albumId,
-                    entryId: previousMediaId
-                }).then(result => result.albumById.albumEntry)
-                : Promise.resolve(undefined)
-            ;
+        const metadata = await this.serverApi.query(this.albumEntryDetailGQL, {albumId: this.albumId, entryId: mediaId});
 
-            const nextMetadataPromise: Promise<AlbumEntryMetadata> = nextMediaId !== undefined ?
-                this.serverApi.query(this.albumEntryDetailGQL, {
-                    albumId: this.albumId,
-                    entryId: nextMediaId
-                })
-                    .then(result => result.albumById.albumEntry)
-                : Promise.resolve(undefined)
-            ;
-            metadataPromise.then(metadata => {
-                this.mediaId = mediaId;
-                this.metadata = metadata;
-                this.location.replaceState(this.mediaPath(mediaId));
+        this.mediaId = mediaId;
+        this.metadata = metadata.albumById.albumEntry;
+        this.location.replaceState(this.mediaPath(mediaId));
+        this.previousMediaId = previousMediaId;
+        this.nextMediaId = nextMediaId;
+        this.currentSelectedKeywords = new Set(metadata.albumById.albumEntry.keywords);
+        const allKeywords = new Set(this.albumKeywords);
+        this.currentSelectedKeywords.forEach(keyword => allKeywords.add(keyword));
+        for (const keyword of albumData.keywords.keys()) {
+            allKeywords.add(keyword);
+        }
+        this.albumKeywords = [];
+        allKeywords.forEach(keyword => this.albumKeywords.push(keyword));
+        this.albumKeywords.sort((k1, k2) => k1.localeCompare(k2));
 
-                this.previousMediaId = previousMediaId;
+        await this.imageSlider.lockSwipeToNext(false);
+        await this.imageSlider.lockSwipeToPrev(false);
+        await this.imageSlider.slideTo(1, 0, false);
+        await this.imageSlider.lockSwipeToNext(nextMediaId === undefined);
+        await this.imageSlider.lockSwipeToPrev(previousMediaId === undefined);
+        window.clearTimeout(waitTimeoutHandler);
+        if (waitIndicator !== undefined) {
+            return waitIndicator.dismiss();
+        }
+        const previousMetadataPromise: Promise<AlbumEntryMetadata> = previousMediaId !== undefined ?
+            this.serverApi.query(this.albumEntryDetailGQL, {
+                albumId: this.albumId,
+                entryId: previousMediaId
+            }).then(result => result.albumById.albumEntry)
+            : Promise.resolve(undefined);
 
-                this.nextMediaId = nextMediaId;
+        const nextMetadataPromise: Promise<AlbumEntryMetadata> = nextMediaId !== undefined ?
+            this.serverApi.query(this.albumEntryDetailGQL, {
+                albumId: this.albumId,
+                entryId: nextMediaId
+            })
+                .then(result => result.albumById.albumEntry)
+            : Promise.resolve(undefined);
 
-                this.imageSlider.lockSwipeToNext(false);
-                this.imageSlider.lockSwipeToPrev(false);
-                this.imageSlider.slideTo(1, 0, false);
-                this.imageSlider.lockSwipeToNext(nextMediaId === undefined);
-                this.imageSlider.lockSwipeToPrev(previousMediaId === undefined);
-                window.clearTimeout(waitTimeoutHandler);
-                if (waitIndicator !== undefined) {
-                    return waitIndicator.dismiss();
-                }
-                return Promise.resolve();
-            });
-            Promise.all([previousMetadataPromise, nextMetadataPromise]).then(([prevMetadata, nextMetadata]) => {
-                this.previousMetadata = prevMetadata;
-                this.nextMetadata = nextMetadata;
-            });
+        Promise.all([previousMetadataPromise, nextMetadataPromise]).then(([prevMetadata, nextMetadata]) => {
+            this.previousMetadata = prevMetadata;
+            this.nextMetadata = nextMetadata;
         });
+
     }
 
+
+    private async storeKeywordMutation() {
+        if (this.metadata && this.mediaId) {
+            const oldKeywords = new Set(this.metadata.keywords);
+            const removeKeywords: string[] = [];
+            const addKeywords: string[] = [];
+            oldKeywords.forEach(kw => {
+                if (!this.currentSelectedKeywords.has(kw)) {
+                    removeKeywords.push(kw);
+                }
+            });
+            this.currentSelectedKeywords.forEach(kw => {
+                if (!oldKeywords.has(kw)) {
+                    addKeywords.push(kw);
+                }
+            });
+            if (removeKeywords.length > 0 || addKeywords.length > 0) {
+                await this.serverApi.update(this.showSingleMediaEditKeywordsGQL, {
+                    albumId: this.albumId, albumEntryId: this.mediaId, mutation: {
+                        addKeywords,
+                        removeKeywords
+                    }
+                });
+                await this.serverApi.clear();
+            }
+        }
+    }
 
     private mediaPath(mediaId: string) {
         return '/album/' + this.albumId + '/media/' + mediaId;
@@ -195,7 +226,8 @@ export class ShowSingleMediaComponent implements OnInit {
         });
     }
 
-    back() {
+    async back() {
+        await this.storeKeywordMutation();
         this.location.back();
     }
 
@@ -212,7 +244,20 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     toggleMetadata() {
-        this.showMetadata = !this.showMetadata;
+        if (this.showDetails === 'Metadata') {
+            this.showDetails = null;
+        } else {
+            this.showDetails = 'Metadata';
+        }
+    }
+
+    toggleKeywords() {
+        if (this.showDetails === 'Keyword') {
+            this.showDetails = null;
+        } else {
+            this.showDetails = 'Keyword';
+        }
+
     }
 
     @HostListener('window:keyup', ['$event'])
@@ -222,6 +267,27 @@ export class ShowSingleMediaComponent implements OnInit {
         }
         if ($event.key === 'ArrowLeft' && this.previousMediaId) {
             await this.showImage(this.previousMediaId);
+        }
+    }
+
+    addKeyword($event: KeyboardEvent) {
+        const input: IonInput = $event.target as unknown as IonInput;
+        if (typeof input.value === 'string') {
+            const newKeyword: string = input.value;
+            if (this.albumKeywords.filter(k => k === newKeyword).length === 0) {
+                this.albumKeywords.push(newKeyword);
+            }
+            this.currentSelectedKeywords.add(newKeyword);
+            input.value = null;
+        }
+
+    }
+
+    toggleKeyword(keyword: string) {
+        if (this.currentSelectedKeywords.has(keyword)) {
+            this.currentSelectedKeywords.delete(keyword);
+        } else {
+            this.currentSelectedKeywords.add(keyword);
         }
     }
 }

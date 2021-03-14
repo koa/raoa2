@@ -154,6 +154,12 @@ type Album {
     zipDownloadUri: String
     albumTime: DateTime
     labels: [Label!]!
+    keywordCounts: [KeywordCount!]!
+}
+
+type KeywordCount {
+    keyword: String!
+    count: Int!
 }
 
 type AlbumEntry {
