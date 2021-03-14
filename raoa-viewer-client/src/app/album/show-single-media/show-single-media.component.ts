@@ -1,4 +1,4 @@
-import {Component, NgZone, OnInit, ViewChild} from '@angular/core';
+import {Component, HostListener, NgZone, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {AlbumListService, QueryAlbumEntry} from '../service/album-list.service';
@@ -213,5 +213,15 @@ export class ShowSingleMediaComponent implements OnInit {
 
     toggleMetadata() {
         this.showMetadata = !this.showMetadata;
+    }
+
+    @HostListener('window:keyup', ['$event'])
+    async keyup($event: KeyboardEvent) {
+        if ($event.key === 'ArrowRight' && this.nextMediaId) {
+            await this.showImage(this.nextMediaId);
+        }
+        if ($event.key === 'ArrowLeft' && this.previousMediaId) {
+            await this.showImage(this.previousMediaId);
+        }
     }
 }
