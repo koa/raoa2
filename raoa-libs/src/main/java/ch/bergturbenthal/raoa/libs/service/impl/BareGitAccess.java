@@ -4,12 +4,15 @@ import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
+import com.adobe.xmp.XMPMeta;
+import com.adobe.xmp.XMPMetaFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -49,6 +52,7 @@ import org.xml.sax.SAXException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
+import reactor.function.TupleUtils;
 import reactor.util.function.Tuples;
 
 @Slf4j
@@ -244,6 +248,41 @@ public class BareGitAccess implements GitAccess {
                       }
                     }));
     // .log("read " + objectId);
+  }
+
+  @Override
+  public Mono<String> filenameOfObject(AnyObjectId objectId) {
+    return Mono.zip(repository, masterTree())
+        .flatMap(
+            TupleUtils.function(
+                (rep, tree) ->
+                    asyncService.asyncMonoOptional(
+                        () -> {
+                          final TreeWalk tw = new TreeWalk(rep);
+
+                          tw.setFilter(
+                              new TreeFilter() {
+                                @Override
+                                public boolean include(final TreeWalk walker) {
+                                  return walker.getObjectId(0).equals(objectId);
+                                }
+
+                                @Override
+                                public boolean shouldBeRecursive() {
+                                  return true;
+                                }
+
+                                @Override
+                                public TreeFilter clone() {
+                                  return this;
+                                }
+                              });
+                          tw.reset(tree);
+                          tw.setRecursive(false);
+                          if (tw.next()) {
+                            return Optional.of(tw.getPathString());
+                          } else return Optional.empty();
+                        })));
   }
 
   private <T> Mono<T> createAsyncMonoOptional(Callable<Optional<T>> callable) {
@@ -645,5 +684,36 @@ public class BareGitAccess implements GitAccess {
                                               }
                                             })))
                     .cache());
+  }
+
+  @Override
+  public Mono<XMPMeta> readXmpMeta(final ObjectLoader loader) {
+    return asyncService.asyncMono(
+        () -> {
+          try (final ObjectStream stream = loader.openStream()) {
+            return (XMPMetaFactory.parse(stream));
+          }
+        });
+  }
+
+  @Override
+  public Mono<Boolean> writeXmpMeta(final String filename, final XMPMeta xmpMeta) {
+    return createUpdater()
+        .flatMap(
+            updater ->
+                asyncService
+                    .asyncMono(
+                        () -> {
+                          final File file = File.createTempFile("data", ".xmp");
+                          final OutputStream fos = new FileOutputStream(file);
+                          XMPMetaFactory.serialize(xmpMeta, fos);
+                          fos.close();
+                          return updater
+                              .importFile(file.toPath(), filename, true)
+                              .doFinally(signal -> file.delete());
+                        })
+                    .filterWhen(Function.identity())
+                    .flatMap(ok -> updater.commit())
+                    .filter(ok -> ok));
   }
 }

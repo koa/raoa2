@@ -5,9 +5,11 @@ import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
 import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.*;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
+import com.adobe.xmp.XMPMetaFactory;
 import com.coxautodev.graphql.tools.GraphQLMutationResolver;
 import java.time.Duration;
 import java.time.Instant;
@@ -19,6 +21,7 @@ import java.util.logging.Level;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.lib.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -552,8 +555,71 @@ public class Mutation implements GraphQLMutationResolver {
         .toFuture();
   }
 
-  public CompletableFuture<Album> updateAlbum(UUID albumId, AlbumUpdate update) {
+  public CompletableFuture<AlbumEntry> updateAlbumEntry(
+      UUID albumId, String albumEntryId, AlbumEntryUpdate update) {
+    final ObjectId entryId = ObjectId.fromString(albumEntryId);
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            queryContext ->
+                albumList
+                    .getAlbum(albumId)
+                    .flatMap(
+                        ga ->
+                            ga.filenameOfObject(entryId)
+                                .map(
+                                    name -> {
+                                      final int lastPt = name.lastIndexOf('.');
+                                      if (lastPt < 0) return name;
+                                      return name.substring(0, lastPt);
+                                    })
+                                .map(f -> f + ".xmp")
+                                .flatMap(
+                                    filename ->
+                                        ga.readObject(filename)
+                                            .flatMap(ga::readXmpMeta)
+                                            .switchIfEmpty(
+                                                Mono.defer(
+                                                    () -> Mono.just(XMPMetaFactory.create())))
+                                            .map(
+                                                xmpMeta -> {
+                                                  final XmpWrapper xmpWrapper =
+                                                      new XmpWrapper(xmpMeta);
+                                                  update
+                                                      .getAddKeywords()
+                                                      .forEach(xmpWrapper::addKeyword);
+                                                  update
+                                                      .getRemoveKeywords()
+                                                      .forEach(xmpWrapper::removeKeyword);
+                                                  return xmpMeta;
+                                                })
+                                            .flatMap(
+                                                xmpMeta ->
+                                                    ga.writeXmpMeta(filename, xmpMeta)
+                                                        .map(ok -> xmpMeta)))
+                                .flatMap(
+                                    xmpMeta ->
+                                        dataViewService
+                                            .updateAlbums(
+                                                Flux.just(new AlbumList.FoundAlbum(albumId, ga)))
+                                            .map(ok -> xmpMeta)))
+                    .flatMap(xmpMeta -> dataViewService.updateKeyword(albumId, entryId, xmpMeta))
+                    .map(
+                        e ->
+                            new AlbumEntry(
+                                new Album(
+                                    albumId,
+                                    queryContext,
+                                    dataViewService.readAlbum(albumId).cache()),
+                                e.getEntryId().name(),
+                                e.getFilename(),
+                                e)))
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
 
+  public CompletableFuture<Album> updateAlbum(UUID albumId, AlbumUpdate update) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)

@@ -86,7 +86,7 @@ public class AlbumEntryData {
 
   @Field private GeoPoint captureCoordinates;
 
-  @Builder
+  @Builder(toBuilder = true)
   public AlbumEntryData(
       final UUID albumId,
       final ObjectId entryId,

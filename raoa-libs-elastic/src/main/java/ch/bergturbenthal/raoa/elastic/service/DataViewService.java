@@ -2,6 +2,7 @@ package ch.bergturbenthal.raoa.elastic.service;
 
 import ch.bergturbenthal.raoa.elastic.model.*;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import com.adobe.xmp.XMPMeta;
 import java.util.UUID;
 import org.eclipse.jgit.lib.ObjectId;
 import reactor.core.publisher.Flux;
@@ -39,4 +40,6 @@ public interface DataViewService {
   Flux<User> listUsers();
 
   Flux<Group> listGroups();
+
+  Mono<AlbumEntryData> updateKeyword(UUID albumId, ObjectId entryId, XMPMeta xmpMeta);
 }

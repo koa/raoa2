@@ -1,6 +1,7 @@
 package ch.bergturbenthal.raoa.libs.service;
 
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
+import com.adobe.xmp.XMPMeta;
 import java.time.Instant;
 import java.util.function.Function;
 import lombok.Value;
@@ -17,6 +18,8 @@ public interface GitAccess {
   Flux<GitFileEntry> listFiles(TreeFilter filter);
 
   Mono<ObjectLoader> readObject(AnyObjectId fileId);
+
+  Mono<String> filenameOfObject(AnyObjectId objectId);
 
   Mono<ObjectLoader> readObject(String filename);
 
@@ -35,6 +38,10 @@ public interface GitAccess {
   Mono<Boolean> updateMetadata(Function<AlbumMeta, AlbumMeta> mutation);
 
   Mono<Metadata> entryMetdata(AnyObjectId entryId);
+
+  Mono<XMPMeta> readXmpMeta(ObjectLoader loader);
+
+  Mono<Boolean> writeXmpMeta(String filename, XMPMeta xmpMeta);
 
   @Value
   class GitFileEntry {

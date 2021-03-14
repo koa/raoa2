@@ -23,6 +23,12 @@ type Mutation{
     updateGroup(groupId: ID!, update: GroupUpdate): Group
     updateCredentials(update: CredentialUpgrade!): UpdateResult
     updateAlbum(albumId: ID!, update: AlbumUpdate!):Album
+    updateAlbumEntry(albumId: ID!, albumEntryId: ID!, update: AlbumEntryUpdate): AlbumEntry
+}
+
+input AlbumEntryUpdate {
+    addKeywords: [String!]!
+    removeKeywords: [String!]!
 }
 
 input AlbumUpdate {

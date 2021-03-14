@@ -17,7 +17,7 @@ public interface AlbumList {
 
   @Value
   class FoundAlbum {
-    private UUID albumId;
-    private GitAccess access;
+    UUID albumId;
+    GitAccess access;
   }
 }
