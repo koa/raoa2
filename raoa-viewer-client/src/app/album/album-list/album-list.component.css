@@ -2,3 +2,6 @@ ion-content > p {
     display: grid;
     grid-template-columns: repeat( auto-fit, minmax(30em, 1fr));
 }
+.link{
+    cursor: pointer;
+}
