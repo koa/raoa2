@@ -17,10 +17,14 @@ public class ViewController {
     "/",
     "/album",
     "/album/{id}",
+    "/album/{id}/manage",
     "/album/{id}/media/{imageId}",
     "/requestAccess",
     "/admin/{page}",
-    "/manageUsers"
+    "/manage-users",
+    "/manage-users/user/{id}",
+    "/manage-teams",
+    "/manage-teams/{id}"
   })
   public String index() {
     return "forward:/index.html";
