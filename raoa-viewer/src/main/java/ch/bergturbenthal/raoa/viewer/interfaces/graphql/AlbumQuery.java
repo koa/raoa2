@@ -76,11 +76,7 @@ public class AlbumQuery implements GraphQLResolver<Album> {
 
   @NotNull
   private AlbumEntry createAlbumEntry(final Album album, final AlbumEntryData entry) {
-    return new AlbumEntry(
-        album,
-        entry.getEntryId().name(),
-        entry.getFilename(),
-        dataViewService.loadEntry(album.getId(), entry.getEntryId()).cache());
+    return new AlbumEntry(album, entry.getEntryId().name(), entry.getFilename(), entry);
   }
 
   public CompletableFuture<String> getName(Album album) {

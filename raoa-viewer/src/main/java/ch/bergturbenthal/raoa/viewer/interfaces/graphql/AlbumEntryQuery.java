@@ -6,11 +6,8 @@ import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
-import reactor.core.publisher.Mono;
 
 @Component
 public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
@@ -18,7 +15,7 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
 
   public AlbumEntryQuery() {}
 
-  public CompletableFuture<String> getContentType(AlbumEntry entry) {
+  public String getContentType(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getContentType);
   }
 
@@ -38,72 +35,67 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
     return getEntryUri(entry) + "/original";
   }
 
-  public CompletableFuture<Instant> getCreated(AlbumEntry entry) {
+  public Instant getCreated(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getCreateTime);
   }
 
-  @NotNull
-  public <T> CompletableFuture<T> extractDataEntryValue(
+  public <T> T extractDataEntryValue(
       final AlbumEntry entry, final Function<AlbumEntryData, T> function) {
-    return entry.getElDataEntry().flatMap(v -> Mono.justOrEmpty(function.apply(v))).toFuture();
+    return function.apply(entry.getElDataEntry());
   }
 
-  @NotNull
-  public <T> CompletableFuture<T> extractDataEntryValue(
+  public <T> T extractDataEntryValue(
       final AlbumEntry entry, final Function<AlbumEntryData, T> function, T defaultValue) {
-    return entry
-        .getElDataEntry()
-        .flatMap(v -> Mono.justOrEmpty(function.apply(v)))
-        .defaultIfEmpty(defaultValue)
-        .toFuture();
+    final T result = function.apply(entry.getElDataEntry());
+    if (result == null) return defaultValue;
+    return result;
   }
 
-  public CompletableFuture<Integer> getWidth(AlbumEntry entry) {
+  public Integer getWidth(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getWidth);
   }
 
-  public CompletableFuture<Integer> getHeight(AlbumEntry entry) {
+  public Integer getHeight(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getHeight);
   }
 
-  public CompletableFuture<String> getCameraModel(AlbumEntry entry) {
+  public String getCameraModel(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getCameraModel);
   }
 
-  public CompletableFuture<String> getCameraManufacturer(AlbumEntry entry) {
-
+  public String getCameraManufacturer(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getCameraManufacturer);
   }
 
-  public CompletableFuture<Double> getFocalLength(AlbumEntry entry) {
+  public Double getFocalLength(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getFocalLength);
   }
 
-  public CompletableFuture<Double> getFNumber(AlbumEntry entry) {
+  public Double getFNumber(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getFNumber);
   }
 
-  public CompletableFuture<Integer> getTargetWidth(AlbumEntry entry) {
+  public Integer getTargetWidth(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getTargetWidth);
   }
 
-  public CompletableFuture<Integer> getTargetHeight(AlbumEntry entry) {
+  public Integer getTargetHeight(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getTargetHeight);
   }
 
-  public CompletableFuture<Double> getFocalLength35(AlbumEntry entry) {
+  public Double getFocalLength35(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getFocalLength35);
   }
 
-  public CompletableFuture<Double> getExposureTime(AlbumEntry entry) {
+  public Double getExposureTime(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getExposureTime);
   }
 
-  public CompletableFuture<Integer> getIsoSpeedRatings(AlbumEntry entry) {
+  public Integer getIsoSpeedRatings(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getIsoSpeedRatings);
   }
 
-  public CompletableFuture<Set<String>> getKeywords(AlbumEntry entry) {
+  public Set<String> getKeywords(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getKeywords, Collections.emptySet());
   }
 }
