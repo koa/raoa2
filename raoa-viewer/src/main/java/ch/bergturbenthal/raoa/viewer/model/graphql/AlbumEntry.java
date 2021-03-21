@@ -7,6 +7,5 @@ import lombok.Value;
 public class AlbumEntry {
   Album album;
   String id;
-  String name;
   AlbumEntryData elDataEntry;
 }

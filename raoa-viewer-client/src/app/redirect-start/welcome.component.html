@@ -91,5 +91,10 @@
             <ion-card-title>Gruppen von FNCH updaten</ion-card-title>
         </ion-card-header>
     </ion-card>
+    <ion-card *ngIf="userState?.currentUser?.canManageUsers" routerLink="/import">
+        <ion-card-header>
+            <ion-card-title>Photos Importieren</ion-card-title>
+        </ion-card-header>
+    </ion-card>
 
 </ion-content>

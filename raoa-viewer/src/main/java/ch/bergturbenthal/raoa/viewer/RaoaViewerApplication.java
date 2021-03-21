@@ -6,6 +6,7 @@ import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.impl.DefaultAuthorizationManager;
 import graphql.schema.*;
 import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.actuate.autoconfigure.elasticsearch.ElasticSearchRestHealthContributorAutoConfiguration;
@@ -131,12 +132,14 @@ public class RaoaViewerApplication {
 
               @Override
               public Instant parseValue(final Object input) throws CoercingParseValueException {
-                return Instant.parse((CharSequence) input);
+                return DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(
+                    (CharSequence) input, Instant::from);
               }
 
               @Override
               public Instant parseLiteral(final Object input) throws CoercingParseLiteralException {
-                return Instant.parse((CharSequence) input);
+                return DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(
+                    (CharSequence) input, Instant::from);
               }
             })
         .build();

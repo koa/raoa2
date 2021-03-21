@@ -5,12 +5,15 @@ import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.libs.service.FileImporter;
+import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
 import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
 import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.*;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import com.adobe.xmp.XMPMetaFactory;
 import com.coxautodev.graphql.tools.GraphQLMutationResolver;
+import java.io.File;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -28,6 +31,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
 import reactor.function.TupleUtils;
+import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
 @Slf4j
@@ -39,18 +43,21 @@ public class Mutation implements GraphQLMutationResolver {
   private final QueryContextSupplier queryContextSupplier;
   private final DataViewService dataViewService;
   private final AlbumList albumList;
+  private final UploadFilenameService uploadFilenameService;
 
   public Mutation(
       final UserManager userManager,
       final AuthorizationManager authorizationManager,
       final QueryContextSupplier queryContextSupplier,
       final DataViewService dataViewService,
-      final AlbumList albumList) {
+      final AlbumList albumList,
+      final UploadFilenameService uploadFilenameService) {
     this.userManager = userManager;
     this.authorizationManager = authorizationManager;
     this.queryContextSupplier = queryContextSupplier;
     this.dataViewService = dataViewService;
     this.albumList = albumList;
+    this.uploadFilenameService = uploadFilenameService;
   }
 
   @NotNull
@@ -613,7 +620,6 @@ public class Mutation implements GraphQLMutationResolver {
                                     queryContext,
                                     dataViewService.readAlbum(albumId).cache()),
                                 e.getEntryId().name(),
-                                e.getFilename(),
                                 e)))
         .timeout(TIMEOUT)
         .toFuture();
@@ -630,29 +636,115 @@ public class Mutation implements GraphQLMutationResolver {
                     .flatMap(
                         ga ->
                             ga.updateMetadata(
-                                albumMeta -> {
-                                  final AlbumMeta.AlbumMetaBuilder builder = albumMeta.toBuilder();
-                                  Optional.ofNullable(update.getNewAlbumTitle())
-                                      .map(String::trim)
-                                      .filter(v -> !v.isEmpty())
-                                      .ifPresent(builder::albumTitle);
-                                  Optional.ofNullable(update.getNewTitleEntry())
-                                      .ifPresent(builder::titleEntry);
-                                  final HashMap<String, String> labels =
-                                      new HashMap<>(
-                                          Objects.requireNonNullElse(
-                                              albumMeta.getLabels(), Collections.emptyMap()));
-                                  Optional.ofNullable(update.getRemoveLabels())
-                                      .ifPresent(rem -> labels.keySet().removeAll(rem));
-                                  Optional.ofNullable(update.getNewLabels()).stream()
-                                      .flatMap(Collection::stream)
-                                      .forEach(
-                                          lv -> labels.put(lv.getLabelName(), lv.getLabelValue()));
-                                  builder.labels(labels);
-                                  return builder.build();
-                                }))
+                                    albumMeta -> {
+                                      final AlbumMeta.AlbumMetaBuilder builder =
+                                          albumMeta.toBuilder();
+                                      Optional.ofNullable(update.getNewAlbumTitle())
+                                          .map(String::trim)
+                                          .filter(v -> !v.isEmpty())
+                                          .ifPresent(builder::albumTitle);
+                                      Optional.ofNullable(update.getNewTitleEntry())
+                                          .ifPresent(builder::titleEntry);
+                                      final HashMap<String, String> labels =
+                                          new HashMap<>(
+                                              Objects.requireNonNullElse(
+                                                  albumMeta.getLabels(), Collections.emptyMap()));
+                                      Optional.ofNullable(update.getRemoveLabels())
+                                          .ifPresent(rem -> labels.keySet().removeAll(rem));
+                                      Optional.ofNullable(update.getNewLabels()).stream()
+                                          .flatMap(Collection::stream)
+                                          .forEach(
+                                              lv ->
+                                                  labels.put(
+                                                      lv.getLabelName(), lv.getLabelValue()));
+                                      builder.labels(labels);
+                                      return builder.build();
+                                    })
+                                .map(ok -> ga))
+                    .flatMap(
+                        ga -> {
+                          if (update.getAutoadd() != null)
+                            return ga.updateAutoadd(update.getAutoadd());
+                          return Mono.just(true);
+                        })
                     .map(
                         c ->
+                            new Album(
+                                albumId, queryContext, dataViewService.readAlbum(albumId).cache())))
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<List<ImportedFile>> commitImport(List<ImportFile> files) {
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            context -> {
+              final FileImporter importer = albumList.createImporter();
+              return Flux.fromIterable(
+                      () ->
+                          files.stream()
+                              .map(
+                                  file -> {
+                                    final File uploadFile =
+                                        uploadFilenameService.createTempUploadFile(
+                                            file.getFileId());
+                                    if (uploadFile.exists()
+                                        && uploadFile.length() == file.getSize())
+                                      return Optional.of(Tuples.of(file, uploadFile));
+                                    return Optional.<Tuple2<ImportFile, File>>empty();
+                                  })
+                              .filter(Optional::isPresent)
+                              .map(Optional::get)
+                              .iterator())
+                  .flatMap(
+                      t -> {
+                        final File tempFile = t.getT2();
+                        final String filename = t.getT1().getFilename();
+                        final Mono<Tuple2<UUID, ObjectId>> importResult =
+                            importer.importFile(tempFile.toPath(), filename);
+                        return importResult.map(
+                            t2 -> Tuples.of(t2.getT1(), t2.getT2(), t.getT1().getFileId()));
+                      },
+                      1)
+                  .collectList()
+                  .flatMap(
+                      fileList -> importer.commitAll().filter(done -> done).map(done -> fileList))
+                  .flatMapIterable(Function.identity())
+                  .flatMap(
+                      t -> {
+                        final UUID fileId = t.getT3();
+                        final UUID albumId = t.getT1();
+                        final ObjectId entryId = t.getT2();
+                        return dataViewService
+                            .loadEntry(albumId, entryId)
+                            .map(
+                                entryData ->
+                                    new AlbumEntry(
+                                        new Album(
+                                            albumId,
+                                            context,
+                                            dataViewService.readAlbum(albumId).cache()),
+                                        entryId.name(),
+                                        entryData))
+                            .map(entry -> new ImportedFile(fileId, entry));
+                      })
+                  .collectList();
+            })
+        .toFuture();
+  }
+
+  public CompletableFuture<Album> createAlbum(List<String> path) {
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserManageUsers)
+        .flatMap(
+            queryContext ->
+                albumList
+                    .createAlbum(path)
+                    .map(
+                        albumId ->
                             new Album(
                                 albumId, queryContext, dataViewService.readAlbum(albumId).cache())))
         .timeout(TIMEOUT)

@@ -24,6 +24,19 @@ type Mutation{
     updateCredentials(update: CredentialUpgrade!): UpdateResult
     updateAlbum(albumId: ID!, update: AlbumUpdate!):Album
     updateAlbumEntry(albumId: ID!, albumEntryId: ID!, update: AlbumEntryUpdate): AlbumEntry
+    commitImport(files: [ImportFile!]!):[ImportedFile!]!
+    createAlbum(path: [String!]!):Album
+}
+
+type ImportedFile {
+    fileId: ID!
+    albumEntry: AlbumEntry
+}
+
+input ImportFile {
+    fileId: ID!
+    filename: String
+    size: Int
 }
 
 input AlbumEntryUpdate {
@@ -36,6 +49,7 @@ input AlbumUpdate {
     newTitleEntry: ID
     newLabels: [LabelInput!]!
     removeLabels: [String!]!
+    autoadd: [DateTime!]
 }
 
 
@@ -155,6 +169,8 @@ type Album {
     albumTime: DateTime
     labels: [Label!]!
     keywordCounts: [KeywordCount!]!
+    autoaddDates: [DateTime!]!
+    albumPath: [String!]!
 }
 
 type KeywordCount {
@@ -182,6 +198,7 @@ type AlbumEntry {
     isoSpeedRatings: Int
     fNumber: Float
     keywords: [String!]!
+    album: Album
 }
 
 enum AuthenticationState {

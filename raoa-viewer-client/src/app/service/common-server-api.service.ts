@@ -38,8 +38,19 @@ export class CommonServerApiService {
             return Promise.resolve(this.lastCollectionList);
         }
         return this.serverApi.query(this.albumListGQL, {}).then(result => {
-            return result.listAlbums.filter(a => a.albumTime != null)
-                .sort((a, b) => -a.albumTime.localeCompare(b.albumTime))
+            return result.listAlbums.slice() //.filter(a => a.albumTime != null)
+                .sort((a, b) => {
+                    if (a.albumTime === b.albumTime) {
+                        return 0;
+                    }
+                    if (a.albumTime === null) {
+                        return 1;
+                    }
+                    if (b.albumTime === null) {
+                        return -1;
+                    }
+                    return -a.albumTime.localeCompare(b.albumTime);
+                })
                 .map((entry: AlbumEntryDataType) => ({
                     url: '/album/' + entry.id, data: entry
                 }));

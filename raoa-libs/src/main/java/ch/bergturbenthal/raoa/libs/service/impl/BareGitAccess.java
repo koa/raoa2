@@ -22,6 +22,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Semaphore;
@@ -29,9 +31,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.IOUtils;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
@@ -345,7 +349,13 @@ public class BareGitAccess implements GitAccess {
                     () ->
                         repository
                             .map(Repository::getRefDatabase)
-                            .flatMap(db -> asyncService.asyncMono(() -> db.findRef("master")))
+                            .flatMap(
+                                db ->
+                                    asyncService.asyncMono(
+                                        () -> {
+                                          final Ref existingMaster = db.findRef("master");
+                                          return existingMaster;
+                                        }))
                             .cache(REPOSITORY_CACHE_TIME)))
         .publishOn(processScheduler);
   }
@@ -371,22 +381,53 @@ public class BareGitAccess implements GitAccess {
   }
 
   @Override
+  public Mono<Boolean> updateAutoadd(final Collection<Instant> autoaddTimes) {
+    final TreeSet<Instant> times = new TreeSet<>(autoaddTimes);
+
+    final String newContent =
+        times.stream()
+            .map(i -> i.atZone(ZoneId.systemDefault()))
+            .map(DateTimeFormatter.ISO_OFFSET_DATE_TIME::format)
+            .collect(Collectors.joining("\n"));
+    try {
+      final File tempFile = File.createTempFile("tmp", ".autoadd");
+      try {
+        IOUtils.write(newContent, new FileOutputStream(tempFile), StandardCharsets.UTF_8);
+        return createUpdater()
+            .flatMap(
+                updater ->
+                    updater
+                        .importFile(tempFile.toPath(), ".autoadd", true)
+                        .flatMap(id -> updater.commit()))
+            .doFinally(signal -> tempFile.delete());
+      } catch (IOException ex) {
+        tempFile.delete();
+        throw ex;
+      }
+    } catch (IOException ex) {
+      return Mono.error(ex);
+    }
+  }
+
+  @Override
   public Mono<Updater> createUpdater() {
 
     return repository.flatMap(
         rep ->
             findMasterRef()
-                .flatMap(r -> readTree(r).map(t -> Tuples.of(r, t)))
+                .flatMap(r -> readTree(r).map(t -> Tuples.of(Optional.of(r), Optional.of(t))))
+                .defaultIfEmpty(Tuples.of(Optional.empty(), Optional.empty()))
                 .flatMap(
                     t -> asyncService.asyncMono(() -> createUpdater(rep, t.getT1(), t.getT2()))));
   }
 
-  private Updater createUpdater(final Repository rep, final Ref masterRef, final RevTree tree) {
+  private Updater createUpdater(
+      final Repository rep, final Optional<Ref> masterRef, final Optional<RevTree> tree) {
     Map<ObjectId, String> alreadyExistingFiles = Collections.synchronizedMap(new HashMap<>());
     final DirCache dirCache;
     final DirCacheBuilder builder;
     final boolean isBareRepository = rep.isBare();
-    final Function<ObjectReader, TreeWalk> treeWalkSupplier;
+    final Function<ObjectReader, Optional<TreeWalk>> treeWalkSupplier;
     final Function<TreeWalk, DirCacheEntry> dirCacheEntryCreator;
     Set<String> replacedFiles = Collections.synchronizedSet(new HashSet<>());
     try {
@@ -395,17 +436,21 @@ public class BareGitAccess implements GitAccess {
 
         builder = dirCache.builder();
         treeWalkSupplier =
-            (reader) -> {
-              try {
-                TreeWalk tw = new TreeWalk(rep, reader);
+            tree.<Function<ObjectReader, Optional<TreeWalk>>>map(
+                    revTree ->
+                        (reader) -> {
+                          try {
+                            TreeWalk tw = new TreeWalk(rep, reader);
 
-                tw.reset(tree);
-                tw.setRecursive(true);
-                return tw;
-              } catch (IOException e) {
-                throw new RuntimeException("Cannot create tree-walk", e);
-              }
-            };
+                            tw.reset(revTree);
+                            tw.setRecursive(true);
+                            return Optional.of(tw);
+                          } catch (IOException e) {
+                            throw new RuntimeException("Cannot create tree-walk", e);
+                          }
+                        })
+                .orElseGet(() -> reader -> Optional.empty());
+
         dirCacheEntryCreator =
             tw -> {
               final DirCacheEntry dirCacheEntry = new DirCacheEntry(tw.getPathString());
@@ -424,14 +469,17 @@ public class BareGitAccess implements GitAccess {
 
               tw.addTree(new DirCacheBuildIterator(builder));
               tw.setRecursive(true);
-              return tw;
+              return Optional.of(tw);
             };
         dirCacheEntryCreator = tw -> tw.getTree(0, DirCacheIterator.class).getDirCacheEntry();
       }
       try (ObjectReader reader = rep.newObjectReader()) {
-        TreeWalk tw = treeWalkSupplier.apply(reader);
-        while (tw.next()) {
-          alreadyExistingFiles.put(tw.getObjectId(0), tw.getPathString());
+        final Optional<TreeWalk> optionalTreeWalk = treeWalkSupplier.apply(reader);
+        if (optionalTreeWalk.isPresent()) {
+          TreeWalk tw = optionalTreeWalk.get();
+          while (tw.next()) {
+            alreadyExistingFiles.put(tw.getObjectId(0), tw.getPathString());
+          }
         }
       }
     } catch (IOException e) {
@@ -446,14 +494,15 @@ public class BareGitAccess implements GitAccess {
       }
 
       @Override
-      public Mono<Boolean> importFile(final Path file, final String name) {
+      public Mono<ObjectId> importFile(final Path file, final String name) {
         return importFile(file, name, false);
       }
 
       @Override
-      public Mono<Boolean> importFile(final Path file, final String name, boolean replaceIfExists) {
+      public Mono<ObjectId> importFile(
+          final Path file, final String name, boolean replaceIfExists) {
         if (replaceIfExists) replacedFiles.add(name);
-        return asyncService.asyncMono(
+        return asyncService.asyncMonoOptional(
             () -> {
               try (final ObjectInserter objectInserter = rep.newObjectInserter()) {
                 final ObjectId newFileId =
@@ -468,7 +517,7 @@ public class BareGitAccess implements GitAccess {
                             + " already imported as "
                             + existingFileName
                             + " -> skipping");
-                    return false;
+                    return Optional.of(newFileId);
                   }
                   alreadyExistingFiles.put(newFileId, name);
                   final DirCacheEntry newEntry = new DirCacheEntry(name);
@@ -477,7 +526,7 @@ public class BareGitAccess implements GitAccess {
                   builder.add(newEntry);
                   modified = true;
                 }
-                return true;
+                return Optional.of(newFileId);
               }
             });
       }
@@ -500,7 +549,8 @@ public class BareGitAccess implements GitAccess {
       @Override
       public Mono<Boolean> commit(String message) {
         final Mono<String> nameMono = getName();
-        return Mono.zip(findMasterRef(), nameMono)
+        return Mono.zip(
+                findMasterRef().map(Optional::of).defaultIfEmpty(Optional.empty()), nameMono)
             .flatMap(
                 t -> executeCommit(message, t.getT1())
                 // .log("Commit " + t.getT2())
@@ -512,7 +562,8 @@ public class BareGitAccess implements GitAccess {
                 });
       }
 
-      private Mono<Boolean> executeCommit(final String message, final Ref currentMasterRef) {
+      private Mono<Boolean> executeCommit(
+          final String message, final Optional<Ref> currentMasterRef) {
         if (!modified) {
           return Mono.just(true);
         }
@@ -521,10 +572,13 @@ public class BareGitAccess implements GitAccess {
               try {
 
                 try (ObjectReader reader = rep.newObjectReader()) {
-                  TreeWalk tw = treeWalkSupplier.apply(reader);
-                  while (tw.next()) {
-                    if (!replacedFiles.contains(tw.getPathString()))
-                      builder.add(dirCacheEntryCreator.apply(tw));
+                  final Optional<TreeWalk> apply = treeWalkSupplier.apply(reader);
+                  if (apply.isPresent()) {
+                    TreeWalk tw = apply.get();
+                    while (tw.next()) {
+                      if (!replacedFiles.contains(tw.getPathString()))
+                        builder.add(dirCacheEntryCreator.apply(tw));
+                    }
                   }
                 }
                 builder.finish();
@@ -547,7 +601,7 @@ public class BareGitAccess implements GitAccess {
                 if (message != null) commit.setMessage(message);
                 commit.setAuthor(author);
                 commit.setCommitter(author);
-                commit.setParentIds(currentMasterRef.getObjectId());
+                currentMasterRef.map(Ref::getObjectId).ifPresent(commit::setParentIds);
                 commit.setTreeId(treeId);
                 final ObjectId commitId = objectInserter.insert(commit);
 
@@ -557,7 +611,7 @@ public class BareGitAccess implements GitAccess {
                 RefUpdate ru = rep.updateRef(Constants.HEAD);
                 ru.setNewObjectId(commitId);
                 ru.setRefLogMessage("auto import" + revCommit.getShortMessage(), false);
-                ru.setExpectedOldObjectId(masterRef.getObjectId());
+                masterRef.map(Ref::getObjectId).ifPresent(ru::setExpectedOldObjectId);
                 final RefUpdate.Result updateResult = ru.update();
                 switch (updateResult) {
                   case LOCK_FAILURE:
@@ -705,15 +759,19 @@ public class BareGitAccess implements GitAccess {
                     .asyncMono(
                         () -> {
                           final File file = File.createTempFile("data", ".xmp");
-                          final OutputStream fos = new FileOutputStream(file);
-                          XMPMetaFactory.serialize(xmpMeta, fos);
-                          fos.close();
-                          return updater
-                              .importFile(file.toPath(), filename, true)
-                              .doFinally(signal -> file.delete());
+                          try {
+                            final OutputStream fos = new FileOutputStream(file);
+                            XMPMetaFactory.serialize(xmpMeta, fos);
+                            fos.close();
+                            return updater
+                                .importFile(file.toPath(), filename, true)
+                                .doFinally(signal -> file.delete());
+                          } catch (IOException ex) {
+                            file.delete();
+                            throw ex;
+                          }
                         })
-                    .filterWhen(Function.identity())
-                    .flatMap(ok -> updater.commit())
+                    .flatMap(fileId -> updater.commit())
                     .filter(ok -> ok));
   }
 }

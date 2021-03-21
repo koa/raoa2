@@ -2,11 +2,20 @@ package ch.bergturbenthal.raoa.libs.service;
 
 import java.io.Closeable;
 import java.nio.file.Path;
+import java.util.UUID;
+import org.eclipse.jgit.lib.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
 
 public interface FileImporter extends Closeable {
-  Mono<Boolean> importFile(Path file);
+  @NotNull
+  Mono<Tuple2<UUID, ObjectId>> importFile(Path file);
 
+  @NotNull
+  Mono<Tuple2<UUID, ObjectId>> importFile(final Path file, final String originalFileName);
+
+  @NotNull
   Mono<Boolean> commitAll();
 
   void close();

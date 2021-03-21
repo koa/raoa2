@@ -1,13 +1,16 @@
 <ion-header>
     <ion-toolbar>
-        <ion-searchbar (ionChange)="updateFilter($event)"></ion-searchbar>
+        <ion-back-button defaultHref="/" slot="start"></ion-back-button>
+        Gruppen
     </ion-toolbar>
+    <ion-searchbar (ionChange)="updateFilter($event)"></ion-searchbar>
 </ion-header>
 <ion-content>
     <ion-card>
         <ion-card-header>
+            <ion-card-subtitle>Gruppe erstellen</ion-card-subtitle>
             <ion-card-title>
-                <ion-input placeholder="Neue Gruppe" (keyup.enter)="createGroup($event)"></ion-input>
+                <ion-input placeholder="Namen der Gruppe" (keyup.enter)="createGroup($event)"></ion-input>
             </ion-card-title>
         </ion-card-header>
     </ion-card>

@@ -1,0 +1,5 @@
+mutation importSetAutoadd($id: ID!, $date: DateTime!){
+    updateAlbum(albumId: $id, update: {autoadd: [$date],newLabels: [], removeLabels: []}){
+        id
+    }
+}

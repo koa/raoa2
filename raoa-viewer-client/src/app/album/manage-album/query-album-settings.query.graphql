@@ -12,5 +12,6 @@ query queryAlbumSettings($albumId: ID!) {
             labelName
             labelValue
         }
+        autoaddDates
     }
 }

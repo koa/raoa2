@@ -98,4 +98,8 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
   public Set<String> getKeywords(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getKeywords, Collections.emptySet());
   }
+
+  public String name(AlbumEntry entry) {
+    return entry.getElDataEntry().getFilename();
+  }
 }

@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.libs.service.impl;
 import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.*;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,6 +25,10 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.sax.BodyContentHandler;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
 import reactor.core.publisher.Flux;
@@ -154,39 +159,31 @@ public class BareAlbumList implements AlbumList {
         }
       }
 
-      public Mono<Boolean> importFile(final Path file) {
+      public @NotNull Mono<Tuple2<UUID, ObjectId>> importFile(final Path file) {
+        final String originalFileName = file.getFileName().toString();
+        return importFile(file, originalFileName);
+      }
+
+      public @NotNull Mono<Tuple2<UUID, ObjectId>> importFile(
+          final Path file, final String originalFileName) {
         return scanCache
             .get()
             .getRepositories()
             .flatMap(
                 reps ->
-                    asyncService.asyncMono(
+                    asyncService.<Mono<Tuple2<UUID, ObjectId>>>asyncMono(
                         () -> {
                           try {
-                            AutoDetectParser parser = new AutoDetectParser();
-                            BodyContentHandler handler = new BodyContentHandler();
-                            Metadata metadata = new Metadata();
-                            final TikaInputStream inputStream = TikaInputStream.get(file);
-                            parser.parse(inputStream, handler, metadata);
-                            if (!IMPORTING_TYPES.contains(metadata.get(Metadata.CONTENT_TYPE))) {
-                              log.info(
-                                  "Unsupported content type: "
-                                      + metadata.get(Metadata.CONTENT_TYPE));
-                              return (Mono.just(false));
-                            }
-                            final Date createDate = metadata.getDate(TikaCoreProperties.CREATED);
-                            if (createDate == null) {
-                              log.info("No creation timestamp");
-                              return (Mono.just(false));
-                            }
-                            final Instant createTimestamp = createDate.toInstant();
+                            final Optional<Instant> foundTimestamp = detectTimestamp(file);
+                            if (foundTimestamp.isEmpty()) return Mono.empty();
+
+                            final Instant createTimestamp = foundTimestamp.get();
 
                             final String prefix =
                                 DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
                                     .format(createTimestamp.atZone(ZoneId.systemDefault()));
-                            final String targetFilename =
-                                prefix + "-" + file.getFileName().toString();
-                            return (albumOf(createTimestamp)
+                            final String targetFilename = prefix + "-" + originalFileName;
+                            return albumOf(createTimestamp)
                                 .flatMap(
                                     repositoryId ->
                                         getAlbum(repositoryId)
@@ -197,28 +194,34 @@ public class BareAlbumList implements AlbumList {
                                             .map(name -> repositoryId))
                                 .flatMap(
                                     repositoryId ->
-                                        pendingUpdaters.computeIfAbsent(
-                                            repositoryId, k -> reps.get(k).createUpdater().cache()))
-                                .flatMap(
-                                    updater ->
-                                        updater
-                                            .importFile(file, targetFilename)
-                                            .onErrorResume(
-                                                e -> {
-                                                  log.warn("Cannot import file " + file, e);
-                                                  return Mono.just(false);
-                                                }))
-                                .defaultIfEmpty(false));
+                                        pendingUpdaters
+                                            .computeIfAbsent(
+                                                repositoryId,
+                                                k -> reps.get(k).createUpdater().cache())
+                                            .flatMap(
+                                                updater -> {
+                                                  return updater
+                                                      .importFile(file, targetFilename)
+                                                      .map(
+                                                          objectId ->
+                                                              Tuples.of(repositoryId, objectId))
+                                                      .onErrorResume(
+                                                          e -> {
+                                                            log.warn(
+                                                                "Cannot import file " + file, e);
+                                                            return Mono.empty();
+                                                          });
+                                                }));
                           } catch (TikaException | SAXException | IOException e) {
                             log.warn("Cannot access file " + file, e);
-                            return (Mono.just(false));
+                            return (Mono.empty());
                           }
                         }))
             .flatMap(Function.identity());
       }
 
       @Override
-      public Mono<Boolean> commitAll() {
+      public @NotNull Mono<Boolean> commitAll() {
         return Flux.fromIterable(pendingUpdaters.values())
             .flatMap(m -> m)
             .flatMap(Updater::commit)
@@ -227,6 +230,26 @@ public class BareAlbumList implements AlbumList {
             .doFinally(signal -> pendingUpdaters.clear());
       }
     };
+  }
+
+  private Optional<Instant> detectTimestamp(final Path file)
+      throws IOException, SAXException, TikaException {
+    AutoDetectParser parser = new AutoDetectParser();
+    BodyContentHandler handler = new BodyContentHandler();
+    Metadata metadata = new Metadata();
+    final TikaInputStream inputStream = TikaInputStream.get(file);
+    parser.parse(inputStream, handler, metadata);
+    if (!IMPORTING_TYPES.contains(metadata.get(Metadata.CONTENT_TYPE))) {
+      log.info("Unsupported content type: " + metadata.get(Metadata.CONTENT_TYPE));
+      return Optional.empty();
+    }
+    final Date createDate = metadata.getDate(TikaCoreProperties.CREATED);
+    if (createDate == null) {
+      log.info("No creation timestamp");
+      return Optional.empty();
+    }
+    final Instant createTimestamp = createDate.toInstant();
+    return Optional.of(createTimestamp);
   }
 
   @Override
@@ -239,6 +262,22 @@ public class BareAlbumList implements AlbumList {
   }
 
   @Override
+  public Flux<String> listParentDirs() {
+    return scanCache
+        .get()
+        .getRepositories()
+        .flatMapIterable(Map::values)
+        .flatMap(GitAccess::getFullPath)
+        .map(
+            f -> {
+              final int i = f.lastIndexOf('/');
+              if (i < 0) return f;
+              return f.substring(0, i);
+            })
+        .distinct();
+  }
+
+  @Override
   public Mono<GitAccess> getAlbum(final UUID albumId) {
     return scanCache
         .get()
@@ -246,6 +285,32 @@ public class BareAlbumList implements AlbumList {
         .map(reps -> Optional.ofNullable(reps.get(albumId)))
         .filter(Optional::isPresent)
         .map(Optional::get);
+  }
+
+  @Override
+  public Mono<UUID> createAlbum(final List<String> albumPath) {
+    try {
+      File dir = properties.getRepository();
+      for (String name : albumPath) {
+        dir = new File(dir, name);
+      }
+      dir = new File(dir.getParent(), dir.getName() + ".git");
+      if (!dir.exists()) {
+        Git.init().setDirectory(dir).setBare(true).call();
+      }
+      resetCache();
+      final String fullPath = String.join("/", albumPath);
+      return scanCache
+          .get()
+          .getRepositories()
+          .flatMapIterable(Map::entrySet)
+          .filterWhen(ga -> ga.getValue().getFullPath().map(fullPath::equals))
+          .map(Map.Entry::getKey)
+          .next();
+
+    } catch (GitAPIException ex) {
+      return Mono.error(ex);
+    }
   }
 
   private Mono<UUID> albumOf(final Instant timestamp) {

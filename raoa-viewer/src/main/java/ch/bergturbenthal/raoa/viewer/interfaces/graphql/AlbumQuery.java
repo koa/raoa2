@@ -3,16 +3,16 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 import ch.bergturbenthal.raoa.elastic.model.AlbumData;
 import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
+import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import org.eclipse.jgit.lib.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
@@ -20,12 +20,14 @@ import reactor.core.publisher.Mono;
 
 @Component
 public class AlbumQuery implements GraphQLResolver<Album> {
+  public static final Pattern PATH_SPLIT = Pattern.compile(Pattern.quote("/"));
   private static final Duration TIMEOUT = Duration.ofMinutes(5);
-
   private final DataViewService dataViewService;
+  private final AlbumList albumList;
 
-  public AlbumQuery(final DataViewService dataViewService) {
+  public AlbumQuery(final DataViewService dataViewService, final AlbumList albumList) {
     this.dataViewService = dataViewService;
+    this.albumList = albumList;
   }
 
   public String getZipDownloadUri(Album album) {
@@ -76,7 +78,7 @@ public class AlbumQuery implements GraphQLResolver<Album> {
 
   @NotNull
   private AlbumEntry createAlbumEntry(final Album album, final AlbumEntryData entry) {
-    return new AlbumEntry(album, entry.getEntryId().name(), entry.getFilename(), entry);
+    return new AlbumEntry(album, entry.getEntryId().name(), entry);
   }
 
   public CompletableFuture<String> getName(Album album) {
@@ -137,6 +139,25 @@ public class AlbumQuery implements GraphQLResolver<Album> {
         .flatMapIterable(AlbumData::getKeywordCount)
         .map(k -> new KeywordCount(k.getKeyword(), k.getEntryCount()))
         .collectList()
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<List<Instant>> autoaddDates(Album album) {
+    return albumList
+        .getAlbum(album.getId())
+        .flatMapMany(GitAccess::readAutoadd)
+        .collectList()
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<List<String>> albumPath(Album album) {
+    return albumList
+        .getAlbum(album.getId())
+        .flatMap(GitAccess::getFullPath)
+        .map(PATH_SPLIT::split)
+        .map(Arrays::asList)
         .timeout(TIMEOUT)
         .toFuture();
   }

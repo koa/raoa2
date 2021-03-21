@@ -24,6 +24,10 @@ const routes: Routes = [
   {
     path: 'manage-teams',
     loadChildren: () => import('./manage-teams/manage-teams.module').then( m => m.ManageTeamsPageModule)
+  },
+  {
+    path: 'import',
+    loadChildren: () => import('./import/import.module').then( m => m.ImportPageModule)
   }
 ];
 

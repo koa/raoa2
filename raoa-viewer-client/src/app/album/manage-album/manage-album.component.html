@@ -1,7 +1,7 @@
 <ion-header>
     <ion-toolbar>
+        <ion-back-button [defaultHref]="'/album/'+albumId" slot="start"></ion-back-button>
         <ion-title>
-            <ion-icon (click)="back()" name="arrow-back"></ion-icon>
             <span *ngIf="albumName">{{albumName}}</span>
         </ion-title>
     </ion-toolbar>
@@ -20,6 +20,10 @@
     </super-tabs-toolbar>
     <super-tabs-container>
         <super-tab>
+            <ion-card>
+                <ion-card-subtitle>Auto-Add</ion-card-subtitle>
+                <ion-datetime [(ngModel)]="autoAddTimestamp" displayFormat="D MMM YYYY HH:mm"></ion-datetime>
+            </ion-card>
             <ion-card>
                 <ion-card-subtitle>FNCH Veranstaltungs-ID</ion-card-subtitle>
                 <ion-card-title><ion-input [(ngModel)]="fnchCompetitionId"></ion-input></ion-card-title>

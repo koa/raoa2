@@ -173,16 +173,13 @@
                     </to>
                     <container>
                         <filesModificationTime>${git.commit.time}</filesModificationTime>
-                    </container>
-                    <!--
-                    <container>
                         <jvmFlags>
-                            <jvmFlag>-XX:+HeapDumpOnOutOfMemoryError</jvmFlag>
-                            <jvmFlag>-XX:HeapDumpPath=/dumps/</jvmFlag>
-                            <jvmFlag>-XX:+ExitOnOutOfMemoryError</jvmFlag>
+                            <!--<jvmFlag>-XX:+HeapDumpOnOutOfMemoryError</jvmFlag>
+                                                        <jvmFlag>-XX:HeapDumpPath=/dumps/</jvmFlag>
+                                                        <jvmFlag>-XX:+ExitOnOutOfMemoryError</jvmFlag>-->
+                            <jvmFlag>-Djdk.tls.client.protocols=TLSv1.2</jvmFlag>
                         </jvmFlags>
                     </container>
-                    -->
                 </configuration>
             </plugin>
         </plugins>

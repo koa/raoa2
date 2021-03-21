@@ -1,0 +1,5 @@
+mutation importCreateAlbum($path: [String!]!){
+    createAlbum(path: $path){
+        id
+    }
+}

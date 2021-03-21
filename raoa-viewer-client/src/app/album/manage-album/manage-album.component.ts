@@ -43,7 +43,9 @@ export class ManageAlbumComponent implements OnInit {
     private activeGroups: Set<string> = new Set();
     public selectedUsers: Set<string> = new Set();
     private activeUsers: Set<string> = new Set();
-    fnchCompetitionId: string;
+    public fnchCompetitionId: string;
+    public autoAddTimestamp: string;
+    private unmodifiedAutoAddTimestamp: string;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
@@ -88,7 +90,15 @@ export class ManageAlbumComponent implements OnInit {
             data.albumById.labels.forEach(lv => {
                 labels.set(lv.labelName, lv.labelValue);
             });
+            const autoaddDates = data.albumById.autoaddDates;
+            if (autoaddDates && autoaddDates.length > 0) {
+                this.autoAddTimestamp = autoaddDates[0];
+            } else {
+                this.autoAddTimestamp = undefined;
+            }
+            this.unmodifiedAutoAddTimestamp = this.autoAddTimestamp;
             this.fnchCompetitionId = labels.get(FNCH_COMPETITION_ID);
+
             loadingElement.dismiss();
         });
     }
@@ -139,13 +149,15 @@ export class ManageAlbumComponent implements OnInit {
         } else {
             removeLabels.push(FNCH_COMPETITION_ID);
         }
+        const autoadd = this.unmodifiedAutoAddTimestamp === this.autoAddTimestamp ? undefined : [this.autoAddTimestamp];
         const albumUpdate: ManageAlbumUpdateMutationVariables = {
             id: this.albumId,
             update: {
                 newAlbumTitle,
                 newLabels,
                 newTitleEntry,
-                removeLabels
+                removeLabels,
+                autoadd
             }
         };
         await this.serverApi.update(this.manageAlbumUpdateGQL, albumUpdate);

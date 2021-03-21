@@ -1,6 +1,9 @@
 <ion-header>
-    <ion-title>
-        {{user?.info.name}}</ion-title>
+    <ion-toolbar>
+        <ion-back-button defaultHref="/manage-users" slot="start"></ion-back-button>
+        <ion-title>
+            {{user?.info.name}}</ion-title>
+    </ion-toolbar>
 </ion-header>
 <ion-content>
     <super-tabs>

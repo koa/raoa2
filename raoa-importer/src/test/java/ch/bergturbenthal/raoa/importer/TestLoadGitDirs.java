@@ -33,7 +33,7 @@ public class TestLoadGitDirs {
     Files.list(dir)
         .forEach(
             f -> {
-              if (importer.importFile(f).block()) {
+              if (importer.importFile(f).block() != null) {
                 importedFiles.add(f);
               } else log.warn("Cannot load " + f);
               //                AutoDetectParser parser = new AutoDetectParser();

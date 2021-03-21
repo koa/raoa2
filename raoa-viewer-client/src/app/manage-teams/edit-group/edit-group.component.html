@@ -1,6 +1,9 @@
 <ion-header>
-    <ion-title>
-        {{groupData?.name}}</ion-title>
+    <ion-toolbar>
+        <ion-back-button defaultHref="/manage-teams" slot="start"></ion-back-button>
+        <ion-title>
+            {{groupData?.name}}</ion-title>
+    </ion-toolbar>
 </ion-header>
 <ion-content>
     <super-tabs>
@@ -25,7 +28,9 @@
                 </ion-card>
                 <ion-card>
                     <ion-card-subtitle>FNCH Teilnehmer-ID</ion-card-subtitle>
-                    <ion-card-title><ion-input [(ngModel)]="fnchCompetitorId"></ion-input></ion-card-title>
+                    <ion-card-title>
+                        <ion-input [(ngModel)]="fnchCompetitorId"></ion-input>
+                    </ion-card-title>
                 </ion-card>
             </super-tab>
             <super-tab>

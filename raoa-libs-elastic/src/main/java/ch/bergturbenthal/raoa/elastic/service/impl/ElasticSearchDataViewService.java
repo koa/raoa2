@@ -13,13 +13,10 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
 import org.apache.tika.metadata.*;
@@ -325,7 +322,7 @@ public class ElasticSearchDataViewService implements DataViewService {
                               albumDataEntryRepository
                                   .findByAlbumId(album.getAlbumId())
                                   // .log("find album by id " + album.getAlbumId())
-                                  .collectMap(AlbumEntryData::getEntryId, e -> e)
+                                  .collectMap(AlbumEntryData::getEntryId, Function.identity())
                                   .onErrorResume(ex -> Mono.just(Collections.emptyMap()))
                                   .flatMap(
                                       entriesBefore -> {
@@ -424,8 +421,7 @@ public class ElasticSearchDataViewService implements DataViewService {
                                                                                           album
                                                                                               .getAlbumId(),
                                                                                           id))
-                                                                              .map(v -> 1)
-                                                                              .defaultIfEmpty(1))
+                                                                              .thenReturn(1))
                                                                   .count();
                                                           final Mono<AlbumData> albumDataMono =
                                                               Mono.zip(
@@ -491,7 +487,7 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   @Override
   public Flux<AlbumData> listAlbums() {
-    return albumDataRepository.findByEntryCountGreaterThan(0);
+    return albumDataRepository.findAll();
   }
 
   @Override
@@ -620,45 +616,5 @@ public class ElasticSearchDataViewService implements DataViewService {
     return loadEntry(albumId, entryId)
         .map(data -> data.toBuilder().keywords(new HashSet<>(newKeywords)).build())
         .flatMap(albumDataEntryRepository::save);
-  }
-
-  private static class AlbumStatisticsCollector {
-    private final LongSummaryStatistics timeSummary = new LongSummaryStatistics();
-    private final LongAdder entryCount = new LongAdder();
-    @Getter private final Set<ObjectId> remainingEntries;
-    private Map<String, AtomicInteger> keywordCounts = Collections.synchronizedMap(new HashMap<>());
-
-    private AlbumStatisticsCollector(final Set<ObjectId> remainingEntries) {
-      this.remainingEntries = new HashSet<>(remainingEntries);
-    }
-
-    public synchronized void addAlbumData(AlbumEntryData entry) {
-      remainingEntries.remove(entry.getEntryId());
-      if (entry.getCreateTime() != null) {
-        timeSummary.accept(entry.getCreateTime().getEpochSecond());
-      }
-      entryCount.increment();
-      final Set<String> keywords = entry.getKeywords();
-      if (keywords != null) {
-        for (String keyword : keywords)
-          keywordCounts.computeIfAbsent(keyword, k -> new AtomicInteger()).incrementAndGet();
-      }
-    }
-
-    public synchronized AlbumData.AlbumDataBuilder fill(AlbumData.AlbumDataBuilder target) {
-      if (timeSummary.getCount() > 0)
-        target.createTime(Instant.ofEpochSecond((long) timeSummary.getAverage()));
-      target.entryCount(entryCount.intValue());
-      target.keywordCount(
-          keywordCounts.entrySet().stream()
-              .map(
-                  e ->
-                      KeywordCount.builder()
-                          .keyword(e.getKey())
-                          .entryCount(e.getValue().get())
-                          .build())
-              .collect(Collectors.toList()));
-      return target;
-    }
   }
 }

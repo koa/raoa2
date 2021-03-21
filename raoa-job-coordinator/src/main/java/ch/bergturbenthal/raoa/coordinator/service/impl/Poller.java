@@ -4,10 +4,10 @@ import ch.bergturbenthal.raoa.coordinator.model.CoordinatorProperties;
 import ch.bergturbenthal.raoa.coordinator.service.RemoteImageProcessor;
 import ch.bergturbenthal.raoa.elastic.model.AlbumData;
 import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
-import ch.bergturbenthal.raoa.elastic.model.KeywordCount;
 import ch.bergturbenthal.raoa.elastic.repository.AlbumDataEntryRepository;
 import ch.bergturbenthal.raoa.elastic.repository.AlbumDataRepository;
 import ch.bergturbenthal.raoa.elastic.repository.SyncAlbumDataEntryRepository;
+import ch.bergturbenthal.raoa.elastic.service.impl.AlbumStatisticsCollector;
 import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.libs.model.kafka.ProcessImageRequest;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
@@ -17,11 +17,8 @@ import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.io.File;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -89,16 +86,16 @@ public class Poller {
     }
   }
 
-  @Scheduled(fixedDelay = 60 * 60 * 1000, initialDelay = 1000)
+  @Scheduled(fixedDelay = 7 * 1000, initialDelay = 1000)
   public void poll() {
     log.info("scheduler started");
     while (true) {
       log.info("poll cycle started");
-      final Flux<Tuple2<Optional<Void>, AlbumData>> take =
+      final Mono<Long> removedRepos =
           albumList
               .listAlbums()
               // .log("album-in")
-              .filterWhen(
+              .flatMap(
                   album ->
                       Mono.zip(
                               album.getAccess().getCurrentVersion(),
@@ -108,16 +105,20 @@ public class Poller {
                           .map(t -> t.getT1().equals(t.getT2()))
                           .defaultIfEmpty(false)
                           .onErrorResume(
-                              ex -> {
-                                log.warn("Cannot check album " + album.getAccess(), ex);
+                              ex1 -> {
+                                log.warn("Cannot check album " + album.getAccess(), ex1);
                                 return Mono.just(false);
                               })
                           .map(b -> !b)
                           .timeout(Duration.ofSeconds(60))
-                          .retryWhen(Retry.backoff(10, Duration.ofSeconds(10))),
+                          .retryWhen(Retry.backoff(10, Duration.ofSeconds(10)))
+                          .map(touched -> Tuples.of(album, touched)),
                   10)
               .flatMap(
-                  album -> {
+                  albumData -> {
+                    boolean touched = albumData.getT2();
+                    if (!touched) return Mono.just(albumData.getT1().getAlbumId());
+                    final AlbumList.FoundAlbum album = albumData.getT1();
                     log.info("Start " + album);
                     final Mono<Tuple2<Optional<Void>, AlbumData>> tuple2Mono =
                         albumDataEntryRepository
@@ -152,17 +153,17 @@ public class Poller {
                                                                           .getFileId()))
                                                               : Optional.<AlbumEntryData>empty()))
                                           .flatMap(
-                                              entry -> {
-                                                if (entry.getT2().isPresent()) {
+                                              entry1 -> {
+                                                if (entry1.getT2().isPresent()) {
                                                   return Mono.just(
-                                                      Tuples.of(entry.getT2().get(), false));
+                                                      Tuples.of(entry1.getT2().get(), false));
                                                 }
                                                 final String filename =
-                                                    entry.getT1().getNameString();
-                                                final ProcessImageRequest data =
+                                                    entry1.getT1().getNameString();
+                                                final ProcessImageRequest data1 =
                                                     new ProcessImageRequest(
                                                         album.getAlbumId(), filename);
-                                                final ObjectId fileId = entry.getT1().getFileId();
+                                                final ObjectId fileId = entry1.getT1().getFileId();
                                                 final long startTime = System.nanoTime();
                                                 /*log.info(
                                                 "start processing ["
@@ -170,7 +171,7 @@ public class Poller {
                                                     + "] "
                                                     + filename);*/
                                                 return remoteImageProcessor
-                                                    .processImage(fileId, data)
+                                                    .processImage(fileId, data1)
                                                     // .log(filename)
                                                     .timeout(
                                                         coordinatorProperties.getProcessTimeout())
@@ -185,7 +186,7 @@ public class Poller {
                                                         signal ->
                                                             log.info(
                                                                 "processed ["
-                                                                    + data.getAlbumId()
+                                                                    + data1.getAlbumId()
                                                                     + "] "
                                                                     + filename
                                                                     + " in "
@@ -271,7 +272,7 @@ public class Poller {
                                                           },
                                                           2)
                                                       // .publishOn(Schedulers.elastic())
-                                                      .map(e -> Tuples.of(e, true))
+                                                      .map(e1 -> Tuples.of(e1, true))
                                                   // .log("processed")
                                                   ;
                                                 } else
@@ -292,35 +293,13 @@ public class Poller {
                                           album.getAccess().getMetadata())
                                       .flatMap(
                                           TupleUtils.function(
-                                              (data, name, currentVersion, metadata) -> {
-                                                final LongSummaryStatistics timeSummary =
-                                                    new LongSummaryStatistics();
-                                                final LongAdder entryCount = new LongAdder();
+                                              (data1, name, currentVersion, metadata) -> {
+                                                final AlbumStatisticsCollector collector =
+                                                    new AlbumStatisticsCollector(
+                                                        existingEntries.keySet());
+                                                data1.forEach(
+                                                    t -> collector.addAlbumData(t.getT1()));
 
-                                                final Set<ObjectId> remainingEntries =
-                                                    new HashSet<>(existingEntries.keySet());
-                                                Map<String, AtomicInteger> keywordCounts =
-                                                    Collections.synchronizedMap(new HashMap<>());
-
-                                                data.forEach(
-                                                    t -> {
-                                                      final AlbumEntryData entry = t.getT1();
-                                                      remainingEntries.remove(entry.getEntryId());
-                                                      if (entry.getCreateTime() != null) {
-                                                        timeSummary.accept(
-                                                            entry.getCreateTime().getEpochSecond());
-                                                      }
-                                                      entryCount.increment();
-                                                      final Set<String> keywords =
-                                                          entry.getKeywords();
-                                                      if (keywords != null) {
-                                                        for (String keyword : keywords)
-                                                          keywordCounts
-                                                              .computeIfAbsent(
-                                                                  keyword, k -> new AtomicInteger())
-                                                              .incrementAndGet();
-                                                      }
-                                                    });
                                                 AlbumData.AlbumDataBuilder albumDataBuilder =
                                                     AlbumData.builder()
                                                         .repositoryId(album.getAlbumId())
@@ -328,20 +307,7 @@ public class Poller {
                                                         .name(name);
                                                 Optional.ofNullable(metadata.getLabels())
                                                     .ifPresent(albumDataBuilder::labels);
-                                                if (timeSummary.getCount() > 0)
-                                                  albumDataBuilder.createTime(
-                                                      Instant.ofEpochSecond(
-                                                          (long) timeSummary.getAverage()));
-                                                albumDataBuilder.entryCount(entryCount.intValue());
-                                                albumDataBuilder.keywordCount(
-                                                    keywordCounts.entrySet().stream()
-                                                        .map(
-                                                            e ->
-                                                                KeywordCount.builder()
-                                                                    .keyword(e.getKey())
-                                                                    .entryCount(e.getValue().get())
-                                                                    .build())
-                                                        .collect(Collectors.toList()));
+                                                collector.fill(albumDataBuilder);
 
                                                 final Mono<AlbumData> save =
                                                     albumDataRepository
@@ -350,7 +316,8 @@ public class Poller {
                                                 return Mono.zip(
                                                     albumDataEntryRepository
                                                         .deleteById(
-                                                            Flux.fromIterable(remainingEntries)
+                                                            Flux.fromIterable(
+                                                                    collector.getRemainingEntries())
                                                                 .map(existingEntries::get)
                                                                 .map(AlbumEntryData::getDocumentId))
                                                         .map(Optional::of)
@@ -361,25 +328,40 @@ public class Poller {
                                               }));
                                 });
                     return tuple2Mono
+                        .map(Tuple2::getT2)
                         // .timeout(Duration.ofMinutes(30))
-                        .log("process " + album.getAlbumId())
+                        // .log("process " + album.getAlbumId())
+                        .doOnNext(entry -> log.info("updated: " + entry.getName()))
+                        .map(AlbumData::getRepositoryId)
                         .onErrorResume(
-                            ex -> {
-                              log.warn("Error on album", ex);
-                              if (ex instanceof BulkFailureException) {
-                                ((BulkFailureException) ex)
+                            ex1 -> {
+                              log.warn("Error on album", ex1);
+                              if (ex1 instanceof BulkFailureException) {
+                                ((BulkFailureException) ex1)
                                     .getFailedDocuments()
                                     .forEach((key, value) -> log.warn(value));
                               }
                               return Mono.empty();
                             });
                   },
-                  coordinatorProperties.getConcurrentProcessingAlbums());
+                  coordinatorProperties.getConcurrentProcessingAlbums())
+              .timeout(Duration.ofHours(1))
+              .collect(Collectors.toSet())
+              .flatMap(
+                  touchedRepositories ->
+                      albumDataRepository
+                          .findAll()
+                          .filter(data -> !touchedRepositories.contains(data.getRepositoryId()))
+                          .doOnNext(
+                              data ->
+                                  log.info(
+                                      "Remove " + data.getName() + "; " + data.getRepositoryId()))
+                          .flatMap(entity -> albumDataRepository.delete(entity).thenReturn(1))
+                          .count());
+
       try {
-        for (Tuple2<Optional<Void>, AlbumData> entry :
-            take.timeout(Duration.ofHours(5)).toIterable()) {
-          log.info("updated: " + entry.getT2().getName());
-        }
+        final Long removedCount = removedRepos.block();
+        log.info("Removed " + removedCount + " outdated repositories");
         break;
       } catch (Exception ex) {
         log.error("Cannot load data, retry", ex);

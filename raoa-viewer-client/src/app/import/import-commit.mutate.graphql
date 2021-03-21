@@ -1,0 +1,12 @@
+mutation importCommit($files: [ImportFile!]!){
+    commitImport(files: $files){
+        fileId
+        albumEntry{
+            id
+            album{
+                id
+                name
+            }
+        }
+    }
+}

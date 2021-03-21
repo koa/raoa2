@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.libs.service;
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import com.adobe.xmp.XMPMeta;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.function.Function;
 import lombok.Value;
 import org.apache.tika.metadata.Metadata;
@@ -26,6 +27,8 @@ public interface GitAccess {
   Mono<ObjectId> getCurrentVersion();
 
   Flux<Instant> readAutoadd();
+
+  Mono<Boolean> updateAutoadd(Collection<Instant> autoaddTimes);
 
   Mono<Updater> createUpdater();
 

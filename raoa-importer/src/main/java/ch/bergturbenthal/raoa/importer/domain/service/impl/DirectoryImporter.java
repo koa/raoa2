@@ -60,19 +60,7 @@ public class DirectoryImporter implements Importer {
                   }
                 },
                 2)
-            .flatMap(
-                mediaFile1 ->
-                    importer
-                        .importFile(mediaFile1)
-                        .doOnNext(
-                            ok -> {
-                              if (!ok) {
-                                log.warn("Cannot load " + mediaFile1);
-                              }
-                            })
-                        .filter(ok -> ok)
-                        .map(r -> mediaFile1),
-                5)
+            .flatMap(mediaFile1 -> importer.importFile(mediaFile1).map(r -> mediaFile1), 5)
             .collectList()
             .flatMap(
                 t ->

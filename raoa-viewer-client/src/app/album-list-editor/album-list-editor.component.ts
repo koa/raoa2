@@ -28,7 +28,7 @@ export class AlbumListEditorComponent implements OnInit {
     async ngOnInit() {
         const data = await this.serverApi.query(this.albumListGQL, {});
         this.ngZone.run(() => {
-            const sortedList: (AlbumType)[] = data.listAlbums.slice().sort((a1, a2) => -a1.albumTime.localeCompare(a2.albumTime));
+            const sortedList: (AlbumType)[] = data.listAlbums.filter(a => a.albumTime).sort((a1, a2) => -a1.albumTime.localeCompare(a2.albumTime));
             this.sortedList = sortedList;
             this.filterList();
         });

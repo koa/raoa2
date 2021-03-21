@@ -116,6 +116,7 @@ export class WelcomeComponent implements OnInit {
     }
 
     async updateFnchGroups() {
+        // http://info.fnch.ch/startlisten/50450.json
         const loading = await this.loadingController.create({message: 'Daten von info.fnch.ch laden'});
         await loading.present();
         const metadata = await this.serverApiService.query(this.welcomListFetchFnchDataGQL, {});

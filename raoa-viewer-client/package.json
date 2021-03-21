@@ -27,8 +27,11 @@
     "@ionic-super-tabs/angular": "^7.0.8",
     "@ionic/angular": "^5.0.0",
     "@types/gapi.auth2": "0.0.52",
+    "@types/node-forge": "^0.9.7",
+    "@types/wicg-file-system-access": "^2020.9.1",
     "apollo-angular": "^2.2.0",
     "graphql": "^15.5.0",
+    "node-forge": "^0.10.0",
     "rxjs": "~6.5.5",
     "tslib": "^2.0.0",
     "zone.js": "~0.10.3"

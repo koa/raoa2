@@ -2,15 +2,19 @@ package ch.bergturbenthal.raoa.libs.service.impl;
 
 import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
+import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
 import java.io.File;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.eclipse.jgit.lib.ObjectId;
+import org.jetbrains.annotations.NotNull;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Service
-public class DefaultThumbnailFilenameService implements ThumbnailFilenameService {
+public class DefaultThumbnailFilenameService
+    implements ThumbnailFilenameService, UploadFilenameService {
   public static int[] SCALES = {25, 50, 100, 200, 400, 800, 1600};
   private final Properties properties;
 
@@ -40,5 +44,25 @@ public class DefaultThumbnailFilenameService implements ThumbnailFilenameService
     final String targetFilename =
         album.toString() + "/" + size + "/" + prefix + "/" + suffix + ".jpg";
     return new File(properties.getThumbnailDir(), targetFilename);
+  }
+
+  @Override
+  public File createTempUploadFile(final UUID id) {
+    return new File(getUploadDir(), id.toString());
+  }
+
+  @NotNull
+  private File getUploadDir() {
+    final File uploadDir = new File(properties.getThumbnailDir(), "upload");
+    if (!uploadDir.exists()) uploadDir.mkdirs();
+    return uploadDir;
+  }
+
+  @Scheduled(fixedDelay = 10 * 60 * 1000)
+  public void cleanupOldUploads() {
+    final long thresholdTime = System.currentTimeMillis() - 24 * 3600 * 1000;
+    for (File file : getUploadDir().listFiles(f -> f.lastModified() < thresholdTime)) {
+      file.delete();
+    }
   }
 }

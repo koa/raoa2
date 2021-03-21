@@ -1,7 +1,7 @@
 <ion-header>
     <ion-toolbar>
+        <ion-back-button defaultHref="/" slot="start"></ion-back-button>
         <ion-title>
-            <ion-icon (click)="back()" name="arrow-back"></ion-icon>
             <ion-searchbar placeholder="Album Suchen" (ionChange)="updateSearch($event)"></ion-searchbar>
         </ion-title>
     </ion-toolbar>

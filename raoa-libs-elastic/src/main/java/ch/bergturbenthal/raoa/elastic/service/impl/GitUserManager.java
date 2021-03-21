@@ -136,7 +136,6 @@ public class GitUserManager implements UserManager {
                     .flatMap(
                         u ->
                             u.importFile(srcData.toPath(), newFilename, replaceIfExists)
-                                .filter(t -> t)
                                 .flatMap(t -> u.commit(commitComment))
                                 .filter(t -> t)
                                 .doFinally(signal -> u.close())))

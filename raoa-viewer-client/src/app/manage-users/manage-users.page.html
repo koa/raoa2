@@ -1,8 +1,9 @@
 <ion-header>
     <ion-toolbar>
+        <ion-back-button defaultHref="/" slot="start"></ion-back-button>
         <ion-title>Nutzer</ion-title>
-        <ion-searchbar (ionChange)="updateSearch($event)"></ion-searchbar>
     </ion-toolbar>
+    <ion-searchbar (ionChange)="updateSearch($event)"></ion-searchbar>
 </ion-header>
 <ion-content>
     <ion-list>
