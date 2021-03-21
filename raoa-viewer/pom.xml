@@ -165,7 +165,7 @@
                 </executions>
                 <configuration>
                     <to>
-                        <image>docker-snapshot.berg-turbenthal.ch/raoa-viewer</image>
+                        <image>${docker.host}/raoa-viewer</image>
                         <tags>
                             <tag>${project.version}</tag>
                             <tag>${local.version}</tag>

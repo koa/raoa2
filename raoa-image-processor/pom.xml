@@ -99,7 +99,7 @@
                         <image>docker.berg-turbenthal.ch/distroless-java-dcraw:1</image>
                     </from>
                     <to>
-                        <image>docker-snapshot.berg-turbenthal.ch/raoa-image-processor</image>
+                        <image>${docker.host}/raoa-image-processor</image>
                         <tags>
                             <tag>${project.version}</tag>
                             <tag>${local.version}</tag>

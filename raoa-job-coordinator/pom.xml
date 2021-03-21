@@ -89,7 +89,7 @@
                 </executions>
                 <configuration>
                     <to>
-                        <image>docker-snapshot.berg-turbenthal.ch/raoa-job-koordinator</image>
+                        <image>${docker.host}/raoa-job-koordinator</image>
                         <tags>
                             <tag>${project.version}</tag>
                             <tag>${local.version}</tag>

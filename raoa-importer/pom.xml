@@ -108,7 +108,7 @@
                 </executions>
                 <configuration>
                     <to>
-                        <image>docker-snapshot.berg-turbenthal.ch/raoa-importer</image>
+                        <image>${docker.host}/raoa-importer</image>
                         <tags>
                             <tag>${project.version}</tag>
                             <tag>${local.version}</tag>
