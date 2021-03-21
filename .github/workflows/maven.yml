@@ -1,6 +1,6 @@
 name: Java CI
 
-on: [ push ]
+on: [ push, workflow_dispatch ]
 
 jobs:
   build:
@@ -45,6 +45,13 @@ jobs:
       - name: Build with Maven
         run: mvn --batch-mode deploy -DperformRelease=true --file pom.xml
         if: github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
+          MAVEN_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+      - name: Release with Maven
+        run: mvn --batch-mode release:prepare release:perform --file pom.xml
+        if: github.event_name == 'workflow_dispatch'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
