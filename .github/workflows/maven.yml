@@ -44,7 +44,7 @@ jobs:
             }]
       - name: Build with Maven
         run: mvn --batch-mode deploy -DperformRelease=true --file pom.xml
-        if: github.event.name == "push"
+        if: github.event_name == "push"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
