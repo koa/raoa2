@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import javax.annotation.Nullable;
 import lombok.Builder;
 import lombok.Value;
 import org.eclipse.jgit.lib.ObjectId;
@@ -21,23 +22,24 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 @Builder
 @JsonDeserialize(builder = AlbumData.AlbumDataBuilder.class)
 public class AlbumData {
-  @Id private UUID repositoryId;
+  @Id UUID repositoryId;
 
   @Field(type = FieldType.Keyword)
   @JsonSerialize(using = ObjectIdSerializer.class)
-  private ObjectId currentVersion;
+  ObjectId currentVersion;
 
   @Field(type = FieldType.Text)
-  private String name;
+  String name;
 
   @Field(type = FieldType.Integer)
-  private int entryCount;
+  int entryCount;
 
+  @Nullable
   @Field(type = FieldType.Double)
-  private Instant createTime;
+  Instant createTime;
 
   @Field(type = FieldType.Object)
-  private List<KeywordCount> keywordCount;
+  List<KeywordCount> keywordCount;
 
   @Field(type = FieldType.Object)
   Map<String, String> labels;

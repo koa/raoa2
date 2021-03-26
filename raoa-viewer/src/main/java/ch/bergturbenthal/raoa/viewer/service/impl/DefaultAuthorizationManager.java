@@ -120,7 +120,13 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
                     return Mono.just(true);
 
                   final Mono<Instant> createAlbumTimeMono =
-                      dataViewService.readAlbum(album).map(AlbumData::getCreateTime).cache();
+                      dataViewService
+                          .readAlbum(album)
+                          .map(
+                              albumData ->
+                                  Optional.ofNullable(albumData.getCreateTime())
+                                      .orElse(Instant.MIN))
+                          .cache();
                   return Flux.fromIterable(u.getGroupMembership())
                       .flatMap(
                           groupMembership ->
