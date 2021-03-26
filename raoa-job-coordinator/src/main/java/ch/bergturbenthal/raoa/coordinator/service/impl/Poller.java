@@ -88,9 +88,9 @@ public class Poller {
 
   @Scheduled(fixedDelay = 7 * 1000, initialDelay = 1000)
   public void poll() {
-    log.info("scheduler started");
+    // log.info("scheduler started");
     while (true) {
-      log.info("poll cycle started");
+      // log.info("poll cycle started");
       final Mono<Long> removedRepos =
           albumList
               .listAlbums()
@@ -361,7 +361,8 @@ public class Poller {
 
       try {
         final Long removedCount = removedRepos.block();
-        log.info("Removed " + removedCount + " outdated repositories");
+        if (removedCount != null && removedCount > 0)
+          log.info("Removed " + removedCount + " outdated repositories");
         break;
       } catch (Exception ex) {
         log.error("Cannot load data, retry", ex);
