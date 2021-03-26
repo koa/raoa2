@@ -1,15 +1,19 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {
+    EditUserDeleteGQL,
     EditUserOverviewGQL,
+    EditUserUpdateGQL,
     SingleGroupMembershipUpdate,
     SingleGroupVisibilityUpdate,
     SingleUserVisibilityUpdate,
     UpdateCredentitalsGQL,
     UpdateCredentitalsMutationVariables,
-    User
+    User,
+    UserUpdate
 } from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
+import {Location} from '@angular/common';
 
 
 @Component({
@@ -24,12 +28,18 @@ export class EditUserComponent implements OnInit {
     public selectedAlbums: Set<string> = new Set();
     private originalSelectedAlbums: Set<string> = new Set();
     public user: User;
+    public showCurrentUser = true;
+    public canManageUsers = false;
+    private originalCanManageUsers = false;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
                 private editUserOverviewGQL: EditUserOverviewGQL,
+                private editUserDeleteGQL: EditUserDeleteGQL,
                 private serverApiService: ServerApiService,
                 private updateCredentialsGQL: UpdateCredentitalsGQL,
+                private editUserUpdateGQL: EditUserUpdateGQL,
+                private location: Location,
                 private ngZone: NgZone) {
     }
 
@@ -43,13 +53,15 @@ export class EditUserComponent implements OnInit {
         const data = await this.serverApiService.query(this.editUserOverviewGQL, {userid: this.userId});
         this.ngZone.run(() => {
             this.user = data.userById as User;
+            this.showCurrentUser = data.userById.id === data.currentUser.id;
+            this.canManageUsers = data.userById.canManageUsers;
+            this.originalCanManageUsers = data.userById.canManageUsers;
             const groups = this.user.groups.map(g => g.group.id);
             this.selectedGroups = new Set(groups);
             this.originalSelectedGroups = new Set<string>(groups);
             const albums = this.user.canAccessDirect.map(a => a.id);
             this.selectedAlbums = new Set<string>(albums);
             this.originalSelectedAlbums = new Set<string>(albums);
-
         });
     }
 
@@ -101,11 +113,27 @@ export class EditUserComponent implements OnInit {
             await this.serverApi.update(this.updateCredentialsGQL, data);
             await this.serverApi.clear();
         }
+        if (this.canManageUsers !== this.originalCanManageUsers) {
+            const update: UserUpdate = {
+                visibilityUpdates: [],
+                canManageUsers: this.canManageUsers
+            };
+            await this.serverApiService.update(this.editUserUpdateGQL, {userid: this.userId, update});
+            await this.serverApi.clear();
+        }
         await this.refreshData();
 
     }
 
     groupChanged($event: Set<string>) {
         this.selectedGroups = $event;
+    }
+
+    async delete(): Promise<void> {
+        const result = await this.serverApiService.update(this.editUserDeleteGQL, {id: this.userId});
+        await this.serverApiService.clear();
+        if (result.removeUser) {
+            this.location.back();
+        }
     }
 }

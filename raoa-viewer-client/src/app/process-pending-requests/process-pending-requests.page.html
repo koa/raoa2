@@ -1,5 +1,6 @@
 <ion-header>
     <ion-toolbar>
+        <ion-back-button defaultHref="/" slot="start"></ion-back-button>
         <ion-title>Offene Anträge bearbeiten</ion-title>
     </ion-toolbar>
 </ion-header>
@@ -10,10 +11,10 @@
                 <ion-card-title>{{request.data.name}}</ion-card-title>
                 <ion-card-subtitle>{{request.data.email}}</ion-card-subtitle>
             </div>
-            <img [src]="request.data.picture">
+            <img [src]="request.data.picture" [alt]="request.data.name">
         </ion-card-header>
         <ion-card-content>
-            <p>Begründung: {{request.reason}}</p>
+            <p *ngIf="request.reason"> {{request.reason}}</p>
             <ion-button (click)="accept(request)">Ok</ion-button>
             <ion-button (click)="deny(request)">Ablehnen</ion-button>
         </ion-card-content>

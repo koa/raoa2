@@ -9,6 +9,9 @@
     <super-tabs>
         <super-tabs-toolbar color="">
             <super-tab-button>
+                <ion-label>Details</ion-label>
+            </super-tab-button>
+            <super-tab-button>
                 <ion-label>Gruppen</ion-label>
             </super-tab-button>
             <super-tab-button>
@@ -16,6 +19,22 @@
             </super-tab-button>
         </super-tabs-toolbar>
         <super-tabs-container>
+            <super-tab>
+                <ion-card *ngIf="user?.info">
+                    <ion-card-header>
+                        <ion-card-title>{{user.info.name}}</ion-card-title>
+                        <ion-card-subtitle>{{user.info.email}}</ion-card-subtitle>
+                    </ion-card-header>
+                    <ion-card-content>
+                    </ion-card-content>
+                </ion-card>
+                <ion-list>
+                    <ion-item>
+                        <ion-label>Administrator</ion-label>
+                        <ion-checkbox [(ngModel)]="canManageUsers"></ion-checkbox>
+                    </ion-item>
+                </ion-list>
+            </super-tab>
             <super-tab>
                 <app-group-list-editor [selectedGroups]="selectedGroups"
                                        (valueChanged)="groupChanged($event)"></app-group-list-editor>
@@ -27,5 +46,10 @@
     </super-tabs>
 </ion-content>
 <ion-footer>
-    <ion-button (click)="apply()">Speichern</ion-button>
+    <ion-button (click)="apply()">
+        <ion-icon name="save"></ion-icon>
+    </ion-button>
+    <ion-button (click)="delete()" *ngIf="!showCurrentUser">
+        <ion-icon name="trash"></ion-icon>
+    </ion-button>
 </ion-footer>

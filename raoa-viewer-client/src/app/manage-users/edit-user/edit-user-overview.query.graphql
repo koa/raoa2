@@ -22,4 +22,7 @@ query editUserOverview($userid: ID!){
         id
         name
     }
+    currentUser{
+        id
+    }
 }
