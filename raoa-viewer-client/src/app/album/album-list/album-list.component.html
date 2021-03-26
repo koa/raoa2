@@ -17,8 +17,9 @@
                 </ion-card-subtitle>
             </ion-card-header>
             <ion-card-content>
-                <ion-icon *ngIf="this.canManageUsers" name="settings" [routerLink]="[entry.url,'manage']"
-                          class="link"></ion-icon>
+                <ion-button *ngIf="this.canManageUsers" [routerLink]="[entry.url,'manage']" color="light">
+                    <ion-icon name="settings"></ion-icon>
+                </ion-button>
             </ion-card-content>
         </ion-card>
     </p>
