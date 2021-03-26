@@ -2,6 +2,7 @@ import {Injectable} from '@angular/core';
 import {Album, AlbumContentGQL, AlbumEntry} from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
 import {Maybe} from 'graphql/jsutils/Maybe';
+import {Router} from '@angular/router';
 
 export type QueryAlbumEntry =
     { __typename?: 'AlbumEntry' }
@@ -24,7 +25,7 @@ export class AlbumListService {
     lastAlbumId: string = undefined;
     lastResult: AlbumData;
 
-    constructor(private serverApi: ServerApiService, private albumContentGQL: AlbumContentGQL) {
+    constructor(private serverApi: ServerApiService, private albumContentGQL: AlbumContentGQL, private router: Router) {
     }
 
     public listAlbum(albumId: string): Promise<AlbumData> {
@@ -32,6 +33,10 @@ export class AlbumListService {
             return Promise.resolve(this.lastResult);
         }
         return this.serverApi.query(this.albumContentGQL, {albumId}).then(content => {
+            if (!content.albumById) {
+                this.router.navigate(['/']);
+                throw new Error('insufficient permissions');
+            }
             const title: string | null = content.albumById.name;
             const sortedEntries: (QueryAlbumEntry)[] = content.albumById.entries
                 .slice()
@@ -42,7 +47,7 @@ export class AlbumListService {
                 });
             const keywords = new Map<string, number>();
             content.albumById.keywordCounts.forEach(e => keywords.set(e.keyword, e.count));
-            const result = {title, sortedEntries, canManageUsers: content.currentUser.canManageUsers, keywords};
+            const result = {title, sortedEntries, canManageUsers: content.currentUser?.canManageUsers, keywords};
             this.lastAlbumId = albumId;
             this.lastResult = result;
             return result;

@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.viewer.service.impl;
 import ch.bergturbenthal.raoa.elastic.model.*;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import java.time.Duration;
 import java.time.Instant;
@@ -25,21 +26,25 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   private final DataViewService dataViewService;
 
   public DefaultAuthorizationManager(
-      final AlbumList albumList, final DataViewService dataViewService) {
-    latestAlbum =
-        albumList
-            .listAlbums()
-            .flatMap(
-                a ->
-                    a.getAccess()
-                        .readAutoadd()
-                        .reduce((t1, t2) -> t1.isAfter(t2) ? t1 : t2)
-                        .map(d -> Tuples.of(d, a.getAlbumId())))
-            .collect(Collectors.maxBy(Comparator.comparing(Tuple2::getT1)))
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .map(Tuple2::getT2)
-            .cache(Duration.ofMinutes(5));
+      final AlbumList albumList,
+      final DataViewService dataViewService,
+      final ViewerProperties viewerProperties) {
+    if (viewerProperties.isAlwaysShowLatestRepository())
+      latestAlbum =
+          albumList
+              .listAlbums()
+              .flatMap(
+                  a ->
+                      a.getAccess()
+                          .readAutoadd()
+                          .reduce((t1, t2) -> t1.isAfter(t2) ? t1 : t2)
+                          .map(d -> Tuples.of(d, a.getAlbumId())))
+              .collect(Collectors.maxBy(Comparator.comparing(Tuple2::getT1)))
+              .filter(Optional::isPresent)
+              .map(Optional::get)
+              .map(Tuple2::getT2)
+              .cache(Duration.ofMinutes(5));
+    else latestAlbum = Mono.just(UUID.randomUUID());
     this.dataViewService = dataViewService;
   }
 

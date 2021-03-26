@@ -99,6 +99,16 @@
             <id>jgit-repository</id>
             <url>https://repo.eclipse.org/content/groups/releases/</url>
         </repository>
+        <repository>
+            <id>koa-releases</id>
+            <name>Releases</name>
+            <url>https://nexus.berg-turbenthal.ch/repository/maven-releases/</url>
+        </repository>
+        <repository>
+            <id>koa-snapshots</id>
+            <name>Snapshots</name>
+            <url>https://nexus.berg-turbenthal.ch/repository/maven-snapshots/</url>
+        </repository>
     </repositories>
     <pluginRepositories>
         <pluginRepository>

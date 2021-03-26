@@ -78,67 +78,70 @@ export class ShowSingleMediaComponent implements OnInit {
                 ind.present();
             });
         }, 500);
-        await this.storeKeywordMutation();
-        const albumData = await this.albumListService.listAlbum(this.albumId);
-        let lastAlbumEntry: QueryAlbumEntry;
-        let previousMediaId: string;
-        let nextMediaId: string;
-        for (const entry of albumData.sortedEntries) {
-            if (lastAlbumEntry !== undefined) {
-                if (entry.id === mediaId) {
-                    previousMediaId = lastAlbumEntry.id;
-                } else if (lastAlbumEntry.id === mediaId) {
-                    nextMediaId = entry.id;
+        try {
+            await this.storeKeywordMutation();
+            const albumData = await this.albumListService.listAlbum(this.albumId);
+            let lastAlbumEntry: QueryAlbumEntry;
+            let previousMediaId: string;
+            let nextMediaId: string;
+            for (const entry of albumData.sortedEntries) {
+                if (lastAlbumEntry !== undefined) {
+                    if (entry.id === mediaId) {
+                        previousMediaId = lastAlbumEntry.id;
+                    } else if (lastAlbumEntry.id === mediaId) {
+                        nextMediaId = entry.id;
+                    }
                 }
+                lastAlbumEntry = entry;
             }
-            lastAlbumEntry = entry;
+
+            const metadata = await this.serverApi.query(this.albumEntryDetailGQL, {albumId: this.albumId, entryId: mediaId});
+
+            this.mediaId = mediaId;
+            this.metadata = metadata.albumById.albumEntry;
+            this.location.replaceState(this.mediaPath(mediaId));
+            this.previousMediaId = previousMediaId;
+            this.nextMediaId = nextMediaId;
+            this.currentSelectedKeywords = new Set(metadata.albumById.albumEntry.keywords);
+            const allKeywords = new Set(this.albumKeywords);
+            this.currentSelectedKeywords.forEach(keyword => allKeywords.add(keyword));
+            for (const keyword of albumData.keywords.keys()) {
+                allKeywords.add(keyword);
+            }
+            this.albumKeywords = [];
+            allKeywords.forEach(keyword => this.albumKeywords.push(keyword));
+            this.albumKeywords.sort((k1, k2) => k1.localeCompare(k2));
+
+            await this.imageSlider.lockSwipeToNext(false);
+            await this.imageSlider.lockSwipeToPrev(false);
+            await this.imageSlider.slideTo(1, 0, false);
+            await this.imageSlider.lockSwipeToNext(nextMediaId === undefined);
+            await this.imageSlider.lockSwipeToPrev(previousMediaId === undefined);
+            const previousMetadataPromise: Promise<AlbumEntryMetadata> = previousMediaId !== undefined ?
+                this.serverApi.query(this.albumEntryDetailGQL, {
+                    albumId: this.albumId,
+                    entryId: previousMediaId
+                }).then(result => result.albumById.albumEntry)
+                : Promise.resolve(undefined);
+
+            const nextMetadataPromise: Promise<AlbumEntryMetadata> = nextMediaId !== undefined ?
+                this.serverApi.query(this.albumEntryDetailGQL, {
+                    albumId: this.albumId,
+                    entryId: nextMediaId
+                })
+                    .then(result => result.albumById.albumEntry)
+                : Promise.resolve(undefined);
+
+            Promise.all([previousMetadataPromise, nextMetadataPromise]).then(([prevMetadata, nextMetadata]) => {
+                this.previousMetadata = prevMetadata;
+                this.nextMetadata = nextMetadata;
+            });
+        } finally {
+            window.clearTimeout(waitTimeoutHandler);
+            if (waitIndicator !== undefined) {
+                waitIndicator.dismiss();
+            }
         }
-
-        const metadata = await this.serverApi.query(this.albumEntryDetailGQL, {albumId: this.albumId, entryId: mediaId});
-
-        this.mediaId = mediaId;
-        this.metadata = metadata.albumById.albumEntry;
-        this.location.replaceState(this.mediaPath(mediaId));
-        this.previousMediaId = previousMediaId;
-        this.nextMediaId = nextMediaId;
-        this.currentSelectedKeywords = new Set(metadata.albumById.albumEntry.keywords);
-        const allKeywords = new Set(this.albumKeywords);
-        this.currentSelectedKeywords.forEach(keyword => allKeywords.add(keyword));
-        for (const keyword of albumData.keywords.keys()) {
-            allKeywords.add(keyword);
-        }
-        this.albumKeywords = [];
-        allKeywords.forEach(keyword => this.albumKeywords.push(keyword));
-        this.albumKeywords.sort((k1, k2) => k1.localeCompare(k2));
-
-        await this.imageSlider.lockSwipeToNext(false);
-        await this.imageSlider.lockSwipeToPrev(false);
-        await this.imageSlider.slideTo(1, 0, false);
-        await this.imageSlider.lockSwipeToNext(nextMediaId === undefined);
-        await this.imageSlider.lockSwipeToPrev(previousMediaId === undefined);
-        window.clearTimeout(waitTimeoutHandler);
-        if (waitIndicator !== undefined) {
-            return waitIndicator.dismiss();
-        }
-        const previousMetadataPromise: Promise<AlbumEntryMetadata> = previousMediaId !== undefined ?
-            this.serverApi.query(this.albumEntryDetailGQL, {
-                albumId: this.albumId,
-                entryId: previousMediaId
-            }).then(result => result.albumById.albumEntry)
-            : Promise.resolve(undefined);
-
-        const nextMetadataPromise: Promise<AlbumEntryMetadata> = nextMediaId !== undefined ?
-            this.serverApi.query(this.albumEntryDetailGQL, {
-                albumId: this.albumId,
-                entryId: nextMediaId
-            })
-                .then(result => result.albumById.albumEntry)
-            : Promise.resolve(undefined);
-
-        Promise.all([previousMetadataPromise, nextMetadataPromise]).then(([prevMetadata, nextMetadata]) => {
-            this.previousMetadata = prevMetadata;
-            this.nextMetadata = nextMetadata;
-        });
 
     }
 
