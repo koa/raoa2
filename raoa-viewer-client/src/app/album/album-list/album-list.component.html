@@ -10,7 +10,8 @@
     <p>
         <ion-card *ngFor="let entry of foundAlbums; let i = index">
             <ion-card-header [routerLink]="[entry.url]" class="link">
-                <ion-card-subtitle>{{entry.data.albumTime | date:'fullDate'}}</ion-card-subtitle>
+                <ion-card-subtitle
+                        *ngIf="entry.data.albumTime">{{entry.data.albumTime | date:'fullDate'}}</ion-card-subtitle>
                 <ion-card-title>{{entry.data.name}}</ion-card-title>
                 <ion-card-subtitle *ngIf="this.canManageUsers && getFnchId(entry.data)">
                     FNCH ID: {{getFnchId(entry.data)}}

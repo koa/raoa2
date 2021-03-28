@@ -7,6 +7,7 @@ import {MediaResolverService} from '../service/media-resolver.service';
 import {AlbumListService} from '../service/album-list.service';
 import {Location} from '@angular/common';
 import {LoadingController} from '@ionic/angular';
+import {FNCH_COMPETITION_ID} from '../../constants';
 
 type AlbumEntryType =
     { __typename?: 'AlbumEntry' }
@@ -18,6 +19,7 @@ type AlbumEntryType =
     styleUrls: ['./album.page.css'],
 })
 export class AlbumPage implements OnInit {
+    public fnCompetitionId: string;
     private loadingElement: HTMLIonLoadingElement;
 
 
@@ -91,6 +93,7 @@ export class AlbumPage implements OnInit {
             this.title = result.title;
             this.sortedEntries = result.sortedEntries;
             this.enableSettings = result.canManageUsers;
+            this.fnCompetitionId = result.labels.get(FNCH_COMPETITION_ID);
             this.calculateRows();
         });
     }

@@ -4,6 +4,9 @@
         <ion-title>
             <span>{{title}}</span>
         </ion-title>
+        <ion-button *ngIf="fnCompetitionId" slot="end" [href]="'https://info.fnch.ch/#/resultate/veranstaltungen/'+fnCompetitionId">
+            <ion-icon name="list"></ion-icon>
+        </ion-button>
         <ion-button *ngIf="enableSettings" [routerLink]="'/album/'+albumId+'/manage'" slot="end" color="light">
             <ion-icon name="settings"></ion-icon>
         </ion-button>

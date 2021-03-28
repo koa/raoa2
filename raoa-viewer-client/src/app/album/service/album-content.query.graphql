@@ -10,6 +10,10 @@ query AlbumContent($albumId: ID!) {
             keyword
             count
         }
+        labels{
+            labelName
+            labelValue
+        }
     }
     currentUser{
         canManageUsers
