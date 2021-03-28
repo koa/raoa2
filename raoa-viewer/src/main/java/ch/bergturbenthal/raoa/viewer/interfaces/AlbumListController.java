@@ -8,9 +8,11 @@ import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.impl.GitBlobRessource;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,6 +42,8 @@ import reactor.util.function.Tuples;
 @RequestMapping("rest")
 public class AlbumListController {
   public static final TreeFilter IMAGE_FILE_FILTER = ElasticSearchDataViewService.IMAGE_FILE_FILTER;
+  public static final ResponseEntity<Resource> NOT_FOUND_RESPONSE =
+      new ResponseEntity<>(HttpStatus.NOT_FOUND);
   private final AlbumList albumList;
   private final ViewerProperties viewerProperties;
   private final ThumbnailFilenameService thumbnailFilenameService;
@@ -94,55 +98,103 @@ public class AlbumListController {
       @PathVariable("imageId") String fileId,
       @RequestParam(name = "maxLength", defaultValue = "1600") int maxLength) {
     final ObjectId objectId = ObjectId.fromString(fileId);
-    final SecurityContext securityContext = SecurityContextHolder.getContext();
-
-    final Mono<Boolean> userCanAccess =
-        authorizationManager.canUserAccessToAlbum(securityContext, albumId).filter(t -> t).cache();
-
-    return userCanAccess.map(
-        allowed -> {
-          if (!allowed) {
-            return new ResponseEntity(HttpStatus.FORBIDDEN);
-          }
-          final File thumbnailFile =
-              thumbnailFilenameService.findThumbnailOf(albumId, objectId, maxLength);
-          Resource res = new FileSystemResource(thumbnailFile);
-          final HttpHeaders headers = new HttpHeaders();
-          headers.setContentType(MediaType.IMAGE_JPEG);
-          headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
-          headers.setETag("\"" + fileId + "\"");
-          // headers.setContentDisposition(
-          //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
-          return new ResponseEntity<>(res, headers, HttpStatus.OK);
-        });
+    return authorizationManager
+        .currentUser(SecurityContextHolder.getContext())
+        .flatMap(
+            user -> {
+              final String email = user.getUserData().getEmail();
+              final long startTime = System.nanoTime();
+              return authorizationManager
+                  .canUserAccessToAlbum(albumId, Mono.just(user))
+                  .map(
+                      allowed -> {
+                        if (!allowed) {
+                          return new ResponseEntity<Resource>(HttpStatus.FORBIDDEN);
+                        }
+                        final File thumbnailFile =
+                            thumbnailFilenameService.findThumbnailOf(albumId, objectId, maxLength);
+                        Resource res = new FileSystemResource(thumbnailFile);
+                        final HttpHeaders headers = new HttpHeaders();
+                        headers.setContentType(MediaType.IMAGE_JPEG);
+                        headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+                        headers.setETag("\"" + fileId + "\"");
+                        // headers.setContentDisposition(
+                        //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
+                        return new ResponseEntity<>(res, headers, HttpStatus.OK);
+                      })
+                  .defaultIfEmpty(NOT_FOUND_RESPONSE)
+                  .doOnNext(
+                      response -> {
+                        final Tags tags =
+                            Tags.of("result", response.getStatusCode().name(), "user", email);
+                        meterRegistry
+                            .timer("raoa.download.thumbnail", tags)
+                            .record(Duration.ofNanos(System.nanoTime() - startTime));
+                        try {
+                          final Resource body = response.getBody();
+                          if (body != null)
+                            meterRegistry
+                                .counter("raoa.download.thumbnail.bytes", tags)
+                                .increment(body.contentLength());
+                        } catch (IOException ex) {
+                          log.warn("Cannot determine resource size", ex);
+                        }
+                      });
+            });
   }
 
   @GetMapping("album/{albumId}/{imageId}/original")
   public @ResponseBody Mono<HttpEntity<Resource>> takeOriginal(
       @PathVariable("albumId") UUID albumId, @PathVariable("imageId") String fileId) {
 
-    final Mono<GitAccess> access = albumList.getAlbum(albumId);
+    final Mono<GitAccess> access = albumList.getAlbum(albumId).cache();
     final ObjectId entryId = ObjectId.fromString(fileId);
-    final SecurityContext securityContext = SecurityContextHolder.getContext();
+
     return authorizationManager
-        .canUserAccessToAlbum(securityContext, albumId)
-        .filter(t -> t)
+        .currentUser(SecurityContextHolder.getContext())
         .flatMap(
-            t ->
-                Mono.zip(
-                    access
-                        .flatMap(gitAccess -> gitAccess.entryMetdata(entryId))
-                        .map(m -> m.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE)),
-                    access.flatMap(gitAccess -> gitAccess.readObject(entryId))))
-        .map(
-            t -> {
-              final MediaType mediaType = MediaType.parseMediaType(t.getT1());
-              final GitBlobRessource resource = new GitBlobRessource(t.getT2(), mediaType, entryId);
-              final HttpHeaders headers = new HttpHeaders();
-              headers.setContentType(mediaType);
-              headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
-              headers.setETag("\"" + entryId.name() + "\"");
-              return new HttpEntity<>(resource, headers);
+            user -> {
+              final String email = user.getUserData().getEmail();
+              final long startTime = System.nanoTime();
+              return authorizationManager
+                  .canUserAccessToAlbum(albumId, Mono.just(user))
+                  .filter(t -> t)
+                  .flatMap(
+                      t ->
+                          Mono.zip(
+                              access
+                                  .flatMap(gitAccess -> gitAccess.entryMetdata(entryId))
+                                  .map(
+                                      m ->
+                                          m.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE)),
+                              access.flatMap(gitAccess -> gitAccess.readObject(entryId))))
+                  .<HttpEntity<Resource>>map(
+                      t -> {
+                        final MediaType mediaType = MediaType.parseMediaType(t.getT1());
+                        final GitBlobRessource resource =
+                            new GitBlobRessource(t.getT2(), mediaType, entryId);
+                        final HttpHeaders headers = new HttpHeaders();
+                        headers.setContentType(mediaType);
+                        headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+                        headers.setETag("\"" + entryId.name() + "\"");
+                        return new HttpEntity<>(resource, headers);
+                      })
+                  .doOnNext(
+                      response -> {
+                        final Tags tags = Tags.of("user", email);
+                        meterRegistry
+                            .timer("raoa.download.original", tags)
+                            .record(Duration.ofNanos(System.nanoTime() - startTime));
+                        try {
+                          final Resource body = response.getBody();
+                          if (body != null)
+                            meterRegistry
+                                .counter("raoa.download.original.bytes", tags)
+                                .increment(body.contentLength());
+                        } catch (IOException ex) {
+                          log.warn("Cannot determine resource size", ex);
+                        }
+                      });
             });
   }
 

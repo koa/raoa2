@@ -115,8 +115,12 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
 
   @Override
   public Mono<Boolean> canUserAccessToAlbum(final SecurityContext context, final UUID album) {
-    final Mono<Boolean> isLatestAlbum = latestAlbum.map(album::equals);
-    final Mono<User> currentUser = currentUser(context);
+    return canUserAccessToAlbum(album, currentUser(context));
+  }
+
+  @Override
+  @NotNull
+  public Mono<Boolean> canUserAccessToAlbum(final UUID album, final Mono<User> currentUser) {
     final Mono<Boolean> canAccessAlbum =
         currentUser
             .flatMap(
@@ -147,7 +151,7 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
                       .any(album::equals);
                 })
             .defaultIfEmpty(false);
-    return Mono.zip(canAccessAlbum, isLatestAlbum).map(t -> t.getT1() || t.getT2())
+    return Mono.zip(canAccessAlbum, latestAlbum.map(album::equals)).map(t -> t.getT1() || t.getT2())
     // .log("can access " + album)
     ;
   }
