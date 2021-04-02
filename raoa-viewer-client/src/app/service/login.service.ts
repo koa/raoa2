@@ -1,26 +1,33 @@
 import {Injectable} from '@angular/core';
 import {AppConfigService} from './app-config.service';
 import {Router} from '@angular/router';
+import {Location} from '@angular/common';
 
+interface CachedAuth {
+    auth: gapi.auth2.GoogleAuth;
+}
 
 @Injectable({
     providedIn: 'root'
 })
 export class LoginService {
 
-    private cachingAuth: Promise<gapi.auth2.GoogleAuth>;
+    private cachingAuth: Promise<CachedAuth>;
 
-    constructor(private configService: AppConfigService, private router: Router) {
+    constructor(private configService: AppConfigService, private router: Router, private location: Location) {
     }
 
-    public auth(): Promise<gapi.auth2.GoogleAuth> {
+    public auth(): Promise<CachedAuth> {
         if (this.cachingAuth !== undefined) {
             return this.cachingAuth;
         }
         //  Create a new Promise where the resolve
         // function is the callback passed to gapi.load
         const pload = new Promise((resolve) => {
-            window.onload = () => gapi.load('auth2', resolve);
+            window.onload = () => gapi.load('auth2', done => {
+                console.log(done);
+                resolve(done);
+            });
             // gapi.load('auth2', resolve);
         });
 
@@ -32,11 +39,12 @@ export class LoginService {
                 .init({
                     client_id: values[1].googleClientId,
                     scope: 'profile email openid',
-                    fetch_basic_profile: false
+                    fetch_basic_profile: true
                 })
-                .then(auth => {
-                    this.cachingAuth = Promise.resolve(auth);
-                    return auth;
+                .then((auth) => {
+                    const result = {auth};
+                    this.cachingAuth = Promise.resolve(result);
+                    return result;
                 });
         });
         return this.cachingAuth;
@@ -44,32 +52,35 @@ export class LoginService {
 
     public async signedInUser(): Promise<gapi.auth2.GoogleUser> {
         const [auth] = await Promise.all([this.auth()]);
-        if (auth.isSignedIn.get()) {
-            return auth.currentUser.get();
+
+
+        if (auth.auth.isSignedIn.get()) {
+            return auth.auth.currentUser.get();
         }
         // const lastTry = sessionStorage.getItem('try_login');
         // const firstTry = lastTry == null || Date.now() - parseInt(lastTry, 10) > 1000 * 60;
-        // const uxMode = firstTry ? 'redirect' : 'popup';
+
+        // const ua = navigator.userAgent;
+        // const uxMode = /Android/i.test(ua) ? 'popup' : 'redirect';
         sessionStorage.setItem('redirect_route', this.router.url);
         sessionStorage.setItem('try_login', Date.now().toString(10));
-        return await auth.signIn({
-            ux_mode: 'redirect',
+        const result = await auth.auth.signIn({
+            ux_mode: 'popup',
             redirect_uri: window.location.origin,
-            // scope: 'profile email'
-        }).then((result) => {
-            sessionStorage.removeItem('try_login');
-            return result;
+            fetch_basic_profile: true,
+            scope: 'profile email'
         });
+        sessionStorage.removeItem('try_login');
+        location.reload();
+        return result;
+
     }
 
     public async idToken(): Promise<string> {
         const user = await this.signedInUser();
         const authResponse = user.getAuthResponse(true);
         if (authResponse === null || authResponse === undefined || Date.now() > authResponse.expires_at) {
-            console.log('refresh token');
             const reloadedResponse = await user.reloadAuthResponse();
-            console.log('reloaded');
-            console.log(reloadedResponse);
             return reloadedResponse.id_token;
         }
         return authResponse.id_token;
@@ -77,8 +88,8 @@ export class LoginService {
 
     public async logout(): Promise<void> {
         const [auth] = await Promise.all([this.auth()]);
-        auth.signOut();
-        auth.disconnect();
+        auth.auth.signOut();
+        auth.auth.disconnect();
         sessionStorage.removeItem('try_login');
         location.reload();
     }
