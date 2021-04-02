@@ -4,7 +4,8 @@
         <ion-title>
             <span>{{title}}</span>
         </ion-title>
-        <ion-button *ngIf="fnCompetitionId" slot="end" [href]="'https://info.fnch.ch/#/resultate/veranstaltungen/'+fnCompetitionId">
+        <ion-button *ngIf="fnCompetitionId" slot="end"
+                    [href]="'https://info.fnch.ch/#/resultate/veranstaltungen/'+fnCompetitionId">
             <ion-icon name="list"></ion-icon>
         </ion-button>
         <ion-button *ngIf="enableSettings" [routerLink]="'/album/'+albumId+'/manage'" slot="end" color="light">
@@ -13,7 +14,7 @@
     </ion-toolbar>
 </ion-header>
 
-<ion-content>
+<ion-content (ionScroll)="onScroll($event)" scroll-events="true" #content>
     <div class="imagelist" #imageList (resized)="resized()">
         <div *ngFor="let row of rows; index as rowNr" class="row">
             <div *ngIf="row.kind=='timestamp'" [id]="'day-'+row.time">

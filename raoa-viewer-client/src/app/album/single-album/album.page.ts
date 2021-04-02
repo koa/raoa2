@@ -6,7 +6,7 @@ import {HttpClient} from '@angular/common/http';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {AlbumListService} from '../service/album-list.service';
 import {Location} from '@angular/common';
-import {LoadingController} from '@ionic/angular';
+import {IonContent, LoadingController} from '@ionic/angular';
 import {FNCH_COMPETITION_ID} from '../../constants';
 
 type AlbumEntryType =
@@ -40,7 +40,8 @@ export class AlbumPage implements OnInit {
     public days: string[] = [];
     public maxWidth = 8;
 
-    @ViewChild('imageList') private element: ElementRef;
+    @ViewChild('imageList') private element: ElementRef<HTMLDivElement>;
+    @ViewChild('content') private contentElement: IonContent;
     public elementWidth = 10;
 
     private sortedEntries: AlbumEntryType[] = [];
@@ -60,6 +61,14 @@ export class AlbumPage implements OnInit {
             await this.calculateRows();
         }
     }
+
+    async onScroll(e: CustomEvent) {
+        const detail = e.detail;
+        const url = new URL(window.location.href);
+        url.searchParams.set('pos', detail.scrollTop);
+        this.location.replaceState(url.pathname, url.searchParams.toString());
+    }
+
 
     async enterWait(): Promise<void> {
         const newCount = ++this.waitCount;
@@ -86,6 +95,7 @@ export class AlbumPage implements OnInit {
 
     async ngOnInit() {
         this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
+        const pos = this.activatedRoute.snapshot.queryParamMap.get('pos');
         await this.enterWait();
         const result = await this.albumListService.listAlbum(this.albumId);
         await this.leaveWait();
@@ -96,6 +106,12 @@ export class AlbumPage implements OnInit {
             this.fnCompetitionId = result.labels.get(FNCH_COMPETITION_ID);
             this.calculateRows();
         });
+        if (pos) {
+            const scrollPos: number = Number.parseInt(pos, 10);
+            window.setTimeout(() => {
+                this.contentElement.scrollToPoint(0, scrollPos);
+            }, 500);
+        }
     }
 
     private async calculateRows() {
@@ -173,11 +189,6 @@ export class AlbumPage implements OnInit {
 
         const entryId = shape.entry.id;
         return this.mediaResolver.lookupImage(this.albumId, entryId, maxLength);
-    }
-
-
-    back() {
-        this.location.back();
     }
 }
 

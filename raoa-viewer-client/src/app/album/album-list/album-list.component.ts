@@ -1,4 +1,4 @@
-import {Component, NgZone, OnInit} from '@angular/core';
+import {Component, HostListener, NgZone, OnInit} from '@angular/core';
 import {AlbumEntryDataType, CommonServerApiService, MenuEntry} from '../../service/common-server-api.service';
 import {Location} from '@angular/common';
 import {LoadingController} from '@ionic/angular';
@@ -59,4 +59,5 @@ export class AlbumListComponent implements OnInit {
         }
         return foundEntries[0].labelValue;
     }
+
 }
