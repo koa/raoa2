@@ -47,13 +47,13 @@ export class LoginService {
         if (auth.isSignedIn.get()) {
             return auth.currentUser.get();
         }
-        const lastTry = sessionStorage.getItem('try_login');
-        const firstTry = lastTry == null || Date.now() - parseInt(lastTry, 10) > 1000 * 60;
-        const uxMode = firstTry ? 'redirect' : 'popup';
+        // const lastTry = sessionStorage.getItem('try_login');
+        // const firstTry = lastTry == null || Date.now() - parseInt(lastTry, 10) > 1000 * 60;
+        // const uxMode = firstTry ? 'redirect' : 'popup';
         sessionStorage.setItem('redirect_route', this.router.url);
         sessionStorage.setItem('try_login', Date.now().toString(10));
         return await auth.signIn({
-            ux_mode: uxMode,
+            ux_mode: 'redirect',
             redirect_uri: window.location.origin,
             // scope: 'profile email'
         }).then((result) => {
