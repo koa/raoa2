@@ -94,10 +94,6 @@ export class WelcomeComponent implements OnInit {
         });
     }
 
-    openMenu() {
-        this.menu.open();
-    }
-
     async logout() {
         await this.loginService.logout();
     }

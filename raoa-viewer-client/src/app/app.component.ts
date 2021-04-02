@@ -4,8 +4,6 @@ import {Platform} from '@ionic/angular';
 import {SplashScreen} from '@ionic-native/splash-screen/ngx';
 import {StatusBar} from '@ionic-native/status-bar/ngx';
 import {CommonServerApiService, MenuEntry} from './service/common-server-api.service';
-import {LoginService} from './service/login.service';
-import {Location} from '@angular/common';
 
 
 @Component({
@@ -25,9 +23,7 @@ export class AppComponent implements OnInit {
         private ngZone: NgZone,
         private platform: Platform,
         private splashScreen: SplashScreen,
-        private statusBar: StatusBar,
-        private loginService: LoginService,
-        private location: Location
+        private statusBar: StatusBar
     ) {
         this.initializeApp();
     }
@@ -41,29 +37,7 @@ export class AppComponent implements OnInit {
     }
 
     ngOnInit() {
-        this.updatePhotoCollectionList();
     }
 
-    updatePhotoCollectionList() {
-        this.commonServerApiService.listCollections(this.photoCollectionFilter).then((entries: MenuEntry[]) => {
-            this.ngZone.run(() => {
-                this.visibleCollections = entries;
-                const path = window.location.pathname;
-                if (path !== undefined) {
-                    this.selectedCollectionIndex = this.visibleCollections.findIndex(page => path.startsWith(page.url));
-                } else {
-                    this.selectedCollectionIndex = -1;
-                }
-            });
-        });
-    }
 
-    updateSearch(event: CustomEvent) {
-        this.photoCollectionFilter = event.detail.value;
-        this.updatePhotoCollectionList();
-    }
-
-    async logout() {
-        await this.loginService.logout();
-    }
 }

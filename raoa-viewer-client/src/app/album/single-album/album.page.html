@@ -1,9 +1,28 @@
+<ion-menu side="start" menu-id="days" content-id="content-list">
+    <ion-header>
+        <ion-toolbar>
+            <ion-title>Tage</ion-title>
+        </ion-toolbar>
+    </ion-header>
+    <ion-content>
+        <ion-list>
+            <div *ngFor="let row of rows; index as rowNr" class="row">
+                <ion-item *ngIf="row.kind=='timestamp'" (click)="scrollTo('day-'+row.id)">
+                    {{row.time | date:'fullDate' }}
+                </ion-item>
+            </div>
+        </ion-list>
+    </ion-content>
+</ion-menu>
 <ion-header>
     <ion-toolbar>
         <ion-back-button defaultHref="/album" slot="start"></ion-back-button>
         <ion-title>
             <span>{{title}}</span>
         </ion-title>
+        <ion-button (click)="openDayList($event)" slot="end" color="light" *ngIf="daycount>1">
+            <ion-icon name="calendar-number"></ion-icon>
+        </ion-button>
         <ion-button *ngIf="fnCompetitionId" slot="end"
                     [href]="'https://info.fnch.ch/#/resultate/veranstaltungen/'+fnCompetitionId">
             <ion-icon name="list"></ion-icon>
@@ -14,12 +33,12 @@
     </ion-toolbar>
 </ion-header>
 
-<ion-content (ionScroll)="onScroll($event)" scroll-events="true" #content>
+<ion-content (ionScroll)="onScroll($event)" scroll-events="true" #content id="content-list">
     <div class="imagelist" #imageList (resized)="resized()">
         <div *ngFor="let row of rows; index as rowNr" class="row">
-            <div *ngIf="row.kind=='timestamp'" [id]="'day-'+row.time">
+            <h1 *ngIf="row.kind=='timestamp'" [id]="'day-'+row.id">
                 {{row.time | date:'fullDate' }}
-            </div>
+            </h1>
             <div *ngIf="row.kind=='images'" [ngStyle]="{'height.px':(elementWidth*row.height), 'width.%':100}"
                  class="image-block">
                 <div *appInViewport>

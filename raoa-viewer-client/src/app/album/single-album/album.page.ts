@@ -6,7 +6,7 @@ import {HttpClient} from '@angular/common/http';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {AlbumListService} from '../service/album-list.service';
 import {Location} from '@angular/common';
-import {IonContent, LoadingController} from '@ionic/angular';
+import {IonContent, LoadingController, MenuController} from '@ionic/angular';
 import {FNCH_COMPETITION_ID} from '../../constants';
 
 type AlbumEntryType =
@@ -30,7 +30,8 @@ export class AlbumPage implements OnInit {
                 private http: HttpClient,
                 private mediaResolver: MediaResolverService,
                 private location: Location,
-                private loadingController: LoadingController
+                private loadingController: LoadingController,
+                private menuController: MenuController
     ) {
     }
 
@@ -47,6 +48,7 @@ export class AlbumPage implements OnInit {
     private sortedEntries: AlbumEntryType[] = [];
     private waitCount = 0;
     public enableSettings = false;
+    public daycount = 0;
 
     public async resized() {
         if (this.elementWidth === this.element.nativeElement.clientWidth) {
@@ -147,10 +149,12 @@ export class AlbumPage implements OnInit {
             currentBlockLength = 0;
             currentBlockMediaCount = 0;
         };
+        let dayCount = 0;
         const appender = (shape: Shape, date: number) => {
             if (currentImageDate === undefined || currentImageDate !== date) {
+                dayCount += 1;
                 flushBlock();
-                this.rows.push({kind: 'timestamp', time: new Date(date)});
+                this.rows.push({kind: 'timestamp', time: new Date(date), id: date.toString()});
             }
             currentImageDate = date;
             const totalWidth = currentRowWidth;
@@ -180,6 +184,7 @@ export class AlbumPage implements OnInit {
                 appender(imageShape, imageDate);
             });
         flushBlock();
+        this.daycount = dayCount;
         await this.leaveWait();
     }
 
@@ -189,6 +194,16 @@ export class AlbumPage implements OnInit {
 
         const entryId = shape.entry.id;
         return this.mediaResolver.lookupImage(this.albumId, entryId, maxLength);
+    }
+
+    async openDayList($event: MouseEvent) {
+        await this.menuController.open('days');
+    }
+
+    async scrollTo(id: string) {
+        const y = document.getElementById(id).offsetTop;
+        await this.contentElement.scrollToPoint(0, y);
+        await this.menuController.close();
     }
 }
 
@@ -212,6 +227,7 @@ interface ImagesRow {
 interface HeaderRow {
     kind: 'timestamp';
     time: Date;
+    id: string;
 }
 
 type TableRow = ImagesRow | HeaderRow;
