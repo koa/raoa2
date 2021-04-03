@@ -70,7 +70,10 @@ ion-slide {
     display: flex;
     align-items: flex-end;
     flex-direction: column;
-    /*justify-content: flex-end;*/
+}
+.right-actions > ion-button{
+    padding: unset;
+    --background: unset;
 }
 
 .left-actions {
@@ -92,7 +95,17 @@ ion-slide {
 .file-meta > ion-label {
     border-radius: 2ex;
     padding: 0.5ex;
-    background-color: #00000040;
+    background-color: #00000080;
+    margin: 0.4em;
+    white-space: nowrap;
+}
+.file-meta > ion-chip{
+    background-color: #00000080;
+}
+.file-meta > ion-input {
+    border-radius: 2ex;
+    padding: 0.5ex;
+    background-color: #00000080;
     margin: 0.4em;
     white-space: nowrap;
 }

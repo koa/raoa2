@@ -4,10 +4,7 @@ import ch.bergturbenthal.raoa.elastic.model.AlbumData;
 import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
-import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
-import ch.bergturbenthal.raoa.viewer.model.graphql.GroupMembershipReference;
-import ch.bergturbenthal.raoa.viewer.model.graphql.GroupReference;
-import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
+import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import com.coxautodev.graphql.tools.GraphQLResolver;
 import java.time.Duration;
@@ -101,6 +98,38 @@ public class UserQuery implements GraphQLResolver<UserReference> {
           .toFuture();
     }
     return CompletableFuture.completedFuture(null);
+  }
+
+  public CompletableFuture<Boolean> canEdit(UserReference user) {
+    final QueryContext context = user.getContext();
+    if (Objects.equals(user.getId(), context.getCurrentUser().map(User::getId).orElse(null))) {
+      final boolean value = context.canUserEditData() || context.canUserManageUsers();
+      return CompletableFuture.completedFuture(value);
+    }
+    if (canShowUserDetails(user)) {
+      return dataViewService
+          .findUserById(user.getId())
+          .map(u -> u.isEditor() || u.isSuperuser())
+          .timeout(TIMEOUT)
+          .toFuture();
+    }
+    return CompletableFuture.completedFuture(false);
+  }
+
+  public CompletableFuture<Boolean> isEditor(UserReference user) {
+    final QueryContext context = user.getContext();
+    if (Objects.equals(user.getId(), context.getCurrentUser().map(User::getId).orElse(null))) {
+      return CompletableFuture.completedFuture(context.canUserEditData());
+    }
+    if (canShowUserDetails(user)) {
+      return dataViewService
+          .findUserById(user.getId())
+          .log("editor")
+          .map(User::isEditor)
+          .timeout(TIMEOUT)
+          .toFuture();
+    }
+    return CompletableFuture.completedFuture(false);
   }
 
   private boolean canShowUserDetails(UserReference userReference) {

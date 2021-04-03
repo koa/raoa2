@@ -31,6 +31,8 @@ export class EditUserComponent implements OnInit {
     public showCurrentUser = true;
     public canManageUsers = false;
     private originalCanManageUsers = false;
+    public isEditor = false;
+    private originalIsEditor = false;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
@@ -56,6 +58,8 @@ export class EditUserComponent implements OnInit {
             this.showCurrentUser = data.userById.id === data.currentUser.id;
             this.canManageUsers = data.userById.canManageUsers;
             this.originalCanManageUsers = data.userById.canManageUsers;
+            this.isEditor = data.userById.isEditor;
+            this.originalIsEditor = data.userById.isEditor;
             const groups = this.user.groups.map(g => g.group.id);
             this.selectedGroups = new Set(groups);
             this.originalSelectedGroups = new Set<string>(groups);
@@ -113,10 +117,11 @@ export class EditUserComponent implements OnInit {
             await this.serverApi.update(this.updateCredentialsGQL, data);
             await this.serverApi.clear();
         }
-        if (this.canManageUsers !== this.originalCanManageUsers) {
+        if (this.canManageUsers !== this.originalCanManageUsers || this.isEditor !== this.originalIsEditor) {
             const update: UserUpdate = {
                 visibilityUpdates: [],
-                canManageUsers: this.canManageUsers
+                canManageUsers: this.canManageUsers,
+                isEditor: this.isEditor
             };
             await this.serverApiService.update(this.editUserUpdateGQL, {userid: this.userId, update});
             await this.serverApi.clear();

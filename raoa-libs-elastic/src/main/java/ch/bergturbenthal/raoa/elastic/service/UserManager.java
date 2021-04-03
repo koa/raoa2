@@ -20,8 +20,6 @@ public interface UserManager {
 
   Mono<Boolean> removeUser(UUID id);
 
-  Mono<Boolean> removeGroup(UUID id);
-
   void assignNewIdentity(UUID existingId, AuthenticationId baseRequest);
 
   Flux<User> listUsers();

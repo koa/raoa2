@@ -25,7 +25,6 @@ export class LoginService {
         // function is the callback passed to gapi.load
         const pload = new Promise((resolve) => {
             window.onload = () => gapi.load('auth2', done => {
-                console.log(done);
                 resolve(done);
             });
             // gapi.load('auth2', resolve);

@@ -9,7 +9,7 @@ import ch.bergturbenthal.raoa.elastic.repository.AlbumDataRepository;
 import ch.bergturbenthal.raoa.elastic.repository.SyncAlbumDataEntryRepository;
 import ch.bergturbenthal.raoa.elastic.service.impl.AlbumStatisticsCollector;
 import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
-import ch.bergturbenthal.raoa.libs.model.kafka.ProcessImageRequest;
+import ch.bergturbenthal.raoa.libs.model.ProcessImageRequest;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;

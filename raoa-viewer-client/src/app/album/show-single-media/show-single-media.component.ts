@@ -5,7 +5,7 @@ import {AlbumListService, QueryAlbumEntry} from '../service/album-list.service';
 import {Location} from '@angular/common';
 import {IonInput, IonSlides, LoadingController, MenuController} from '@ionic/angular';
 import {HttpClient} from '@angular/common/http';
-import {AlbumEntry, AlbumEntryDetailGQL, ShowSingleMediaEditKeywordsGQL} from '../../generated/graphql';
+import {AlbumEntry, AlbumEntryDetailGQL, ShowSingleMediaEditKeywordsGQL, ShowSingleMediaListKeywordsGQL} from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
 
 type AlbumEntryMetadata =
@@ -32,6 +32,7 @@ export class ShowSingleMediaComponent implements OnInit {
     public showDetails: 'Metadata' | 'Keyword' | null = null;
     public albumKeywords: string[] = [];
     public currentSelectedKeywords = new Set<string>();
+    public canEdit = false;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
@@ -42,6 +43,7 @@ export class ShowSingleMediaComponent implements OnInit {
                 private serverApi: ServerApiService,
                 private albumEntryDetailGQL: AlbumEntryDetailGQL,
                 private showSingleMediaEditKeywordsGQL: ShowSingleMediaEditKeywordsGQL,
+                private showSingleMediaListKeywordsGQL: ShowSingleMediaListKeywordsGQL,
                 private menu: MenuController,
                 private loadingController: LoadingController
     ) {
@@ -57,6 +59,10 @@ export class ShowSingleMediaComponent implements OnInit {
         this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
         this.mediaId = this.activatedRoute.snapshot.paramMap.get('mediaId');
         await this.showImage(this.mediaId);
+        const albumMeta = await this.serverApi.query(this.showSingleMediaListKeywordsGQL, {id: this.albumId});
+        console.log('album meta');
+        console.log(albumMeta);
+        albumMeta.albumById.keywordCounts.forEach(entry => this.albumKeywords.push(entry.keyword));
     }
 
     loadImage(mediaId: string): string {
@@ -99,6 +105,7 @@ export class ShowSingleMediaComponent implements OnInit {
 
             this.mediaId = mediaId;
             this.metadata = metadata.albumById.albumEntry;
+            this.canEdit = metadata.currentUser.canEdit;
             this.location.replaceState(this.mediaPath(mediaId));
             this.previousMediaId = previousMediaId;
             this.nextMediaId = nextMediaId;

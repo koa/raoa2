@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.libs.model.kafka;
+package ch.bergturbenthal.raoa.libs.model;
 
 import java.util.UUID;
 import lombok.Value;

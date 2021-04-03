@@ -166,6 +166,13 @@ public class BareAlbumList implements AlbumList {
 
       public @NotNull Mono<Tuple2<UUID, ObjectId>> importFile(
           final Path file, final String originalFileName) {
+        return importFile(file, originalFileName, id -> Mono.just(true));
+      }
+
+      public @NotNull Mono<Tuple2<UUID, ObjectId>> importFile(
+          final Path file,
+          final String originalFileName,
+          Function<UUID, Mono<Boolean>> albumFilter) {
         return scanCache
             .get()
             .getRepositories()
@@ -192,6 +199,7 @@ public class BareAlbumList implements AlbumList {
                                             .doOnNext(
                                                 name -> log.info("Import " + file + " to " + name))
                                             .map(name -> repositoryId))
+                                .filterWhen(albumFilter)
                                 .flatMap(
                                     repositoryId ->
                                         pendingUpdaters
@@ -199,19 +207,18 @@ public class BareAlbumList implements AlbumList {
                                                 repositoryId,
                                                 k -> reps.get(k).createUpdater().cache())
                                             .flatMap(
-                                                updater -> {
-                                                  return updater
-                                                      .importFile(file, targetFilename)
-                                                      .map(
-                                                          objectId ->
-                                                              Tuples.of(repositoryId, objectId))
-                                                      .onErrorResume(
-                                                          e -> {
-                                                            log.warn(
-                                                                "Cannot import file " + file, e);
-                                                            return Mono.empty();
-                                                          });
-                                                }));
+                                                updater ->
+                                                    updater
+                                                        .importFile(file, targetFilename)
+                                                        .map(
+                                                            objectId ->
+                                                                Tuples.of(repositoryId, objectId))
+                                                        .onErrorResume(
+                                                            e -> {
+                                                              log.warn(
+                                                                  "Cannot import file " + file, e);
+                                                              return Mono.empty();
+                                                            })));
                           } catch (TikaException | SAXException | IOException e) {
                             log.warn("Cannot access file " + file, e);
                             return (Mono.empty());

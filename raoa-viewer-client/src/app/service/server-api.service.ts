@@ -38,7 +38,6 @@ export class ServerApiService {
                     const auth: ApolloLink = setContext(async (_, {headers}) => {
                         // Grab token if there is one in storage or hasn't expired
                         // const token = await this.login.idToken();
-                        console.log(headers);
 
                         // Return the headers as usual
                         return {

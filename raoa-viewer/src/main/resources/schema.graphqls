@@ -97,6 +97,7 @@ input SingleUserVisibilityUpdate {
 input UserUpdate{
     visibilityUpdates: [UserVisibilityUpdate!]!
     canManageUsers: Boolean
+    isEditor: Boolean
 }
 
 input UserVisibilityUpdate{
@@ -128,6 +129,8 @@ type User{
     authentications: [AuthenticationId]
     groups: [GroupMembership]
     canManageUsers: Boolean
+    canEdit: Boolean
+    isEditor: Boolean
 }
 
 type GroupMembership {

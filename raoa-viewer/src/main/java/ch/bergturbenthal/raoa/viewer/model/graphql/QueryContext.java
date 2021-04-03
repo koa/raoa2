@@ -19,6 +19,8 @@ public interface QueryContext {
 
   boolean canUserManageUsers();
 
+  boolean canUserEditData();
+
   RequestAttributes getRequestAttributes();
 
   String getContexRootPath();

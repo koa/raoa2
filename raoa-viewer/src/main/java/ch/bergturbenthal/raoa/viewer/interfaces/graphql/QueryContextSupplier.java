@@ -94,6 +94,11 @@ public class QueryContextSupplier {
                 }
 
                 @Override
+                public boolean canUserEditData() {
+                  return u.map(User::isEditor).orElse(false);
+                }
+
+                @Override
                 public RequestAttributes getRequestAttributes() {
                   return requestAttributes;
                 }

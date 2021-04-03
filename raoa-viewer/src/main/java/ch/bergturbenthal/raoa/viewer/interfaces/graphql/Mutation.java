@@ -511,6 +511,9 @@ public class Mutation implements GraphQLMutationResolver {
                           if (update.getCanManageUsers() != null) {
                             userBuilder.superuser(update.getCanManageUsers());
                           }
+                          if (update.getIsEditor() != null) {
+                            userBuilder.editor(update.getIsEditor());
+                          }
                           return userBuilder.build();
                         },
                         queryContext.getCurrentUser().orElseThrow().getUserData().getName()
@@ -567,7 +570,9 @@ public class Mutation implements GraphQLMutationResolver {
     final ObjectId entryId = ObjectId.fromString(albumEntryId);
     return queryContextSupplier
         .createContext()
-        .filter(QueryContext::canUserManageUsers)
+        .filterWhen(
+            context ->
+                authorizationManager.canUserModifyAlbum(context.getSecurityContext(), albumId))
         .flatMap(
             queryContext ->
                 albumList
@@ -676,11 +681,14 @@ public class Mutation implements GraphQLMutationResolver {
   }
 
   public CompletableFuture<List<ImportedFile>> commitImport(List<ImportFile> files) {
+
     return queryContextSupplier
         .createContext()
-        .filter(QueryContext::canUserManageUsers)
+        .filter(QueryContext::canUserEditData)
         .flatMap(
             context -> {
+              Function<UUID, Mono<Boolean>> authorizer =
+                  id -> authorizationManager.canUserModifyAlbum(context.getSecurityContext(), id);
               final FileImporter importer = albumList.createImporter();
               return Flux.fromIterable(
                       () ->
@@ -703,7 +711,7 @@ public class Mutation implements GraphQLMutationResolver {
                         final File tempFile = t.getT2();
                         final String filename = t.getT1().getFilename();
                         final Mono<Tuple2<UUID, ObjectId>> importResult =
-                            importer.importFile(tempFile.toPath(), filename);
+                            importer.importFile(tempFile.toPath(), filename, authorizer);
                         return importResult.map(
                             t2 -> Tuples.of(t2.getT1(), t2.getT2(), t.getT1().getFileId()));
                       },

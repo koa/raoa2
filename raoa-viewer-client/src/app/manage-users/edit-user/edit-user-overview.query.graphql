@@ -2,6 +2,7 @@ query editUserOverview($userid: ID!){
     userById(id: $userid){
         id
         canManageUsers
+        isEditor
         info{
             name
             email

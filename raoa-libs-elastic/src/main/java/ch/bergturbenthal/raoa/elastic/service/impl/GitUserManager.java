@@ -155,17 +155,6 @@ public class GitUserManager implements UserManager {
   }
 
   @Override
-  public Mono<Boolean> removeGroup(final UUID id) {
-    final String userFileName = createGroupFile(id);
-    return metaIdMono
-        .flatMap(albumList::getAlbum)
-        .flatMap(GitAccess::createUpdater)
-        .flatMap(
-            u -> u.removeFile(userFileName).filter(t -> t).flatMap(t -> u.commit("removed group")))
-        .defaultIfEmpty(false);
-  }
-
-  @Override
   public void assignNewIdentity(final UUID existingId, final AuthenticationId baseRequest) {
     updateUser(
         existingId,
@@ -202,7 +191,8 @@ public class GitUserManager implements UserManager {
                                             throw new RuntimeException(ex);
                                           }
                                         }),
-                                "load user ")))
+                                "load user "),
+                        2))
         .map(this::cleanupUser);
   }
 
@@ -211,6 +201,7 @@ public class GitUserManager implements UserManager {
         .authentications(defaultIfNull(user.getAuthentications(), Collections.emptySet()))
         .groupMembership(defaultIfNull(user.getGroupMembership(), Collections.emptySet()))
         .superuser(user.isSuperuser())
+        .editor(user.isEditor())
         .userData(user.getUserData())
         .id(user.getId())
         .visibleAlbums(defaultIfNull(user.getVisibleAlbums(), Collections.emptySet()))

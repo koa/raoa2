@@ -1,0 +1,8 @@
+query showSingleMediaListKeywords($id: ID!){
+    albumById(id: $id){
+        id
+        keywordCounts{
+            keyword
+        }
+    }
+}

@@ -16,6 +16,7 @@ query AlbumContent($albumId: ID!) {
         }
     }
     currentUser{
+        id
         canManageUsers
     }
 }

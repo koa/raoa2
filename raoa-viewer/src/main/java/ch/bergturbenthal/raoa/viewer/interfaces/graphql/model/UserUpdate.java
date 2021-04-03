@@ -9,4 +9,5 @@ public class UserUpdate {
   Boolean canManageUsers;
   List<UserVisibilityUpdate> visibilityUpdates;
   Set<String> removeLabels;
+  Boolean isEditor;
 }

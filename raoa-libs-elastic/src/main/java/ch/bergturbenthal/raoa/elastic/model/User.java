@@ -9,7 +9,7 @@ import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
-@Document(indexName = "user", createIndex = true)
+@Document(indexName = "user_1", createIndex = true)
 @Value
 @Builder(toBuilder = true)
 public class User {
@@ -29,4 +29,7 @@ public class User {
 
   @Field(type = FieldType.Boolean)
   boolean superuser;
+
+  @Field(type = FieldType.Boolean)
+  boolean editor;
 }
