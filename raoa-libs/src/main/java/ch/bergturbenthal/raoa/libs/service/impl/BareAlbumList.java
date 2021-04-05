@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
+import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.*;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -26,7 +27,6 @@ import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.sax.BodyContentHandler;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
@@ -234,7 +234,8 @@ public class BareAlbumList implements AlbumList {
             .flatMap(Updater::commit)
             .reduce((b1, b2) -> b1 && b2)
             .defaultIfEmpty(Boolean.TRUE)
-            .doFinally(signal -> pendingUpdaters.clear());
+            .doFinally(signal -> pendingUpdaters.clear())
+            .doFinally(signal -> resetCache());
       }
     };
   }
@@ -296,28 +297,31 @@ public class BareAlbumList implements AlbumList {
 
   @Override
   public Mono<UUID> createAlbum(final List<String> albumPath) {
-    try {
-      File dir = properties.getRepository();
-      for (String name : albumPath) {
-        dir = new File(dir, name);
-      }
-      dir = new File(dir.getParent(), dir.getName() + ".git");
-      if (!dir.exists()) {
-        Git.init().setDirectory(dir).setBare(true).call();
-      }
-      resetCache();
-      final String fullPath = String.join("/", albumPath);
-      return scanCache
-          .get()
-          .getRepositories()
-          .flatMapIterable(Map::entrySet)
-          .filterWhen(ga -> ga.getValue().getFullPath().map(fullPath::equals))
-          .map(Map.Entry::getKey)
-          .next();
-
-    } catch (GitAPIException ex) {
-      return Mono.error(ex);
-    }
+    return asyncService
+        .asyncMono(
+            () -> {
+              File dir = properties.getRepository();
+              for (String name : albumPath) {
+                dir = new File(dir, name);
+              }
+              dir = new File(dir.getParent(), dir.getName() + ".git");
+              if (!dir.exists()) {
+                Git.init().setDirectory(dir).setBare(true).call();
+              }
+              return dir;
+            })
+        .map(File::toPath)
+        .flatMap(
+            p ->
+                BareGitAccess.accessOf(
+                        p,
+                        repoRootPath.relativize(p),
+                        asyncService,
+                        processScheduler,
+                        meterRegistry)
+                    .getMetadata()
+                    .map(AlbumMeta::getAlbumId)
+                    .doOnNext(signal -> resetCache()));
   }
 
   private Mono<UUID> albumOf(final Instant timestamp) {

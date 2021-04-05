@@ -29,7 +29,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -58,6 +57,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.function.TupleUtils;
 import reactor.util.function.Tuples;
+import reactor.util.retry.Retry;
 
 @Slf4j
 @ToString
@@ -78,9 +78,10 @@ public class BareGitAccess implements GitAccess {
   private final MeterRegistry meterRegistry;
   private final Path relativePath;
   private final AsyncService asyncService;
-  private final Scheduler processScheduler;
+  // private final Scheduler processScheduler;
   private final AtomicReference<Mono<Ref>> cachedMasterRef = new AtomicReference<>();
   private final AtomicReference<Mono<RevTree>> cachedMasterTree = new AtomicReference<>();
+  private final Mono<AlbumMeta> metaIfExists;
 
   private BareGitAccess(
       final Path path,
@@ -90,7 +91,7 @@ public class BareGitAccess implements GitAccess {
       final MeterRegistry meterRegistry) {
     this.relativePath = relativePath;
     this.asyncService = asyncService;
-    this.processScheduler = processScheduler;
+    // this.processScheduler = processScheduler;
     this.meterRegistry = meterRegistry;
 
     repository =
@@ -100,12 +101,7 @@ public class BareGitAccess implements GitAccess {
                     new FileRepositoryBuilder().setGitDir(path.toFile()).readEnvironment().build())
             .cache(REPOSITORY_CACHE_TIME);
 
-    Consumer<AlbumMeta> metaUpdater =
-        newMetadata ->
-            writeNewMetadata(newMetadata)
-                .subscribe(Updater::close, ex -> log.warn("Cannot update metadata", ex));
-
-    albumMetaSupplier =
+    metaIfExists =
         readObject(METADATA_FILENAME)
             .flatMap(
                 l ->
@@ -117,28 +113,36 @@ public class BareGitAccess implements GitAccess {
                             return Optional.empty();
                           }
                         }))
-            .publishOn(processScheduler)
-            .map(
+            .flatMap(
                 data -> {
                   if (data.getAlbumId() == null) {
+                    final AlbumMeta.AlbumMetaBuilder albumMetaBuilder = data.toBuilder();
                     final AlbumMeta updatedMeta =
-                        data.toBuilder().albumId(UUID.randomUUID()).build();
-                    metaUpdater.accept(updatedMeta);
-                    return updatedMeta;
+                        albumMetaBuilder.albumId(UUID.randomUUID()).build();
+                    return writeNewMetadata(updatedMeta)
+                        .doOnNext(Updater::close)
+                        .map(updater -> updatedMeta);
                   } else {
-                    return data;
+                    return Mono.just(data);
                   }
                 })
+            .cache(Duration.ofMillis(100));
+    albumMetaSupplier =
+        metaIfExists
             .switchIfEmpty(
-                createName()
-                    .map(
-                        name -> {
-                          final UUID uuid = UUID.randomUUID();
-                          final AlbumMeta albumMeta =
-                              AlbumMeta.builder().albumId(uuid).albumTitle(name).build();
-                          metaUpdater.accept(albumMeta);
-                          return albumMeta;
-                        }))
+                Mono.defer(
+                    () ->
+                        createName()
+                            .flatMap(
+                                name -> {
+                                  final UUID uuid = UUID.randomUUID();
+                                  final AlbumMeta newMetadata =
+                                      AlbumMeta.builder().albumId(uuid).albumTitle(name).build();
+                                  return writeNewMetadata(newMetadata)
+                                      .doOnNext(Updater::close)
+                                      .map(updater -> newMetadata);
+                                })))
+            .retryWhen(Retry.backoff(5, Duration.ofMillis(500)))
             .cache(Duration.ofMillis(100));
   }
 
@@ -163,7 +167,8 @@ public class BareGitAccess implements GitAccess {
         .flatMap(
             tempFile ->
                 createUpdater()
-                    .flatMap(u -> u.importFile(tempFile.toPath(), ".raoa.json", true).map(l -> u))
+                    .flatMap(
+                        u -> u.importFile(tempFile.toPath(), METADATA_FILENAME, true).map(l -> u))
                     .flatMap(u -> u.commit("Metadata updated").map(l -> u))
                     .doFinally(signal -> tempFile.delete()));
   }
@@ -315,8 +320,9 @@ public class BareGitAccess implements GitAccess {
                         return Optional.empty();
                       }
                     }))
-        // .log("read " + filename)
-        .publishOn(processScheduler);
+    // .log("read " + filename)
+    // .publishOn(processScheduler)
+    ;
   }
 
   private Mono<RevTree> masterTree() {
@@ -331,7 +337,7 @@ public class BareGitAccess implements GitAccess {
     // log.info("Read tree " + ref + " at " + relativePath);
     return repository
         .flatMap(r -> asyncService.asyncMono(() -> r.parseCommit(ref.getObjectId())))
-        .publishOn(processScheduler)
+        // .publishOn(processScheduler)
         .map(RevCommit::getTree);
   }
 
@@ -341,23 +347,17 @@ public class BareGitAccess implements GitAccess {
   }
 
   private Mono<Ref> findMasterRef() {
-    return cachedMasterRef
-        .updateAndGet(
-            refMono ->
-                Objects.requireNonNullElseGet(
-                    refMono,
-                    () ->
-                        repository
-                            .map(Repository::getRefDatabase)
-                            .flatMap(
-                                db ->
-                                    asyncService.asyncMono(
-                                        () -> {
-                                          final Ref existingMaster = db.findRef("master");
-                                          return existingMaster;
-                                        }))
-                            .cache(REPOSITORY_CACHE_TIME)))
-        .publishOn(processScheduler);
+    return cachedMasterRef.updateAndGet(
+        refMono ->
+            Objects.requireNonNullElseGet(
+                refMono,
+                () ->
+                    repository
+                        .map(Repository::getRefDatabase)
+                        .flatMap(db -> asyncService.asyncMono(() -> db.findRef("master")))
+                        .cache(REPOSITORY_CACHE_TIME)))
+    // .publishOn(processScheduler)
+    ;
   }
 
   @Override
@@ -486,6 +486,7 @@ public class BareGitAccess implements GitAccess {
       throw new RuntimeException("Cannot prepare updater", e);
     }
     return new Updater() {
+      private final List<String> modifiedFiles = Collections.synchronizedList(new ArrayList<>());
       private boolean modified = false;
 
       @Override
@@ -525,6 +526,7 @@ public class BareGitAccess implements GitAccess {
                   newEntry.setObjectId(newFileId);
                   builder.add(newEntry);
                   modified = true;
+                  modifiedFiles.add(name);
                 }
                 return Optional.of(newFileId);
               }
@@ -615,7 +617,8 @@ public class BareGitAccess implements GitAccess {
                 final RefUpdate.Result updateResult = ru.update();
                 switch (updateResult) {
                   case LOCK_FAILURE:
-                    throw new IllegalStateException("Lock Failure");
+                    throw new IllegalStateException(
+                        "Lock Failure committing " + String.join(", ", modifiedFiles));
                   case NOT_ATTEMPTED:
                   case REJECTED_OTHER_REASON:
                   case REJECTED_MISSING_OBJECT:
@@ -661,7 +664,9 @@ public class BareGitAccess implements GitAccess {
 
   @Override
   public Mono<String> getName() {
-    return getMetadata().map(AlbumMeta::getAlbumTitle);
+    return metaIfExists
+        .map(AlbumMeta::getAlbumTitle)
+        .defaultIfEmpty(relativePath.getFileName().toString());
   }
 
   @Override

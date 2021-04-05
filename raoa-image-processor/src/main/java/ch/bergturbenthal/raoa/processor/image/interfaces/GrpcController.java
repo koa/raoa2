@@ -68,6 +68,7 @@ public class GrpcController extends ProcessImageServiceGrpc.ProcessImageServiceI
                   .ifPresent(builder::setCaptureCoordinates);
               return builder.build();
             })
+        // .log(filename)
         .subscribe(StreamObserverReactiveHelper.toSubscriber(responseObserver));
   }
 

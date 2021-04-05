@@ -24,7 +24,7 @@ public class TestLoadGitDirs {
     final ConcurrencyLimiter limiter =
         new ConcurrencyLimiter(properties, new SimpleMeterRegistry());
     final MeterRegistry meterRegistry = new SimpleMeterRegistry();
-    final AsyncService asyncService = new ExecutorAsyncService();
+    final AsyncService asyncService = new ExecutorAsyncService(properties);
     final BareAlbumList albumList = new BareAlbumList(properties, meterRegistry, asyncService);
 
     final Path dir = Path.of("/media/akoenig/NIKON D500/DCIM/198ND500");

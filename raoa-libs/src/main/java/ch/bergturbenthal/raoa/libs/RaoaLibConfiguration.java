@@ -20,8 +20,8 @@ import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 public class RaoaLibConfiguration {
 
   @Bean
-  public AsyncService asyncService() {
-    return new ExecutorAsyncService();
+  public AsyncService asyncService(final Properties properties) {
+    return new ExecutorAsyncService(properties);
   }
 
   @Bean

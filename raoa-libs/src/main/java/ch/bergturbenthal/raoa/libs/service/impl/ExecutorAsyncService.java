@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
+import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import java.time.Duration;
 import java.util.concurrent.*;
@@ -16,15 +17,15 @@ import reactor.core.scheduler.Schedulers;
 public class ExecutorAsyncService implements AsyncService {
   private final ExecutorService executor;
 
-  public ExecutorAsyncService() {
+  public ExecutorAsyncService(final Properties properties) {
 
     final CustomizableThreadFactory threadFactory = new CustomizableThreadFactory("async");
     threadFactory.setDaemon(true);
     final LinkedBlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>();
     final ThreadPoolExecutor executorService =
         new ThreadPoolExecutor(
-            20,
-            20,
+            properties.getAsyncThreadCount(),
+            properties.getAsyncThreadCount(),
             Duration.ofMinutes(1).toMillis(),
             TimeUnit.MILLISECONDS,
             workQueue,

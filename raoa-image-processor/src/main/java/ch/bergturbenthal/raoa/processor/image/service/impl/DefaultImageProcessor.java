@@ -58,6 +58,8 @@ import reactor.util.function.Tuples;
 public class DefaultImageProcessor implements ImageProcessor {
   private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
   private static final Set<String> RAW_ENDINGS = Set.of(".nef", ".dng", ".cr2", ".crw", ".cr3");
+  private static final boolean HAS_DCRAW = hasDcraw();
+  private static final Object dcrawLock = new Object();
   private final AlbumList albumList;
   private final AsyncService asyncService;
   private final ThumbnailFilenameService thumbnailFilenameService;
@@ -74,6 +76,17 @@ public class DefaultImageProcessor implements ImageProcessor {
     this.thumbnailFilenameService = thumbnailFilenameService;
     this.meterRegistry = meterRegistry;
     parser = new AutoDetectParser();
+  }
+
+  private static boolean hasDcraw() {
+    try {
+      final Process process = Runtime.getRuntime().exec(new String[] {"dcraw"});
+      process.waitFor();
+      return true;
+    } catch (IOException | InterruptedException ex) {
+      log.warn("dcraw not found", ex);
+      return false;
+    }
   }
 
   private static Optional<Integer> extractTargetWidth(final Metadata m) {
@@ -171,18 +184,20 @@ public class DefaultImageProcessor implements ImageProcessor {
     return out;
   }
 
-  public static BufferedImage loadImage(File file) throws IOException {
+  public static Tuple2<BufferedImage, Boolean> loadImage(File file) throws IOException {
     final String lowerFilename = file.getName().toLowerCase();
     if (lowerFilename.length() > 4) {
       final String ending = lowerFilename.substring(lowerFilename.length() - 4);
-      if (RAW_ENDINGS.contains(ending)) {
-        final Process process =
-            Runtime.getRuntime().exec(new String[] {"dcraw", "-c", file.getAbsolutePath()});
-        final InputStream inputStream = process.getInputStream();
-        return ImageIO.read(inputStream);
+      if (HAS_DCRAW && RAW_ENDINGS.contains(ending)) {
+        synchronized (dcrawLock) {
+          final Process process =
+              Runtime.getRuntime().exec(new String[] {"dcraw", "-c", file.getAbsolutePath()});
+          final InputStream inputStream = process.getInputStream();
+          return Tuples.of(ImageIO.read(inputStream), true);
+        }
       }
     }
-    return ImageIO.read(file);
+    return Tuples.of(ImageIO.read(file), false);
   }
 
   @Override
@@ -241,7 +256,8 @@ public class DefaultImageProcessor implements ImageProcessor {
                                               asyncService.asyncMono(
                                                   () -> {
                                                     final File tempFile1 =
-                                                        File.createTempFile("tmp", ".jpg");
+                                                        File.createTempFile(
+                                                            "tmp", filename.replace('/', '_'));
                                                     {
                                                       @Cleanup
                                                       final FileOutputStream fileOutputStream1 =
@@ -319,16 +335,14 @@ public class DefaultImageProcessor implements ImageProcessor {
                                 .map(Optional::of)
                                 .onErrorReturn(Optional.empty())
                                 .defaultIfEmpty(Optional.empty());
-                        final Mono<BufferedImage> inputImage =
+                        final Mono<Tuple2<BufferedImage, Boolean>> inputImage =
                             asyncService.asyncMono(() -> loadImage(file)).cache();
                         final Mono<AlbumEntryData> albumEntryDataMono =
                             Mono.zip(metadataMono, inputImage, overrideableMetadata)
                                 // .log("zip: " + filename)
                                 .flatMap(
                                     TupleUtils.function(
-                                        (Metadata metadata,
-                                            BufferedImage image,
-                                            Optional<TiffOutputSet> optionalTiffOutputSet) ->
+                                        (metadata, image, optionalTiffOutputSet) ->
                                             createThumbnails(
                                                 albumId,
                                                 filename,
@@ -338,7 +352,8 @@ public class DefaultImageProcessor implements ImageProcessor {
                                                 optionalXmpFileId,
                                                 optionalXMPMeta,
                                                 metadata,
-                                                image,
+                                                image.getT1(),
+                                                image.getT2(),
                                                 optionalTiffOutputSet)))
                             // .log("result: " + filename)
                             ;
@@ -375,9 +390,12 @@ public class DefaultImageProcessor implements ImageProcessor {
       final Optional<XMPMeta> optionalXMPMeta,
       final Metadata metadata,
       final BufferedImage image,
+      final boolean imageAlreadyRotated,
       final Optional<TiffOutputSet> optionalTiffOutputSet) {
     final int orientation =
-        Optional.ofNullable(metadata.get(TIFF.ORIENTATION)).map(Integer::parseInt).orElse(1);
+        imageAlreadyRotated
+            ? 1
+            : Optional.ofNullable(metadata.get(TIFF.ORIENTATION)).map(Integer::parseInt).orElse(1);
     final int width = image.getWidth();
     final int height = image.getHeight();
     int maxLength = Math.max(width, height);
