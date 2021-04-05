@@ -18,78 +18,83 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 
 @Slf4j
-@Document(indexName = "album-entry")
+@Document(indexName = "album-entry-1")
 @Value
 @JsonDeserialize(builder = AlbumEntryData.AlbumEntryDataBuilder.class)
 public class AlbumEntryData {
   @Id
   @Field(index = false)
-  private String documentId;
+  String documentId;
 
   @Field(type = FieldType.Keyword)
-  private UUID albumId;
+  UUID albumId;
 
   @Field(type = FieldType.Keyword)
   @JsonSerialize(using = ObjectIdSerializer.class)
-  private ObjectId entryId;
-
-  @Field(type = FieldType.Integer)
-  private Integer width;
-
-  @Field(type = FieldType.Integer)
-  private Integer height;
-
-  @Field(type = FieldType.Integer)
-  private Integer targetWidth;
-
-  @Field(type = FieldType.Integer)
-  private Integer targetHeight;
+  ObjectId entryId;
 
   @Field(type = FieldType.Keyword)
-  private String filename;
-
-  @Field(type = FieldType.Double)
-  private Instant createTime;
-
-  @Field(type = FieldType.Keyword)
-  private String cameraModel;
-
-  @Field(type = FieldType.Keyword)
-  private String cameraManufacturer;
-
-  @Field(type = FieldType.Double)
-  private Double focalLength;
-
-  @Field(type = FieldType.Double)
-  private Double focalLength35;
-
-  @Field(type = FieldType.Double)
-  private Double fNumber;
-
-  @Field(type = FieldType.Double)
-  private Double exposureTime;
+  @JsonSerialize(using = ObjectIdSerializer.class)
+  ObjectId xmpFileId;
 
   @Field(type = FieldType.Integer)
-  private Integer isoSpeedRatings;
+  Integer width;
+
+  @Field(type = FieldType.Integer)
+  Integer height;
+
+  @Field(type = FieldType.Integer)
+  Integer targetWidth;
+
+  @Field(type = FieldType.Integer)
+  Integer targetHeight;
 
   @Field(type = FieldType.Keyword)
-  private String contentType;
+  String filename;
+
+  @Field(type = FieldType.Double)
+  Instant createTime;
 
   @Field(type = FieldType.Keyword)
-  private Set<String> keywords;
+  String cameraModel;
+
+  @Field(type = FieldType.Keyword)
+  String cameraManufacturer;
+
+  @Field(type = FieldType.Double)
+  Double focalLength;
+
+  @Field(type = FieldType.Double)
+  Double focalLength35;
+
+  @Field(type = FieldType.Double)
+  Double fNumber;
+
+  @Field(type = FieldType.Double)
+  Double exposureTime;
+
+  @Field(type = FieldType.Integer)
+  Integer isoSpeedRatings;
+
+  @Field(type = FieldType.Keyword)
+  String contentType;
+
+  @Field(type = FieldType.Keyword)
+  Set<String> keywords;
 
   @Field(type = FieldType.Text)
-  private String description;
+  String description;
 
   @Field(type = FieldType.Integer)
-  private Integer rating;
+  Integer rating;
 
-  @Field private GeoPoint captureCoordinates;
+  @Field GeoPoint captureCoordinates;
 
   @Builder(toBuilder = true)
   public AlbumEntryData(
       final UUID albumId,
       final ObjectId entryId,
+      final ObjectId xmpFileId,
       final Integer width,
       final Integer height,
       final Integer targetWidth,
@@ -110,6 +115,7 @@ public class AlbumEntryData {
       final GeoPoint captureCoordinates) {
     this.albumId = albumId;
     this.entryId = entryId;
+    this.xmpFileId = xmpFileId;
     this.width = width;
     this.height = height;
     this.targetWidth = targetWidth;

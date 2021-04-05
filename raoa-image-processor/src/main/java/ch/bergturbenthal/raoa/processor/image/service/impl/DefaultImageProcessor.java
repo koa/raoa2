@@ -50,7 +50,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.function.TupleUtils;
 import reactor.util.function.Tuple2;
-import reactor.util.function.Tuple3;
+import reactor.util.function.Tuple4;
 import reactor.util.function.Tuples;
 
 @Slf4j
@@ -113,9 +113,11 @@ public class DefaultImageProcessor implements ImageProcessor {
       final ObjectId fileId,
       final String filename,
       final Metadata metadata,
+      final Optional<ObjectId> xmpFileId,
       final Optional<XMPMeta> xmpMeta) {
     final AlbumEntryData.AlbumEntryDataBuilder albumEntryDataBuilder =
         AlbumEntryData.builder().filename(filename).entryId(fileId).albumId(albumId);
+    xmpFileId.ifPresent(albumEntryDataBuilder::xmpFileId);
     extractInstant(metadata, TikaCoreProperties.CREATED)
         .ifPresent(albumEntryDataBuilder::createTime);
     extractTargetWidth(metadata).ifPresent(albumEntryDataBuilder::targetWidth);
@@ -219,7 +221,17 @@ public class DefaultImageProcessor implements ImageProcessor {
                   // .log("found files " + filename)
                   ;
 
-              final Mono<Tuple3<ObjectId, File, Optional<XMPMeta>>> tmp =
+              // log.info("File: " + tempFile1);
+              // log.info("Exists: " + tempFile1.exists());
+              // log.info("Size: " + tempFile1.length());
+              //    .log("loaded " + filename)
+              //            .log("xmp: " + filename)
+              // log.info("File: " + tempFile1);
+              // log.info("Exists: " + tempFile1.exists());
+              // log.info("Size: " + tempFile1.length());
+              //    .log("loaded " + filename)
+              //            .log("xmp: " + filename)
+              final Mono<Tuple4<ObjectId, File, Optional<ObjectId>, Optional<XMPMeta>>> tmp =
                   foundFilesMono.flatMap(
                       t ->
                           Mono.zip(
@@ -265,10 +277,10 @@ public class DefaultImageProcessor implements ImageProcessor {
                                       .orElse(Mono.just(Optional.empty()))
                                   //            .log("xmp: " + filename)
                                   )
-                              .map(x -> Tuples.of(t.getT1(), x.getT1(), x.getT2())));
+                              .map(x -> Tuples.of(t.getT1(), x.getT1(), t.getT2(), x.getT2())));
               return tmp.flatMap(
                   TupleUtils.function(
-                      (entryId, file, optionalXMPMeta) -> {
+                      (entryId, file, optionalXmpFileId, optionalXMPMeta) -> {
                         final Mono<Metadata> metadataMono =
                             asyncService
                                 .asyncMono(
@@ -323,8 +335,8 @@ public class DefaultImageProcessor implements ImageProcessor {
                                                 fileCount,
                                                 byteWriteCount,
                                                 entryId,
+                                                optionalXmpFileId,
                                                 optionalXMPMeta,
-                                                metadataMono,
                                                 metadata,
                                                 image,
                                                 optionalTiffOutputSet)))
@@ -359,8 +371,8 @@ public class DefaultImageProcessor implements ImageProcessor {
       final AtomicInteger fileCount,
       final AtomicLong byteWriteCount,
       final ObjectId entryId,
+      final Optional<ObjectId> xmpFileId,
       final Optional<XMPMeta> optionalXMPMeta,
-      final Mono<Metadata> metadataMono,
       final Metadata metadata,
       final BufferedImage image,
       final Optional<TiffOutputSet> optionalTiffOutputSet) {
@@ -499,10 +511,8 @@ public class DefaultImageProcessor implements ImageProcessor {
         .map(AtomicBoolean::get)
         // .log("tmb: " + filename)
         .filter(b -> b)
-        .flatMap(
+        .map(
             ok ->
-                metadataMono.map(
-                    fileMeta ->
-                        createAlbumEntry(albumId, entryId, filename, fileMeta, optionalXMPMeta)));
+                createAlbumEntry(albumId, entryId, filename, metadata, xmpFileId, optionalXMPMeta));
   }
 }

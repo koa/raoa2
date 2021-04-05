@@ -19,7 +19,6 @@ import java.io.File;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
@@ -131,158 +130,154 @@ public class Poller {
                                   final Mono<List<Tuple2<AlbumEntryData, Boolean>>> updatedData =
                                       album
                                           .getAccess()
-                                          .listFiles(ElasticSearchDataViewService.IMAGE_FILE_FILTER)
-                                          .filterWhen(
-                                              gitFileEntry -> isValidEntry(album, gitFileEntry))
-                                          .flatMap(
-                                              gitFileEntry ->
-                                                  entryAlreadyProcessed(album, gitFileEntry)
-                                                      .map(
-                                                          exists ->
-                                                              Tuples.of(gitFileEntry, exists)))
-                                          .map(
-                                              (Tuple2<GitAccess.GitFileEntry, Boolean>
-                                                      gitFileEntry) ->
-                                                  gitFileEntry.mapT2(
-                                                      b ->
-                                                          b
-                                                              ? Optional.ofNullable(
-                                                                  existingEntries.get(
-                                                                      gitFileEntry
-                                                                          .getT1()
-                                                                          .getFileId()))
-                                                              : Optional.<AlbumEntryData>empty()))
-                                          .flatMap(
-                                              entry1 -> {
-                                                if (entry1.getT2().isPresent()) {
-                                                  return Mono.just(
-                                                      Tuples.of(entry1.getT2().get(), false));
-                                                }
-                                                final String filename =
-                                                    entry1.getT1().getNameString();
-                                                final ProcessImageRequest data1 =
-                                                    new ProcessImageRequest(
-                                                        album.getAlbumId(), filename);
-                                                final ObjectId fileId = entry1.getT1().getFileId();
-                                                final long startTime = System.nanoTime();
-                                                /*log.info(
-                                                "start processing ["
-                                                    + data.getAlbumId()
-                                                    + "] "
-                                                    + filename);*/
-                                                return remoteImageProcessor
-                                                    .processImage(fileId, data1)
-                                                    // .log(filename)
-                                                    .timeout(
-                                                        coordinatorProperties.getProcessTimeout())
-                                                    .retryWhen(
-                                                        Retry.backoff(10, Duration.ofSeconds(5))
-                                                            .maxBackoff(Duration.ofMinutes(2))
-                                                            .jitter(0.5d)
-                                                            .scheduler(Schedulers.parallel())
-                                                            .transientErrors(false))
-                                                    .map(ret -> Tuples.of(ret, true))
-                                                    .doFinally(
-                                                        signal ->
-                                                            log.info(
-                                                                "processed ["
-                                                                    + data1.getAlbumId()
-                                                                    + "] "
-                                                                    + filename
-                                                                    + " in "
-                                                                    + Duration.ofNanos(
-                                                                            System.nanoTime()
-                                                                                - startTime)
-                                                                        .getSeconds()
-                                                                    + "s with "
-                                                                    + signal))
-
-                                                // .log("proc: " + filename)
-                                                ;
+                                          .listFiles(ElasticSearchDataViewService.XMP_FILE_FILTER)
+                                          .collectMap(
+                                              fe -> {
+                                                final String filename = fe.getNameString();
+                                                return filename.substring(0, filename.length() - 4);
                                               },
-                                              coordinatorProperties.getConcurrentProcessingImages(),
-                                              50)
-                                          // .log("entry of " + album)
-                                          // .log("in")
-                                          /*.doOnNext(
-                                          data -> {
-                                            if (data.getT2())
-                                              log.info("Processing " + data.getT1());
-                                            else log.info("Bypassing " + data.getT1());
-                                          })*/
-                                          .groupBy(Tuple2::getT2)
+                                              GitAccess.GitFileEntry::getFileId)
                                           .flatMap(
-                                              (GroupedFlux<Boolean, Tuple2<AlbumEntryData, Boolean>>
-                                                      inFlux) -> {
-                                                final Boolean key = inFlux.key();
-                                                if (key != null && key) {
-                                                  return inFlux
-                                                      // .log("store")
-                                                      .map(Tuple2::getT1)
-                                                      .bufferTimeout(100, Duration.ofSeconds(30))
+                                              xmpFiles ->
+                                                  album
+                                                      .getAccess()
+                                                      .listFiles(
+                                                          ElasticSearchDataViewService
+                                                              .IMAGE_FILE_FILTER)
+                                                      .filterWhen(
+                                                          gitFileEntry ->
+                                                              isValidEntry(album, gitFileEntry))
                                                       .flatMap(
-                                                          updateEntries -> {
-                                                            log.info(
-                                                                "Prepare store of "
-                                                                    + updateEntries.size());
-                                                            return albumDataEntryRepository.saveAll(
-                                                                updateEntries)
-                                                            // .log("batch store")
-                                                            ;
+                                                          gitFileEntry ->
+                                                              entryAlreadyProcessed(
+                                                                      album,
+                                                                      gitFileEntry,
+                                                                      Optional.ofNullable(
+                                                                          xmpFiles.get(
+                                                                              gitFileEntry
+                                                                                  .getNameString())))
+                                                                  .map(
+                                                                      exists ->
+                                                                          Tuples.of(
+                                                                              gitFileEntry,
+                                                                              exists)))
+                                                      .map(
+                                                          (Tuple2<GitAccess.GitFileEntry, Boolean>
+                                                                  gitFileEntry) ->
+                                                              gitFileEntry.mapT2(
+                                                                  b ->
+                                                                      b
+                                                                          ? Optional.ofNullable(
+                                                                              existingEntries.get(
+                                                                                  gitFileEntry
+                                                                                      .getT1()
+                                                                                      .getFileId()))
+                                                                          : Optional
+                                                                              .<AlbumEntryData>
+                                                                                  empty()))
+                                                      .flatMap(
+                                                          entry1 -> {
+                                                            if (entry1.getT2().isPresent()) {
+                                                              return Mono.just(
+                                                                  Tuples.of(
+                                                                      entry1.getT2().get(), false));
+                                                            }
+                                                            final String filename =
+                                                                entry1.getT1().getNameString();
+                                                            final ProcessImageRequest data1 =
+                                                                new ProcessImageRequest(
+                                                                    album.getAlbumId(), filename);
+                                                            final ObjectId fileId =
+                                                                entry1.getT1().getFileId();
+                                                            final long startTime =
+                                                                System.nanoTime();
+                                                            /*log.info(
+                                                            "start processing ["
+                                                                + data.getAlbumId()
+                                                                + "] "
+                                                                + filename);*/
+                                                            return remoteImageProcessor
+                                                                .processImage(fileId, data1)
+                                                                // .log(filename)
+                                                                .timeout(
+                                                                    coordinatorProperties
+                                                                        .getProcessTimeout())
+                                                                .retryWhen(
+                                                                    Retry.backoff(
+                                                                            10,
+                                                                            Duration.ofSeconds(5))
+                                                                        .maxBackoff(
+                                                                            Duration.ofMinutes(2))
+                                                                        .jitter(0.5d)
+                                                                        .scheduler(
+                                                                            Schedulers.parallel())
+                                                                        .transientErrors(false))
+                                                                .map(ret -> Tuples.of(ret, true))
+                                                                .doFinally(
+                                                                    signal ->
+                                                                        log.info(
+                                                                            "processed ["
+                                                                                + data1.getAlbumId()
+                                                                                + "] "
+                                                                                + filename
+                                                                                + " in "
+                                                                                + Duration.ofNanos(
+                                                                                        System
+                                                                                                .nanoTime()
+                                                                                            - startTime)
+                                                                                    .getSeconds()
+                                                                                + "s with "
+                                                                                + signal))
 
-                                                            /*return asyncService
-                                                            .asyncFlux(
-                                                                (Consumer<AlbumEntryData>
-                                                                        consumer) -> {
-                                                                  try {
-                                                                    log.info(
-                                                                        "Start store of "
-                                                                            + updateEntries.size());
-                                                                    final Iterable<AlbumEntryData>
-                                                                        albumEntryData =
-                                                                            meterRegistry
-                                                                                .timer(
-                                                                                    "raoa.poller.storage.flush")
-                                                                                .recordCallable(
-                                                                                    () ->
-                                                                                        syncAlbumDataEntryRepository
-                                                                                            .saveAll(
-                                                                                                updateEntries));
-                                                                    meterRegistry
-                                                                        .counter(
-                                                                            "raoa.poller.storage.entries")
-                                                                        .increment(
-                                                                            updateEntries.size());
-                                                                    log.info(
-                                                                        "Done store of "
-                                                                            + updateEntries.size());
-                                                                    albumEntryData.forEach(
-                                                                        consumer);
-                                                                    log.info(
-                                                                        "Done publish of "
-                                                                            + updateEntries.size());
-                                                                  } catch (Exception ex) {
-                                                                    log.warn("Error storing", ex);
-                                                                    throw ex;
-                                                                  }
-                                                                })
-                                                            .retryWhen(
-                                                                Retry.backoff(
-                                                                    10, Duration.ofSeconds(10)));*/
+                                                            // .log("proc: " + filename)
+                                                            ;
                                                           },
-                                                          2)
-                                                      // .publishOn(Schedulers.elastic())
-                                                      .map(e1 -> Tuples.of(e1, true))
-                                                  // .log("processed")
-                                                  ;
-                                                } else
-                                                  return inFlux // .log("bypass")
-                                                  ;
-                                              })
-                                          // .log("joined")
-                                          .collectList()
-                                      // .filter(list -> list.stream().anyMatch(Tuple2::getT2))
-                                      ;
+                                                          coordinatorProperties
+                                                              .getConcurrentProcessingImages(),
+                                                          50)
+                                                      // .log("entry of " + album)
+                                                      // .log("in")
+                                                      /*.doOnNext(
+                                                      data -> {
+                                                        if (data.getT2())
+                                                          log.info("Processing " + data.getT1());
+                                                        else log.info("Bypassing " + data.getT1());
+                                                      })*/
+                                                      .groupBy(Tuple2::getT2)
+                                                      .flatMap(
+                                                          (GroupedFlux<
+                                                                      Boolean,
+                                                                      Tuple2<
+                                                                          AlbumEntryData, Boolean>>
+                                                                  inFlux) -> {
+                                                            if (inFlux.key()) {
+                                                              return inFlux
+                                                                  // .log("store")
+                                                                  .map(Tuple2::getT1)
+                                                                  .bufferTimeout(
+                                                                      100, Duration.ofSeconds(30))
+                                                                  .flatMap(
+                                                                      updateEntries -> {
+                                                                        log.info(
+                                                                            "Prepare store of "
+                                                                                + updateEntries
+                                                                                    .size());
+                                                                        return albumDataEntryRepository
+                                                                            .saveAll(updateEntries)
+                                                                        // .log("batch store")
+                                                                        ;
+                                                                      },
+                                                                      2)
+                                                                  // .publishOn(Schedulers.elastic())
+                                                                  .map(e1 -> Tuples.of(e1, true))
+                                                              // .log("processed")
+                                                              ;
+                                                            } else
+                                                              return inFlux // .log("bypass")
+                                                              ;
+                                                          })
+                                                      // .log("joined")
+                                                      .collectList());
                                   final Mono<String> nameMono = album.getAccess().getName();
                                   final Mono<ObjectId> versionMono =
                                       album.getAccess().getCurrentVersion();
@@ -424,18 +419,20 @@ public class Poller {
   }
 
   public Mono<Boolean> entryAlreadyProcessed(
-      final AlbumList.FoundAlbum album, final GitAccess.GitFileEntry gitFileEntry) {
+      final AlbumList.FoundAlbum album,
+      final GitAccess.GitFileEntry gitFileEntry,
+      Optional<ObjectId> xmpFileId) {
 
-    return Flux.fromStream(
-            thumbnailFilenameService
-                .listThumbnailsOf(album.getAlbumId(), gitFileEntry.getFileId())
-                .map(ThumbnailFilenameService.FileAndScale::getFile))
-        .flatMap(this::fileExists)
-        .collect(
-            Collector.of(
-                () -> new AtomicBoolean(true),
-                (r, v) -> r.compareAndSet(true, v),
-                (r1, r2) -> new AtomicBoolean(r1.get() && r2.get())))
+    return Flux.merge(
+            elasticSearchDataViewService
+                .loadEntry(album.getAlbumId(), gitFileEntry.getFileId())
+                .map(e -> Objects.equals(e.getXmpFileId(), xmpFileId.orElse(null))),
+            Flux.fromStream(
+                    thumbnailFilenameService
+                        .listThumbnailsOf(album.getAlbumId(), gitFileEntry.getFileId())
+                        .map(ThumbnailFilenameService.FileAndScale::getFile))
+                .flatMap(this::fileExists))
+        .collect(() -> new AtomicBoolean(true), (r, v) -> r.compareAndSet(true, v))
         .map(AtomicBoolean::get);
   }
 

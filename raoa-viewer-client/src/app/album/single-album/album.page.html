@@ -1,16 +1,24 @@
 <ion-menu side="start" menu-id="days" content-id="content-list">
     <ion-header>
         <ion-toolbar>
-            <ion-title>Tage</ion-title>
+            <ion-title>Navigation</ion-title>
         </ion-toolbar>
     </ion-header>
     <ion-content>
         <ion-list>
-            <div *ngFor="let row of rows; index as rowNr" class="row">
-                <ion-item *ngIf="row.kind=='timestamp'" (click)="scrollTo('day-'+row.id)">
-                    {{row.time | date:'fullDate' }}
-                </ion-item>
-            </div>
+            <ion-item-group>
+                <ion-item-divider>Datum</ion-item-divider>
+                <div *ngFor="let row of rows; index as rowNr" class="row">
+                    <ion-item *ngIf="row.kind=='timestamp'" (click)="scrollTo('day-'+row.id)">
+                        {{row.time | date:'fullDate' }}
+                    </ion-item>
+                </div>
+            </ion-item-group>
+            <ion-item-group *ngIf="keywords.length>0">
+                <ion-item-divider>Tags</ion-item-divider>
+                <ion-item *ngFor="let k of keywords" [color]="this.filteringKeyword === k?'primary':undefined"
+                          (click)="filter(k)">{{k}}</ion-item>
+            </ion-item-group>
         </ion-list>
     </ion-content>
 </ion-menu>
@@ -20,8 +28,9 @@
         <ion-title>
             <span>{{title}}</span>
         </ion-title>
-        <ion-button (click)="openDayList($event)" slot="end" color="light" *ngIf="daycount>1">
-            <ion-icon name="calendar-number"></ion-icon>
+        <ion-button (click)="openDayList($event)" slot="end" color="light"
+                    *ngIf="daycount>1 || this.keywords.length>0 || this.filteringKeyword !== undefined">
+            <ion-icon name="filter"></ion-icon>
         </ion-button>
         <ion-button *ngIf="fnCompetitionId" slot="end"
                     [href]="'https://info.fnch.ch/#/resultate/veranstaltungen/'+fnCompetitionId">
@@ -47,7 +56,7 @@
                         <div *appInViewport="8" class="image-row">
                             <div *ngFor="let shape of blockPart.shapes"
                                  [ngStyle]="{'height.px':(elementWidth/blockPart.width),'width.px':elementWidth/blockPart.width*shape.width}">
-                                <a [routerLink]="'/album/'+albumId+'/media/'+shape.entry.id">
+                                <a [routerLink]="createEntryLink(shape)" [queryParams]="queryParams()">
                                     <img [src]="loadImage(blockPart, shape) | authImage | async">
                                 </a>
                             </div>

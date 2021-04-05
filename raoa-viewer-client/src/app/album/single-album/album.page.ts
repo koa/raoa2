@@ -39,7 +39,9 @@ export class AlbumPage implements OnInit {
     public title: string;
     public rows: Array<TableRow> = [];
     public days: string[] = [];
+    public keywords: string[] = [];
     public maxWidth = 8;
+    public filteringKeyword: string;
 
     @ViewChild('imageList') private element: ElementRef<HTMLDivElement>;
     @ViewChild('content') private contentElement: IonContent;
@@ -66,11 +68,19 @@ export class AlbumPage implements OnInit {
 
     async onScroll(e: CustomEvent) {
         const detail = e.detail;
-        const url = new URL(window.location.href);
-        url.searchParams.set('pos', detail.scrollTop);
-        this.location.replaceState(url.pathname, url.searchParams.toString());
+        this.setParam('pos', detail.scrollTop);
     }
 
+
+    private setParam(param: string, value: string | undefined) {
+        const url = new URL(window.location.href);
+        if (value === undefined) {
+            url.searchParams.delete(param);
+        } else {
+            url.searchParams.set(param, value);
+        }
+        this.location.replaceState(url.pathname, url.searchParams.toString());
+    }
 
     async enterWait(): Promise<void> {
         const newCount = ++this.waitCount;
@@ -97,23 +107,36 @@ export class AlbumPage implements OnInit {
 
     async ngOnInit() {
         this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
-        const pos = this.activatedRoute.snapshot.queryParamMap.get('pos');
-        await this.enterWait();
-        const result = await this.albumListService.listAlbum(this.albumId);
-        await this.leaveWait();
-        this.ngZone.run(() => {
-            this.title = result.title;
-            this.sortedEntries = result.sortedEntries;
-            this.enableSettings = result.canManageUsers;
-            this.fnCompetitionId = result.labels.get(FNCH_COMPETITION_ID);
-            this.calculateRows();
-        });
+        const queryParamMap = this.activatedRoute.snapshot.queryParamMap;
+        this.filteringKeyword = queryParamMap.get('keyword') || undefined;
+        const pos = queryParamMap.get('pos');
+        await this.refresh();
         if (pos) {
             const scrollPos: number = Number.parseInt(pos, 10);
             window.setTimeout(() => {
                 this.contentElement.scrollToPoint(0, scrollPos);
             }, 500);
         }
+    }
+
+    private async refresh() {
+        await this.enterWait();
+        const result = await this.albumListService.listAlbum(this.albumId);
+        await this.leaveWait();
+        this.ngZone.run(() => {
+            this.title = result.title;
+            if (this.filteringKeyword === undefined) {
+                this.sortedEntries = result.sortedEntries;
+            } else {
+                this.sortedEntries = result.sortedEntries.filter(e => e.keywords.findIndex(k => k === this.filteringKeyword) >= 0);
+            }
+            this.enableSettings = result.canManageUsers;
+            this.fnCompetitionId = result.labels.get(FNCH_COMPETITION_ID);
+            this.keywords = [];
+            result.keywords.forEach((value, key) => this.keywords.push(key));
+            this.keywords.sort((k1, k2) => k1.localeCompare(k2));
+            this.calculateRows();
+        });
     }
 
     private async calculateRows() {
@@ -204,6 +227,29 @@ export class AlbumPage implements OnInit {
         const y = document.getElementById(id).offsetTop;
         await this.contentElement.scrollToPoint(0, y);
         await this.menuController.close();
+    }
+
+    async filter(keyword: string) {
+        if (this.filteringKeyword !== undefined && this.filteringKeyword === keyword) {
+            this.filteringKeyword = undefined;
+        } else {
+            this.filteringKeyword = keyword;
+        }
+        this.setParam('keyword', this.filteringKeyword);
+        await this.refresh();
+        await this.menuController.close();
+    }
+
+    public createEntryLink(shape: Shape): (string | object)[] {
+        const path: (string | object)[] = ['/album', this.albumId, 'media', shape.entry.id];
+        return path;
+    }
+
+    queryParams() {
+        if (this.filteringKeyword !== undefined) {
+            return {keyword: this.filteringKeyword};
+        }
+        return {};
     }
 }
 

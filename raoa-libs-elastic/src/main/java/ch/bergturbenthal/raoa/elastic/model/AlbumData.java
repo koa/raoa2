@@ -17,7 +17,7 @@ import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
-@Document(indexName = "album-data")
+@Document(indexName = "album-data-1")
 @Value
 @Builder
 @JsonDeserialize(builder = AlbumData.AlbumDataBuilder.class)

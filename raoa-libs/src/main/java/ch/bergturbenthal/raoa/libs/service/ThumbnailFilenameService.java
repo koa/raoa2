@@ -13,7 +13,7 @@ public interface ThumbnailFilenameService {
 
   @Value
   class FileAndScale {
-    private File file;
-    private int size;
+    File file;
+    int size;
   }
 }

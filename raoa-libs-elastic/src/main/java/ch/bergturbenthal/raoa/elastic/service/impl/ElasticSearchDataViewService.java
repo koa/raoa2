@@ -66,7 +66,7 @@ public class ElasticSearchDataViewService implements DataViewService {
           });
   public static final Duration CACHE_TIME = Duration.ofSeconds(10);
   private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
-  private static TreeFilter XMP_FILE_FILTER = PathSuffixFilter.create(".xmp");
+  public static TreeFilter XMP_FILE_FILTER = PathSuffixFilter.create(".xmp");
   private final UUID virtualSuperuserId = UUID.randomUUID();
   private final AlbumDataRepository albumDataRepository;
   private final AlbumDataEntryRepository albumDataEntryRepository;
@@ -612,9 +612,10 @@ public class ElasticSearchDataViewService implements DataViewService {
   @Override
   public Mono<AlbumEntryData> updateKeyword(
       final UUID albumId, final ObjectId entryId, final XMPMeta xmpMeta) {
+    // patch keywords temporary until coordinator has updated all data
     Collection<String> newKeywords = new XmpWrapper(xmpMeta).readKeywords();
     return loadEntry(albumId, entryId)
-        .map(data -> data.toBuilder().keywords(new HashSet<>(newKeywords)).build())
+        .map(data -> data.toBuilder().keywords(new HashSet<>(newKeywords)).xmpFileId(null).build())
         .flatMap(albumDataEntryRepository::save);
   }
 }

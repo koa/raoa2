@@ -613,9 +613,8 @@ public class Mutation implements GraphQLMutationResolver {
                                 .flatMap(
                                     xmpMeta ->
                                         dataViewService
-                                            .updateAlbums(
-                                                Flux.just(new AlbumList.FoundAlbum(albumId, ga)))
-                                            .map(ok -> xmpMeta)))
+                                            .updateKeyword(albumId, entryId, xmpMeta)
+                                            .map(result -> xmpMeta)))
                     .flatMap(xmpMeta -> dataViewService.updateKeyword(albumId, entryId, xmpMeta))
                     .map(
                         e ->

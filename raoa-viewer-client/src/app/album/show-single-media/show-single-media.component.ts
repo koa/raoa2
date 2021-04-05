@@ -5,7 +5,7 @@ import {AlbumListService, QueryAlbumEntry} from '../service/album-list.service';
 import {Location} from '@angular/common';
 import {IonInput, IonSlides, LoadingController, MenuController} from '@ionic/angular';
 import {HttpClient} from '@angular/common/http';
-import {AlbumEntry, AlbumEntryDetailGQL, ShowSingleMediaEditKeywordsGQL, ShowSingleMediaListKeywordsGQL} from '../../generated/graphql';
+import {AlbumEntry, AlbumEntryDetailGQL, ShowSingleMediaEditKeywordsGQL} from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
 
 type AlbumEntryMetadata =
@@ -33,6 +33,7 @@ export class ShowSingleMediaComponent implements OnInit {
     public albumKeywords: string[] = [];
     public currentSelectedKeywords = new Set<string>();
     public canEdit = false;
+    private filteringKeyword: string;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
@@ -43,7 +44,6 @@ export class ShowSingleMediaComponent implements OnInit {
                 private serverApi: ServerApiService,
                 private albumEntryDetailGQL: AlbumEntryDetailGQL,
                 private showSingleMediaEditKeywordsGQL: ShowSingleMediaEditKeywordsGQL,
-                private showSingleMediaListKeywordsGQL: ShowSingleMediaListKeywordsGQL,
                 private menu: MenuController,
                 private loadingController: LoadingController
     ) {
@@ -55,14 +55,13 @@ export class ShowSingleMediaComponent implements OnInit {
 
 
     public async ngOnInit(): Promise<void> {
-
-        this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
-        this.mediaId = this.activatedRoute.snapshot.paramMap.get('mediaId');
+        const snapshot = this.activatedRoute.snapshot;
+        const paramMap = snapshot.paramMap;
+        const queryParam = snapshot.queryParamMap;
+        this.albumId = paramMap.get('id');
+        this.mediaId = paramMap.get('mediaId');
+        this.filteringKeyword = queryParam.get('keyword') || undefined;
         await this.showImage(this.mediaId);
-        const albumMeta = await this.serverApi.query(this.showSingleMediaListKeywordsGQL, {id: this.albumId});
-        console.log('album meta');
-        console.log(albumMeta);
-        albumMeta.albumById.keywordCounts.forEach(entry => this.albumKeywords.push(entry.keyword));
     }
 
     loadImage(mediaId: string): string {
@@ -90,7 +89,10 @@ export class ShowSingleMediaComponent implements OnInit {
             let lastAlbumEntry: QueryAlbumEntry;
             let previousMediaId: string;
             let nextMediaId: string;
-            for (const entry of albumData.sortedEntries) {
+            const sortedEntries = this.filteringKeyword === undefined ?
+                albumData.sortedEntries :
+                albumData.sortedEntries.filter(entry => entry.keywords.findIndex(k => k === this.filteringKeyword) >= 0);
+            for (const entry of sortedEntries) {
                 if (lastAlbumEntry !== undefined) {
                     if (entry.id === mediaId) {
                         previousMediaId = lastAlbumEntry.id;
@@ -100,7 +102,6 @@ export class ShowSingleMediaComponent implements OnInit {
                 }
                 lastAlbumEntry = entry;
             }
-
             const metadata = await this.serverApi.query(this.albumEntryDetailGQL, {albumId: this.albumId, entryId: mediaId});
 
             this.mediaId = mediaId;
@@ -181,7 +182,11 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     private mediaPath(mediaId: string) {
-        return '/album/' + this.albumId + '/media/' + mediaId;
+        if (this.filteringKeyword === undefined) {
+            return '/album/' + this.albumId + '/media/' + mediaId;
+        } else {
+            return '/album/' + this.albumId + '/media/' + mediaId + '?keyword=' + this.filteringKeyword;
+        }
     }
 
     slided() {

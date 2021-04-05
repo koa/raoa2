@@ -50,11 +50,9 @@ public class ServiceDiscoveryNameResolver extends NameResolver {
 
   @Override
   public synchronized void refresh() {
-    log.info("refresh: " + (listener != null));
     if (this.listener == null) return;
     try {
       final List<ServiceInstance> discoveryClientInstances = discoveryClient.getInstances(name);
-      log.info("Found endpoints: " + discoveryClientInstances);
       final List<EquivalentAddressGroup> resolvedEndpoints =
           discoveryClientInstances.stream()
               .map(
@@ -62,7 +60,6 @@ public class ServiceDiscoveryNameResolver extends NameResolver {
                       new EquivalentAddressGroup(
                           new InetSocketAddress(instance.getHost(), instance.getPort())))
               .collect(Collectors.toList());
-      log.info("Result: " + resolvedEndpoints);
       this.listener.onResult(ResolutionResult.newBuilder().setAddresses(resolvedEndpoints).build());
     } catch (Throwable ex) {
       log.warn("Cannot resolve " + name, ex);
