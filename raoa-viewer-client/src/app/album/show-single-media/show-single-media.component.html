@@ -92,6 +92,10 @@
                     <ion-label *ngIf="metadata?.name">
                         <ion-icon name="document"></ion-icon>
                         {{metadata.name}}</ion-label>
+                    <ion-label *ngIf="metadata?.created">
+                        <ion-icon name="time"></ion-icon>
+                        {{metadata.created | date:'medium' }}
+                    </ion-label>
                     <ion-label *ngIf="metadata?.cameraModel">
                         <ion-icon name="camera"></ion-icon>
                         {{metadata.cameraModel}}
@@ -161,6 +165,10 @@
                 <ion-label *ngIf="nextMetadata?.name">
                     <ion-icon name="document"></ion-icon>
                     {{nextMetadata.name}}</ion-label>
+                <ion-label *ngIf="metadata?.created">
+                    <ion-icon name="time"></ion-icon>
+                    {{metadata.created | date:'medium' }}
+                </ion-label>
                 <ion-label *ngIf="nextMetadata?.cameraModel">
                     <ion-icon name="camera"></ion-icon>
                     {{nextMetadata.cameraModel}}
