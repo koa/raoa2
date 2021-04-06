@@ -51,6 +51,7 @@ export class AlbumPage implements OnInit {
     private waitCount = 0;
     public enableSettings = false;
     public daycount = 0;
+    public timestamp = '';
 
     public async resized() {
         if (this.elementWidth === this.element.nativeElement.clientWidth) {
@@ -68,6 +69,20 @@ export class AlbumPage implements OnInit {
 
     async onScroll(e: CustomEvent) {
         const detail = e.detail;
+        const rows: HTMLCollectionOf<Element> = document.getElementsByClassName('image-row');
+        let bestResult = Number.MAX_SAFE_INTEGER;
+        let bestElement;
+        for (let i = 0; i < rows.length; i++) {
+            const element: Element = rows.item(i);
+            const bottom = element.getBoundingClientRect().bottom;
+            if (bottom > 0 && bottom < bestResult) {
+                bestResult = bottom;
+                bestElement = element;
+            }
+        }
+        if (bestElement) {
+            this.timestamp = bestElement.getAttribute('timestamp');
+        }
         this.setParam('pos', detail.scrollTop);
     }
 
@@ -153,9 +168,11 @@ export class AlbumPage implements OnInit {
         let currentBlockMediaCount = 0;
         const flushRow = () => {
             if (currentRow.length > 0) {
+                const title = currentRow[0].entry.created;
                 currentBlock.push({
                     shapes: currentRow,
-                    width: currentRowWidth
+                    width: currentRowWidth,
+                    title
                 });
                 currentBlockLength += 1 / currentRowWidth;
                 currentBlockMediaCount += currentRow.length;
@@ -262,6 +279,7 @@ interface Shape {
 interface ImageBlock {
     shapes: Shape[];
     width: number;
+    title: string;
 }
 
 interface ImagesRow {
