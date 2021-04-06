@@ -115,7 +115,7 @@ public class TestImageProcessor {
                                                   + data.getContentType()
                                                   + ": "
                                                   + bigFile.length());
-                                          return bigFile.exists() && bigFile.length() > 250 * 1024;
+                                          return bigFile.exists() && bigFile.length() > 100 * 1024;
                                         })))
             .all(v -> v)
             .block();
