@@ -13,18 +13,19 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.*;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.servlet.http.HttpServletResponse;
 import lombok.Cleanup;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
@@ -32,7 +33,6 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.ModelAndView;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
@@ -44,6 +44,8 @@ public class AlbumListController {
   public static final TreeFilter IMAGE_FILE_FILTER = ElasticSearchDataViewService.IMAGE_FILE_FILTER;
   public static final ResponseEntity<Resource> NOT_FOUND_RESPONSE =
       new ResponseEntity<>(HttpStatus.NOT_FOUND);
+  public static final MediaType NEF = MediaType.parseMediaType("image/x-nikon-nef");
+  private static final MediaType TIFF = MediaType.parseMediaType("image/tiff");
   private final AlbumList albumList;
   private final ViewerProperties viewerProperties;
   private final ThumbnailFilenameService thumbnailFilenameService;
@@ -64,32 +66,6 @@ public class AlbumListController {
     this.meterRegistry = meterRegistry;
 
     meterRegistry.gauge("limiter2.failed", failCount, AtomicInteger::get);
-  }
-
-  @GetMapping("album")
-  public Mono<ModelAndView> listAlbums() {
-    final SecurityContext securityContext = SecurityContextHolder.getContext();
-
-    return this.albumList
-        .listAlbums()
-        .filterWhen(
-            album -> authorizationManager.canUserAccessToAlbum(securityContext, album.getAlbumId()))
-        .flatMap(f -> f.getAccess().getName().map(n -> new AlbumListEntry(f.getAlbumId(), n)))
-        .collectSortedList(Comparator.comparing(AlbumListEntry::getName))
-        .map(l -> new ModelAndView("list-albums", Collections.singletonMap("albums", l)));
-  }
-
-  @GetMapping("album/{albumId}")
-  public Mono<ModelAndView> listAlbumContent(@PathVariable("albumId") UUID albumId) {
-    final SecurityContext securityContext = SecurityContextHolder.getContext();
-    return authorizationManager
-        .canUserAccessToAlbum(securityContext, albumId)
-        .filter(t -> t)
-        .flatMap(t -> albumList.getAlbum(albumId))
-        .flatMapMany(a -> a.listFiles(IMAGE_FILE_FILTER))
-        .collectList()
-        .map(files -> Map.of("entries", files, "albumId", albumId))
-        .map(variables -> new ModelAndView("list-album", variables));
   }
 
   @GetMapping("album/{albumId}/{imageId}/thumbnail")
@@ -166,11 +142,15 @@ public class AlbumListController {
                                   .flatMap(gitAccess -> gitAccess.entryMetdata(entryId))
                                   .map(
                                       m ->
-                                          m.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE)),
-                              access.flatMap(gitAccess -> gitAccess.readObject(entryId))))
+                                          MediaType.parseMediaType(
+                                              m.get(
+                                                  org.apache.tika.metadata.HttpHeaders
+                                                      .CONTENT_TYPE))),
+                              access.flatMap(gitAccess -> gitAccess.readObject(entryId)),
+                              access.flatMap(a -> a.filenameOfObject(entryId))))
                   .<HttpEntity<Resource>>map(
                       t -> {
-                        final MediaType mediaType = MediaType.parseMediaType(t.getT1());
+                        MediaType mediaType = fixContentType(t.getT1(), t.getT3());
                         final GitBlobRessource resource =
                             new GitBlobRessource(t.getT2(), mediaType, entryId);
                         final HttpHeaders headers = new HttpHeaders();
@@ -196,6 +176,14 @@ public class AlbumListController {
                         }
                       });
             });
+  }
+
+  @NotNull
+  private static MediaType fixContentType(final MediaType mediaType, final String filename) {
+    if (mediaType.equals(TIFF) && filename.toLowerCase().endsWith(".nef")) {
+      return NEF;
+    }
+    return mediaType;
   }
 
   @GetMapping("album-zip/{albumId}")
@@ -238,18 +226,5 @@ public class AlbumListController {
       @Cleanup final FileInputStream fileInputStream = new FileInputStream(fileData.getT2());
       IOUtils.copy(fileInputStream, zipOutputStream);
     }
-  }
-
-  @Value
-  private static class CacheKey {
-    private UUID album;
-    private ObjectId file;
-    private int maxLength;
-  }
-
-  @Value
-  private static class AlbumListEntry {
-    private UUID id;
-    private String name;
   }
 }
