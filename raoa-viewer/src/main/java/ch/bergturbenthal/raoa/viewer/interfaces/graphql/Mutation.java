@@ -580,13 +580,7 @@ public class Mutation implements GraphQLMutationResolver {
                     .flatMap(
                         ga ->
                             ga.filenameOfObject(entryId)
-                                .map(
-                                    name -> {
-                                      final int lastPt = name.lastIndexOf('.');
-                                      if (lastPt < 0) return name;
-                                      return name.substring(0, lastPt);
-                                    })
-                                .map(f -> f + ".xmp")
+                                .map(filename -> filename + ".xmp")
                                 .flatMap(
                                     filename ->
                                         ga.readObject(filename)

@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class DefaultThumbnailFilenameService
     implements ThumbnailFilenameService, UploadFilenameService {
-  public static int[] SCALES = {25, 50, 100, 200, 400, 800, 1600};
+  public static int[] SCALES = {25, 50, 100, 200, 400, 800, 1600, 3200};
   private final Properties properties;
 
   public DefaultThumbnailFilenameService(final Properties properties) {
@@ -27,7 +27,7 @@ public class DefaultThumbnailFilenameService
     for (int candidateSize : SCALES) {
       if (candidateSize >= size) return createThumbnailFile(album, entry, candidateSize);
     }
-    return createThumbnailFile(album, entry, 1600);
+    return createThumbnailFile(album, entry, 3200);
   }
 
   @Override

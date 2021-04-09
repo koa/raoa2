@@ -553,10 +553,7 @@ public class BareGitAccess implements GitAccess {
         final Mono<String> nameMono = getName();
         return Mono.zip(
                 findMasterRef().map(Optional::of).defaultIfEmpty(Optional.empty()), nameMono)
-            .flatMap(
-                t -> executeCommit(message, t.getT1())
-                // .log("Commit " + t.getT2())
-                )
+            .flatMap(t -> executeCommit(message, t.getT1()).log("Commit " + t.getT2()))
             .defaultIfEmpty(Boolean.FALSE)
             .doFinally(
                 signal -> {
@@ -776,6 +773,7 @@ public class BareGitAccess implements GitAccess {
                             throw ex;
                           }
                         })
+                    .flatMap(Function.identity())
                     .flatMap(fileId -> updater.commit())
                     .filter(ok -> ok));
   }

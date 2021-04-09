@@ -121,8 +121,11 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   @Override
   public Mono<Boolean> canUserModifyAlbum(final SecurityContext context, final UUID album) {
     final Mono<User> currentUser = currentUser(context).cache();
-    return Mono.zip(canUserAccessToAlbum(album, currentUser), currentUser.map(User::isEditor))
-        .map(t -> t.getT1() && t.getT2());
+    return Mono.zip(
+            canUserAccessToAlbum(album, currentUser),
+            currentUser.map(User::isEditor),
+            currentUser.map(User::isSuperuser))
+        .map(t -> (t.getT1() && t.getT2()) || t.getT3());
   }
 
   @Override
