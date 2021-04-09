@@ -18,7 +18,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import java.io.File;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
@@ -432,8 +431,7 @@ public class Poller {
                         .listThumbnailsOf(album.getAlbumId(), gitFileEntry.getFileId())
                         .map(ThumbnailFilenameService.FileAndScale::getFile))
                 .flatMap(this::fileExists))
-        .collect(() -> new AtomicBoolean(true), (r, v) -> r.compareAndSet(true, v))
-        .map(AtomicBoolean::get);
+        .all(v -> v);
   }
 
   @NotNull

@@ -66,6 +66,9 @@ public class GrpcController extends ProcessImageServiceGrpc.ProcessImageServiceI
               Optional.ofNullable(data.getCaptureCoordinates())
                   .map(this::convertCoordinates)
                   .ifPresent(builder::setCaptureCoordinates);
+              Optional.ofNullable(data.getXmpFileId())
+                  .map(this::objectId2Grpc)
+                  .ifPresent(builder::setXmpMetadataId);
               return builder.build();
             })
         // .log(filename)

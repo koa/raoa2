@@ -70,6 +70,9 @@ public class GrpcRemoteImageProcessor implements RemoteImageProcessor {
                       .description(response.getDescription())
                       .entryId(convertObjectId(response.getObjectId()))
                       .filename(response.getFilename());
+              if (response.hasXmpMetadataId()) {
+                builder.xmpFileId(convertObjectId(response.getXmpMetadataId()));
+              }
 
               Optional.of(response.getExposureTime())
                   .filter(DOUBLE_GT_ZERO)

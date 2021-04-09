@@ -39,6 +39,7 @@ message AlbumEntryMetadata {
     string description = 17;
     int32 rating = 18;
     GeoCoordinates captureCoordinates = 19;
+    GitObjectId xmpMetadataId = 20;
 }
 
 message GeoCoordinates {
