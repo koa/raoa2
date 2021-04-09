@@ -16,6 +16,8 @@ import localeFr from '@angular/common/locales/fr';
 import localeEn from '@angular/common/locales/en';
 import {WelcomeComponent} from './redirect-start/welcome.component';
 import {SuperTabsModule} from '@ionic-super-tabs/angular';
+import { ServiceWorkerModule } from '@angular/service-worker';
+import { environment } from '../environments/environment';
 
 registerLocaleData(localeDe, 'de');
 registerLocaleData(localeFr, 'fr');
@@ -30,7 +32,13 @@ registerLocaleData(localeEn, 'en');
         IonicModule.forRoot(),
         AppRoutingModule,
         HttpClientModule,
-        SuperTabsModule.forRoot()
+        SuperTabsModule.forRoot(),
+        ServiceWorkerModule.register('ngsw-worker.js', {
+          enabled: environment.production,
+          // Register the ServiceWorker as soon as the app is stable
+          // or after 30 seconds (whichever comes first).
+          registrationStrategy: 'registerWhenStable:30000'
+        })
     ],
     providers: [
         {provide: LOCALE_ID, useValue: 'de-CH'},
