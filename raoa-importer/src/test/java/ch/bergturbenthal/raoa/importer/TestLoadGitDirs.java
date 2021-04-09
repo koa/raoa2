@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.importer;
 import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.FileImporter;
+import ch.bergturbenthal.raoa.libs.service.Updater;
 import ch.bergturbenthal.raoa.libs.service.impl.BareAlbumList;
 import ch.bergturbenthal.raoa.libs.service.impl.ConcurrencyLimiter;
 import ch.bergturbenthal.raoa.libs.service.impl.ExecutorAsyncService;
@@ -28,7 +29,7 @@ public class TestLoadGitDirs {
     final BareAlbumList albumList = new BareAlbumList(properties, meterRegistry, asyncService);
 
     final Path dir = Path.of("/media/akoenig/NIKON D500/DCIM/198ND500");
-    final FileImporter importer = albumList.createImporter();
+    final FileImporter importer = albumList.createImporter(Updater.CommitContext.builder().build());
     Collection<Path> importedFiles = new ArrayList<>();
     Files.list(dir)
         .forEach(

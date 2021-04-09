@@ -119,7 +119,9 @@ public class BareGitAccess implements GitAccess {
                     final AlbumMeta.AlbumMetaBuilder albumMetaBuilder = data.toBuilder();
                     final AlbumMeta updatedMeta =
                         albumMetaBuilder.albumId(UUID.randomUUID()).build();
-                    return writeNewMetadata(updatedMeta)
+                    return writeNewMetadata(
+                            updatedMeta,
+                            Updater.CommitContext.builder().message("set album id").build())
                         .doOnNext(Updater::close)
                         .map(updater -> updatedMeta);
                   } else {
@@ -138,7 +140,11 @@ public class BareGitAccess implements GitAccess {
                                   final UUID uuid = UUID.randomUUID();
                                   final AlbumMeta newMetadata =
                                       AlbumMeta.builder().albumId(uuid).albumTitle(name).build();
-                                  return writeNewMetadata(newMetadata)
+                                  return writeNewMetadata(
+                                          newMetadata,
+                                          Updater.CommitContext.builder()
+                                              .message("create metadata")
+                                              .build())
                                       .doOnNext(Updater::close)
                                       .map(updater -> newMetadata);
                                 })))
@@ -156,7 +162,8 @@ public class BareGitAccess implements GitAccess {
   }
 
   @NotNull
-  private Mono<Updater> writeNewMetadata(final AlbumMeta newMetadata) {
+  private Mono<Updater> writeNewMetadata(
+      final AlbumMeta newMetadata, Updater.CommitContext context) {
     return asyncService
         .asyncMono(
             () -> {
@@ -169,7 +176,7 @@ public class BareGitAccess implements GitAccess {
                 createUpdater()
                     .flatMap(
                         u -> u.importFile(tempFile.toPath(), METADATA_FILENAME, true).map(l -> u))
-                    .flatMap(u -> u.commit("Metadata updated").map(l -> u))
+                    .flatMap(u -> u.commit(context).map(l -> u))
                     .doFinally(signal -> tempFile.delete()));
   }
 
@@ -381,7 +388,8 @@ public class BareGitAccess implements GitAccess {
   }
 
   @Override
-  public Mono<Boolean> updateAutoadd(final Collection<Instant> autoaddTimes) {
+  public Mono<Boolean> updateAutoadd(
+      final Collection<Instant> autoaddTimes, Updater.CommitContext context) {
     final TreeSet<Instant> times = new TreeSet<>(autoaddTimes);
 
     final String newContent =
@@ -398,7 +406,7 @@ public class BareGitAccess implements GitAccess {
                 updater ->
                     updater
                         .importFile(tempFile.toPath(), ".autoadd", true)
-                        .flatMap(id -> updater.commit()))
+                        .flatMap(id -> updater.commit(context)))
             .doFinally(signal -> tempFile.delete());
       } catch (IOException ex) {
         tempFile.delete();
@@ -544,16 +552,11 @@ public class BareGitAccess implements GitAccess {
       }
 
       @Override
-      public Mono<Boolean> commit() {
-        return commit(null);
-      }
-
-      @Override
-      public Mono<Boolean> commit(String message) {
+      public Mono<Boolean> commit(CommitContext context) {
         final Mono<String> nameMono = getName();
         return Mono.zip(
                 findMasterRef().map(Optional::of).defaultIfEmpty(Optional.empty()), nameMono)
-            .flatMap(t -> executeCommit(message, t.getT1()).log("Commit " + t.getT2()))
+            .flatMap(t -> executeCommit(context, t.getT1()).log("Commit " + t.getT2()))
             .defaultIfEmpty(Boolean.FALSE)
             .doFinally(
                 signal -> {
@@ -562,7 +565,7 @@ public class BareGitAccess implements GitAccess {
       }
 
       private Mono<Boolean> executeCommit(
-          final String message, final Optional<Ref> currentMasterRef) {
+          final CommitContext context, final Optional<Ref> currentMasterRef) {
         if (!modified) {
           return Mono.just(true);
         }
@@ -596,8 +599,13 @@ public class BareGitAccess implements GitAccess {
 
                 final ObjectId treeId = dirCache.writeTree(objectInserter);
                 final CommitBuilder commit = new CommitBuilder();
-                final PersonIdent author = new PersonIdent("raoa-importer", "photos@teamkoenig.ch");
-                if (message != null) commit.setMessage(message);
+                final String username = context.getUsername();
+                final String email = context.getEmail();
+                final PersonIdent author =
+                    new PersonIdent(
+                        username == null ? "raoa-importer" : username,
+                        email == null ? "photos@teamkoenig.ch" : email);
+                if (context.getMessage() != null) commit.setMessage(context.getMessage());
                 commit.setAuthor(author);
                 commit.setCommitter(author);
                 currentMasterRef.map(Ref::getObjectId).ifPresent(commit::setParentIds);
@@ -699,10 +707,11 @@ public class BareGitAccess implements GitAccess {
   }
 
   @Override
-  public Mono<Boolean> updateMetadata(final Function<AlbumMeta, AlbumMeta> mutation) {
+  public Mono<Boolean> updateMetadata(
+      final Function<AlbumMeta, AlbumMeta> mutation, final Updater.CommitContext context) {
     return albumMetaSupplier
         .map(mutation)
-        .flatMap(this::writeNewMetadata)
+        .flatMap((AlbumMeta newMetadata) -> writeNewMetadata(newMetadata, context))
         .map(u -> true)
         .defaultIfEmpty(false);
   }
@@ -753,7 +762,8 @@ public class BareGitAccess implements GitAccess {
   }
 
   @Override
-  public Mono<Boolean> writeXmpMeta(final String filename, final XMPMeta xmpMeta) {
+  public Mono<Boolean> writeXmpMeta(
+      final String filename, final XMPMeta xmpMeta, final Updater.CommitContext context) {
     return createUpdater()
         .flatMap(
             updater ->
@@ -774,7 +784,7 @@ public class BareGitAccess implements GitAccess {
                           }
                         })
                     .flatMap(Function.identity())
-                    .flatMap(fileId -> updater.commit())
+                    .flatMap(fileId -> updater.commit(context))
                     .filter(ok -> ok));
   }
 }

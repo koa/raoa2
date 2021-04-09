@@ -8,6 +8,7 @@ import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
+import ch.bergturbenthal.raoa.libs.service.Updater;
 import ch.bergturbenthal.raoa.libs.service.impl.Limiter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
@@ -70,7 +71,8 @@ public class GitUserManager implements UserManager {
   }
 
   @Override
-  public Mono<User> createNewUser(final RequestAccess foundRequest) {
+  public Mono<User> createNewUser(
+      final RequestAccess foundRequest, final Updater.CommitContext context) {
     return asyncService
         .asyncMono(
             () -> {
@@ -88,7 +90,7 @@ public class GitUserManager implements UserManager {
               final String userFileName = createUserFile(newUser.getId());
               final File tempFile = File.createTempFile(newUser.getId().toString(), "json");
               userWriter.writeValue(tempFile, newUser);
-              return overrideFile(userFileName, tempFile, "created user", false)
+              return overrideFile(userFileName, tempFile, context, false)
                   .filter(t -> t)
                   .map(t -> newUser);
             })
@@ -96,7 +98,7 @@ public class GitUserManager implements UserManager {
   }
 
   @Override
-  public Mono<Group> createNewGroup(final String groupName) {
+  public Mono<Group> createNewGroup(final String groupName, final Updater.CommitContext context) {
     return asyncService
         .asyncMono(
             () -> {
@@ -109,7 +111,7 @@ public class GitUserManager implements UserManager {
               final String groupFile = createGroupFile(group.getId());
               File tempFile = File.createTempFile(group.getId().toString(), "json");
               groupWriter.writeValue(tempFile, group);
-              return overrideFile(groupFile, tempFile, "created group", false)
+              return overrideFile(groupFile, tempFile, context, false)
                   .filter(t -> t)
                   .map(t -> group);
             })
@@ -125,7 +127,7 @@ public class GitUserManager implements UserManager {
   public Mono<Boolean> overrideFile(
       final String newFilename,
       final File srcData,
-      final String commitComment,
+      final Updater.CommitContext context,
       final boolean replaceIfExists) {
     return metaIdMono
         .flatMap(
@@ -136,7 +138,7 @@ public class GitUserManager implements UserManager {
                     .flatMap(
                         u ->
                             u.importFile(srcData.toPath(), newFilename, replaceIfExists)
-                                .flatMap(t -> u.commit(commitComment))
+                                .flatMap(t -> u.commit(context))
                                 .filter(t -> t)
                                 .doFinally(signal -> u.close())))
         .retryWhen(Retry.backoff(5, Duration.ofMillis(500)))
@@ -144,19 +146,21 @@ public class GitUserManager implements UserManager {
   }
 
   @Override
-  public Mono<Boolean> removeUser(final UUID id) {
+  public Mono<Boolean> removeUser(final UUID id, final Updater.CommitContext context) {
     final String userFileName = createUserFile(id);
     return metaIdMono
         .flatMap(albumList::getAlbum)
         .flatMap(GitAccess::createUpdater)
-        .flatMap(
-            u -> u.removeFile(userFileName).filter(t -> t).flatMap(t -> u.commit("removed user")))
+        .flatMap(u -> u.removeFile(userFileName).filter(t -> t).flatMap(t -> u.commit(context)))
         .defaultIfEmpty(false);
   }
 
   @Override
-  public void assignNewIdentity(final UUID existingId, final AuthenticationId baseRequest) {
-    updateUser(
+  public void assignNewIdentity(
+      final UUID existingId,
+      final AuthenticationId baseRequest,
+      final Updater.CommitContext context) {
+    context(
         existingId,
         user ->
             user.toBuilder()
@@ -164,7 +168,7 @@ public class GitUserManager implements UserManager {
                     Stream.concat(user.getAuthentications().stream(), Stream.of(baseRequest))
                         .collect(Collectors.toSet()))
                 .build(),
-        "added authentication");
+        context);
   }
 
   @NotNull
@@ -272,8 +276,10 @@ public class GitUserManager implements UserManager {
   }
 
   @Override
-  public Mono<User> updateUser(
-      final UUID userId, final Function<User, User> updater, final String updateDescription) {
+  public Mono<User> context(
+      final UUID userId,
+      final Function<User, User> updater,
+      final Updater.CommitContext updateDescription) {
     final String userFile = createUserFile(userId);
     final PathFilter filter = PathFilter.create(userFile);
 
@@ -298,7 +304,9 @@ public class GitUserManager implements UserManager {
 
   @Override
   public Mono<Group> updateGroup(
-      final UUID groupId, final Function<Group, Group> updater, final String updateDescription) {
+      final UUID groupId,
+      final Function<Group, Group> updater,
+      final Updater.CommitContext context) {
     final String groupFile = createGroupFile(groupId);
     final PathFilter filter = PathFilter.create(groupFile);
     return loadGroup(filter)
@@ -315,7 +323,7 @@ public class GitUserManager implements UserManager {
                         })
                     .flatMap(
                         tempFile ->
-                            overrideFile(groupFile, tempFile, updateDescription, true)
+                            overrideFile(groupFile, tempFile, context, true)
                                 .filter(t -> t)
                                 .map(t -> updatedGroup)));
   }

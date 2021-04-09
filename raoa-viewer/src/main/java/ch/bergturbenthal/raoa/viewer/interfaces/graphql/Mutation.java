@@ -6,6 +6,7 @@ import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.FileImporter;
+import ch.bergturbenthal.raoa.libs.service.Updater;
 import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
 import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
 import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.*;
@@ -95,6 +96,21 @@ public class Mutation implements GraphQLMutationResolver {
     };
   }
 
+  private static Updater.CommitContext createCommitContext(
+      final QueryContext queryContext, final String operation) {
+    final Updater.CommitContext.CommitContextBuilder builder =
+        Updater.CommitContext.builder().message(operation);
+    queryContext
+        .getCurrentUser()
+        .map(User::getUserData)
+        .ifPresent(
+            user -> {
+              builder.username(user.getName());
+              builder.email(user.getEmail());
+            });
+    return builder.build();
+  }
+
   public CompletableFuture<UserReference> createUser(AuthenticationId authenticationId) {
     return queryContextSupplier
         .createContext()
@@ -103,7 +119,10 @@ public class Mutation implements GraphQLMutationResolver {
             queryContext ->
                 dataViewService
                     .getPendingRequest(authenticationId)
-                    .flatMap(userManager::createNewUser)
+                    .flatMap(
+                        baseRequest ->
+                            userManager.createNewUser(
+                                baseRequest, createCommitContext(queryContext, "create user")))
                     .log(
                         "created",
                         Level.INFO,
@@ -145,7 +164,7 @@ public class Mutation implements GraphQLMutationResolver {
         .flatMap(
             queryContext ->
                 userManager
-                    .createNewGroup(name)
+                    .createNewGroup(name, createCommitContext(queryContext, "create group " + name))
                     .map(
                         group -> new GroupReference(group.getId(), queryContext, Mono.just(group))))
         .timeout(TIMEOUT)
@@ -340,10 +359,11 @@ public class Mutation implements GraphQLMutationResolver {
                           .flatMap(
                               mutEntry ->
                                   userManager
-                                      .updateUser(
+                                      .context(
                                           mutEntry.getKey(),
                                           mutEntry.getValue(),
-                                          "update user " + mutEntry.getKey())
+                                          createCommitContext(
+                                              queryContext, "update user " + mutEntry.getKey()))
                                       .single(),
                               1)
                           .count(),
@@ -353,7 +373,8 @@ public class Mutation implements GraphQLMutationResolver {
                                   userManager.updateGroup(
                                       mutEntry.getKey(),
                                       mutEntry.getValue(),
-                                      "update group " + mutEntry.getKey()),
+                                      createCommitContext(
+                                          queryContext, "update group " + mutEntry.getKey())),
                               1)
                           .count())
                   .count()
@@ -376,7 +397,7 @@ public class Mutation implements GraphQLMutationResolver {
             queryContext ->
                 queryContext.canUserManageUsers()
                     ? userManager
-                        .removeUser(userId)
+                        .removeUser(userId, createCommitContext(queryContext, "remove user"))
                         .flatMap(r -> dataViewService.updateUserData().thenReturn(r))
                         .defaultIfEmpty(false)
                     : Mono.empty())
@@ -443,12 +464,14 @@ public class Mutation implements GraphQLMutationResolver {
         .flatMap(
             queryContext -> {
               return userManager
-                  .updateUser(
+                  .context(
                       userId,
                       user -> user.toBuilder().superuser(enabled).build(),
-                      queryContext.getCurrentUser().orElseThrow().getUserData().getName()
-                          + " setCanManageUser to "
-                          + enabled)
+                      createCommitContext(
+                          queryContext,
+                          queryContext.getCurrentUser().orElseThrow().getUserData().getName()
+                              + " setCanManageUser to "
+                              + enabled))
                   .flatMap(user -> dataViewService.updateUserData().thenReturn(user))
                   .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext));
             })
@@ -464,7 +487,7 @@ public class Mutation implements GraphQLMutationResolver {
         .flatMap(
             queryContext ->
                 userManager
-                    .updateUser(
+                    .context(
                         userId,
                         user -> {
                           final Set<UUID> visibleAlbums = new HashSet<>(user.getVisibleAlbums());
@@ -472,11 +495,13 @@ public class Mutation implements GraphQLMutationResolver {
                           else visibleAlbums.remove(albumId);
                           return user.toBuilder().visibleAlbums(visibleAlbums).build();
                         },
-                        queryContext.getCurrentUser().orElseThrow().getUserData().getName()
-                            + (enabled ? " shows user " : " hides for user")
-                            + userId
-                            + " album "
-                            + albumId)
+                        createCommitContext(
+                            queryContext,
+                            queryContext.getCurrentUser().orElseThrow().getUserData().getName()
+                                + (enabled ? " shows user " : " hides for user")
+                                + userId
+                                + " album "
+                                + albumId))
                     .flatMap(user -> dataViewService.updateUserData().thenReturn(user))
                     .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
         .timeout(TIMEOUT)
@@ -492,7 +517,7 @@ public class Mutation implements GraphQLMutationResolver {
         .flatMap(
             queryContext ->
                 userManager
-                    .updateUser(
+                    .context(
                         userId,
                         user -> {
                           final User.UserBuilder userBuilder = user.toBuilder();
@@ -516,9 +541,11 @@ public class Mutation implements GraphQLMutationResolver {
                           }
                           return userBuilder.build();
                         },
-                        queryContext.getCurrentUser().orElseThrow().getUserData().getName()
-                            + " updates "
-                            + userId)
+                        createCommitContext(
+                            queryContext,
+                            queryContext.getCurrentUser().orElseThrow().getUserData().getName()
+                                + " updates "
+                                + userId))
                     .flatMap(user -> dataViewService.updateUserData().thenReturn(user))
                     .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
         .timeout(TIMEOUT)
@@ -553,9 +580,11 @@ public class Mutation implements GraphQLMutationResolver {
                           builder.labels(labels);
                           return builder.build();
                         },
-                        queryContext.getCurrentUser().orElseThrow().getUserData().getName()
-                            + " updates "
-                            + groupId)
+                        createCommitContext(
+                            queryContext,
+                            queryContext.getCurrentUser().orElseThrow().getUserData().getName()
+                                + " updates "
+                                + groupId))
                     .flatMap(user -> dataViewService.updateUserData().thenReturn(user.getId()))
                     .map(
                         u ->
@@ -578,37 +607,39 @@ public class Mutation implements GraphQLMutationResolver {
                 albumList
                     .getAlbum(albumId)
                     .flatMap(
-                        ga ->
-                            ga.filenameOfObject(entryId)
-                                .map(filename -> filename + ".xmp")
-                                .flatMap(
-                                    filename ->
-                                        ga.readObject(filename)
-                                            .flatMap(ga::readXmpMeta)
-                                            .switchIfEmpty(
-                                                Mono.defer(
-                                                    () -> Mono.just(XMPMetaFactory.create())))
-                                            .map(
-                                                xmpMeta -> {
-                                                  final XmpWrapper xmpWrapper =
-                                                      new XmpWrapper(xmpMeta);
-                                                  update
-                                                      .getAddKeywords()
-                                                      .forEach(xmpWrapper::addKeyword);
-                                                  update
-                                                      .getRemoveKeywords()
-                                                      .forEach(xmpWrapper::removeKeyword);
-                                                  return xmpMeta;
-                                                })
-                                            .flatMap(
-                                                xmpMeta ->
-                                                    ga.writeXmpMeta(filename, xmpMeta)
-                                                        .map(ok -> xmpMeta)))
-                                .flatMap(
-                                    xmpMeta ->
-                                        dataViewService
-                                            .updateKeyword(albumId, entryId, xmpMeta)
-                                            .map(result -> xmpMeta)))
+                        ga -> {
+                          final Updater.CommitContext context =
+                              createCommitContext(queryContext, "updateAlbumEntry");
+                          return ga.filenameOfObject(entryId)
+                              .map(filename -> filename + ".xmp")
+                              .flatMap(
+                                  filename ->
+                                      ga.readObject(filename)
+                                          .flatMap(ga::readXmpMeta)
+                                          .switchIfEmpty(
+                                              Mono.defer(() -> Mono.just(XMPMetaFactory.create())))
+                                          .map(
+                                              xmpMeta -> {
+                                                final XmpWrapper xmpWrapper =
+                                                    new XmpWrapper(xmpMeta);
+                                                update
+                                                    .getAddKeywords()
+                                                    .forEach(xmpWrapper::addKeyword);
+                                                update
+                                                    .getRemoveKeywords()
+                                                    .forEach(xmpWrapper::removeKeyword);
+                                                return xmpMeta;
+                                              })
+                                          .flatMap(
+                                              xmpMeta ->
+                                                  ga.writeXmpMeta(filename, xmpMeta, context)
+                                                      .map(ok -> xmpMeta)))
+                              .flatMap(
+                                  xmpMeta ->
+                                      dataViewService
+                                          .updateKeyword(albumId, entryId, xmpMeta)
+                                          .map(result -> xmpMeta));
+                        })
                     .flatMap(xmpMeta -> dataViewService.updateKeyword(albumId, entryId, xmpMeta))
                     .map(
                         e ->
@@ -628,47 +659,50 @@ public class Mutation implements GraphQLMutationResolver {
         .createContext()
         .filter(QueryContext::canUserManageUsers)
         .flatMap(
-            queryContext ->
-                albumList
-                    .getAlbum(albumId)
-                    .flatMap(
-                        ga ->
-                            ga.updateMetadata(
-                                    albumMeta -> {
-                                      final AlbumMeta.AlbumMetaBuilder builder =
-                                          albumMeta.toBuilder();
-                                      Optional.ofNullable(update.getNewAlbumTitle())
-                                          .map(String::trim)
-                                          .filter(v -> !v.isEmpty())
-                                          .ifPresent(builder::albumTitle);
-                                      Optional.ofNullable(update.getNewTitleEntry())
-                                          .ifPresent(builder::titleEntry);
-                                      final HashMap<String, String> labels =
-                                          new HashMap<>(
-                                              Objects.requireNonNullElse(
-                                                  albumMeta.getLabels(), Collections.emptyMap()));
-                                      Optional.ofNullable(update.getRemoveLabels())
-                                          .ifPresent(rem -> labels.keySet().removeAll(rem));
-                                      Optional.ofNullable(update.getNewLabels()).stream()
-                                          .flatMap(Collection::stream)
-                                          .forEach(
-                                              lv ->
-                                                  labels.put(
-                                                      lv.getLabelName(), lv.getLabelValue()));
-                                      builder.labels(labels);
-                                      return builder.build();
-                                    })
-                                .map(ok -> ga))
-                    .flatMap(
-                        ga -> {
-                          if (update.getAutoadd() != null)
-                            return ga.updateAutoadd(update.getAutoadd());
-                          return Mono.just(true);
-                        })
-                    .map(
-                        c ->
-                            new Album(
-                                albumId, queryContext, dataViewService.readAlbum(albumId).cache())))
+            queryContext -> {
+              final Updater.CommitContext context =
+                  createCommitContext(queryContext, "updateAlbum");
+              return albumList
+                  .getAlbum(albumId)
+                  .flatMap(
+                      ga ->
+                          ga.updateMetadata(
+                                  albumMeta -> {
+                                    final AlbumMeta.AlbumMetaBuilder builder =
+                                        albumMeta.toBuilder();
+                                    Optional.ofNullable(update.getNewAlbumTitle())
+                                        .map(String::trim)
+                                        .filter(v -> !v.isEmpty())
+                                        .ifPresent(builder::albumTitle);
+                                    Optional.ofNullable(update.getNewTitleEntry())
+                                        .ifPresent(builder::titleEntry);
+                                    final HashMap<String, String> labels =
+                                        new HashMap<>(
+                                            Objects.requireNonNullElse(
+                                                albumMeta.getLabels(), Collections.emptyMap()));
+                                    Optional.ofNullable(update.getRemoveLabels())
+                                        .ifPresent(rem -> labels.keySet().removeAll(rem));
+                                    Optional.ofNullable(update.getNewLabels()).stream()
+                                        .flatMap(Collection::stream)
+                                        .forEach(
+                                            lv ->
+                                                labels.put(lv.getLabelName(), lv.getLabelValue()));
+                                    builder.labels(labels);
+                                    return builder.build();
+                                  },
+                                  context)
+                              .map(ok -> ga))
+                  .flatMap(
+                      ga -> {
+                        if (update.getAutoadd() != null)
+                          return ga.updateAutoadd(update.getAutoadd(), context);
+                        return Mono.just(true);
+                      })
+                  .map(
+                      c ->
+                          new Album(
+                              albumId, queryContext, dataViewService.readAlbum(albumId).cache()));
+            })
         .timeout(TIMEOUT)
         .toFuture();
   }
@@ -682,7 +716,8 @@ public class Mutation implements GraphQLMutationResolver {
             context -> {
               Function<UUID, Mono<Boolean>> authorizer =
                   id -> authorizationManager.canUserModifyAlbum(context.getSecurityContext(), id);
-              final FileImporter importer = albumList.createImporter();
+              final FileImporter importer =
+                  albumList.createImporter(createCommitContext(context, "import files"));
               return Flux.fromIterable(
                       () ->
                           files.stream()

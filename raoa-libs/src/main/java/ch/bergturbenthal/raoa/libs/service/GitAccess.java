@@ -28,7 +28,7 @@ public interface GitAccess {
 
   Flux<Instant> readAutoadd();
 
-  Mono<Boolean> updateAutoadd(Collection<Instant> autoaddTimes);
+  Mono<Boolean> updateAutoadd(Collection<Instant> autoaddTimes, Updater.CommitContext context);
 
   Mono<Updater> createUpdater();
 
@@ -38,13 +38,14 @@ public interface GitAccess {
 
   Mono<AlbumMeta> getMetadata();
 
-  Mono<Boolean> updateMetadata(Function<AlbumMeta, AlbumMeta> mutation);
+  Mono<Boolean> updateMetadata(
+      Function<AlbumMeta, AlbumMeta> mutation, final Updater.CommitContext context);
 
   Mono<Metadata> entryMetdata(AnyObjectId entryId);
 
   Mono<XMPMeta> readXmpMeta(ObjectLoader loader);
 
-  Mono<Boolean> writeXmpMeta(String filename, XMPMeta xmpMeta);
+  Mono<Boolean> writeXmpMeta(String filename, XMPMeta xmpMeta, final Updater.CommitContext context);
 
   @Value
   class GitFileEntry {

@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.importer.domain.service.impl;
 import ch.bergturbenthal.raoa.importer.domain.service.Importer;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.FileImporter;
+import ch.bergturbenthal.raoa.libs.service.Updater;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,7 +36,9 @@ public class DirectoryImporter implements Importer {
   @Override
   public void importDirectories(final Path src) throws IOException {
     Instant startTime = Instant.now();
-    final FileImporter importer = albumList.createImporter();
+    final FileImporter importer =
+        albumList.createImporter(
+            Updater.CommitContext.builder().message("import file locally").build());
     final Optional<List<Path>> result =
         Flux.fromIterable(Files.list(src).collect(Collectors.toList()))
             .flatMap(

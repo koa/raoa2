@@ -10,7 +10,7 @@ public interface AlbumList {
 
   void resetCache();
 
-  FileImporter createImporter();
+  FileImporter createImporter(final Updater.CommitContext context);
 
   Flux<FoundAlbum> listAlbums();
 

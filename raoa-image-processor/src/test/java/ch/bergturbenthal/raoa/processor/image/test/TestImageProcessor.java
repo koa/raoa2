@@ -5,6 +5,7 @@ import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
+import ch.bergturbenthal.raoa.libs.service.Updater;
 import ch.bergturbenthal.raoa.libs.service.impl.BareAlbumList;
 import ch.bergturbenthal.raoa.libs.service.impl.DefaultThumbnailFilenameService;
 import ch.bergturbenthal.raoa.libs.service.impl.ExecutorAsyncService;
@@ -61,6 +62,7 @@ public class TestImageProcessor {
             .collect(Collectors.toList());
     final RetryBackoffSpec retrySpec = Retry.backoff(5, Duration.ofMillis(400));
 
+    final Updater.CommitContext context = Updater.CommitContext.builder().build();
     final Boolean importOk =
         albumList
             .createAlbum(Collections.singletonList("test"))
@@ -68,9 +70,10 @@ public class TestImageProcessor {
             .flatMap(
                 ga ->
                     ga.updateAutoadd(
-                            Collections.singleton(Instant.parse("2020-01-01T00:00:00.000Z")))
+                            Collections.singleton(Instant.parse("2020-01-01T00:00:00.000Z")),
+                            context)
                         .retryWhen(retrySpec)
-                        .map(done -> albumList.createImporter())
+                        .map(done -> albumList.createImporter(context))
                         .flatMap(
                             fileImporter ->
                                 Flux.fromIterable(testfiles)

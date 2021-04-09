@@ -142,7 +142,7 @@ public class BareAlbumList implements AlbumList {
   }
 
   @Override
-  public FileImporter createImporter() {
+  public FileImporter createImporter(final Updater.CommitContext context) {
     return new FileImporter() {
       private final Map<UUID, Mono<Updater>> pendingUpdaters =
           Collections.synchronizedMap(new HashMap<>());
@@ -231,7 +231,7 @@ public class BareAlbumList implements AlbumList {
       public @NotNull Mono<Boolean> commitAll() {
         return Flux.fromIterable(pendingUpdaters.values())
             .flatMap(m -> m)
-            .flatMap(Updater::commit)
+            .flatMap((Updater updater) -> updater.commit(context))
             .reduce((b1, b2) -> b1 && b2)
             .defaultIfEmpty(Boolean.TRUE)
             .doFinally(signal -> pendingUpdaters.clear())
