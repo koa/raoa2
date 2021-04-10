@@ -32,6 +32,9 @@ export class MediaResolverService {
 }
 
 function findNextStep(maxLength: number): number {
+    if (maxLength > 1600) {
+        return 3200;
+    }
     if (maxLength > 800) {
         return 1600;
     }

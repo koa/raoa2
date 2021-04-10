@@ -120,18 +120,39 @@ export class AlbumPage implements OnInit {
         }
     }
 
+
     async ngOnInit() {
-        this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
-        const queryParamMap = this.activatedRoute.snapshot.queryParamMap;
-        this.filteringKeyword = queryParamMap.get('keyword') || undefined;
-        const pos = queryParamMap.get('pos');
-        await this.refresh();
-        if (pos) {
-            const scrollPos: number = Number.parseInt(pos, 10);
-            window.setTimeout(() => {
-                this.contentElement.scrollToPoint(0, scrollPos);
-            }, 500);
-        }
+        this.activatedRoute.queryParamMap.subscribe(async params => {
+            const filteringKeyword = params.get('keyword') || undefined;
+            const pos = params.get('pos');
+            if (this.albumId) {
+                if (this.filteringKeyword !== filteringKeyword) {
+                    this.filteringKeyword = filteringKeyword;
+                    await this.refresh();
+                }
+                if (pos) {
+                    const scrollPos: number = Number.parseInt(pos, 10);
+                    window.setTimeout(() => {
+                        this.contentElement.scrollToPoint(0, scrollPos);
+                    }, 500);
+                }
+            }
+        });
+        this.activatedRoute.paramMap.subscribe(async params => {
+            const id = params.get('id');
+            if (this.albumId !== id) {
+                this.albumId = id;
+                await this.refresh();
+            } else {
+                const result = await this.albumListService.listAlbum(this.albumId);
+                const keywords = new Set<string>();
+                result.sortedEntries.forEach(entry => entry.keywords.forEach(keyword => keywords.add(keyword)));
+                this.keywords = [];
+                keywords.forEach(keyword => this.keywords.push(keyword));
+                this.keywords.sort((k1, k2) => k1.localeCompare(k2));
+                console.log('welcome back');
+            }
+        });
     }
 
     private async refresh() {
@@ -208,9 +229,12 @@ export class AlbumPage implements OnInit {
             currentRowWidth += shape.width;
 
         };
-
+        const realKeywords = new Set<string>();
         this.sortedEntries
             .forEach(entry => {
+                entry.keywords.forEach(keyword => {
+                    realKeywords.add(keyword);
+                });
                 const timestamp: number = Date.parse(entry.created);
                 const date = new Date(timestamp);
                 date.setHours(0, 0, 0, 0);
@@ -224,6 +248,9 @@ export class AlbumPage implements OnInit {
                 appender(imageShape, imageDate);
             });
         flushBlock();
+        this.keywords = [];
+        realKeywords.forEach(keyword => this.keywords.push(keyword));
+        this.keywords.sort((k1, k2) => k1.localeCompare(k2));
         this.daycount = dayCount;
         await this.leaveWait();
     }
@@ -258,8 +285,7 @@ export class AlbumPage implements OnInit {
     }
 
     public createEntryLink(shape: Shape): (string | object)[] {
-        const path: (string | object)[] = ['/album', this.albumId, 'media', shape.entry.id];
-        return path;
+        return ['/album', this.albumId, 'media', shape.entry.id];
     }
 
     queryParams() {

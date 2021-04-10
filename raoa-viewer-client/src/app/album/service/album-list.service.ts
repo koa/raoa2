@@ -58,4 +58,12 @@ export class AlbumListService {
             return result;
         });
     }
+
+    public async clearAlbum(albumId: string) {
+        if (this.lastAlbumId === albumId) {
+            this.lastResult = undefined;
+            this.lastAlbumId = undefined;
+        }
+        await this.serverApi.clear();
+    }
 }

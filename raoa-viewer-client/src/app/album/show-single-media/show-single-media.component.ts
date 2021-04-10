@@ -95,6 +95,7 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     async showImage(mediaId: string) {
+        await this.storeKeywordMutation();
         let waitIndicator;
         const waitTimeoutHandler = window.setTimeout(() => {
             this.loadingController.create({
@@ -107,7 +108,6 @@ export class ShowSingleMediaComponent implements OnInit {
             });
         }, 500);
         try {
-            await this.storeKeywordMutation();
             const albumData = await this.albumListService.listAlbum(this.albumId);
             const mediaIdAsInt = BigInt('0x' + mediaId);
             const previousMediaId = this.bigint2objectid(this.prevIdMap.get(mediaIdAsInt));
@@ -189,13 +189,31 @@ export class ShowSingleMediaComponent implements OnInit {
                 }
             });
             if (removeKeywords.length > 0 || addKeywords.length > 0) {
-                await this.serverApi.update(this.showSingleMediaEditKeywordsGQL, {
-                    albumId: this.albumId, albumEntryId: this.mediaId, mutation: {
-                        addKeywords,
-                        removeKeywords
+                let waitIndicator;
+                const waitTimeoutHandler = window.setTimeout(() => {
+                    this.loadingController.create({
+                        cssClass: 'transparent-spinner',
+                        message: 'Speichern...',
+                        translucent: true
+                    }).then(ind => {
+                        waitIndicator = ind;
+                        ind.present();
+                    });
+                }, 500);
+                try {
+                    await this.serverApi.update(this.showSingleMediaEditKeywordsGQL, {
+                        albumId: this.albumId, albumEntryId: this.mediaId, mutation: {
+                            addKeywords,
+                            removeKeywords
+                        }
+                    });
+                } finally {
+                    window.clearTimeout(waitTimeoutHandler);
+                    if (waitIndicator !== undefined) {
+                        waitIndicator.dismiss();
                     }
-                });
-                await this.serverApi.clear();
+                }
+                await this.albumListService.clearAlbum(this.albumId);
             }
         }
     }
