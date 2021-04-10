@@ -86,7 +86,7 @@ public class InitAdminUserIfMissing {
                       dataViewService.updateUserData().cast(User.class).defaultIfEmpty(updatedUser))
               .doOnNext(user -> log.info("Updated superuser" + user))
               .blockOptional(Duration.of(1, ChronoUnit.MINUTES));
-      log.info("Created user: " + createdUser);
+      createdUser.ifPresent(user -> log.info("Created user: " + user));
     } catch (Exception ex) {
       log.warn("Cannot check superuser", ex);
     }

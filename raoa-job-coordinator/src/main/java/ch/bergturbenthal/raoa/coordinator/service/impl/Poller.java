@@ -425,7 +425,8 @@ public class Poller {
     return Flux.merge(
             elasticSearchDataViewService
                 .loadEntry(album.getAlbumId(), gitFileEntry.getFileId())
-                .map(e -> Objects.equals(e.getXmpFileId(), xmpFileId.orElse(null))),
+                .map(e -> Objects.equals(e.getXmpFileId(), xmpFileId.orElse(null)))
+                .defaultIfEmpty(false),
             Flux.fromStream(
                     thumbnailFilenameService
                         .listThumbnailsOf(album.getAlbumId(), gitFileEntry.getFileId())
