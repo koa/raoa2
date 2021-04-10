@@ -146,6 +146,7 @@ export class AlbumPage implements OnInit {
             } else {
                 const result = await this.albumListService.listAlbum(this.albumId);
                 const keywords = new Set<string>();
+                result.keywords.forEach((count, keyword) => keywords.add(keyword));
                 result.sortedEntries.forEach(entry => entry.keywords.forEach(keyword => keywords.add(keyword)));
                 this.keywords = [];
                 keywords.forEach(keyword => this.keywords.push(keyword));
