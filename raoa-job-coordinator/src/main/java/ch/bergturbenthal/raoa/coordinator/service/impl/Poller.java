@@ -382,12 +382,16 @@ public class Poller {
                         () -> {
                           final long startTime = System.nanoTime();
                           if (!k.exists()) {
+                            final boolean created = k.mkdirs();
                             log.info(
                                 "Found empty dir at "
                                     + k
                                     + " in "
                                     + (Duration.ofNanos(System.nanoTime() - startTime).toMillis())
                                     + "ms");
+                            if (!created) {
+                              throw new RuntimeException("Could create directory " + k);
+                            }
 
                             return Collections.emptySet();
                           }
