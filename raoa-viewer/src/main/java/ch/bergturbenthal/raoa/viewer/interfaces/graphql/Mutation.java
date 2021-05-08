@@ -768,6 +768,7 @@ public class Mutation implements GraphQLMutationResolver {
                       })
                   .collectList();
             })
+        .doOnError(ex -> log.warn("Cannot commit import", ex))
         .toFuture();
   }
 

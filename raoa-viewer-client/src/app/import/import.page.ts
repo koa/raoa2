@@ -44,6 +44,9 @@ interface ImportStatisticsEntry {
 }
 
 
+const uploadFileSuffix: Set<string> = new Set<string>(['jpg', 'nef', 'ts', 'mp4', 'mkv']);
+
+
 @Component({
     selector: 'app-import',
     templateUrl: './import.page.html',
@@ -60,6 +63,7 @@ export class ImportPage implements OnInit {
     public uploadFileProgress = 0;
     public importedFiles: ImportResult[] = [];
     public importedStatistics: ImportStatisticsEntry[] = [];
+    public canImportFiles = window.showOpenFilePicker !== undefined;
 
     constructor(private importListAlbumGQL: ImportListAlbumGQL,
                 private importCreateAlbumGQL: ImportCreateAlbumGQL,
@@ -88,24 +92,12 @@ export class ImportPage implements OnInit {
 
     async selectDirectory() {
         const directoryHandle: FileSystemDirectoryHandle = await showDirectoryPicker();
-        const dcimDirectory = await directoryHandle.getDirectoryHandle('DCIM');
         const filesToUpload: [FileSystemFileHandle, FileSystemDirectoryHandle][] = [];
-        for await (const imageFolderDirectory of dcimDirectory.values()) {
-            if (imageFolderDirectory instanceof FileSystemDirectoryHandle) {
-                const dir: FileSystemDirectoryHandle = await dcimDirectory.getDirectoryHandle(imageFolderDirectory.name);
-                for await (const fileEntry of dir.entries()) {
-                    const [name, file] = fileEntry;
-                    if (file instanceof FileSystemFileHandle) {
-                        filesToUpload.push([file, dir]);
-                    }
-                }
-            }
-        }
+        await this.processDirectory(directoryHandle, filesToUpload);
         let totalSize = 0;
         for (const item of filesToUpload) {
             totalSize += (await item[0].getFile()).size;
         }
-        const uploadCount = filesToUpload.length;
         let uploadedSize = 0;
         const pendingUploadedFiles = new Map<string, [FileSystemFileHandle, FileSystemDirectoryHandle]>();
         const commit: () => Promise<void> = async () => {
@@ -151,16 +143,32 @@ export class ImportPage implements OnInit {
             }
             uploadedSize += data.size;
             this.uploadOverallProgress = uploadedSize / totalSize;
-            if (lastCommitTime + 10 * 1000 < Date.now()) {
+            if (lastCommitTime + 60 * 1000 < Date.now()) {
                 await commit();
                 lastCommitTime = Date.now();
             }
         }
         await commit();
         this.currentFileName = '';
-        console.log(uploadCount + ' photos gefunden');
         this.uploadOverallProgress = 0;
         this.uploadFileProgress = 0;
+    }
+
+    private async processDirectory(directory: FileSystemDirectoryHandle,
+                                   filesToUpload: [FileSystemFileHandle, FileSystemDirectoryHandle][]) {
+        for await (const [name, containingFile] of directory.entries()) {
+            if (containingFile instanceof FileSystemDirectoryHandle) {
+                await this.processDirectory(containingFile, filesToUpload);
+            } else if (containingFile instanceof FileSystemFileHandle) {
+                const lastPt = name.lastIndexOf('.');
+                if (lastPt > 0) {
+                    const suffix = name.substr(lastPt + 1).toLowerCase();
+                    if (uploadFileSuffix.has(suffix)) {
+                        filesToUpload.push([containingFile, directory]);
+                    }
+                }
+            }
+        }
     }
 
     private updateImportStats() {
@@ -199,14 +207,11 @@ export class ImportPage implements OnInit {
     }
 
     async deleteImportedFiles(): Promise<void> {
-        const removedFiles = new Set<string>();
-        const removedPromises: Promise<void>[] = [];
         for (const fileEntry of this.importedFiles) {
-            removedPromises.push(fileEntry.directory.removeEntry(fileEntry.file.name));
-            removedFiles.add(fileEntry.createdEntry.fileId);
+            await fileEntry.directory.removeEntry(fileEntry.file.name);
+            const value = fileEntry.createdEntry.fileId;
+            this.importedFiles = this.importedFiles.filter(entry => entry.createdEntry.fileId === value);
+            this.updateImportStats();
         }
-        await Promise.all(removedPromises);
-        this.importedFiles = this.importedFiles.filter(entry => !removedFiles.has(entry.createdEntry.fileId));
-        this.updateImportStats();
     }
 }

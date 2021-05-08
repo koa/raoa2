@@ -6,7 +6,7 @@
 </ion-header>
 
 <ion-content>
-    <ion-card>
+    <ion-card *ngIf="canImportFiles">
         <ion-card-header>
             <ion-card-title>Daten importieren</ion-card-title>
         </ion-card-header>
@@ -21,7 +21,8 @@
                     <ion-card-subtitle>{{statEntry.entryCount}} Dateien</ion-card-subtitle>
                 </ion-card-header>
             </ion-card>
-            <ion-button *ngIf="importedFiles.length>0" (click)="deleteImportedFiles()" >Importierte Daten löschen</ion-button>
+            <ion-button *ngIf="importedFiles.length>0" (click)="deleteImportedFiles()">Importierte Daten löschen
+            </ion-button>
         </ion-card-content>
     </ion-card>
     <ion-card>
@@ -36,7 +37,7 @@
             </ion-select>
             <ion-input placeholder="Name" [(ngModel)]="newAlbumName"></ion-input>
             <ion-label>Datum</ion-label>
-            <ion-datetime [(ngModel)]="newAlbumTimestamp"></ion-datetime>
+            <ion-datetime minute-values="0,15,30,45"  displayFormat="DDD DD MMM , YYYY HH:mm" [(ngModel)]="newAlbumTimestamp"></ion-datetime>
             <ion-button (click)="createAlbum()">Album Erstellen</ion-button>
         </ion-card-content>
     </ion-card>
