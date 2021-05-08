@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-namespace=raoa-dev
-#namespace=raoa-lkw
+#namespace=raoa-dev
+namespace=raoa-lkw
 
 cd "$(dirname "$0")"
 version=$(date "+%Y%m%d%H%M%S")
@@ -16,7 +16,7 @@ mvn -Dlocal.version=$version -Djib.httpTimeout=300000 clean deploy || exit
 
 #exit 0
 
-kubectl -n raoa-dev get helmrelease raoa -o yaml | sed "s/      version:.*/      version: \"$version\"/" | kubectl -n raoa-dev apply -f -
+kubectl -n $namespace get helmrelease raoa -o yaml | sed "s/      version:.*/      version: \"$version\"/" | kubectl -n $namespace apply -f -
 
 #kubectl -n $namespace rollout status -w deployment/raoa-coordinator
 #kubectl -n $namespace rollout status -w deployment/raoa-viewer
