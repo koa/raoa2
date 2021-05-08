@@ -61,8 +61,10 @@ public class DefaultThumbnailFilenameService
   @Scheduled(fixedDelay = 10 * 60 * 1000)
   public void cleanupOldUploads() {
     final long thresholdTime = System.currentTimeMillis() - 24 * 3600 * 1000;
-    for (File file : getUploadDir().listFiles(f -> f.lastModified() < thresholdTime)) {
-      file.delete();
-    }
+    final File[] foundFiles = getUploadDir().listFiles(f -> f.lastModified() < thresholdTime);
+    if (foundFiles != null)
+      for (File file : foundFiles) {
+        file.delete();
+      }
   }
 }
