@@ -151,7 +151,6 @@ export class AlbumPage implements OnInit {
                 this.keywords = [];
                 keywords.forEach(keyword => this.keywords.push(keyword));
                 this.keywords.sort((k1, k2) => k1.localeCompare(k2));
-                console.log('welcome back');
             }
         });
     }
@@ -178,81 +177,83 @@ export class AlbumPage implements OnInit {
 
     private async calculateRows() {
         await this.enterWait();
-        this.rows = [];
-        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const optimalMediaCount = Math.sqrt(this.sortedEntries.length);
-        let currentImageDate: number;
-        let index = 0;
-        let currentRow: Shape[] = [];
-        let currentRowWidth = 0;
-        let currentBlock: ImageBlock[] = [];
-        let currentBlockLength = 0;
-        let currentBlockMediaCount = 0;
-        const flushRow = () => {
-            if (currentRow.length > 0) {
-                const title = currentRow[0].entry.created;
-                currentBlock.push({
-                    shapes: currentRow,
-                    width: currentRowWidth,
-                    title
-                });
-                currentBlockLength += 1 / currentRowWidth;
-                currentBlockMediaCount += currentRow.length;
-            }
-            currentRow = [];
-            currentRowWidth = 0;
-        };
-        const flushBlock = () => {
-            flushRow();
-            if (currentBlock.length > 0) {
-                this.rows.push({kind: 'images', blocks: currentBlock, height: currentBlockLength});
-            }
-            currentBlock = [];
-            currentBlockLength = 0;
-            currentBlockMediaCount = 0;
-        };
-        let dayCount = 0;
-        const appender = (shape: Shape, date: number) => {
-            if (currentImageDate === undefined || currentImageDate !== date) {
-                dayCount += 1;
-                flushBlock();
-                this.rows.push({kind: 'timestamp', time: new Date(date), id: date.toString()});
-            }
-            currentImageDate = date;
-            const totalWidth = currentRowWidth;
-            if (totalWidth + shape.width > this.maxWidth) {
-                flushRow();
-                if (currentBlockMediaCount > optimalMediaCount) {
-                    flushBlock();
+        this.ngZone.run(() => {
+            this.rows = [];
+            const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const optimalMediaCount = Math.sqrt(this.sortedEntries.length);
+            let currentImageDate: number;
+            let index = 0;
+            let currentRow: Shape[] = [];
+            let currentRowWidth = 0;
+            let currentBlock: ImageBlock[] = [];
+            let currentBlockLength = 0;
+            let currentBlockMediaCount = 0;
+            const flushRow = () => {
+                if (currentRow.length > 0) {
+                    const title = currentRow[0].entry.created;
+                    currentBlock.push({
+                        shapes: currentRow,
+                        width: currentRowWidth,
+                        title
+                    });
+                    currentBlockLength += 1 / currentRowWidth;
+                    currentBlockMediaCount += currentRow.length;
                 }
-            }
-            currentRow.push(shape);
-            currentRowWidth += shape.width;
+                currentRow = [];
+                currentRowWidth = 0;
+            };
+            const flushBlock = () => {
+                flushRow();
+                if (currentBlock.length > 0) {
+                    this.rows.push({kind: 'images', blocks: currentBlock, height: currentBlockLength});
+                }
+                currentBlock = [];
+                currentBlockLength = 0;
+                currentBlockMediaCount = 0;
+            };
+            let dayCount = 0;
+            const appender = (shape: Shape, date: number) => {
+                if (currentImageDate === undefined || currentImageDate !== date) {
+                    dayCount += 1;
+                    flushBlock();
+                    this.rows.push({kind: 'timestamp', time: new Date(date), id: date.toString()});
+                }
+                currentImageDate = date;
+                const totalWidth = currentRowWidth;
+                if (totalWidth + shape.width > this.maxWidth) {
+                    flushRow();
+                    if (currentBlockMediaCount > optimalMediaCount) {
+                        flushBlock();
+                    }
+                }
+                currentRow.push(shape);
+                currentRowWidth += shape.width;
 
-        };
-        const realKeywords = new Set<string>();
-        this.sortedEntries
-            .forEach(entry => {
-                entry.keywords.forEach(keyword => {
-                    realKeywords.add(keyword);
+            };
+            const realKeywords = new Set<string>();
+            this.sortedEntries
+                .forEach(entry => {
+                    entry.keywords.forEach(keyword => {
+                        realKeywords.add(keyword);
+                    });
+                    const timestamp: number = Date.parse(entry.created);
+                    const date = new Date(timestamp);
+                    date.setHours(0, 0, 0, 0);
+                    const imageDate = date.valueOf();
+                    const imageWidth = entry.targetWidth / entry.targetHeight;
+                    const imageShape: Shape = {
+                        width: imageWidth,
+                        entry,
+                        entryIndex: index++
+                    };
+                    appender(imageShape, imageDate);
                 });
-                const timestamp: number = Date.parse(entry.created);
-                const date = new Date(timestamp);
-                date.setHours(0, 0, 0, 0);
-                const imageDate = date.valueOf();
-                const imageWidth = entry.targetWidth / entry.targetHeight;
-                const imageShape: Shape = {
-                    width: imageWidth,
-                    entry,
-                    entryIndex: index++
-                };
-                appender(imageShape, imageDate);
-            });
-        flushBlock();
-        this.keywords = [];
-        realKeywords.forEach(keyword => this.keywords.push(keyword));
-        this.keywords.sort((k1, k2) => k1.localeCompare(k2));
-        this.daycount = dayCount;
+            flushBlock();
+            this.keywords = [];
+            realKeywords.forEach(keyword => this.keywords.push(keyword));
+            this.keywords.sort((k1, k2) => k1.localeCompare(k2));
+            this.daycount = dayCount;
+        });
         await this.leaveWait();
     }
 
