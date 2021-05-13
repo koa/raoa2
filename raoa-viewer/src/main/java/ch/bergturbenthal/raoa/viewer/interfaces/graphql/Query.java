@@ -2,14 +2,19 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
 import ch.bergturbenthal.raoa.elastic.model.AlbumData;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
+import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.ImportFile;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import com.coxautodev.graphql.tools.GraphQLQueryResolver;
+import java.io.File;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -21,14 +26,20 @@ public class Query implements GraphQLQueryResolver {
   private final QueryContextSupplier queryContextSupplier;
   private final DataViewService dataViewService;
   private final AuthorizationManager authorizationManager;
+  private final AlbumList albumList;
+  private final UploadFilenameService uploadFilenameService;
 
   public Query(
       final QueryContextSupplier queryContextSupplier,
       final DataViewService dataViewService,
-      final AuthorizationManager authorizationManager) {
+      final AuthorizationManager authorizationManager,
+      final AlbumList albumList,
+      final UploadFilenameService uploadFilenameService) {
     this.queryContextSupplier = queryContextSupplier;
     this.dataViewService = dataViewService;
     this.authorizationManager = authorizationManager;
+    this.albumList = albumList;
+    this.uploadFilenameService = uploadFilenameService;
   }
 
   public CompletableFuture<Album> getAlbumById(UUID albumId) {
@@ -169,6 +180,30 @@ public class Query implements GraphQLQueryResolver {
         // .log("result")
         .collectList()
         .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<Album> previewImport(ImportFile files) {
+    return queryContextSupplier
+        .createContext()
+        .filter(QueryContext::canUserEditData)
+        .flatMap(
+            context -> {
+              Function<UUID, Mono<Boolean>> authorizer =
+                  id -> authorizationManager.canUserModifyAlbum(context.getSecurityContext(), id);
+
+              final File uploadFile = uploadFilenameService.createTempUploadFile(files.getFileId());
+              if (!uploadFile.exists()) return Mono.empty();
+              return albumList
+                  .detectTargetAlbum(uploadFile.toPath())
+                  .filterWhen(
+                      id ->
+                          authorizationManager.canUserModifyAlbum(context.getSecurityContext(), id))
+                  .map(
+                      albumId ->
+                          new Album(albumId, context, dataViewService.readAlbum(albumId).cache()));
+            })
+        .doOnError(ex -> log.warn("Cannot commit import", ex))
         .toFuture();
   }
 }

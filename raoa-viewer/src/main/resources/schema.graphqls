@@ -10,6 +10,7 @@ type Query {
     listGroups: [Group!]!
     userById(id: ID!):User
     groupById(id: ID!):Group
+    previewImport(file: ImportFile!):Album
 }
 type Mutation{
     requestAccess(comment: String): RequestAccessResult

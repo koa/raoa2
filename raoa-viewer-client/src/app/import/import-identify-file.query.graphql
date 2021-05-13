@@ -1,0 +1,6 @@
+query importIdentifyFile($file: ImportFile!){
+    previewImport(file: $file){
+        id,
+        name
+    }
+}

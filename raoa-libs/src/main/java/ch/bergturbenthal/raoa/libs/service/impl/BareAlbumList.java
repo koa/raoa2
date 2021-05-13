@@ -240,6 +240,15 @@ public class BareAlbumList implements AlbumList {
     };
   }
 
+  @Override
+  public Mono<UUID> detectTargetAlbum(final Path file) {
+    return scanCache
+        .get()
+        .getRepositories()
+        .flatMap(reps -> asyncService.asyncMonoOptional(() -> detectTimestamp(file)))
+        .flatMap(this::albumOf);
+  }
+
   private Optional<Instant> detectTimestamp(final Path file)
       throws IOException, SAXException, TikaException {
     AutoDetectParser parser = new AutoDetectParser();

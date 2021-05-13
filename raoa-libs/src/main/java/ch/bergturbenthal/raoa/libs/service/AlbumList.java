@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.libs.service;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import lombok.Value;
@@ -19,6 +20,8 @@ public interface AlbumList {
   Mono<GitAccess> getAlbum(UUID albumId);
 
   Mono<UUID> createAlbum(List<String> albumPath);
+
+  Mono<UUID> detectTargetAlbum(Path file);
 
   @Value
   class FoundAlbum {

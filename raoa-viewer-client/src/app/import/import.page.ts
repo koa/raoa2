@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, NgZone, OnInit} from '@angular/core';
 import {
     Album,
     AlbumEntry,
@@ -6,12 +6,13 @@ import {
     ImportCreateAlbumGQL,
     ImportedFile,
     ImportFile,
+    ImportIdentifyFileGQL,
     ImportListAlbumGQL,
     ImportSetAutoaddGQL,
     Maybe
 } from '../generated/graphql';
 import {ServerApiService} from '../service/server-api.service';
-import {ToastController} from '@ionic/angular';
+import {LoadingController, ToastController} from '@ionic/angular';
 import {HttpClient, HttpEvent, HttpEventType} from '@angular/common/http';
 
 interface UploadResult {
@@ -38,9 +39,17 @@ interface ImportResult {
     });
 }
 
+interface ImportUploadedFileEntry {
+    fileId: string;
+    albumId: string;
+    sourceFile: FileSystemFileHandle;
+    sourceDirectory: FileSystemDirectoryHandle;
+}
+
 interface ImportStatisticsEntry {
     albumName: string;
-    entryCount: number;
+    uploaded: ImportUploadedFileEntry[];
+    committed: ImportUploadedFileEntry[];
 }
 
 
@@ -62,16 +71,19 @@ export class ImportPage implements OnInit {
     public currentFileName = '';
     public uploadFileProgress = 0;
     public importedFiles: ImportResult[] = [];
-    public importedStatistics: ImportStatisticsEntry[] = [];
+    public uploadedStatistics: Map<string, ImportStatisticsEntry> = new Map<string, ImportStatisticsEntry>();
     public canImportFiles = window.showOpenFilePicker !== undefined;
 
     constructor(private importListAlbumGQL: ImportListAlbumGQL,
                 private importCreateAlbumGQL: ImportCreateAlbumGQL,
                 private importSetAutoaddGQL: ImportSetAutoaddGQL,
+                private importIdentifyFileGQL: ImportIdentifyFileGQL,
                 private importCommitGQL: ImportCommitGQL,
                 private serverApiService: ServerApiService,
                 private httpClient: HttpClient,
-                private toastController: ToastController) {
+                private toastController: ToastController,
+                private loadingController: LoadingController,
+                private ngZone: NgZone) {
     }
 
     async ngOnInit() {
@@ -99,8 +111,8 @@ export class ImportPage implements OnInit {
             totalSize += (await item[0].getFile()).size;
         }
         let uploadedSize = 0;
-        const pendingUploadedFiles = new Map<string, [FileSystemFileHandle, FileSystemDirectoryHandle]>();
-        const commit: () => Promise<void> = async () => {
+        const pendingUploadedFiles = new Map<string, ImportStatisticsEntry>();
+        const commit: (album: string) => Promise<void> = async () => {
             const files: ImportFile[] = [];
             for (const key of pendingUploadedFiles.keys()) {
                 const handle = pendingUploadedFiles.get(key);
@@ -118,12 +130,11 @@ export class ImportPage implements OnInit {
                 });
                 pendingUploadedFiles.delete(fileId);
             }
-            this.updateImportStats();
         };
-        let lastCommitTime = Date.now();
+        const lastCommitTime = Date.now();
         for (const item of filesToUpload) {
             const data = await item[0].getFile();
-            this.currentFileName = item[0].name;
+            this.ngZone.run(() => this.currentFileName = item[0].name);
             const result: UploadResult = await new Promise<UploadResult>((resolve, reject) => {
                 this.httpClient.post('/rest/import', data, {reportProgress: true, observe: 'events'})
                     .subscribe((event: HttpEvent<UploadResult>) => {
@@ -132,26 +143,57 @@ export class ImportPage implements OnInit {
                                 resolve(event.body);
                                 break;
                             case HttpEventType.UploadProgress:
-                                this.uploadFileProgress = event.loaded / event.total;
-                                this.uploadOverallProgress = (event.loaded + uploadedSize) / totalSize;
+                                this.ngZone.run(() => {
+                                    this.uploadFileProgress = event.loaded / event.total;
+                                    this.uploadOverallProgress = (event.loaded + uploadedSize) / totalSize;
+                                });
                                 break;
                         }
                     }, error => reject(error));
             });
             if (data.size === result.byteCount) {
-                pendingUploadedFiles.set(result.fileId, item);
+                uploadedSize += data.size;
+                this.ngZone.run(() => this.uploadOverallProgress = uploadedSize / totalSize);
+                const previewImport = (await this.serverApiService.query(this.importIdentifyFileGQL, {
+                    file: {
+                        fileId: result.fileId,
+                        size: data.size,
+                        filename: item[0].name
+                    }
+                }))?.previewImport;
+                const albumId = previewImport?.id;
+                if (albumId) {
+                    this.ngZone.run(() => {
+                        let albumData: ImportStatisticsEntry;
+                        if (this.uploadedStatistics.has(albumId)) {
+                            albumData = this.uploadedStatistics.get(albumId);
+                        } else {
+                            albumData = {
+                                albumName: previewImport.name,
+                                uploaded: [],
+                                committed: []
+
+                            };
+                            this.uploadedStatistics.set(albumId, albumData);
+                        }
+                        albumData.uploaded.push({
+                            albumId,
+                            fileId: result.fileId,
+                            sourceDirectory: item[1],
+                            sourceFile: item[0]
+                        });
+                    });
+                } else {
+                    await this.toastController.create({message: 'Error identify file ' + item[0].name, color: 'warning', duration: 10000});
+                }
             }
-            uploadedSize += data.size;
-            this.uploadOverallProgress = uploadedSize / totalSize;
-            if (lastCommitTime + 60 * 1000 < Date.now()) {
-                await commit();
-                lastCommitTime = Date.now();
-            }
+
         }
-        await commit();
-        this.currentFileName = '';
-        this.uploadOverallProgress = 0;
-        this.uploadFileProgress = 0;
+        this.ngZone.run(() => {
+            this.currentFileName = '';
+            this.uploadOverallProgress = 0;
+            this.uploadFileProgress = 0;
+        });
     }
 
     private async processDirectory(directory: FileSystemDirectoryHandle,
@@ -171,19 +213,6 @@ export class ImportPage implements OnInit {
         }
     }
 
-    private updateImportStats() {
-        const fileCounts = new Map<string, number>();
-        for (const importedFileData of this.importedFiles) {
-            const album = importedFileData.createdEntry.albumEntry.album;
-            const oldCount = fileCounts.get(album.name) || 0;
-            fileCounts.set(album.name, oldCount + 1);
-
-        }
-        this.importedStatistics = [];
-        fileCounts.forEach((count, albumName) => {
-            this.importedStatistics.push({albumName, entryCount: count});
-        });
-    }
 
     public async createAlbum(): Promise<void> {
         console.log(this.newAlbumParent);
@@ -211,7 +240,44 @@ export class ImportPage implements OnInit {
             await fileEntry.directory.removeEntry(fileEntry.file.name);
             const value = fileEntry.createdEntry.fileId;
             this.importedFiles = this.importedFiles.filter(entry => entry.createdEntry.fileId === value);
-            this.updateImportStats();
+            // this.updateImportStats();
         }
+    }
+
+    async commit(statEntry: ImportStatisticsEntry) {
+        const files: ImportFile[] = [];
+
+        for (const uploadedFile of statEntry.uploaded) {
+            const file = await uploadedFile.sourceFile.getFile();
+            files.push({fileId: uploadedFile.fileId, filename: uploadedFile.sourceFile.name, size: file.size});
+        }
+        const wait = await this.loadingController.create({message: 'Commit', duration: 120000});
+        await wait.present();
+        const commitResult = await this.serverApiService.update(this.importCommitGQL, {files});
+        await wait.dismiss();
+        this.ngZone.run(() => {
+            for (const resultEntry of commitResult.commitImport) {
+                const fileId = resultEntry.fileId;
+                for (let index = 0; index < statEntry.uploaded.length; index++) {
+                    const entry = statEntry.uploaded[index];
+                    if (entry.fileId === fileId) {
+                        statEntry.committed.push(entry);
+                        statEntry.uploaded.splice(index, 1);
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    async deleteCommited(statEntry: ImportStatisticsEntry) {
+        const commitedFiles = statEntry.committed;
+        const wait = await this.loadingController.create({message: 'Delete', duration: 120000});
+        await wait.present();
+        while (commitedFiles.length > 0) {
+            const fileEntry = this.ngZone.run(() => commitedFiles.pop());
+            await fileEntry.sourceDirectory.removeEntry(fileEntry.sourceFile.name);
+        }
+        await wait.dismiss();
     }
 }
