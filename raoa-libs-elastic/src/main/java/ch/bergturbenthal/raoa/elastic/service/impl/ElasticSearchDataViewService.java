@@ -5,11 +5,13 @@ import ch.bergturbenthal.raoa.elastic.repository.*;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
 import com.adobe.xmp.XMPMeta;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,7 +26,6 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
 import org.springframework.data.elasticsearch.core.IndexOperations;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
@@ -32,7 +33,6 @@ import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 import reactor.function.TupleUtils;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
@@ -82,6 +82,8 @@ public class ElasticSearchDataViewService implements DataViewService {
   private final Map<UUID, Mono<Group>> groupCache = Collections.synchronizedMap(new LRUMap<>(200));
   private final ElasticsearchRestTemplate elasticsearchTemplate;
   private final AtomicReference<ObjectId> lastMetaVersion = new AtomicReference<>();
+  private final TemporaryPasswordRepository temporaryPasswordRepository;
+  private final AsyncService asyncService;
 
   public ElasticSearchDataViewService(
       final AlbumDataRepository albumDataRepository,
@@ -92,7 +94,9 @@ public class ElasticSearchDataViewService implements DataViewService {
       final GroupRepository groupRepository,
       final AccessRequestRepository accessRequestRepository,
       final UserManager userManager,
-      final ElasticsearchRestTemplate elasticsearchTemplate) {
+      final ElasticsearchRestTemplate elasticsearchTemplate,
+      final TemporaryPasswordRepository temporaryPasswordRepository,
+      final AsyncService asyncService) {
     this.albumDataRepository = albumDataRepository;
     this.albumDataEntryRepository = albumDataEntryRepository;
     this.albumList = albumList;
@@ -102,6 +106,8 @@ public class ElasticSearchDataViewService implements DataViewService {
     this.accessRequestRepository = accessRequestRepository;
     this.userManager = userManager;
     this.elasticsearchTemplate = elasticsearchTemplate;
+    this.temporaryPasswordRepository = temporaryPasswordRepository;
+    this.asyncService = asyncService;
   }
 
   private static Optional<Integer> extractTargetWidth(final Metadata m) {
@@ -282,29 +288,29 @@ public class ElasticSearchDataViewService implements DataViewService {
   @Override
   public Mono<Long> updateAlbums(final Flux<AlbumList.FoundAlbum> albumList) {
     return albumList
-        .filterWhen(
-            album -> {
-              final Mono<ObjectId> currentVersion = album.getAccess().getCurrentVersion();
+        /*.filterWhen(
+        album -> {
+          final Mono<ObjectId> currentVersion = album.getAccess().getCurrentVersion();
 
-              final Mono<Optional<AlbumData>> loadedVersion =
-                  albumDataRepository
-                      .findById(album.getAlbumId())
-                      .map(Optional::of)
-                      .defaultIfEmpty(Optional.empty());
-              return Mono.zip(currentVersion, loadedVersion)
-                  .map(
-                      t ->
-                          t.getT2()
-                              .map(d1 -> d1.getCurrentVersion().equals(t.getT1()))
-                              .orElse(false))
-                  .map(t -> !t)
-                  .onErrorResume(
-                      ex -> {
-                        log.warn("Cannot load existing album", ex);
-                        return Mono.just(true);
-                      });
-            },
-            10)
+          final Mono<Optional<AlbumData>> loadedVersion =
+              albumDataRepository
+                  .findById(album.getAlbumId())
+                  .map(Optional::of)
+                  .defaultIfEmpty(Optional.empty());
+          return Mono.zip(currentVersion, loadedVersion)
+              .map(
+                  t ->
+                      t.getT2()
+                          .map(d1 -> d1.getCurrentVersion().equals(t.getT1()))
+                          .orElse(false))
+              .map(t -> !t)
+              .onErrorResume(
+                  ex -> {
+                    log.warn("Cannot load existing album", ex);
+                    return Mono.just(true);
+                  });
+        },
+        10)*/
         .collectList()
         .flatMapIterable(
             l -> {
@@ -321,164 +327,122 @@ public class ElasticSearchDataViewService implements DataViewService {
                           (currentVersion, currentName) ->
                               albumDataEntryRepository
                                   .findByAlbumId(album.getAlbumId())
-                                  // .log("find album by id " + album.getAlbumId())
+                                  .log("find album by id " + album.getAlbumId())
                                   .collectMap(AlbumEntryData::getEntryId, Function.identity())
                                   .onErrorResume(ex -> Mono.just(Collections.emptyMap()))
                                   .flatMap(
-                                      entriesBefore -> {
-                                        final Mono<Map<String, XMPMeta>> metadataMono =
-                                            access
-                                                .listFiles(XMP_FILE_FILTER)
-                                                .flatMap(
-                                                    xmpGitEntry ->
-                                                        access
-                                                            .readObject(xmpGitEntry.getFileId())
-                                                            .flatMap(access::readXmpMeta)
-                                                            .map(
-                                                                meta ->
-                                                                    Tuples.of(
-                                                                        stripXmpTail(
-                                                                            xmpGitEntry
-                                                                                .getNameString()),
-                                                                        meta)))
-                                                .collectMap(Tuple2::getT1, Tuple2::getT2);
-                                        return metadataMono.flatMap(
-                                            xmpMetadata ->
-                                                access
-                                                    .listFiles(MEDIA_FILE_FILTER)
-                                                    .flatMap(
-                                                        gitFileEntry -> {
-                                                          if (entriesBefore.containsKey(
-                                                              gitFileEntry.getFileId())) {
-                                                            final AlbumEntryData data =
-                                                                entriesBefore.get(
-                                                                    gitFileEntry.getFileId());
-                                                            return Mono.just(Tuples.of(true, data));
-                                                          } else {
-                                                            return access
-                                                                .entryMetdata(
-                                                                    gitFileEntry.getFileId())
-                                                                .map(
-                                                                    metadata ->
-                                                                        createAlbumEntry(
-                                                                            gitFileEntry,
-                                                                            metadata,
-                                                                            xmpMetadata.get(
-                                                                                gitFileEntry
-                                                                                    .getNameString()),
-                                                                            album.getAlbumId()))
-                                                                /*.doOnNext(
-                                                                d ->
-                                                                    log.info(
-                                                                        "Loaded metadata of "
-                                                                            + d.getFilename()))*/
-                                                                .onErrorResume(
-                                                                    ex -> {
-                                                                      log.info(
-                                                                          "Error on "
-                                                                              + gitFileEntry
-                                                                                  .getNameString(),
-                                                                          ex);
-                                                                      return Mono.empty();
-                                                                    })
-                                                                .map(e -> Tuples.of(false, e));
-                                                          }
-                                                        },
-                                                        20)
-                                                    .publish(
-                                                        in -> {
-                                                          final Flux<AlbumEntryData> passThrough =
-                                                              in.filter(Tuple2::getT1)
-                                                                  .map(Tuple2::getT2);
-                                                          final Flux<AlbumEntryData> stored =
-                                                              in.filter(v -> !v.getT1())
-                                                                  .map(Tuple2::getT2)
-                                                                  .buffer(100)
-                                                                  .publishOn(Schedulers.elastic())
-                                                                  .flatMapIterable(
-                                                                      this
-                                                                          ::storeAlbumEntryDataBatch);
-                                                          return Flux.merge(passThrough, stored);
-                                                        })
-                                                    .collect(
-                                                        () ->
-                                                            new AlbumStatisticsCollector(
-                                                                entriesBefore.keySet()),
-                                                        AlbumStatisticsCollector::addAlbumData)
-                                                    .publish(
-                                                        statResult -> {
-                                                          final Mono<Long> removeCount =
-                                                              statResult
-                                                                  .flatMapIterable(
-                                                                      AlbumStatisticsCollector
-                                                                          ::getRemainingEntries)
-                                                                  .flatMap(
-                                                                      id ->
-                                                                          albumDataEntryRepository
-                                                                              .deleteById(
-                                                                                  AlbumEntryData
-                                                                                      .createDocumentId(
-                                                                                          album
-                                                                                              .getAlbumId(),
-                                                                                          id))
-                                                                              .thenReturn(1))
-                                                                  .count();
-                                                          final Mono<AlbumData> albumDataMono =
-                                                              Mono.zip(
-                                                                      statResult,
-                                                                      access.getMetadata())
-                                                                  .map(
-                                                                      TupleUtils.function(
-                                                                          (s, metadata) -> {
-                                                                            final AlbumData
-                                                                                    .AlbumDataBuilder
-                                                                                builder =
-                                                                                    AlbumData
-                                                                                        .builder()
-                                                                                        .repositoryId(
-                                                                                            album
-                                                                                                .getAlbumId())
-                                                                                        .currentVersion(
-                                                                                            currentVersion)
-                                                                                        .name(
-                                                                                            currentName);
-                                                                            Optional.ofNullable(
-                                                                                    metadata
-                                                                                        .getLabels())
-                                                                                .ifPresent(
-                                                                                    builder
-                                                                                        ::labels);
-                                                                            return s.fill(builder)
-                                                                                .build();
-                                                                          }))
-                                                                  .flatMap(
-                                                                      albumDataRepository::save);
-
-                                                          return Mono.zip(
-                                                              removeCount, albumDataMono);
-                                                        }));
-                                      })));
+                                      entriesBefore ->
+                                          access
+                                              .listFiles(XMP_FILE_FILTER)
+                                              .flatMap(
+                                                  xmpGitEntry ->
+                                                      access
+                                                          .readObject(xmpGitEntry.getFileId())
+                                                          .flatMap(access::readXmpMeta)
+                                                          .map(
+                                                              meta ->
+                                                                  Tuples.of(
+                                                                      stripXmpTail(
+                                                                          xmpGitEntry
+                                                                              .getNameString()),
+                                                                      meta)))
+                                              .collectMap(Tuple2::getT1, Tuple2::getT2)
+                                              .log("xmp meta")
+                                              .flatMap(
+                                                  xmpMetadata ->
+                                                      access
+                                                          .listFiles(MEDIA_FILE_FILTER)
+                                                          .flatMap(
+                                                              gitFileEntry -> {
+                                                                if (entriesBefore.containsKey(
+                                                                    gitFileEntry.getFileId())) {
+                                                                  final AlbumEntryData data =
+                                                                      entriesBefore.get(
+                                                                          gitFileEntry.getFileId());
+                                                                  return Mono.just(
+                                                                      Tuples.of(true, data));
+                                                                } else {
+                                                                  return access
+                                                                      .entryMetdata(
+                                                                          gitFileEntry.getFileId())
+                                                                      .map(
+                                                                          metadata ->
+                                                                              createAlbumEntry(
+                                                                                  gitFileEntry,
+                                                                                  metadata,
+                                                                                  xmpMetadata.get(
+                                                                                      gitFileEntry
+                                                                                          .getNameString()),
+                                                                                  album
+                                                                                      .getAlbumId()))
+                                                                      /*.doOnNext(
+                                                                      d ->
+                                                                          log.info(
+                                                                              "Loaded metadata of "
+                                                                                  + d.getFilename()))*/
+                                                                      .onErrorResume(
+                                                                          ex -> {
+                                                                            log.info(
+                                                                                "Error on "
+                                                                                    + gitFileEntry
+                                                                                        .getNameString(),
+                                                                                ex);
+                                                                            return Mono.empty();
+                                                                          })
+                                                                      .map(
+                                                                          e -> Tuples.of(false, e));
+                                                                }
+                                                              },
+                                                              20)
+                                                          .publish(
+                                                              in -> {
+                                                                final Flux<AlbumEntryData>
+                                                                    passThrough =
+                                                                        in.filter(Tuple2::getT1)
+                                                                            .map(Tuple2::getT2);
+                                                                final Flux<AlbumEntryData> stored =
+                                                                    in.filter(v -> !v.getT1())
+                                                                        .map(Tuple2::getT2)
+                                                                        .buffer(100)
+                                                                        .flatMap(
+                                                                            entities ->
+                                                                                asyncService
+                                                                                    .asyncFlux(
+                                                                                        result ->
+                                                                                            syncAlbumDataEntryRepository
+                                                                                                .saveAll(
+                                                                                                    entities)
+                                                                                                .forEach(
+                                                                                                    result)));
+                                                                return Flux.merge(
+                                                                    passThrough, stored);
+                                                              })
+                                                          .collect(
+                                                              () ->
+                                                                  new AlbumStatisticsCollector(
+                                                                      entriesBefore.keySet()),
+                                                              AlbumStatisticsCollector
+                                                                  ::addAlbumData)
+                                                          .publish(
+                                                              statResult ->
+                                                                  statResult
+                                                                      .flatMapIterable(
+                                                                          AlbumStatisticsCollector
+                                                                              ::getRemainingEntries)
+                                                                      .flatMap(
+                                                                          id ->
+                                                                              albumDataEntryRepository
+                                                                                  .deleteById(
+                                                                                      AlbumEntryData
+                                                                                          .createDocumentId(
+                                                                                              album
+                                                                                                  .getAlbumId(),
+                                                                                              id))
+                                                                                  .thenReturn(1))
+                                                                      .count())))));
             },
             2)
         .count();
-  }
-
-  @NotNull
-  public Iterable<? extends AlbumEntryData> storeAlbumEntryDataBatch(
-      final List<AlbumEntryData> entities) {
-    log.info("Store " + entities.size() + " entries");
-    try {
-      final Iterable<AlbumEntryData> albumEntryData =
-          syncAlbumDataEntryRepository.saveAll(entities);
-      log.info("Stored " + entities.size() + " entries");
-
-      return albumEntryData;
-    } catch (Exception ex) {
-      log.error("Cannot store", ex);
-      return Collections.emptyList();
-    } finally {
-      log.info("Done");
-    }
   }
 
   private String stripXmpTail(final String filename) {
@@ -617,5 +581,26 @@ public class ElasticSearchDataViewService implements DataViewService {
     return loadEntry(albumId, entryId)
         .map(data -> data.toBuilder().keywords(new HashSet<>(newKeywords)).xmpFileId(null).build())
         .flatMap(albumDataEntryRepository::save);
+  }
+
+  @Override
+  public Mono<TemporaryPassword> createTemporaryPassword(
+      final UUID user, final String password, final Instant validUntil) {
+    return temporaryPasswordRepository.save(
+        TemporaryPassword.builder().userId(user).password(password).validUntil(validUntil).build());
+  }
+
+  @Override
+  public Mono<User> findAndValidateTemporaryPassword(final UUID user, final String password) {
+    final Instant now = Instant.now();
+    Instant maxValid = now.plus(1, ChronoUnit.DAYS);
+    return temporaryPasswordRepository
+        .findById(user)
+        .filter(
+            e ->
+                e.getValidUntil().isAfter(now)
+                    && e.getValidUntil().isBefore(maxValid)
+                    && Objects.equals(e.getPassword(), password))
+        .flatMap(tempPw -> findUserById(user));
   }
 }

@@ -73,6 +73,7 @@ export class ImportPage implements OnInit {
     public importedFiles: ImportResult[] = [];
     public uploadedStatistics: Map<string, ImportStatisticsEntry> = new Map<string, ImportStatisticsEntry>();
     public canImportFiles = window.showOpenFilePicker !== undefined;
+    public uploadedStatisticsList: ImportStatisticsEntry[];
 
     constructor(private importListAlbumGQL: ImportListAlbumGQL,
                 private importCreateAlbumGQL: ImportCreateAlbumGQL,
@@ -111,27 +112,6 @@ export class ImportPage implements OnInit {
             totalSize += (await item[0].getFile()).size;
         }
         let uploadedSize = 0;
-        const pendingUploadedFiles = new Map<string, ImportStatisticsEntry>();
-        const commit: (album: string) => Promise<void> = async () => {
-            const files: ImportFile[] = [];
-            for (const key of pendingUploadedFiles.keys()) {
-                const handle = pendingUploadedFiles.get(key);
-                const file = await handle[0].getFile();
-                files.push({fileId: key, filename: handle[0].name, size: file.size});
-            }
-            const commitResult = await this.serverApiService.update(this.importCommitGQL, {files});
-            for (const resultEntry of commitResult.commitImport) {
-                const fileId = resultEntry.fileId;
-                const uploadedFileHandle = pendingUploadedFiles.get(fileId);
-                this.importedFiles.push({
-                    directory: uploadedFileHandle[1],
-                    file: uploadedFileHandle[0],
-                    createdEntry: resultEntry
-                });
-                pendingUploadedFiles.delete(fileId);
-            }
-        };
-        const lastCommitTime = Date.now();
         for (const item of filesToUpload) {
             const data = await item[0].getFile();
             this.ngZone.run(() => this.currentFileName = item[0].name);
@@ -182,9 +162,15 @@ export class ImportPage implements OnInit {
                             sourceDirectory: item[1],
                             sourceFile: item[0]
                         });
+                        this.updateUploadStats();
                     });
                 } else {
-                    await this.toastController.create({message: 'Error identify file ' + item[0].name, color: 'warning', duration: 10000});
+                    const errorMsg = await this.toastController.create({
+                        message: 'Error identify file ' + item[0].name,
+                        color: 'warning',
+                        duration: 10000
+                    });
+                    await errorMsg.present();
                 }
             }
 
@@ -194,6 +180,13 @@ export class ImportPage implements OnInit {
             this.uploadOverallProgress = 0;
             this.uploadFileProgress = 0;
         });
+    }
+
+    private updateUploadStats() {
+        this.uploadedStatisticsList = [];
+        for (const statEntry of this.uploadedStatistics.values()) {
+            this.uploadedStatisticsList.push(statEntry);
+        }
     }
 
     private async processDirectory(directory: FileSystemDirectoryHandle,
@@ -267,17 +260,28 @@ export class ImportPage implements OnInit {
                     }
                 }
             }
+            this.updateUploadStats();
         });
     }
 
     async deleteCommited(statEntry: ImportStatisticsEntry) {
         const commitedFiles = statEntry.committed;
-        const wait = await this.loadingController.create({message: 'Delete', duration: 120000});
-        await wait.present();
-        while (commitedFiles.length > 0) {
-            const fileEntry = this.ngZone.run(() => commitedFiles.pop());
-            await fileEntry.sourceDirectory.removeEntry(fileEntry.sourceFile.name);
-        }
-        await wait.dismiss();
+        const wait = await this.loadingController.create({message: 'Delete', duration: 20 * 60 * 1000});
+        const doLoad = async (): Promise<void> => {
+            await wait.present();
+            while (commitedFiles.length > 0) {
+                const fileEntry = this.ngZone.run(() => commitedFiles.pop());
+                await fileEntry.sourceDirectory.removeEntry(fileEntry.sourceFile.name);
+            }
+            await wait.dismiss();
+        };
+        doLoad().finally(() =>
+            this.ngZone.run(() => this.updateUploadStats())
+        ).catch(error => {
+            console.log(error);
+            this.toastController.create({message: 'Error: ' + error, duration: 10 * 1000})
+                .then(er => er.present());
+        });
+
     }
 }

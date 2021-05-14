@@ -7,10 +7,7 @@ import java.util.Collection;
 import java.util.function.Function;
 import lombok.Value;
 import org.apache.tika.metadata.Metadata;
-import org.eclipse.jgit.lib.AnyObjectId;
-import org.eclipse.jgit.lib.FileMode;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -46,6 +43,8 @@ public interface GitAccess {
   Mono<XMPMeta> readXmpMeta(ObjectLoader loader);
 
   Mono<Boolean> writeXmpMeta(String filename, XMPMeta xmpMeta, final Updater.CommitContext context);
+
+  Mono<Repository> getRepository();
 
   @Value
   class GitFileEntry {

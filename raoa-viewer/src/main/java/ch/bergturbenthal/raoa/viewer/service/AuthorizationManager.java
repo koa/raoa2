@@ -22,6 +22,8 @@ public interface AuthorizationManager {
 
   Mono<Boolean> canUserModifyAlbum(SecurityContext context, UUID album);
 
+  Mono<Boolean> canUserModifyAlbum(Mono<User> user, UUID album);
+
   @NotNull
   Mono<Boolean> canUserAccessToAlbum(UUID album, Mono<User> currentUser);
 

@@ -28,6 +28,10 @@ const routes: Routes = [
   {
     path: 'import',
     loadChildren: () => import('./import/import.module').then( m => m.ImportPageModule)
+  },
+  {
+    path: 'sync',
+    loadChildren: () => import('./sync/sync.module').then( m => m.SyncPageModule)
   }
 ];
 

@@ -53,6 +53,7 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
         .oauth2ResourceServer()
         .bearerTokenResolver(
             request -> {
+              // log.info("Stacktrace", new Throwable());
               final Optional<String> s =
                   Optional.ofNullable(request.getCookies())
                       .flatMap(
@@ -74,7 +75,31 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
               }
               return token;
             })
-        .jwt();
+        .jwt()
+        .and()
+        .and()
+    /*
+    .addFilterBefore(
+        new OncePerRequestFilter() {
+          @Override
+          protected void doFilterInternal(
+              final @NotNull HttpServletRequest request,
+              final @NotNull HttpServletResponse response,
+              final @NotNull FilterChain filterChain)
+              throws ServletException, IOException {
+            log.info("Context: " + request.getServletPath());
+            log.info("Path: " + request.getPathInfo());
+            log.info("Auth Type: " + request.getAuthType());
+            log.info("User: " + request.getUserPrincipal());
+            final Enumeration<String> headerNames = request.getHeaderNames();
+            while (headerNames.hasMoreElements()) {
+              final String headerName = headerNames.nextElement();
+              log.info(headerName + ": " + request.getHeader(headerName));
+            }
+            filterChain.doFilter(request, response);
+          }
+        },
+        OAuth2AuthenticationProcessingFilter.class)*/ ;
   }
 
   @Bean

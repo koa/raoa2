@@ -142,7 +142,7 @@ public class Poller {
                                                       .getAccess()
                                                       .listFiles(
                                                           ElasticSearchDataViewService
-                                                              .IMAGE_FILE_FILTER)
+                                                              .MEDIA_FILE_FILTER)
                                                       .filterWhen(
                                                           gitFileEntry ->
                                                               isValidEntry(album, gitFileEntry))

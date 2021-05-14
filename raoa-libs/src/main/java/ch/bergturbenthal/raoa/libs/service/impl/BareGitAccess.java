@@ -787,4 +787,9 @@ public class BareGitAccess implements GitAccess {
                     .flatMap(fileId -> updater.commit(context))
                     .filter(ok -> ok));
   }
+
+  @Override
+  public Mono<Repository> getRepository() {
+    return repository;
+  }
 }

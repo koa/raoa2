@@ -15,6 +15,8 @@ import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import com.adobe.xmp.XMPMetaFactory;
 import com.coxautodev.graphql.tools.GraphQLMutationResolver;
 import java.io.File;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -45,6 +47,7 @@ public class Mutation implements GraphQLMutationResolver {
   private final DataViewService dataViewService;
   private final AlbumList albumList;
   private final UploadFilenameService uploadFilenameService;
+  private final Random random = SecureRandom.getInstanceStrong();
 
   public Mutation(
       final UserManager userManager,
@@ -52,7 +55,8 @@ public class Mutation implements GraphQLMutationResolver {
       final QueryContextSupplier queryContextSupplier,
       final DataViewService dataViewService,
       final AlbumList albumList,
-      final UploadFilenameService uploadFilenameService) {
+      final UploadFilenameService uploadFilenameService)
+      throws NoSuchAlgorithmException {
     this.userManager = userManager;
     this.authorizationManager = authorizationManager;
     this.queryContextSupplier = queryContextSupplier;
@@ -743,10 +747,22 @@ public class Mutation implements GraphQLMutationResolver {
                         return importResult.map(
                             t2 -> Tuples.of(t2.getT1(), t2.getT2(), t.getT1().getFileId()));
                       },
-                      1)
+                      5)
                   .collectList()
+                  .flatMap(fileList -> importer.commitAll().map(done -> fileList))
                   .flatMap(
-                      fileList -> importer.commitAll().filter(done -> done).map(done -> fileList))
+                      list ->
+                          dataViewService
+                              .updateAlbums(
+                                  Flux.fromIterable(list)
+                                      .map(Tuple2::getT1)
+                                      .distinct()
+                                      .flatMap(
+                                          it ->
+                                              albumList
+                                                  .getAlbum(it)
+                                                  .map(ga -> new AlbumList.FoundAlbum(it, ga))))
+                              .thenReturn(list))
                   .flatMapIterable(Function.identity())
                   .flatMap(
                       t -> {
@@ -784,6 +800,52 @@ public class Mutation implements GraphQLMutationResolver {
                         albumId ->
                             new Album(
                                 albumId, queryContext, dataViewService.readAlbum(albumId).cache())))
+        .timeout(TIMEOUT)
+        .toFuture();
+  }
+
+  public CompletableFuture<TemporaryPassword> createTemporaryPassword(Integer duration) {
+
+    final Duration passwordTimeout =
+        Optional.ofNullable(duration)
+            .filter(d -> d > 0)
+            .filter(d -> d < 7200)
+            .map(Duration::ofSeconds)
+            .orElse(Duration.ofMinutes(5));
+    return queryContextSupplier
+        .createContext()
+        .filter(c -> c.getCurrentUser().isPresent())
+        .flatMap(
+            context ->
+                context
+                    .getCurrentUser()
+                    .map(
+                        user -> {
+                          final UUID userId = user.getId();
+
+                          String password =
+                              random
+                                  .ints(0, 62)
+                                  .mapToObj(
+                                      i -> {
+                                        if (i < 26) {
+                                          return (char) ('A' + i);
+                                        }
+                                        if (i < 52) {
+                                          return (char) ('a' + i - 26);
+                                        }
+                                        return (char) ('0' + i - 52);
+                                      })
+                                  .limit(40)
+                                  .collect(
+                                      StringBuilder::new,
+                                      StringBuilder::append,
+                                      StringBuilder::append)
+                                  .toString();
+                          return dataViewService.createTemporaryPassword(
+                              userId, password, Instant.now().plus(passwordTimeout));
+                        })
+                    .orElse(Mono.empty()))
         .timeout(TIMEOUT)
         .toFuture();
   }

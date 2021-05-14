@@ -15,7 +15,7 @@
             <ion-label *ngIf="this.currentFileName.length>0">{{this.currentFileName}}</ion-label>
             <ion-progress-bar *ngIf="uploadFileProgress>0" [value]="uploadFileProgress"></ion-progress-bar>
             <ion-progress-bar *ngIf="uploadOverallProgress>0" [value]="uploadOverallProgress"></ion-progress-bar>
-            <ion-card *ngFor="let statEntry of uploadedStatistics.values()">
+            <ion-card *ngFor="let statEntry of uploadedStatisticsList">
                 <ion-card-header>
                     <ion-card-title>{{statEntry.albumName}}</ion-card-title>
                     <ion-card-subtitle>Total {{statEntry.uploaded.length + statEntry.committed.length}} Dateien

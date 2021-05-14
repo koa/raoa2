@@ -7,11 +7,16 @@ import ch.bergturbenthal.raoa.viewer.service.impl.DefaultAuthorizationManager;
 import graphql.schema.*;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.http.server.GitServlet;
+import org.eclipse.jgit.transport.resolver.ReceivePackFactory;
+import org.eclipse.jgit.transport.resolver.RepositoryResolver;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.actuate.autoconfigure.elasticsearch.ElasticSearchRestHealthContributorAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -152,4 +157,14 @@ public class RaoaViewerApplication {
     }
   */
 
+  @Bean
+  public ServletRegistrationBean<GitServlet> gitServlet(
+      final RepositoryResolver<HttpServletRequest> resolver,
+      final ReceivePackFactory<HttpServletRequest> receivePackFactory) {
+    final GitServlet servlet = new GitServlet();
+
+    servlet.setRepositoryResolver(resolver);
+    servlet.setReceivePackFactory(receivePackFactory);
+    return new ServletRegistrationBean<>(servlet, "/git/*");
+  }
 }

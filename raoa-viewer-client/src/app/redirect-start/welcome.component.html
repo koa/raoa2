@@ -93,5 +93,10 @@
             <ion-card-title>Photos Importieren</ion-card-title>
         </ion-card-header>
     </ion-card>
+    <ion-card>
+        <ion-card-header *ngIf="userState?.currentUser?.canManageUsers" routerLink="/sync">
+            <ion-card-title>Photos synchronisieren</ion-card-title>
+        </ion-card-header>
+    </ion-card>
 
 </ion-content>

@@ -178,53 +178,48 @@ public class BareAlbumList implements AlbumList {
             .getRepositories()
             .flatMap(
                 reps ->
-                    asyncService.<Mono<Tuple2<UUID, ObjectId>>>asyncMono(
-                        () -> {
-                          try {
-                            final Optional<Instant> foundTimestamp = detectTimestamp(file);
-                            if (foundTimestamp.isEmpty()) return Mono.empty();
+                    asyncService
+                        .asyncMonoOptional(() -> detectTimestamp(file))
+                        .flatMap(
+                            createTimestamp -> {
+                              final String prefix =
+                                  DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
+                                      .format(createTimestamp.atZone(ZoneId.systemDefault()));
+                              final String targetFilename = prefix + "-" + originalFileName;
+                              return albumOf(createTimestamp)
+                                  /*
+                                  .flatMap(
+                                      repositoryId ->
+                                          getAlbum(repositoryId)
+                                              .flatMap(GitAccess::getName)
+                                              .defaultIfEmpty("not found")
+                                              .doOnNext(
+                                                 name ->
+                                                     log.info("Import " + file + " to " + name))
 
-                            final Instant createTimestamp = foundTimestamp.get();
-
-                            final String prefix =
-                                DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
-                                    .format(createTimestamp.atZone(ZoneId.systemDefault()));
-                            final String targetFilename = prefix + "-" + originalFileName;
-                            return albumOf(createTimestamp)
-                                .flatMap(
-                                    repositoryId ->
-                                        getAlbum(repositoryId)
-                                            .flatMap(GitAccess::getName)
-                                            .defaultIfEmpty("not found")
-                                            .doOnNext(
-                                                name -> log.info("Import " + file + " to " + name))
-                                            .map(name -> repositoryId))
-                                .filterWhen(albumFilter)
-                                .flatMap(
-                                    repositoryId ->
-                                        pendingUpdaters
-                                            .computeIfAbsent(
-                                                repositoryId,
-                                                k -> reps.get(k).createUpdater().cache())
-                                            .flatMap(
-                                                updater ->
-                                                    updater
-                                                        .importFile(file, targetFilename)
-                                                        .map(
-                                                            objectId ->
-                                                                Tuples.of(repositoryId, objectId))
-                                                        .onErrorResume(
-                                                            e -> {
-                                                              log.warn(
-                                                                  "Cannot import file " + file, e);
-                                                              return Mono.empty();
-                                                            })));
-                          } catch (TikaException | SAXException | IOException e) {
-                            log.warn("Cannot access file " + file, e);
-                            return (Mono.empty());
-                          }
-                        }))
-            .flatMap(Function.identity());
+                                              .map(name -> repositoryId))*/
+                                  .filterWhen(albumFilter)
+                                  .flatMap(
+                                      repositoryId ->
+                                          pendingUpdaters
+                                              .computeIfAbsent(
+                                                  repositoryId,
+                                                  k -> reps.get(k).createUpdater().cache())
+                                              .flatMap(
+                                                  updater ->
+                                                      updater
+                                                          .importFile(file, targetFilename, false)
+                                                          .map(
+                                                              objectId ->
+                                                                  Tuples.of(repositoryId, objectId))
+                                                          .onErrorResume(
+                                                              e -> {
+                                                                log.warn(
+                                                                    "Cannot import file " + file,
+                                                                    e);
+                                                                return Mono.empty();
+                                                              })));
+                            }));
       }
 
       @Override

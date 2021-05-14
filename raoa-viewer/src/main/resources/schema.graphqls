@@ -27,6 +27,12 @@ type Mutation{
     updateAlbumEntry(albumId: ID!, albumEntryId: ID!, update: AlbumEntryUpdate): AlbumEntry
     commitImport(files: [ImportFile!]!):[ImportedFile!]!
     createAlbum(path: [String!]!):Album
+    createTemporaryPassword(duration: Int): TemporaryPassword
+}
+
+type TemporaryPassword {
+    password: String!
+    validUntil: DateTime!
 }
 
 type ImportedFile {
