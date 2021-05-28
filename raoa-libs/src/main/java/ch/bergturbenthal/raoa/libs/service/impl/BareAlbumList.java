@@ -126,7 +126,8 @@ public class BareAlbumList implements AlbumList {
                             e ->
                                 e.getValue()
                                     .readAutoadd()
-                                    .map(t -> new AutoaddEntry(t, e.getKey())))
+                                    .map(t -> new AutoaddEntry(t, e.getKey())),
+                            10)
                         .collect(
                             Collectors.toMap(
                                 AutoaddEntry::getTime,
@@ -153,7 +154,7 @@ public class BareAlbumList implements AlbumList {
             Flux.fromIterable(pendingUpdaters.keySet())
                 .map(k -> Optional.ofNullable(pendingUpdaters.remove(k)))
                 .filter(Optional::isPresent)
-                .flatMap(Optional::get)
+                .flatMap(Optional::get, 3)
                 .toIterable()) {
           updater.close();
         }
@@ -279,7 +280,7 @@ public class BareAlbumList implements AlbumList {
         .get()
         .getRepositories()
         .flatMapIterable(Map::values)
-        .flatMap(GitAccess::getFullPath)
+        .flatMap(GitAccess::getFullPath, 2)
         .map(
             f -> {
               final int i = f.lastIndexOf('/');

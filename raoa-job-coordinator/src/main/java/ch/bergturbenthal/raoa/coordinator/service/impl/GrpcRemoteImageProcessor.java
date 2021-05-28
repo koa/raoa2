@@ -10,7 +10,6 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Timestamp;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.ByteBuffer;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Optional;
@@ -22,8 +21,6 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
-import reactor.util.retry.Retry;
 
 @Slf4j
 @Service
@@ -100,13 +97,7 @@ public class GrpcRemoteImageProcessor implements RemoteImageProcessor {
               builder.keywords(new HashSet<>(response.getKeywordList()));
 
               return builder.build();
-            })
-        .retryWhen(
-            Retry.backoff(10, Duration.ofSeconds(2))
-                .maxBackoff(Duration.ofMinutes(1))
-                .jitter(0.5d)
-                .scheduler(Schedulers.parallel())
-                .transientErrors(false));
+            });
   }
 
   private ObjectId convertObjectId(final ImageProcessing.GitObjectId objectId) {

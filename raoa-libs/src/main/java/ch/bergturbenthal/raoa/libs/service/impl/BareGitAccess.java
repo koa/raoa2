@@ -26,8 +26,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -187,64 +185,21 @@ public class BareGitAccess implements GitAccess {
             t -> {
               final Repository reps = t.getT1();
               final RevTree revTree = t.getT2();
-              return Flux.create(
-                  sink -> {
-                    Semaphore freeSlots = new Semaphore(0);
-                    AtomicBoolean started = new AtomicBoolean(false);
-                    sink.onRequest(
-                        count -> {
-                          // log.info("Request: " + count);
-                          freeSlots.release(
-                              (int)
-                                  Math.min(
-                                      Integer.MAX_VALUE - freeSlots.availablePermits(), count));
-                          // log.info("free: " + freeSlots);
-                          if (started.compareAndSet(false, true)) {
-                            new Thread(
-                                    () -> {
-                                      AtomicBoolean done = new AtomicBoolean(false);
-                                      sink.onCancel(
-                                          () -> {
-                                            // log.info("Cancel");
-                                            done.set(true);
-                                          });
-                                      try {
-                                        try (ObjectReader objectReader = reps.newObjectReader()) {
-                                          TreeWalk tw = new TreeWalk(reps, objectReader);
-                                          tw.setFilter(filter);
-                                          tw.reset(new ObjectId[] {revTree.getId()});
-                                          tw.setRecursive(true);
-                                          while (!done.get() && tw.next()) {
-                                            // log.info("Free slots: " + freeSlots);
-                                            final String nameString = tw.getPathString();
-                                            final FileMode fileMode = tw.getFileMode();
-                                            final ObjectId fileId = tw.getObjectId(0);
-                                            if (!freeSlots.tryAcquire()) {
-                                              //
-                                              // log.info("Start
-                                              // Throttle");
-                                              freeSlots.acquire();
-                                              //
-                                              // log.info("End
-                                              // Throttle");
-                                            }
-                                            sink.next(
-                                                new GitFileEntry(nameString, fileMode, fileId));
-                                          }
-                                        }
-                                      } catch (IOException | InterruptedException e) {
-                                        sink.error(e);
-                                      }
-                                      sink.complete();
-                                    },
-                                    "list files")
-                                .start();
-                          }
-                        });
-                  })
-              // .log("list files")
-              // .publishOn(processScheduler, 3)
-              ;
+              return asyncService.asyncFlux(
+                  consumer -> {
+                    try (ObjectReader objectReader = reps.newObjectReader()) {
+                      TreeWalk tw = new TreeWalk(reps, objectReader);
+                      tw.setFilter(filter);
+                      tw.reset(new ObjectId[] {revTree.getId()});
+                      tw.setRecursive(true);
+                      while (tw.next()) {
+                        final String nameString = tw.getPathString();
+                        final FileMode fileMode = tw.getFileMode();
+                        final ObjectId fileId = tw.getObjectId(0);
+                        consumer.accept(new GitFileEntry(nameString, fileMode, fileId));
+                      }
+                    }
+                  });
             });
   }
 

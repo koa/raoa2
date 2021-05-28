@@ -5,8 +5,11 @@ import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
+import java.security.Principal;
 import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
+import java.util.UUID;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
@@ -20,6 +23,7 @@ import org.eclipse.jgit.transport.resolver.ReceivePackFactory;
 import org.eclipse.jgit.transport.resolver.RepositoryResolver;
 import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -59,45 +63,25 @@ public class HttpRepositoryResolver
     log.info("Repository: " + name);
     log.info("method: " + method);
     log.info("Auth Type: " + req.getAuthType());
-    log.info("User: " + req.getUserPrincipal());
-    final Enumeration<String> headerNames = req.getHeaderNames();
-    while (headerNames.hasMoreElements()) {
-      final String headerName = headerNames.nextElement();
-      log.info(headerName + ": " + req.getHeader(headerName));
-    }
-
-    final String authorization = req.getHeader("Authorization");
-    if (authorization == null) {
-      throw new ServiceNotAuthorizedException("Missing auth header");
-    }
-    final StringTokenizer st = new StringTokenizer(authorization);
-    if (!st.hasMoreTokens()) {
-      throw new ServiceNotAuthorizedException("Empty auth header");
-    }
-    final String basic = st.nextToken();
-
-    if (!basic.equalsIgnoreCase("Basic")) {
-      throw new ServiceNotAuthorizedException("Unsupported Method: " + basic);
-    }
-    final String credentials = new String(Base64.getDecoder().decode(st.nextToken()));
-    final int splitPosition = credentials.indexOf(":");
-    if (splitPosition == -1) {
-      throw new ServiceNotAuthorizedException("Invalid authentication token: " + basic);
-    }
-    final String username = credentials.substring(0, splitPosition).trim();
-    final String password = credentials.substring(splitPosition + 1).trim();
+    User user = extractUser(req);
+    log.info("User: " + user);
 
     final UUID albumId = UUID.fromString(name);
-    final Repository repository =
-        elasticSearchDataViewService
-            .findAndValidateTemporaryPassword(UUID.fromString(username), password)
-            .flatMap(user -> albumList.getAlbum(albumId).flatMap(GitAccess::getRepository))
-            .block(Duration.ofSeconds(10));
-    if (repository == null) {
+
+    if (user == null) {
       throw new ServiceNotAuthorizedException("Invalid user / password");
     }
+
+    final Repository repository =
+        albumList.getAlbum(albumId).flatMap(GitAccess::getRepository).block(Duration.ofSeconds(10));
     reverseMap.put(repository, albumId);
     return repository;
+  }
+
+  private User extractUser(final HttpServletRequest req) {
+    final Principal userPrincipal = req.getUserPrincipal();
+    if (userPrincipal == null) return null;
+    return (User) ((UsernamePasswordAuthenticationToken) userPrincipal).getDetails();
   }
 
   @Override
@@ -105,13 +89,13 @@ public class HttpRepositoryResolver
       throws ServiceNotEnabledException, ServiceNotAuthorizedException {
     final UUID albumId = reverseMap.get(db);
 
-    final User user =
-        elasticSearchDataViewService
-            .findUserById(UUID.fromString(req.getRemoteUser()))
-            .filterWhen(u -> authorizationManager.canUserModifyAlbum(Mono.just(u), albumId))
-            .block(Duration.ofSeconds(10));
+    final User user = extractUser(req);
 
-    if (user != null)
+    if (user != null
+        && authorizationManager
+            .canUserModifyAlbum(Mono.just(user), albumId)
+            .defaultIfEmpty(false)
+            .block(Duration.ofSeconds(5)))
       return createFor(db, user.getUserData().getName(), user.getUserData().getEmail());
     throw new ServiceNotAuthorizedException();
   }

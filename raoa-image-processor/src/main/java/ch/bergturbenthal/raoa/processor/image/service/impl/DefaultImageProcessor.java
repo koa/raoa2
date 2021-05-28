@@ -23,6 +23,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +60,9 @@ import reactor.util.function.Tuples;
 public class DefaultImageProcessor implements ImageProcessor {
   private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
   private static final Set<String> RAW_ENDINGS = Set.of(".nef", ".dng", ".cr2", ".crw", ".cr3");
+  private static final Set<String> IMAGE_ENDINGS =
+      Stream.concat(Set.of(".jpeg", ".jpg", ".tiff", ".png", ".gif").stream(), RAW_ENDINGS.stream())
+          .collect(Collectors.toUnmodifiableSet());
   private static final boolean HAS_DCRAW = hasDcraw();
   private static final Object dcrawLock = new Object();
   private final AlbumList albumList;
@@ -404,7 +409,9 @@ public class DefaultImageProcessor implements ImageProcessor {
             (ThumbnailFilenameService.FileAndScale fileAndScale) -> {
               int size = fileAndScale.getSize();
               File targetFile = fileAndScale.getFile();
-              if (targetFile.exists()) {
+              final String lowerFilename = filename.toLowerCase();
+              if (targetFile.exists()
+                  || IMAGE_ENDINGS.stream().noneMatch(lowerFilename::endsWith)) {
                 // log.info("Scale " + filename + " to " + size + " already exists");
                 return Mono.<Boolean>just(true);
               }

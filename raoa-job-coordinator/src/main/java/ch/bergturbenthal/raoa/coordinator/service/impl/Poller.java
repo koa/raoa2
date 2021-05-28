@@ -142,10 +142,11 @@ public class Poller {
                                                       .getAccess()
                                                       .listFiles(
                                                           ElasticSearchDataViewService
-                                                              .MEDIA_FILE_FILTER)
+                                                              .IMAGE_FILE_FILTER)
                                                       .filterWhen(
                                                           gitFileEntry ->
-                                                              isValidEntry(album, gitFileEntry))
+                                                              isValidEntry(album, gitFileEntry),
+                                                          5)
                                                       .flatMap(
                                                           gitFileEntry ->
                                                               entryAlreadyProcessed(
@@ -159,7 +160,8 @@ public class Poller {
                                                                       exists ->
                                                                           Tuples.of(
                                                                               gitFileEntry,
-                                                                              exists)))
+                                                                              exists)),
+                                                          20)
                                                       .map(
                                                           (Tuple2<GitAccess.GitFileEntry, Boolean>
                                                                   gitFileEntry) ->
@@ -203,15 +205,23 @@ public class Poller {
                                                                         .getProcessTimeout())
                                                                 .retryWhen(
                                                                     Retry.backoff(
-                                                                            10,
+                                                                            2,
                                                                             Duration.ofSeconds(5))
                                                                         .maxBackoff(
                                                                             Duration.ofMinutes(2))
                                                                         .jitter(0.5d)
                                                                         .scheduler(
                                                                             Schedulers.parallel())
+                                                                        .doBeforeRetry(
+                                                                            signal ->
+                                                                                log.warn(
+                                                                                    "Retry on error at "
+                                                                                        + filename,
+                                                                                    signal
+                                                                                        .failure()))
                                                                         .transientErrors(false))
                                                                 .map(ret -> Tuples.of(ret, true))
+                                                                .onErrorStop()
                                                                 .doFinally(
                                                                     signal ->
                                                                         log.info(
@@ -236,12 +246,18 @@ public class Poller {
                                                           50)
                                                       // .log("entry of " + album)
                                                       // .log("in")
-                                                      /*.doOnNext(
-                                                      data -> {
-                                                        if (data.getT2())
-                                                          log.info("Processing " + data.getT1());
-                                                        else log.info("Bypassing " + data.getT1());
-                                                      })*/
+                                                      /* .doOnNext(
+                                                          data -> {
+                                                            if (data.getT2())
+                                                              log.info(
+                                                                  "Processing "
+                                                                      + data.getT1().getFilename());
+                                                            else
+                                                              log.info(
+                                                                  "Bypassing "
+                                                                      + data.getT1().getFilename());
+                                                          })
+                                                      */
                                                       .groupBy(Tuple2::getT2)
                                                       .flatMap(
                                                           (GroupedFlux<
@@ -274,7 +290,8 @@ public class Poller {
                                                             } else
                                                               return inFlux // .log("bypass")
                                                               ;
-                                                          })
+                                                          },
+                                                          200)
                                                       // .log("joined")
                                                       .collectList());
                                   final Mono<String> nameMono = album.getAccess().getName();
@@ -350,7 +367,7 @@ public class Poller {
                               data ->
                                   log.info(
                                       "Remove " + data.getName() + "; " + data.getRepositoryId()))
-                          .flatMap(entity -> albumDataRepository.delete(entity).thenReturn(1))
+                          .flatMap(entity -> albumDataRepository.delete(entity).thenReturn(1), 10)
                           .count());
 
       try {

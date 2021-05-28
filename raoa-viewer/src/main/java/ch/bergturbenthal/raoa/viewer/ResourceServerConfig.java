@@ -1,10 +1,12 @@
 package ch.bergturbenthal.raoa.viewer;
 
+import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.JWTParser;
 import java.text.ParseException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import javax.servlet.http.Cookie;
@@ -12,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.ResourceServerProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -29,6 +32,7 @@ import org.springframework.security.oauth2.provider.token.TokenStore;
 import org.springframework.security.oauth2.provider.token.UserAuthenticationConverter;
 import org.springframework.security.oauth2.provider.token.store.jwk.JwkTokenStore;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
 @Slf4j
 @Configuration
@@ -37,9 +41,13 @@ import org.springframework.security.oauth2.server.resource.web.DefaultBearerToke
 public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
 
   private final ViewerProperties oAuthProperties;
+  private final ElasticSearchDataViewService elasticSearchDataViewService;
 
-  public ResourceServerConfig(final ViewerProperties oAuthProperties) {
+  public ResourceServerConfig(
+      final ViewerProperties oAuthProperties,
+      final ElasticSearchDataViewService elasticSearchDataViewService) {
     this.oAuthProperties = oAuthProperties;
+    this.elasticSearchDataViewService = elasticSearchDataViewService;
   }
 
   @Override
@@ -78,28 +86,40 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
         .jwt()
         .and()
         .and()
-    /*
-    .addFilterBefore(
-        new OncePerRequestFilter() {
-          @Override
-          protected void doFilterInternal(
-              final @NotNull HttpServletRequest request,
-              final @NotNull HttpServletResponse response,
-              final @NotNull FilterChain filterChain)
-              throws ServletException, IOException {
-            log.info("Context: " + request.getServletPath());
-            log.info("Path: " + request.getPathInfo());
-            log.info("Auth Type: " + request.getAuthType());
-            log.info("User: " + request.getUserPrincipal());
-            final Enumeration<String> headerNames = request.getHeaderNames();
-            while (headerNames.hasMoreElements()) {
-              final String headerName = headerNames.nextElement();
-              log.info(headerName + ": " + request.getHeader(headerName));
-            }
-            filterChain.doFilter(request, response);
-          }
-        },
-        OAuth2AuthenticationProcessingFilter.class)*/ ;
+        .addFilter(
+            new BasicAuthenticationFilter(
+                authentication -> {
+                  if (authentication instanceof UsernamePasswordAuthenticationToken) {
+                    String username = authentication.getName();
+                    String password = (String) authentication.getCredentials();
+
+                    return elasticSearchDataViewService
+                        .findAndValidateTemporaryPassword(UUID.fromString(username), password)
+                        .<Authentication>map(
+                            user -> {
+                              final Collection<? extends GrantedAuthority> authorities =
+                                  Collections.singletonList(
+                                      new SimpleGrantedAuthority(
+                                          user.isSuperuser() ? "SUPERUSER" : "USER"));
+                              UsernamePasswordAuthenticationToken result =
+                                  new UsernamePasswordAuthenticationToken(
+                                      authentication.getPrincipal(),
+                                      authentication.getCredentials(),
+                                      authorities);
+                              result.setDetails(user);
+                              log.info("User: " + user);
+                              return result;
+                            })
+                        .defaultIfEmpty(authentication)
+                        .block(Duration.ofSeconds(10));
+                  }
+
+                  return authentication;
+                }))
+    /*.addFilterAt(new BasicAuthenticationFilter(authentication -> {
+      return authentication;
+    }), SecurityContextPersistenceFilter.class)*/
+    ;
   }
 
   @Bean

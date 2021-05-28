@@ -761,7 +761,8 @@ public class Mutation implements GraphQLMutationResolver {
                                           it ->
                                               albumList
                                                   .getAlbum(it)
-                                                  .map(ga -> new AlbumList.FoundAlbum(it, ga))))
+                                                  .map(ga -> new AlbumList.FoundAlbum(it, ga)),
+                                          10))
                               .thenReturn(list))
                   .flatMapIterable(Function.identity())
                   .flatMap(
@@ -781,7 +782,8 @@ public class Mutation implements GraphQLMutationResolver {
                                         entryId.name(),
                                         entryData))
                             .map(entry -> new ImportedFile(fileId, entry));
-                      })
+                      },
+                      20)
                   .collectList();
             })
         .doOnError(ex -> log.warn("Cannot commit import", ex))
