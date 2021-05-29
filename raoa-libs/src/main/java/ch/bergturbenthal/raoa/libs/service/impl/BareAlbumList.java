@@ -105,7 +105,6 @@ public class BareAlbumList implements AlbumList {
 
     final Mono<Map<UUID, GitAccess>> repositories =
         listSubdirs(repoRootPath)
-            .log("repo")
             .<GitAccess>map(
                 p ->
                     BareGitAccess.accessOf(
