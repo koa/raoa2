@@ -102,9 +102,10 @@ public class BareAlbumList implements AlbumList {
 
   @Override
   public void resetCache() {
+
     final Mono<Map<UUID, GitAccess>> repositories =
         listSubdirs(repoRootPath)
-            .publishOn(processScheduler, 5)
+            .log("repo")
             .<GitAccess>map(
                 p ->
                     BareGitAccess.accessOf(
@@ -139,7 +140,15 @@ public class BareAlbumList implements AlbumList {
   }
 
   private Flux<Path> listSubdirs(Path dir) {
-    return asyncService.asyncFlux(sink -> listSubdirs(dir, sink));
+    return asyncService.asyncFlux(
+        sink -> {
+          final Path metaDir = dir.resolve(".meta.git");
+          while (!Files.exists(metaDir)) {
+            log.info("Waiting for " + metaDir);
+            Thread.sleep(100);
+          }
+          listSubdirs(dir, sink);
+        });
   }
 
   @Override

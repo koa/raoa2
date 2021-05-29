@@ -47,9 +47,6 @@ public class GrpcRemoteImageProcessor implements RemoteImageProcessor {
             .setAlbumId(convertUUID(albumId))
             .setFilename(data.getFilename())
             .build();
-    // .log(albumId + "; " + request.getFilename())
-    // .log(albumId + "; " + request.getFilename())
-    // .log(albumId + "; " + request.getFilename())
     return Mono.from(
             StreamObserverReactiveHelper.createPublisher(
                 request, processImageServiceStub::processImage))

@@ -22,6 +22,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.core.io.ClassPathResource;
@@ -32,7 +34,7 @@ import reactor.util.retry.RetryBackoffSpec;
 @Slf4j
 public class TestImageProcessor {
   @Test
-  public void testRawImage() throws IOException {
+  public void testRawImage() throws IOException, GitAPIException {
 
     final Properties properties = new Properties();
     final File thumbnailDir = File.createTempFile("raoa", "thumbnail");
@@ -42,6 +44,7 @@ public class TestImageProcessor {
     final File repoDir = File.createTempFile("raoa", "repository");
     repoDir.delete();
     repoDir.mkdirs();
+    Git.init().setDirectory(new File(repoDir, ".meta.git")).setBare(true).call();
     properties.setRepository(repoDir);
 
     final MeterRegistry meterRegistry = new SimpleMeterRegistry();

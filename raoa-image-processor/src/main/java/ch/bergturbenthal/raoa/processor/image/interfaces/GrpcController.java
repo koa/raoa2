@@ -34,7 +34,7 @@ public class GrpcController extends ProcessImageServiceGrpc.ProcessImageServiceI
     final long lsb = byteBuffer.getLong();
     final UUID albumId = new UUID(msb, lsb);
     final String filename = request.getFilename();
-    log.info("Take: " + albumId + "; " + filename);
+    // log.info("Take: " + albumId + "; " + filename);
     imageProcessor
         .processImage(albumId, filename)
         .map(
@@ -71,8 +71,8 @@ public class GrpcController extends ProcessImageServiceGrpc.ProcessImageServiceI
                   .ifPresent(builder::setXmpMetadataId);
               return builder.build();
             })
-        // .log(filename)
-        .doOnNext(ex -> log.warn("Cannot process file " + request.getFilename(), ex))
+        .log(filename)
+        .doOnError(ex -> log.warn("Cannot process file " + request.getFilename(), ex))
         .subscribe(StreamObserverReactiveHelper.toSubscriber(responseObserver));
   }
 
