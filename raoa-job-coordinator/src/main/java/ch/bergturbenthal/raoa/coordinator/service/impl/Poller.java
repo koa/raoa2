@@ -29,7 +29,6 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.GroupedFlux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 import reactor.function.TupleUtils;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
@@ -203,25 +202,7 @@ public class Poller {
                                                                 .timeout(
                                                                     coordinatorProperties
                                                                         .getProcessTimeout())
-                                                                .retryWhen(
-                                                                    Retry.backoff(
-                                                                            2,
-                                                                            Duration.ofSeconds(5))
-                                                                        .maxBackoff(
-                                                                            Duration.ofMinutes(2))
-                                                                        .jitter(0.5d)
-                                                                        .scheduler(
-                                                                            Schedulers.parallel())
-                                                                        .doBeforeRetry(
-                                                                            signal ->
-                                                                                log.warn(
-                                                                                    "Retry on error at "
-                                                                                        + filename,
-                                                                                    signal
-                                                                                        .failure()))
-                                                                        .transientErrors(false))
                                                                 .map(ret -> Tuples.of(ret, true))
-                                                                .onErrorStop()
                                                                 .doFinally(
                                                                     signal ->
                                                                         log.info(

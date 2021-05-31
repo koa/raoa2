@@ -8,19 +8,24 @@ import ch.bergturbenthal.raoa.processing.grpc.ImageProcessing;
 import ch.bergturbenthal.raoa.processing.grpc.ProcessImageServiceGrpc;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Timestamp;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.eclipse.jgit.lib.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 @Slf4j
 @Service
@@ -94,7 +99,21 @@ public class GrpcRemoteImageProcessor implements RemoteImageProcessor {
               builder.keywords(new HashSet<>(response.getKeywordList()));
 
               return builder.build();
-            });
+            })
+        .retryWhen(
+            Retry.backoff(20, Duration.ofSeconds(5))
+                .maxBackoff(Duration.ofMinutes(1))
+                .filter(
+                    ex -> {
+                      final Throwable rootCause = ExceptionUtils.getRootCause(ex);
+                      if (rootCause instanceof StatusRuntimeException
+                          && ((StatusRuntimeException) rootCause).getStatus().getCode()
+                              == Status.Code.UNAVAILABLE) {
+                        return true;
+                      }
+                      log.warn("Not caught exception ", ex);
+                      return false;
+                    }));
   }
 
   private ObjectId convertObjectId(final ImageProcessing.GitObjectId objectId) {
