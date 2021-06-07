@@ -113,7 +113,8 @@ public class GrpcRemoteImageProcessor implements RemoteImageProcessor {
                       }
                       log.warn("Not caught exception ", ex);
                       return false;
-                    }));
+                    }))
+        .retryWhen(Retry.backoff(3, Duration.ofSeconds(3)));
   }
 
   private ObjectId convertObjectId(final ImageProcessing.GitObjectId objectId) {

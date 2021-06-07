@@ -11,7 +11,7 @@
                     <ion-icon name="menu" (click)="openMenu()" class="button"></ion-icon>
                 </div>
                 <div class="right-actions">
-                    <ion-button *ngIf="!supportShare" (click)="downloadCurrentFile(previousMediaId, metadata)">
+                    <ion-button (click)="downloadCurrentFile(previousMediaId, metadata)">
                         <ion-icon name="download-outline"
                         ></ion-icon>
                     </ion-button>
@@ -73,7 +73,7 @@
                 </div>
 
                 <div class="right-actions">
-                    <ion-button *ngIf="!supportShare" (click)="downloadCurrentFile(mediaId, metadata)">
+                    <ion-button (click)="downloadCurrentFile(mediaId, metadata)">
                         <ion-icon name="download-outline"
                         ></ion-icon>
                     </ion-button>
@@ -146,7 +146,7 @@
                 <ion-icon name="menu" (click)="openMenu()" class="button"></ion-icon>
             </div>
             <div class="right-actions">
-                <ion-button *ngIf="!supportShare" (click)="downloadCurrentFile(nextMediaId, metadata)">
+                <ion-button (click)="downloadCurrentFile(nextMediaId, metadata)">
                     <ion-icon name="download-outline"
                     ></ion-icon>
                 </ion-button>

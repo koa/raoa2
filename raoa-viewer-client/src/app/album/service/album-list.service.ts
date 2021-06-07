@@ -41,6 +41,7 @@ export class AlbumListService {
             const title: string | null = content.albumById.name;
             const sortedEntries: (QueryAlbumEntry)[] = content.albumById.entries
                 .slice()
+                .filter(e => e.created)
                 .sort((e1, e2) => {
                     const c1 = e1?.created;
                     const c2 = e2?.created;

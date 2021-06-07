@@ -71,7 +71,6 @@ public class GrpcController extends ProcessImageServiceGrpc.ProcessImageServiceI
                   .ifPresent(builder::setXmpMetadataId);
               return builder.build();
             })
-        .log(filename)
         .doOnError(ex -> log.warn("Cannot process file " + request.getFilename(), ex))
         .subscribe(StreamObserverReactiveHelper.toSubscriber(responseObserver));
   }
