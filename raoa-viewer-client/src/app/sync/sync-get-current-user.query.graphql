@@ -1,5 +1,9 @@
-query SyncGetCurrentUser{
+query SyncQueryDataForSync{
     currentUser{
         id
+    }
+    listAlbums{
+        id
+        albumPath
     }
 }

@@ -8,6 +8,7 @@ import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import java.security.Principal;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.Map;
 import java.util.UUID;
 import javax.servlet.http.HttpServletRequest;
@@ -62,7 +63,17 @@ public class HttpRepositoryResolver
 
     log.info("Repository: " + name);
     log.info("method: " + method);
+    log.info("URI: " + req.getRequestURI());
     log.info("Auth Type: " + req.getAuthType());
+    final Enumeration<String> headerNames = req.getHeaderNames();
+    while (headerNames.hasMoreElements()) {
+      final String headerName = headerNames.nextElement();
+      final Enumeration<String> headerValues = req.getHeaders(headerName);
+      while (headerValues.hasMoreElements()) {
+        final String headerValue = headerValues.nextElement();
+        log.info("Header: " + headerName + ": " + headerValue);
+      }
+    }
     User user = extractUser(req);
     log.info("User: " + user);
 

@@ -16,7 +16,6 @@ import com.adobe.xmp.XMPMetaFactory;
 import com.coxautodev.graphql.tools.GraphQLMutationResolver;
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -47,7 +46,7 @@ public class Mutation implements GraphQLMutationResolver {
   private final DataViewService dataViewService;
   private final AlbumList albumList;
   private final UploadFilenameService uploadFilenameService;
-  private final Random random = SecureRandom.getInstanceStrong();
+  private final Random random = new Random();
 
   public Mutation(
       final UserManager userManager,

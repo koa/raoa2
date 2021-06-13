@@ -107,7 +107,6 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
                                       authentication.getCredentials(),
                                       authorities);
                               result.setDetails(user);
-                              log.info("User: " + user);
                               return result;
                             })
                         .defaultIfEmpty(authentication)

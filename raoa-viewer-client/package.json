@@ -29,11 +29,13 @@
     "@ionic/angular": "^5.6.6",
     "@types/gapi.auth2": "0.0.54",
     "@types/node-forge": "^0.9.7",
+    "@types/shell-quote": "^1.7.0",
     "@types/wicg-file-system-access": "^2020.9.1",
     "apollo-angular": "^2.4.0",
     "graphql": "^15.5.0",
     "node-forge": "^0.10.0",
     "rxjs": "~6.5.5",
+    "shell-quote": "^1.7.2",
     "tslib": "^2.2.0",
     "zone.js": "~0.10.3"
   },

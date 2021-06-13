@@ -1,6 +1,6 @@
 {
   "name": "Untitled GraphQL Schema",
-  "schemaPath": "raoa-viewer/src/main/resources/schema.graphql",
+  "schemaPath": "raoa-viewer/src/main/resources/schema.graphqls",
   "extensions": {
     "endpoints": {
       "Default GraphQL Endpoint": {
@@ -9,6 +9,15 @@
           "user-agent": "JS GraphQL"
         },
         "introspect": false
+      },
+      "Dev": {
+        "url": "https://photos.berg-turbenthal.ch/graphql",
+        "headers": {
+          "user-agent": "JS GraphQL",
+          "Authorization": "Basic YTEyMzhhZDItMjJhYy00NmY5LTgwNTQtNmU1ZjhlNTBhNWJhOnpiTlJDdkJVY09sYlp6OWFqVkt1\naE5Da0ducFo4VW1GWWJEaWdZaFk="
+        },
+        "introspect": true
+
       }
     }
   }

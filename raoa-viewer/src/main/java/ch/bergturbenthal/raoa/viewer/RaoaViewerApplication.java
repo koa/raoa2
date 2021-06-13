@@ -5,9 +5,13 @@ import ch.bergturbenthal.raoa.viewer.interfaces.AlbumListController;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.impl.DefaultAuthorizationManager;
 import graphql.schema.*;
+import java.io.IOException;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.jgit.transport.resolver.ReceivePackFactory;
@@ -22,6 +26,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 @Slf4j
 @SpringBootApplication(exclude = {ElasticSearchRestHealthContributorAutoConfiguration.class})
@@ -166,5 +171,21 @@ public class RaoaViewerApplication {
     servlet.setRepositoryResolver(resolver);
     servlet.setReceivePackFactory(receivePackFactory);
     return new ServletRegistrationBean<>(servlet, "/git/*");
+  }
+
+  @Bean
+  public OncePerRequestFilter appendHeaderFilter() {
+    return new OncePerRequestFilter() {
+      @Override
+      protected void doFilterInternal(
+          final HttpServletRequest request,
+          final HttpServletResponse response,
+          final FilterChain filterChain)
+          throws ServletException, IOException {
+        final String servletPath = request.getServletPath();
+        if (servletPath.equals("/git")) response.setHeader("WWW-Authenticate", "Basic realm=Git");
+        filterChain.doFilter(request, response);
+      }
+    };
   }
 }

@@ -9,7 +9,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -20,6 +22,7 @@ import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
+@Slf4j
 @Service
 public class DefaultAuthorizationManager implements AuthorizationManager {
   private final Mono<UUID> latestAlbum;
@@ -60,11 +63,15 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
 
   @Override
   public boolean isUserAuthenticated(final SecurityContext context) {
-    return currentAuthentication(context).isPresent();
+    return identifyUser(context).isPresent();
   }
 
   @Override
-  public Optional<AuthenticationId> currentAuthentication(SecurityContext context) {
+  public Optional<AuthenticationId> currentAuthentication(final SecurityContext context) {
+    return identifyUser(context).flatMap(UserIdentification::getOAuthId);
+  }
+
+  private Optional<UserIdentification> identifyUser(SecurityContext context) {
     final Authentication authentication = context.getAuthentication();
     if (authentication == null) return Optional.empty();
     final Authentication userAuthentication;
@@ -77,8 +84,40 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
       final Map<String, Object> claims = ((Jwt) principal).getClaims();
       final String subject = (String) claims.get("sub");
       String authorizedClientRegistrationId = (String) claims.get("iss");
+      final AuthenticationId authenticationId =
+          AuthenticationId.builder().authority(authorizedClientRegistrationId).id(subject).build();
       return Optional.of(
-          AuthenticationId.builder().authority(authorizedClientRegistrationId).id(subject).build());
+          new UserIdentification() {
+            @Override
+            public Optional<AuthenticationId> getOAuthId() {
+              return Optional.of(authenticationId);
+            }
+
+            @Override
+            public Mono<User> getCurrentUser() {
+              return dataViewService
+                  .findUserForAuthentication(authenticationId)
+                  .singleOrEmpty()
+                  .cache();
+            }
+          });
+    }
+
+    if (userAuthentication instanceof UsernamePasswordAuthenticationToken) {
+      final Object details = userAuthentication.getDetails();
+      if (details instanceof User)
+        return Optional.of(
+            new UserIdentification() {
+              @Override
+              public Optional<AuthenticationId> getOAuthId() {
+                return Optional.empty();
+              }
+
+              @Override
+              public Mono<User> getCurrentUser() {
+                return Mono.just((User) details);
+              }
+            });
     }
 
     return Optional.empty();
@@ -182,11 +221,7 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
   @Override
   @NotNull
   public Mono<User> currentUser(final SecurityContext context) {
-    return currentAuthentication(context)
-        .map(
-            authenticationId ->
-                dataViewService.findUserForAuthentication(authenticationId).singleOrEmpty())
-        .orElse(Mono.empty());
+    return identifyUser(context).map(UserIdentification::getCurrentUser).orElse(Mono.empty());
   }
 
   @Override
@@ -208,5 +243,11 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
     return Mono.justOrEmpty(currentAuthentication(context))
         .flatMap(id -> dataViewService.getPendingRequest(id).hasElement())
         .defaultIfEmpty(false);
+  }
+
+  private interface UserIdentification {
+    Optional<AuthenticationId> getOAuthId();
+
+    Mono<User> getCurrentUser();
   }
 }

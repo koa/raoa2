@@ -1,10 +1,18 @@
 <ion-header>
     <ion-toolbar>
-        <ion-title>Synchronisieren</ion-title>
+        <ion-title>Synchronisieren
+            <button ion-button class="copyButton" size="large">
+                <ion-icon slot="icon-only" name="clipboard-outline" (click)="copyToClipboard()"
+                          *ngIf="canCopyToClipboard()"></ion-icon>
+            </button>
+        </ion-title>
     </ion-toolbar>
 </ion-header>
 
-<ion-content *ngIf="password">
+<ion-content>
+    <pre>
+{{template}}
+    </pre>
     <ion-card>
         <ion-card-header>
             <ion-card-title>Passwort erstellen</ion-card-title>
