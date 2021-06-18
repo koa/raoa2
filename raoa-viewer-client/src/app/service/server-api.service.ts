@@ -12,12 +12,12 @@ import {ToastController} from '@ionic/angular';
     providedIn: 'root'
 })
 export class ServerApiService {
-    private readyPromise: Promise<boolean>;
     private cache: InMemoryCache;
+    private ready = false;
 
     constructor(
         private apollo: Apollo.Apollo,
-        httpLink: HttpLink,
+        private httpLink: HttpLink,
         private login: LoginService,
         private toastController: ToastController
     ) {
@@ -31,42 +31,46 @@ export class ServerApiService {
                 }
             }
         });
+        this.tryComeReady();
+    }
 
-        this.readyPromise =
-            login.signedInUser().then(user => {
-                try {
-                    const auth: ApolloLink = setContext(async (_, {headers}) => {
-                        // Grab token if there is one in storage or hasn't expired
-                        // const token = await this.login.idToken();
+    private tryComeReady(): boolean {
+        if (this.ready) {
+            return true;
+        }
+        const signedInUser = this.login.signedInUser();
+        if (signedInUser) {
+            try {
+                const auth: ApolloLink = setContext(async (_, {headers}) => {
+                    // Grab token if there is one in storage or hasn't expired
+                    // const token = await this.login.idToken();
 
-                        // Return the headers as usual
-                        return {
-                            headers: {
-                                // Authorization: `Bearer ${token}`,
-                            },
-                        };
-                    });
-                    const http = ApolloLink.from([auth, httpLink.create({uri: '/graphql'})]);
-                    // const http = httpLink.create({uri: '/graphql'});
-                    apollo.create({
-                        link: http,
-                        cache: this.cache,
-                    });
-                    this.readyPromise = Promise.resolve(true);
-                    return true;
-                } catch (error) {
-                    console.log(error);
-                    return false;
-                }
-            }).catch(error => {
-                console.log('error');
+                    // Return the headers as usual
+                    return {
+                        headers: {
+                            // Authorization: `Bearer ${token}`,
+                        },
+                    };
+                });
+                const http = ApolloLink.from([auth, this.httpLink.create({uri: '/graphql'})]);
+                // const http = httpLink.create({uri: '/graphql'});
+                this.apollo.create({
+                    link: http,
+                    cache: this.cache,
+                });
+                this.ready = true;
+            } catch (error) {
                 console.log(error);
-                return false;
-            });
+                this.ready = false;
+            }
+        } else {
+            this.ready = false;
+        }
+        return this.ready;
     }
 
     public async query<T, V>(query: Apollo.Query<T, V>, variables: V): Promise<Maybe<T>> {
-        if (!(await this.readyPromise)) {
+        if (!this.tryComeReady()) {
             console.log('not ready');
             return Promise.reject('Cannot init');
         }
@@ -92,7 +96,7 @@ export class ServerApiService {
     }
 
     public async update<T, V>(mutation: Apollo.Mutation<T, V>, variables: V): Promise<Maybe<T>> {
-        if (!(await this.readyPromise)) {
+        if (!this.tryComeReady()) {
             return Promise.reject('Cannot init');
         }
         return new Promise<T>((resolve, reject) => {

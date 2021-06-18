@@ -1,4 +1,4 @@
-import {Injectable} from '@angular/core';
+import {Injectable, NgZone} from '@angular/core';
 import {AppConfigService} from './app-config.service';
 import {Router} from '@angular/router';
 import {Location} from '@angular/common';
@@ -13,66 +13,52 @@ interface CachedAuth {
 export class LoginService {
 
     private cachingAuth: Promise<CachedAuth>;
+    private auth2: gapi.auth2.GoogleAuth = {} as gapi.auth2.GoogleAuth;
 
-    constructor(private configService: AppConfigService, private router: Router, private location: Location) {
+    constructor(private configService: AppConfigService, private router: Router, private location: Location, private ngZone: NgZone) {
+    }
+
+    public async renderLoginButton() {
+        const appConfigPromise = await this.configService.loadAppConfig();
+        const clientId = appConfigPromise.googleClientId;
+        window.gapi.load('auth2', () => {
+            this.ngZone.run(() => {
+                this.auth2 = window.gapi.auth2.init({
+                    client_id: clientId
+                });
+                console.log('signed in: ' + this.auth2.isSignedIn?.get());
+                this.auth2.attachClickHandler('signin-button', {}, (googleUser: gapi.auth2.GoogleUser) => {
+                    console.log('signed in: ' + this.auth2.isSignedIn?.get());
+                    this.location.back();
+                }, ex => {
+                    console.log(ex);
+                });
+
+                if (this.auth2.isSignedIn.get() === true) {
+                    console.log('Is Signed in');
+                    this.auth2.signIn();
+                }
+            });
+        });
+
+    }
+
+    public isSignedIn(): boolean {
+        return this.auth2.isSignedIn?.get();
     }
 
     public auth(): Promise<CachedAuth> {
-        if (this.cachingAuth !== undefined) {
-            return this.cachingAuth;
+        if (this.auth2.isSignedIn?.get() === true) {
+            return Promise.resolve({auth: this.auth2});
         }
-        //  Create a new Promise where the resolve
-        // function is the callback passed to gapi.load
-        const pload = new Promise((resolve) => {
-            window.onload = () => gapi.load('auth2', done => {
-                resolve(done);
-            });
-            // gapi.load('auth2', resolve);
-        });
-
-        // When the first promise resolves, it means we have gapi
-        // loaded and that we can call gapi.init
-        const config = this.configService.loadAppConfig();
-        this.cachingAuth = Promise.all([pload, config]).then(async (values) => {
-            return gapi.auth2
-                .init({
-                    client_id: values[1].googleClientId,
-                    scope: 'profile email openid',
-                    fetch_basic_profile: true
-                })
-                .then((auth) => {
-                    const result = {auth};
-                    this.cachingAuth = Promise.resolve(result);
-                    return result;
-                });
-        });
-        return this.cachingAuth;
+        this.location.go('/login');
     }
 
-    public async signedInUser(): Promise<gapi.auth2.GoogleUser> {
-        const [auth] = await Promise.all([this.auth()]);
-
-
-        if (auth.auth.isSignedIn.get()) {
-            return auth.auth.currentUser.get();
+    public signedInUser(): gapi.auth2.GoogleUser {
+        if (this.auth2.isSignedIn?.get()) {
+            return this.auth2.currentUser.get();
         }
-        // const lastTry = sessionStorage.getItem('try_login');
-        // const firstTry = lastTry == null || Date.now() - parseInt(lastTry, 10) > 1000 * 60;
-
-        // const ua = navigator.userAgent;
-        // const uxMode = /Android/i.test(ua) ? 'popup' : 'redirect';
-        sessionStorage.setItem('redirect_route', this.router.url);
-        sessionStorage.setItem('try_login', Date.now().toString(10));
-        const result = await auth.auth.signIn({
-            ux_mode: 'popup',
-            redirect_uri: window.location.origin,
-            fetch_basic_profile: true,
-            scope: 'profile email'
-        });
-        sessionStorage.removeItem('try_login');
-        location.reload();
-        return result;
-
+        return undefined;
     }
 
     public async idToken(): Promise<string> {

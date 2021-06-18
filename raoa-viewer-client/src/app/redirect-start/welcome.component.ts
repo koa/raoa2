@@ -86,9 +86,7 @@ export class WelcomeComponent implements OnInit {
         this.commonServerApiService.listCollections().then(list => {
             this.ngZone.run(() => this.totalPhotoCount = list.reduce((sum, e) => e.data.entryCount + sum, 0));
         });
-        this.loginService.signedInUser().then(user => {
-            this.ngZone.run(() => this.user = user);
-        });
+        this.user = this.loginService.signedInUser();
         this.serverApiService.query(this.getUserstateGQL, {}).then(userState => {
             this.ngZone.run(() => this.userState = userState);
         });

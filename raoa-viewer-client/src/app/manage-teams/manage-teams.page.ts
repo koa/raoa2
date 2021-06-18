@@ -33,7 +33,7 @@ export class ManageTeamsPage implements OnInit {
     }
 
     private async refreshData() {
-        this.allGroups = (await this.serverApi.query(this.manageTeamsListAllGroupsGQL, {})).listGroups;
+        this.allGroups = (await this.serverApi.query(this.manageTeamsListAllGroupsGQL, {}))?.listGroups;
         this.sortGroups();
         this.refreshFilter();
     }
