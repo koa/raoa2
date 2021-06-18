@@ -19,6 +19,26 @@ type AlbumEntryMetadata =
     styleUrls: ['./show-single-media.component.css'],
 })
 export class ShowSingleMediaComponent implements OnInit {
+
+
+    constructor(private activatedRoute: ActivatedRoute,
+                private mediaResolver: MediaResolverService,
+                private albumListService: AlbumListService,
+                private ngZone: NgZone,
+                private location: Location,
+                private http: HttpClient,
+                private serverApi: ServerApiService,
+                private albumEntryDetailGQL: AlbumEntryDetailGQL,
+                private showSingleMediaEditKeywordsGQL: ShowSingleMediaEditKeywordsGQL,
+                private menu: MenuController,
+                private loadingController: LoadingController
+    ) {
+        let hackNavi: any;
+        hackNavi = window.navigator;
+        this.supportShare = hackNavi.share !== undefined;
+
+    }
+
     public albumId: string;
     public mediaId: string;
     public previousMediaId: string;
@@ -38,22 +58,11 @@ export class ShowSingleMediaComponent implements OnInit {
     private prevIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
 
 
-    constructor(private activatedRoute: ActivatedRoute,
-                private mediaResolver: MediaResolverService,
-                private albumListService: AlbumListService,
-                private ngZone: NgZone,
-                private location: Location,
-                private http: HttpClient,
-                private serverApi: ServerApiService,
-                private albumEntryDetailGQL: AlbumEntryDetailGQL,
-                private showSingleMediaEditKeywordsGQL: ShowSingleMediaEditKeywordsGQL,
-                private menu: MenuController,
-                private loadingController: LoadingController
-    ) {
-        let hackNavi: any;
-        hackNavi = window.navigator;
-        this.supportShare = hackNavi.share !== undefined;
-
+    private static bigint2objectid(value: BigInt): string {
+        if (value === undefined) {
+            return undefined;
+        }
+        return value.toString(16).padStart(40, '0');
     }
 
 
@@ -94,6 +103,7 @@ export class ShowSingleMediaComponent implements OnInit {
         }
     }
 
+
     async showImage(mediaId: string) {
         await this.storeKeywordMutation();
         let waitIndicator;
@@ -110,8 +120,8 @@ export class ShowSingleMediaComponent implements OnInit {
         try {
             const albumData = await this.albumListService.listAlbum(this.albumId);
             const mediaIdAsInt = BigInt('0x' + mediaId);
-            const previousMediaId = this.bigint2objectid(this.prevIdMap.get(mediaIdAsInt));
-            const nextMediaId = this.bigint2objectid(this.nextIdMap.get(mediaIdAsInt));
+            const previousMediaId = ShowSingleMediaComponent.bigint2objectid(this.prevIdMap.get(mediaIdAsInt));
+            const nextMediaId = ShowSingleMediaComponent.bigint2objectid(this.nextIdMap.get(mediaIdAsInt));
             const metadata = await this.serverApi.query(this.albumEntryDetailGQL, {albumId: this.albumId, entryId: mediaId});
 
             this.ngZone.run(() => {
@@ -163,14 +173,6 @@ export class ShowSingleMediaComponent implements OnInit {
             }
         }
 
-    }
-
-
-    private bigint2objectid(value: BigInt): string {
-        if (value === undefined) {
-            return undefined;
-        }
-        return value.toString(16).padStart(40, '0');
     }
 
     private async storeKeywordMutation() {
@@ -226,14 +228,13 @@ export class ShowSingleMediaComponent implements OnInit {
         }
     }
 
-    slided() {
-        this.imageSlider.getActiveIndex().then(index => {
-            if (index === 2 && this.nextMediaId !== undefined) {
-                this.showImage(this.nextMediaId);
-            } else if (index === 0 && this.previousMediaId !== undefined) {
-                this.showImage(this.previousMediaId);
-            }
-        });
+    async slided() {
+        const index = await this.imageSlider.getActiveIndex();
+        if (index === 2 && this.nextMediaId !== undefined) {
+            await this.showImage(this.nextMediaId);
+        } else if (index === 0 && this.previousMediaId !== undefined) {
+            await this.showImage(this.previousMediaId);
+        }
     }
 
 
@@ -316,9 +317,10 @@ export class ShowSingleMediaComponent implements OnInit {
     async keyup($event: KeyboardEvent) {
         if ($event.key === 'ArrowRight' && this.nextMediaId) {
             await this.showImage(this.nextMediaId);
-        }
-        if ($event.key === 'ArrowLeft' && this.previousMediaId) {
+        } else if ($event.key === 'ArrowLeft' && this.previousMediaId) {
             await this.showImage(this.previousMediaId);
+        } else if ($event.key === 'Escape' ) {
+            await this.back();
         }
     }
 
