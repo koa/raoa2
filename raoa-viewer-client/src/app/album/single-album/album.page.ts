@@ -83,7 +83,7 @@ export class AlbumPage implements OnInit {
         if (bestElement) {
             this.timestamp = bestElement.getAttribute('timestamp');
         }
-        this.setParam('pos', detail.scrollTop);
+        // this.setParam('pos', detail.scrollTop);
     }
 
 
