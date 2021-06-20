@@ -1,10 +1,12 @@
-import {Component, HostListener, NgZone, OnInit} from '@angular/core';
+import {Component, NgZone, OnInit} from '@angular/core';
 import {AlbumEntryDataType, CommonServerApiService, MenuEntry} from '../../service/common-server-api.service';
 import {Location} from '@angular/common';
 import {LoadingController} from '@ionic/angular';
 import {FNCH_COMPETITION_ID} from '../../constants';
 import {CanManageUsersGQL} from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
+import {Title} from '@angular/platform-browser';
+import {ActivatedRoute} from '@angular/router';
 
 @Component({
     selector: 'app-album-list',
@@ -21,10 +23,15 @@ export class AlbumListComponent implements OnInit {
                 private serverApi: ServerApiService,
                 private ngZone: NgZone,
                 private location: Location,
-                private loadingController: LoadingController) {
+                private loadingController: LoadingController,
+                private titleService: Title,
+                private activatedRoute: ActivatedRoute) {
     }
 
     async ngOnInit() {
+        this.activatedRoute.paramMap.subscribe(params => {
+            this.titleService.setTitle('Liste der Alben');
+        });
         const canManageUsersResult = await this.serverApi.query(this.canManageUsersGQL, {});
         this.canManageUsers = canManageUsersResult.currentUser.canManageUsers;
         await this.updatePhotoCollectionList();

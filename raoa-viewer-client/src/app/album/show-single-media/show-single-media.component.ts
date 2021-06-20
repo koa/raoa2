@@ -7,6 +7,7 @@ import {IonInput, IonSlides, LoadingController, MenuController} from '@ionic/ang
 import {HttpClient} from '@angular/common/http';
 import {AlbumEntry, AlbumEntryDetailGQL, ShowSingleMediaEditKeywordsGQL} from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
+import {Title} from '@angular/platform-browser';
 
 type AlbumEntryMetadata =
     { __typename?: 'AlbumEntry' }
@@ -31,7 +32,8 @@ export class ShowSingleMediaComponent implements OnInit {
                 private albumEntryDetailGQL: AlbumEntryDetailGQL,
                 private showSingleMediaEditKeywordsGQL: ShowSingleMediaEditKeywordsGQL,
                 private menu: MenuController,
-                private loadingController: LoadingController
+                private loadingController: LoadingController,
+                private titleService: Title
     ) {
         let hackNavi: any;
         hackNavi = window.navigator;
@@ -128,6 +130,7 @@ export class ShowSingleMediaComponent implements OnInit {
                 this.mediaId = mediaId;
                 this.metadata = metadata.albumById.albumEntry;
                 this.canEdit = metadata.currentUser.canEdit;
+                this.titleService.setTitle(metadata.albumById.albumEntry.name);
                 this.location.replaceState(this.mediaPath(mediaId));
                 this.previousMediaId = previousMediaId;
                 this.nextMediaId = nextMediaId;
@@ -319,7 +322,7 @@ export class ShowSingleMediaComponent implements OnInit {
             await this.showImage(this.nextMediaId);
         } else if ($event.key === 'ArrowLeft' && this.previousMediaId) {
             await this.showImage(this.previousMediaId);
-        } else if ($event.key === 'Escape' ) {
+        } else if ($event.key === 'Escape') {
             await this.back();
         }
     }

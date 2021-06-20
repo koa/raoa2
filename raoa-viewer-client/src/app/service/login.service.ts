@@ -1,7 +1,7 @@
 import {Injectable, NgZone} from '@angular/core';
 import {AppConfigService} from './app-config.service';
 import {Router} from '@angular/router';
-import {Location} from '@angular/common';
+import {Location, LocationStrategy} from '@angular/common';
 
 interface CachedAuth {
     auth: gapi.auth2.GoogleAuth;
@@ -15,10 +15,14 @@ export class LoginService {
     private cachingAuth: Promise<CachedAuth>;
     private auth2: gapi.auth2.GoogleAuth = {} as gapi.auth2.GoogleAuth;
 
-    constructor(private configService: AppConfigService, private router: Router, private location: Location, private ngZone: NgZone) {
+    constructor(private configService: AppConfigService,
+                private router: Router,
+                private location: Location,
+                private ngZone: NgZone,
+                private locationStrategy: LocationStrategy) {
     }
 
-    public async renderLoginButton() {
+    public async renderLoginButton(target) {
         const appConfigPromise = await this.configService.loadAppConfig();
         const clientId = appConfigPromise.googleClientId;
         window.gapi.load('auth2', () => {
@@ -26,18 +30,21 @@ export class LoginService {
                 this.auth2 = window.gapi.auth2.init({
                     client_id: clientId
                 });
-                console.log('signed in: ' + this.auth2.isSignedIn?.get());
+                // console.log('Signed in: ' + this.auth2.isSignedIn.get());
+                if (this.auth2.isSignedIn.get() === true) {
+                    // console.log('Signed in');
+                    this.auth2.signIn();
+                }
                 this.auth2.attachClickHandler('signin-button', {}, (googleUser: gapi.auth2.GoogleUser) => {
-                    console.log('signed in: ' + this.auth2.isSignedIn?.get());
-                    this.location.back();
+                    if (target) {
+                        this.router.navigate([target], {replaceUrl: true});
+                    } else {
+                        this.router.navigate([], {replaceUrl: true});
+                    }
                 }, ex => {
                     console.log(ex);
                 });
 
-                if (this.auth2.isSignedIn.get() === true) {
-                    console.log('Is Signed in');
-                    this.auth2.signIn();
-                }
             });
         });
 

@@ -8,6 +8,7 @@ import {AlbumListService} from '../service/album-list.service';
 import {Location} from '@angular/common';
 import {IonContent, LoadingController, MenuController} from '@ionic/angular';
 import {FNCH_COMPETITION_ID} from '../../constants';
+import {Title} from '@angular/platform-browser';
 
 type AlbumEntryType =
     { __typename?: 'AlbumEntry' }
@@ -23,7 +24,8 @@ export class AlbumPage implements OnInit {
     private loadingElement: HTMLIonLoadingElement;
 
 
-    constructor(private activatedRoute: ActivatedRoute, private serverApi: ServerApiService,
+    constructor(private activatedRoute: ActivatedRoute,
+                private serverApi: ServerApiService,
                 private albumContentGQL: AlbumContentGQL,
                 private albumListService: AlbumListService,
                 private ngZone: NgZone,
@@ -31,7 +33,8 @@ export class AlbumPage implements OnInit {
                 private mediaResolver: MediaResolverService,
                 private location: Location,
                 private loadingController: LoadingController,
-                private menuController: MenuController
+                private menuController: MenuController,
+                private titleService: Title
     ) {
     }
 
@@ -122,6 +125,7 @@ export class AlbumPage implements OnInit {
 
 
     async ngOnInit() {
+        this.titleService.setTitle('Album laden');
         this.activatedRoute.queryParamMap.subscribe(async params => {
             const filteringKeyword = params.get('keyword') || undefined;
             const pos = params.get('pos');
@@ -148,9 +152,11 @@ export class AlbumPage implements OnInit {
                 const keywords = new Set<string>();
                 result.keywords.forEach((count, keyword) => keywords.add(keyword));
                 result.sortedEntries.forEach(entry => entry.keywords.forEach(keyword => keywords.add(keyword)));
-                this.keywords = [];
-                keywords.forEach(keyword => this.keywords.push(keyword));
-                this.keywords.sort((k1, k2) => k1.localeCompare(k2));
+                this.ngZone.run(() => {
+                    this.keywords = [];
+                    keywords.forEach(keyword => this.keywords.push(keyword));
+                    this.keywords.sort((k1, k2) => k1.localeCompare(k2));
+                });
             }
         });
     }
@@ -160,6 +166,7 @@ export class AlbumPage implements OnInit {
         const result = await this.albumListService.listAlbum(this.albumId);
         await this.leaveWait();
         this.ngZone.run(() => {
+            this.titleService.setTitle(`Album: ${result.title}`);
             this.title = result.title;
             if (this.filteringKeyword === undefined) {
                 this.sortedEntries = result.sortedEntries;
