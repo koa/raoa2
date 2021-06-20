@@ -265,6 +265,9 @@ export class ImportPage implements OnInit {
                 files.push({fileId: uploadedFile.fileId, filename: uploadedFile.sourceFile.name, size: file.size});
                 takenSize = nextSize;
             }
+            if (files.length === 0) {
+                return false;
+            }
             const wait = await this.loadingController.create({message: 'Commit', duration: 120000});
             await wait.present();
             try {
