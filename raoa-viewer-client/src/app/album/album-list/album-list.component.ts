@@ -23,7 +23,6 @@ export class AlbumListComponent implements OnInit {
                 private serverApi: ServerApiService,
                 private ngZone: NgZone,
                 private location: Location,
-                private loadingController: LoadingController,
                 private titleService: Title,
                 private activatedRoute: ActivatedRoute) {
     }
@@ -37,19 +36,14 @@ export class AlbumListComponent implements OnInit {
         await this.updatePhotoCollectionList();
     }
 
-    updateSearch(event: CustomEvent) {
+    async updateSearch(event: CustomEvent) {
         this.photoCollectionFilter = event.detail.value;
-        this.updatePhotoCollectionList();
+        await this.updatePhotoCollectionList();
     }
 
     private async updatePhotoCollectionList() {
-        const loadingElement = await this.loadingController.create({message: 'Daten werden geladen...'});
-        await loadingElement.present();
         const entries = await this.commonServerApi.listCollections(this.photoCollectionFilter);
-        this.ngZone.run(() => {
-            this.foundAlbums = entries;
-            loadingElement.dismiss();
-        });
+        this.ngZone.run(() => this.foundAlbums = entries);
     }
 
     back() {
