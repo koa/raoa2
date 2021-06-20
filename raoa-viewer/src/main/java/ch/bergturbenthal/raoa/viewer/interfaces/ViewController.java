@@ -24,7 +24,10 @@ public class ViewController {
     "/manage-users",
     "/manage-users/user/{id}",
     "/manage-teams",
-    "/manage-teams/{id}"
+    "/manage-teams/{id}",
+    "/sync",
+    "/import",
+    "/login"
   })
   public String index() {
     return "forward:/index.html";
