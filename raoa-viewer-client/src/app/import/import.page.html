@@ -22,10 +22,17 @@
                     </ion-card-subtitle>
                 </ion-card-header>
                 <ion-card-content>
-                    <ion-button *ngIf="statEntry.uploaded.length>0"
-                                (click)="commit(statEntry)">{{statEntry.uploaded.length}} Commit
+                    <ion-button *ngIf="statEntry.uploaded.length>0" [disabled]="statEntry.runningCommit"
+                                (click)="commit(statEntry,100*1024*1024*1024)">{{statEntry.uploaded.length}} Commit
                     </ion-button>
-                    <ion-button *ngIf="statEntry.committed.length>0" (click)="deleteCommited(statEntry)">{{statEntry.committed.length}} Löschen</ion-button>
+                    <ion-button *ngIf="statEntry.committed.length>0" [disabled]="statEntry.runningCommit"
+                                (click)="deleteCommited(statEntry)">{{statEntry.committed.length}} Löschen
+                    </ion-button>
+                    <ion-item>
+                        <ion-label>Auto Commit</ion-label>
+                        <ion-toggle [(ngModel)]="statEntry.autoCommit"
+                                    (click)="updateAutoCommit(statEntry)"></ion-toggle>
+                    </ion-item>
                 </ion-card-content>
             </ion-card>
             <!--<ion-button *ngIf="importedFiles.length>0" (click)="deleteImportedFiles()">Importierte Daten löschen
