@@ -2,6 +2,7 @@ import {Injectable, NgZone} from '@angular/core';
 import {AppConfigService} from './app-config.service';
 import {Router} from '@angular/router';
 import {Location, LocationStrategy} from '@angular/common';
+import GoogleUser = gapi.auth2.GoogleUser;
 
 interface CachedAuth {
     auth: gapi.auth2.GoogleAuth;
@@ -12,14 +13,23 @@ interface CachedAuth {
 })
 export class LoginService {
 
-    private cachingAuth: Promise<CachedAuth>;
-    private auth2: gapi.auth2.GoogleAuth = {} as gapi.auth2.GoogleAuth;
-
     constructor(private configService: AppConfigService,
                 private router: Router,
                 private location: Location,
                 private ngZone: NgZone,
                 private locationStrategy: LocationStrategy) {
+    }
+
+    private cachingAuth: Promise<CachedAuth>;
+    private auth2: gapi.auth2.GoogleAuth = {} as gapi.auth2.GoogleAuth;
+
+    private static storeCurrentToken(authResponse: gapi.auth2.AuthResponse, user: gapi.auth2.GoogleUser) {
+        localStorage.setItem('token', authResponse.id_token);
+        const basicProfile = user.getBasicProfile();
+        localStorage.setItem('username', basicProfile.getName());
+        localStorage.setItem('usermail', basicProfile.getEmail());
+        localStorage.setItem('userpicture', basicProfile.getImageUrl());
+        localStorage.setItem('token_expires', authResponse.expires_at.toString());
     }
 
     public async renderLoginButton(target) {
@@ -35,12 +45,22 @@ export class LoginService {
                     // console.log('Signed in');
                     this.auth2.signIn();
                 }
-                this.auth2.attachClickHandler('signin-button', {}, (googleUser: gapi.auth2.GoogleUser) => {
-                    if (target) {
-                        this.router.navigate([target], {replaceUrl: true});
+                this.auth2.attachClickHandler('signin-button', {}, async (googleUser: gapi.auth2.GoogleUser) => {
+                    const user: GoogleUser = googleUser;
+                    const authResponse = user.getAuthResponse(true);
+                    if (authResponse === null || authResponse === undefined || Date.now() > authResponse.expires_at) {
+                        const reloadedResponse = await user.reloadAuthResponse();
+                        LoginService.storeCurrentToken(reloadedResponse, user);
                     } else {
-                        this.router.navigate([], {replaceUrl: true});
+                        LoginService.storeCurrentToken(authResponse, user);
                     }
+                    this.ngZone.run(() => {
+                        if (target) {
+                            this.router.navigate([target], {replaceUrl: true});
+                        } else {
+                            this.router.navigate([], {replaceUrl: true});
+                        }
+                    });
                 }, ex => {
                     console.log(ex);
                 });
@@ -61,29 +81,58 @@ export class LoginService {
         this.location.go('/login');
     }
 
-    public signedInUser(): gapi.auth2.GoogleUser {
+    private signedInUser(): gapi.auth2.GoogleUser {
         if (this.auth2.isSignedIn?.get()) {
             return this.auth2.currentUser.get();
         }
         return undefined;
     }
 
-    public async idToken(): Promise<string> {
-        const user = await this.signedInUser();
-        const authResponse = user.getAuthResponse(true);
-        if (authResponse === null || authResponse === undefined || Date.now() > authResponse.expires_at) {
-            const reloadedResponse = await user.reloadAuthResponse();
-            return reloadedResponse.id_token;
-        }
-        return authResponse.id_token;
+    public hasValidToken(): boolean {
+        const expiration = localStorage.getItem('token_expires');
+        return expiration !== null && Date.now() < Number.parseInt(expiration, 10);
     }
 
+    public currentValidToken(): string | null {
+        if (this.hasValidToken()) {
+            return localStorage.getItem('token');
+        } else {
+            return null;
+        }
+    }
+
+
     public async logout(): Promise<void> {
-        const [auth] = await Promise.all([this.auth()]);
-        auth.auth.signOut();
-        auth.auth.disconnect();
-        sessionStorage.removeItem('try_login');
+        localStorage.removeItem('token_expires');
+        if (this.auth2) {
+            console.log(this.auth2.signOut);
+            this.auth2.signOut();
+            this.auth2.disconnect();
+        }
         location.reload();
     }
 
+    public userName(): string {
+        if (this.hasValidToken()) {
+            return localStorage.getItem('username');
+        } else {
+            return null;
+        }
+    }
+
+    public userMail(): string {
+        if (this.hasValidToken()) {
+            return localStorage.getItem('usermail');
+        } else {
+            return null;
+        }
+    }
+
+    public userPicture(): string {
+        if (this.hasValidToken()) {
+            return localStorage.getItem('userpicture');
+        } else {
+            return null;
+        }
+    }
 }

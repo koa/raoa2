@@ -35,16 +35,16 @@
             <ion-button (click)="subscribe()">Zugang Beantragen</ion-button>
         </ion-card-content>
     </ion-card>
-    <ion-card *ngIf="userState?.authenticationState=='AUTHORIZATION_REQUESTED' && user">
+    <ion-card *ngIf="userState?.authenticationState=='AUTHORIZATION_REQUESTED' && userName">
         <ion-card-header class="person">
             <div>
-                <ion-card-title>{{user.getBasicProfile().getName()}}</ion-card-title>
-                <ion-card-subtitle>{{user.getBasicProfile().getEmail()}}</ion-card-subtitle>
+                <ion-card-title>{{userName}}</ion-card-title>
+                <ion-card-subtitle>{{userMail}}</ion-card-subtitle>
             </div>
-            <img [src]="user.getBasicProfile().getImageUrl()">
+            <img [src]="userPicture">
         </ion-card-header>
         <ion-card-content>
-            <h2>Hallo {{user.getBasicProfile().getName()}}</h2>
+            <h2>Hallo {{userName}}</h2>
             <p>Du hast dich mit deinem GMail-Account angemeldet und den Zugang beantragt</p>
             <p>Jetzt musst du warten bis der <a href="mailto:photos@teamkoenig.ch">Administrator</a>
                 dir den Zugang und die Fotos frei geschaltet hat.

@@ -46,7 +46,6 @@ export class WelcomeComponent implements OnInit {
 
     public totalPhotoCount: number;
 
-    public user: gapi.auth2.GoogleUser;
     public userState: Maybe<{ __typename?: 'Query' } &
         Pick<Query, 'authenticationState'> & {
         currentUser?: Maybe<{ __typename?: 'User' } &
@@ -56,6 +55,9 @@ export class WelcomeComponent implements OnInit {
                 Pick<AuthenticationId, 'authority' | 'id'>>
         }>
     }>;
+    userName: string;
+    userMail: string;
+    userPicture: string;
 
     constructor(private router: Router,
                 private menu: MenuController,
@@ -86,9 +88,13 @@ export class WelcomeComponent implements OnInit {
         this.commonServerApiService.listCollections().then(list => {
             this.ngZone.run(() => this.totalPhotoCount = list.reduce((sum, e) => e.data.entryCount + sum, 0));
         });
-        this.user = this.loginService.signedInUser();
         this.serverApiService.query(this.getUserstateGQL, {}).then(userState => {
-            this.ngZone.run(() => this.userState = userState);
+            this.ngZone.run(() => {
+                this.userName = this.loginService.userName();
+                this.userMail = this.loginService.userMail();
+                this.userPicture = this.loginService.userPicture();
+                this.userState = userState;
+            });
         });
     }
 

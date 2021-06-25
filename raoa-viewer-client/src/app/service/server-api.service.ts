@@ -38,8 +38,7 @@ export class ServerApiService {
         if (this.ready) {
             return true;
         }
-        const signedInUser = this.login.signedInUser();
-        if (signedInUser) {
+        if (this.login.hasValidToken()) {
             try {
                 const auth: ApolloLink = setContext(async (_, {headers}) => {
                     // Grab token if there is one in storage or hasn't expired

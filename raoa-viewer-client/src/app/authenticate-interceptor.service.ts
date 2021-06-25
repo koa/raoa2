@@ -14,15 +14,15 @@ export class AuthenticateInterceptor implements HttpInterceptor {
         if (this.login !== undefined) {
             const url = request.url;
             if (url.startsWith('/rest') || url.startsWith('/graphql') || url.startsWith('rest') || url.startsWith('graphql')) {
-                const auth2 = this.login.idToken();
-                // Return the headers as usual
-                return new Observable(observer => {
-                    auth2.then(token => {
+                if (this.login.hasValidToken()) {
+                    const validToken = this.login.currentValidToken();
+                    return new Observable(observer => {
                         next.handle(request.clone({
-                            headers: request.headers.set('Authorization', `Bearer ${token}`)
+                            headers: request.headers.set('Authorization', `Bearer ${validToken}`)
                         })).subscribe(observer);
-                    }).catch(error => observer.error(error));
-                });
+                    });
+
+                }
             }
         }
         return next.handle(request);
