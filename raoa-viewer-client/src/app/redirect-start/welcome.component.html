@@ -11,19 +11,19 @@
             <ion-button (click)="logout()">logout</ion-button>
         </ion-card-content>
     </ion-card>
-    <ion-card *ngIf="userState?.authenticationState === 'AUTHENTICATED' && user">
+    <ion-card *ngIf="userState?.authenticationState === 'AUTHENTICATED' && userName">
         <ion-card-header class="person">
             <div>
-                <ion-card-title>{{user.getBasicProfile().getName()}}</ion-card-title>
-                <ion-card-subtitle>{{user.getBasicProfile().getEmail()}}</ion-card-subtitle>
+                <ion-card-title>{{userName}}</ion-card-title>
+                <ion-card-subtitle>{{userMail}}</ion-card-subtitle>
             </div>
-            <img [src]="user.getBasicProfile().getImageUrl()">
+            <img [src]="userPicture">
         </ion-card-header>
         <ion-card-content>
-            <h2>Hallo {{user.getBasicProfile().getName()}}</h2>
+            <h2>Hallo {{userName}}</h2>
             <p>Du hast dich mit deinem GMail-Account angemeldet.</p>
             <p>Jetzt kannst du den Zugang beantragen. Wenn du das machst, wird dein Foto (das oben rechts), dein Name
-                ({{user.getBasicProfile().getName()}}) und deine eMail-Adresse ({{user.getBasicProfile().getEmail()}})
+                ({{userName}}) und deine eMail-Adresse ({{userMail}})
                 an den Server übermittelt und dort gespeichert. Damit kann der <a href="mailto:photos@teamkoenig.ch">Administrator</a>
                 dir die Fotos frei schalten.
             </p>
