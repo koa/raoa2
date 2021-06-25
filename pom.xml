@@ -21,7 +21,6 @@
         <module>raoa-viewer</module>
         <module>raoa-viewer-client</module>
         <module>raoa-viewer-client-oauth2</module>
-        <module>raoa-sync-client</module>
     </modules>
     <properties>
         <jib.httpTimeout>30000</jib.httpTimeout>

@@ -1,6 +1,0 @@
-query ListAlbums{
-    listAlbums{
-        albumPath
-        id
-    }
-}
