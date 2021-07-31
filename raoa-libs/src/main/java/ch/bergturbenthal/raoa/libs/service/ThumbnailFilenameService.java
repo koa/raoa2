@@ -14,6 +14,7 @@ public interface ThumbnailFilenameService {
   @Value
   class FileAndScale {
     File file;
+    File videoFile;
     int size;
   }
 }

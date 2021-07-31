@@ -16,17 +16,18 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.Path;
+import java.text.NumberFormat;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import lombok.Cleanup;
+import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.imaging.ImageWriteException;
 import org.apache.commons.imaging.Imaging;
@@ -60,9 +61,12 @@ import reactor.util.function.Tuples;
 public class DefaultImageProcessor implements ImageProcessor {
   private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
   private static final Set<String> RAW_ENDINGS = Set.of(".nef", ".dng", ".cr2", ".crw", ".cr3");
+  /*
   private static final Set<String> IMAGE_ENDINGS =
       Stream.concat(Set.of(".jpeg", ".jpg", ".tiff", ".png", ".gif").stream(), RAW_ENDINGS.stream())
           .collect(Collectors.toUnmodifiableSet());
+
+   */
   private static final boolean HAS_DCRAW = hasDcraw();
   private static final Object dcrawLock = new Object();
   private final AlbumList albumList;
@@ -205,6 +209,59 @@ public class DefaultImageProcessor implements ImageProcessor {
     return Tuples.of(ImageIO.read(file), false);
   }
 
+  private Mono<ExecuteResult> execute(final String[] cmdarray) {
+    return asyncService.asyncMono(
+        () -> {
+          final long startTime = System.nanoTime();
+          final Process process = Runtime.getRuntime().exec(cmdarray);
+          final StringBuffer stdOutBuffer = new StringBuffer();
+          final StringBuffer stdErrBuffer = new StringBuffer();
+          new Thread(
+                  () -> {
+                    try {
+                      final BufferedReader reader =
+                          new BufferedReader(new InputStreamReader(process.getInputStream()));
+
+                      while (true) {
+                        final String line = reader.readLine();
+                        if (line == null) break;
+                        stdOutBuffer.append(line);
+                        stdOutBuffer.append('\n');
+                      }
+                    } catch (IOException e) {
+                      log.warn("Cannot read stdout", e);
+                    }
+                  })
+              .start();
+          new Thread(
+                  () -> {
+                    try {
+                      final BufferedReader reader =
+                          new BufferedReader(new InputStreamReader(process.getErrorStream()));
+
+                      while (true) {
+                        final String line = reader.readLine();
+                        if (line == null) break;
+                        stdErrBuffer.append(line);
+                        stdErrBuffer.append('\n');
+                      }
+                    } catch (IOException e) {
+                      log.warn("Cannot read stdout", e);
+                    }
+                  })
+              .start();
+
+          if (!process.waitFor(30, TimeUnit.MINUTES)) {
+            log.info("Timeout -> kill ffmpeg");
+            process.destroyForcibly();
+          }
+          final Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
+          log.info("Processed in " + duration + ": " + String.join(" ", cmdarray));
+          return new ExecuteResult(
+              stdErrBuffer.toString(), stdOutBuffer.toString(), process.exitValue());
+        });
+  }
+
   @Override
   @NotNull
   public Mono<AlbumEntryData> processImage(final UUID albumId, final String filename) {
@@ -257,25 +314,33 @@ public class DefaultImageProcessor implements ImageProcessor {
                           Mono.zip(
                                   a.readObject(t.getT1())
                                       .flatMap(
-                                          loader1 ->
+                                          loader ->
                                               asyncService.asyncMono(
                                                   () -> {
-                                                    final File tempFile1 =
+                                                    final File tempFile =
                                                         File.createTempFile(
                                                             "tmp", filename.replace('/', '_'));
+                                                    final long exportStartTime = System.nanoTime();
                                                     {
                                                       @Cleanup
                                                       final FileOutputStream fileOutputStream1 =
-                                                          new FileOutputStream(tempFile1);
-                                                      loader1.copyTo(fileOutputStream1);
+                                                          new FileOutputStream(tempFile);
+                                                      loader.copyTo(fileOutputStream1);
                                                     }
-                                                    // log.info("File: " + tempFile1);
-                                                    // log.info("Exists: " + tempFile1.exists());
-                                                    // log.info("Size: " + tempFile1.length());
-                                                    byteReadCount.addAndGet(tempFile1.length());
-                                                    return tempFile1;
+                                                    log.info(
+                                                        "Loaded "
+                                                            + filename
+                                                            + " in "
+                                                            + Duration.ofNanos(
+                                                                System.nanoTime()
+                                                                    - exportStartTime));
+                                                    // log.info("File: " + tempFile);
+                                                    // log.info("Exists: " + tempFile.exists());
+                                                    // log.info("Size: " + tempFile.length());
+                                                    byteReadCount.addAndGet(tempFile.length());
+                                                    return tempFile;
                                                   }))
-                                  //    .log("loaded " + filename)
+                                  // .log("loaded " + filename)
                                   ,
                                   t.getT2()
                                       .map(
@@ -340,26 +405,56 @@ public class DefaultImageProcessor implements ImageProcessor {
                                 .map(Optional::of)
                                 .onErrorReturn(Optional.empty())
                                 .defaultIfEmpty(Optional.empty());
-                        final Mono<Tuple2<BufferedImage, Boolean>> inputImage =
-                            asyncService.asyncMono(() -> loadImage(file)).cache();
                         final Mono<AlbumEntryData> albumEntryDataMono =
-                            Mono.zip(metadataMono, inputImage, overrideableMetadata)
+                            Mono.zip(metadataMono, overrideableMetadata)
                                 // .log("zip: " + filename)
                                 .flatMap(
                                     TupleUtils.function(
-                                        (metadata, image, optionalTiffOutputSet) ->
-                                            createThumbnails(
-                                                albumId,
-                                                filename,
-                                                fileCount,
-                                                byteWriteCount,
-                                                entryId,
-                                                optionalXmpFileId,
-                                                optionalXMPMeta,
-                                                metadata,
-                                                image.getT1(),
-                                                image.getT2(),
-                                                optionalTiffOutputSet)))
+                                        (metadata, optionalTiffOutputSet) -> {
+                                          final String contentType =
+                                              metadata.get(HttpHeaders.CONTENT_TYPE);
+                                          if (contentType.startsWith("image"))
+                                            return asyncService
+                                                .asyncMono(() -> loadImage(file))
+                                                .cache()
+                                                .flatMap(
+                                                    image ->
+                                                        createImageThumbnails(
+                                                            albumId,
+                                                            filename,
+                                                            fileCount,
+                                                            byteWriteCount,
+                                                            entryId,
+                                                            optionalXmpFileId,
+                                                            optionalXMPMeta,
+                                                            metadata,
+                                                            image.getT1(),
+                                                            image.getT2(),
+                                                            optionalTiffOutputSet))
+                                                // .log("image")
+                                                .thenReturn(
+                                                    createAlbumEntry(
+                                                        albumId,
+                                                        entryId,
+                                                        filename,
+                                                        metadata,
+                                                        optionalXmpFileId,
+                                                        optionalXMPMeta));
+                                          if (contentType.startsWith("video")) {
+                                            return createVideoThumbnails(
+                                                    albumId, entryId, filename, file, metadata)
+                                                // .log("video")
+                                                .thenReturn(
+                                                    createAlbumEntry(
+                                                        albumId,
+                                                        entryId,
+                                                        filename,
+                                                        metadata,
+                                                        optionalXmpFileId,
+                                                        optionalXMPMeta));
+                                          }
+                                          return Mono.empty();
+                                        }))
                             // .log("result: " + filename)
                             ;
                         return albumEntryDataMono.doFinally(
@@ -369,23 +464,125 @@ public class DefaultImageProcessor implements ImageProcessor {
                             });
                       }));
             });
-    return albumEntryDataMono1.doFinally(
-        signal -> {
-          final long endTime = System.nanoTime();
-          final Tags tags = Tags.of("result", signal.name());
-          meterRegistry
-              .timer("image.processing", tags)
-              .record(Duration.ofNanos(endTime - startTime));
-          meterRegistry.counter("image.filewritten", tags).increment(fileCount.get());
-          meterRegistry.counter("image.byteread", tags).increment(byteReadCount.get());
-          meterRegistry.counter("image.bytewritten", tags).increment(byteWriteCount.get());
-        })
+    return albumEntryDataMono1
+        .doFinally(
+            signal -> {
+              final long endTime = System.nanoTime();
+              final Tags tags = Tags.of("result", signal.name());
+              meterRegistry
+                  .timer("image.processing", tags)
+                  .record(Duration.ofNanos(endTime - startTime));
+              meterRegistry.counter("image.filewritten", tags).increment(fileCount.get());
+              meterRegistry.counter("image.byteread", tags).increment(byteReadCount.get());
+              meterRegistry.counter("image.bytewritten", tags).increment(byteWriteCount.get());
+            })
+        .doOnError(ex -> log.warn("Error processing " + filename, ex))
     // .log("process " + filename)
     ;
   }
 
-  @NotNull
-  public Mono<AlbumEntryData> createThumbnails(
+  private Mono<Void> createVideoThumbnails(
+      final UUID albumId,
+      final ObjectId entryId,
+      final String filename,
+      final File file,
+      final Metadata metadata) {
+    double duration = Double.parseDouble(metadata.get(XMPDM.DURATION));
+    final Integer width = metadata.getInt(TIFF.IMAGE_WIDTH);
+    final Integer height = metadata.getInt(TIFF.IMAGE_LENGTH);
+    final NumberFormat numberInstance = NumberFormat.getNumberInstance();
+    numberInstance.setMaximumFractionDigits(3);
+    numberInstance.setMinimumFractionDigits(3);
+    final String thumbnailPos = numberInstance.format(duration / 3);
+
+    return Flux.fromStream(thumbnailFilenameService.listThumbnailsOf(albumId, entryId))
+        .flatMap(
+            fileAndScale -> {
+              int targetLength = Math.min(fileAndScale.getSize(), Math.max(width, height));
+              int adjustedLength = targetLength - targetLength % 2;
+              final String scale;
+              if (width > height) {
+                int targetHeight = targetLength * height / width;
+                scale = adjustedLength + ":" + (targetHeight - targetHeight % 2);
+              } else {
+                int targetWidth = targetLength * width / height;
+                scale = (targetWidth - targetWidth % 2) + ":" + adjustedLength;
+              }
+
+              final File imgTargetFile = fileAndScale.getFile();
+
+              final File videoTargetFile = fileAndScale.getVideoFile();
+              final Mono<ExecuteResult> imgResult;
+              if (imgTargetFile.exists()) imgResult = Mono.empty();
+              else {
+                final File tempFile =
+                    new File(imgTargetFile.getParentFile(), imgTargetFile.getName() + "-tmp.jpg");
+                imgResult =
+                    execute(
+                            new String[] {
+                              "ffmpeg",
+                              "-y",
+                              "-i",
+                              file.getAbsolutePath(),
+                              "-ss",
+                              thumbnailPos,
+                              "-vframes",
+                              "1",
+                              "-vf",
+                              "scale=" + scale,
+                              tempFile.getAbsolutePath()
+                            })
+                        .doOnNext(
+                            r -> {
+                              if (r.getCode() == 0) tempFile.renameTo(imgTargetFile);
+                            });
+              }
+              final Mono<ExecuteResult> videoResult;
+              if (videoTargetFile.exists()) videoResult = Mono.empty();
+              else {
+                final File tempFile =
+                    new File(
+                        videoTargetFile.getParentFile(), videoTargetFile.getName() + "-tmp.mp4");
+                videoResult =
+                    execute(
+                            new String[] {
+                              "ffmpeg",
+                              "-y",
+                              "-i",
+                              file.getAbsolutePath(),
+                              "-vf",
+                              "scale=" + scale,
+                              tempFile.getAbsolutePath()
+                            })
+                        .doOnNext(
+                            r -> {
+                              if (r.getCode() == 0) tempFile.renameTo(videoTargetFile);
+                            });
+              }
+              return Flux.merge(imgResult, videoResult)
+                  .map(
+                      result -> {
+                        if (result.getCode() != 0)
+                          throw new RuntimeException(
+                              "Error converting video "
+                                  + filename
+                                  + " ("
+                                  + result.getCode()
+                                  + "): \n"
+                                  + result.getStdOut()
+                                  + "----------------------\n"
+                                  + result.getStdErr());
+                        return result;
+                      })
+                  .then()
+              // .log(filename + ":" + targetLength)
+              ;
+            },
+            1)
+        .then();
+  }
+
+  public Mono<Void> createImageThumbnails(
       final UUID albumId,
       final String filename,
       final AtomicInteger fileCount,
@@ -410,134 +607,142 @@ public class DefaultImageProcessor implements ImageProcessor {
               int size = fileAndScale.getSize();
               File targetFile = fileAndScale.getFile();
               final String lowerFilename = filename.toLowerCase();
-              if (targetFile.exists()
-                  || IMAGE_ENDINGS.stream().noneMatch(lowerFilename::endsWith)) {
+              if (targetFile.exists()) {
                 // log.info("Scale " + filename + " to " + size + " already exists");
                 return Mono.<Boolean>just(true);
               }
-              return asyncService.<Boolean>asyncMono(
-                  () -> {
-                    // log.info("Scale " + filename + " to " + size);
-                    final File parentDir = targetFile.getParentFile();
-                    if (!parentDir.exists()) parentDir.mkdirs();
-                    final File tempFile = new File(parentDir, UUID.randomUUID().toString());
-                    try {
-                      AffineTransform t = new AffineTransform();
-                      final boolean flip;
-                      double scale = size * 1.0 / maxLength;
-                      switch (orientation) {
-                        default:
-                        case 1:
-                          flip = false;
-                          break;
-                        case 2: // Flip X
-                          flip = false;
-                          t.scale(-1.0, 1.0);
-                          t.translate(-width * scale, 0);
-                          break;
-                        case 3: // PI rotation
-                          flip = false;
-                          t.translate(width * scale, height * scale);
-                          t.quadrantRotate(2);
-                          break;
-                        case 4: // Flip Y
-                          flip = false;
-                          t.scale(1.0, -1.0);
-                          t.translate(0, -height * scale);
-                          break;
-                        case 5: // - PI/2 and Flip X
-                          flip = true;
-                          t.quadrantRotate(3);
-                          t.scale(-1.0, 1.0);
-                          break;
-                        case 6: // -PI/2 and -width
-                          flip = true;
-                          t.translate(height * scale, 0);
-                          t.quadrantRotate(1);
-                          break;
-                        case 7: // PI/2 and Flip
-                          flip = true;
-                          t.scale(-1.0, 1.0);
-                          t.translate(-height * scale, 0);
-                          t.translate(0, width * scale);
-                          t.quadrantRotate(3);
-                          break;
-                        case 8: // PI / 2
-                          flip = true;
-                          t.translate(0, width * scale);
-                          t.quadrantRotate(3);
-                          break;
-                      }
-                      t.scale(scale, scale);
-                      int targetWith;
-                      int targetHeight;
-                      if (flip) {
-                        targetWith = (int) (height * scale);
-                        targetHeight = (int) (width * scale);
-                      } else {
-                        targetWith = (int) (width * scale);
-                        targetHeight = (int) (height * scale);
-                      }
-                      BufferedImage targetImage =
-                          new BufferedImage(targetWith, targetHeight, BufferedImage.TYPE_INT_RGB);
-                      Graphics2D graphics = targetImage.createGraphics();
-                      graphics.setTransform(t);
-                      graphics.drawImage(image, 0, 0, null);
-                      graphics.dispose();
-                      // log.info("write temp: " +
-                      // tempFile);
-
-                      if (optionalTiffOutputSet.isPresent()) {
-                        final TiffOutputSet tiffOutputSet = copy(optionalTiffOutputSet.get());
-
-                        final TiffOutputDirectory tiffOutputDirectory =
-                            tiffOutputSet.getRootDirectory();
-                        if (tiffOutputDirectory != null) {
-                          tiffOutputDirectory.removeField(TiffTagConstants.TIFF_TAG_ORIENTATION);
-                          tiffOutputDirectory.add(
-                              TiffTagConstants.TIFF_TAG_ORIENTATION,
-                              (short) TiffTagConstants.ORIENTATION_VALUE_HORIZONTAL_NORMAL);
+              final String contentType = metadata.get(HttpHeaders.CONTENT_TYPE);
+              if (contentType.startsWith("image/")) {
+                return asyncService.<Boolean>asyncMono(
+                    () -> {
+                      // log.info("Scale " + filename + " to " + size);
+                      final File parentDir = targetFile.getParentFile();
+                      if (!parentDir.exists()) parentDir.mkdirs();
+                      final File tempFile = new File(parentDir, UUID.randomUUID().toString());
+                      try {
+                        AffineTransform t = new AffineTransform();
+                        final boolean flip;
+                        double scale = size * 1.0 / maxLength;
+                        switch (orientation) {
+                          default:
+                          case 1:
+                            flip = false;
+                            break;
+                          case 2: // Flip X
+                            flip = false;
+                            t.scale(-1.0, 1.0);
+                            t.translate(-width * scale, 0);
+                            break;
+                          case 3: // PI rotation
+                            flip = false;
+                            t.translate(width * scale, height * scale);
+                            t.quadrantRotate(2);
+                            break;
+                          case 4: // Flip Y
+                            flip = false;
+                            t.scale(1.0, -1.0);
+                            t.translate(0, -height * scale);
+                            break;
+                          case 5: // - PI/2 and Flip X
+                            flip = true;
+                            t.quadrantRotate(3);
+                            t.scale(-1.0, 1.0);
+                            break;
+                          case 6: // -PI/2 and -width
+                            flip = true;
+                            t.translate(height * scale, 0);
+                            t.quadrantRotate(1);
+                            break;
+                          case 7: // PI/2 and Flip
+                            flip = true;
+                            t.scale(-1.0, 1.0);
+                            t.translate(-height * scale, 0);
+                            t.translate(0, width * scale);
+                            t.quadrantRotate(3);
+                            break;
+                          case 8: // PI / 2
+                            flip = true;
+                            t.translate(0, width * scale);
+                            t.quadrantRotate(3);
+                            break;
                         }
+                        t.scale(scale, scale);
+                        int targetWith;
+                        int targetHeight;
+                        if (flip) {
+                          targetWith = (int) (height * scale);
+                          targetHeight = (int) (width * scale);
+                        } else {
+                          targetWith = (int) (width * scale);
+                          targetHeight = (int) (height * scale);
+                        }
+                        BufferedImage targetImage =
+                            new BufferedImage(targetWith, targetHeight, BufferedImage.TYPE_INT_RGB);
+                        Graphics2D graphics = targetImage.createGraphics();
+                        graphics.setTransform(t);
+                        graphics.drawImage(image, 0, 0, null);
+                        graphics.dispose();
+                        // log.info("write temp: " +
+                        // tempFile);
 
-                        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        final boolean writeOk = ImageIO.write(targetImage, "jpg", baos);
-                        if (writeOk) {
-                          {
-                            @Cleanup
-                            final OutputStream os =
-                                new BufferedOutputStream(
-                                    new FileOutputStream(tempFile), 254 * 1024);
-                            new ExifRewriter()
-                                .updateExifMetadataLossless(baos.toByteArray(), os, tiffOutputSet);
+                        if (optionalTiffOutputSet.isPresent()) {
+                          final TiffOutputSet tiffOutputSet = copy(optionalTiffOutputSet.get());
+
+                          final TiffOutputDirectory tiffOutputDirectory =
+                              tiffOutputSet.getRootDirectory();
+                          if (tiffOutputDirectory != null) {
+                            tiffOutputDirectory.removeField(TiffTagConstants.TIFF_TAG_ORIENTATION);
+                            tiffOutputDirectory.add(
+                                TiffTagConstants.TIFF_TAG_ORIENTATION,
+                                (short) TiffTagConstants.ORIENTATION_VALUE_HORIZONTAL_NORMAL);
                           }
-                          tempFile.renameTo(targetFile);
-                          fileCount.incrementAndGet();
+
+                          final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                          final boolean writeOk = ImageIO.write(targetImage, "jpg", baos);
+                          if (writeOk) {
+                            {
+                              @Cleanup
+                              final OutputStream os =
+                                  new BufferedOutputStream(
+                                      new FileOutputStream(tempFile), 254 * 1024);
+                              new ExifRewriter()
+                                  .updateExifMetadataLossless(
+                                      baos.toByteArray(), os, tiffOutputSet);
+                            }
+                            tempFile.renameTo(targetFile);
+                            fileCount.incrementAndGet();
+                          }
+                          return writeOk;
+                        } else {
+                          final boolean writeOk = ImageIO.write(targetImage, "jpg", tempFile);
+                          if (writeOk) {
+                            tempFile.renameTo(targetFile);
+                            fileCount.incrementAndGet();
+                          }
+                          return writeOk;
                         }
-                        return writeOk;
-                      } else {
-                        final boolean writeOk = ImageIO.write(targetImage, "jpg", tempFile);
-                        if (writeOk) {
-                          tempFile.renameTo(targetFile);
-                          fileCount.incrementAndGet();
-                        }
-                        return writeOk;
+                      } finally {
+                        // log.info("delete " + tempFile);
+                        tempFile.delete();
+                        byteWriteCount.addAndGet(targetFile.length());
+                        // log.info("written: " + targetFile);
                       }
-                    } finally {
-                      // log.info("delete " + tempFile);
-                      tempFile.delete();
-                      byteWriteCount.addAndGet(targetFile.length());
-                      // log.info("written: " + targetFile);
-                    }
-                  })
+                    });
+              }
+              return Mono.just(true);
               // .log("thmb " + size)
-              ;
             })
         .collect(() -> new AtomicBoolean(true), (ret, value) -> ret.compareAndExchange(true, value))
         .map(AtomicBoolean::get)
         // .log("tmb: " + filename)
         .filter(b -> b)
-        .map(
-            ok ->
-                createAlbumEntry(albumId, entryId, filename, metadata, xmpFileId, optionalXMPMeta));
+        .then();
+  }
+
+  @Value
+  private static class ExecuteResult {
+    String stdErr;
+    String stdOut;
+    int code;
   }
 }

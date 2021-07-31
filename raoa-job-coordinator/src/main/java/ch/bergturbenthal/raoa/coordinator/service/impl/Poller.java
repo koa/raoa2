@@ -19,6 +19,7 @@ import java.io.File;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
 import org.eclipse.jgit.lib.ObjectId;
@@ -141,54 +142,54 @@ public class Poller {
                                                       .getAccess()
                                                       .listFiles(
                                                           ElasticSearchDataViewService
-                                                              .IMAGE_FILE_FILTER)
+                                                              .MEDIA_FILE_FILTER)
                                                       .filterWhen(
                                                           gitFileEntry ->
                                                               isValidEntry(album, gitFileEntry),
                                                           5)
+                                                      .map(
+                                                          gitFileEntry ->
+                                                              Tuples.of(
+                                                                  gitFileEntry,
+                                                                  Optional.ofNullable(
+                                                                      existingEntries.get(
+                                                                          gitFileEntry
+                                                                              .getFileId()))))
                                                       .flatMap(
                                                           gitFileEntry ->
                                                               entryAlreadyProcessed(
                                                                       album,
-                                                                      gitFileEntry,
+                                                                      gitFileEntry.getT1(),
+                                                                      gitFileEntry.getT2(),
                                                                       Optional.ofNullable(
                                                                           xmpFiles.get(
                                                                               gitFileEntry
+                                                                                  .getT1()
                                                                                   .getNameString())))
                                                                   .map(
                                                                       exists ->
                                                                           Tuples.of(
-                                                                              gitFileEntry,
-                                                                              exists)),
+                                                                              gitFileEntry.getT1(),
+                                                                              gitFileEntry
+                                                                                  .getT2()
+                                                                                  .filter(
+                                                                                      v ->
+                                                                                          exists))),
                                                           20)
-                                                      .map(
-                                                          (Tuple2<GitAccess.GitFileEntry, Boolean>
-                                                                  gitFileEntry) ->
-                                                              gitFileEntry.mapT2(
-                                                                  b ->
-                                                                      b
-                                                                          ? Optional.ofNullable(
-                                                                              existingEntries.get(
-                                                                                  gitFileEntry
-                                                                                      .getT1()
-                                                                                      .getFileId()))
-                                                                          : Optional
-                                                                              .<AlbumEntryData>
-                                                                                  empty()))
                                                       .flatMap(
-                                                          entry1 -> {
-                                                            if (entry1.getT2().isPresent()) {
+                                                          entry -> {
+                                                            if (entry.getT2().isPresent()) {
                                                               return Mono.just(
                                                                   Tuples.of(
-                                                                      entry1.getT2().get(), false));
+                                                                      entry.getT2().get(), false));
                                                             }
                                                             final String filename =
-                                                                entry1.getT1().getNameString();
+                                                                entry.getT1().getNameString();
                                                             final ProcessImageRequest data1 =
                                                                 new ProcessImageRequest(
                                                                     album.getAlbumId(), filename);
                                                             final ObjectId fileId =
-                                                                entry1.getT1().getFileId();
+                                                                entry.getT1().getFileId();
                                                             final long startTime =
                                                                 System.nanoTime();
                                                             /*log.info(
@@ -198,7 +199,7 @@ public class Poller {
                                                                 + filename);*/
                                                             return remoteImageProcessor
                                                                 .processImage(fileId, data1)
-                                                                // .log(filename)
+                                                                .log(filename)
                                                                 .timeout(
                                                                     coordinatorProperties
                                                                         .getProcessTimeout())
@@ -223,8 +224,7 @@ public class Poller {
                                                             ;
                                                           },
                                                           coordinatorProperties
-                                                              .getConcurrentProcessingImages(),
-                                                          50)
+                                                              .getConcurrentProcessingImages())
                                                       // .log("entry of " + album)
                                                       // .log("in")
                                                       /* .doOnNext(
@@ -422,18 +422,35 @@ public class Poller {
   public Mono<Boolean> entryAlreadyProcessed(
       final AlbumList.FoundAlbum album,
       final GitAccess.GitFileEntry gitFileEntry,
+      final Optional<AlbumEntryData> loadedAlbumData,
       Optional<ObjectId> xmpFileId) {
+
+    if (loadedAlbumData.isEmpty()) return Mono.just(false);
+    final String contentType = loadedAlbumData.get().getContentType();
+    final Stream<File> wantedFiles;
+    if (contentType.startsWith("video")) {
+      wantedFiles =
+          Stream.concat(
+              thumbnailFilenameService
+                  .listThumbnailsOf(album.getAlbumId(), gitFileEntry.getFileId())
+                  .map(ThumbnailFilenameService.FileAndScale::getFile),
+              thumbnailFilenameService
+                  .listThumbnailsOf(album.getAlbumId(), gitFileEntry.getFileId())
+                  .map(ThumbnailFilenameService.FileAndScale::getVideoFile));
+    } else if (contentType.startsWith("image")) {
+      wantedFiles =
+          thumbnailFilenameService
+              .listThumbnailsOf(album.getAlbumId(), gitFileEntry.getFileId())
+              .map(ThumbnailFilenameService.FileAndScale::getFile);
+
+    } else wantedFiles = Stream.empty();
 
     return Flux.merge(
             elasticSearchDataViewService
                 .loadEntry(album.getAlbumId(), gitFileEntry.getFileId())
                 .map(e -> Objects.equals(e.getXmpFileId(), xmpFileId.orElse(null)))
                 .defaultIfEmpty(false),
-            Flux.fromStream(
-                    thumbnailFilenameService
-                        .listThumbnailsOf(album.getAlbumId(), gitFileEntry.getFileId())
-                        .map(ThumbnailFilenameService.FileAndScale::getFile))
-                .flatMap(this::fileExists))
+            Flux.fromStream(wantedFiles).flatMap(this::fileExists))
         .all(v -> v);
   }
 

@@ -25,24 +25,31 @@ public class DefaultThumbnailFilenameService
   @Override
   public File findThumbnailOf(final UUID album, final ObjectId entry, final int size) {
     for (int candidateSize : SCALES) {
-      if (candidateSize >= size) return createThumbnailFile(album, entry, candidateSize);
+      if (candidateSize >= size) return createThumbnailFile(album, entry, candidateSize, ".jpg");
     }
-    return createThumbnailFile(album, entry, 3200);
+
+    return createThumbnailFile(album, entry, 3200, ".jpg");
   }
 
   @Override
   public Stream<FileAndScale> listThumbnailsOf(final UUID album, final ObjectId entry) {
     return Arrays.stream(SCALES)
-        .mapToObj(size -> new FileAndScale(createThumbnailFile(album, entry, size), size));
+        .mapToObj(
+            size ->
+                new FileAndScale(
+                    createThumbnailFile(album, entry, size, ".jpg"),
+                    createThumbnailFile(album, entry, size, ".mp4"),
+                    size));
   }
 
-  private File createThumbnailFile(final UUID album, final ObjectId entryId, final int size) {
-
+  @NotNull
+  private File createThumbnailFile(
+      final UUID album, final ObjectId entryId, final int size, final String ending) {
     final String name = entryId.name();
     final String prefix = name.substring(0, 2);
     final String suffix = name.substring(2);
     final String targetFilename =
-        album.toString() + "/" + size + "/" + prefix + "/" + suffix + ".jpg";
+        album.toString() + "/" + size + "/" + prefix + "/" + suffix + ending;
     return new File(properties.getThumbnailDir(), targetFilename);
   }
 

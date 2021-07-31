@@ -51,8 +51,8 @@ public class ElasticSearchDataViewService implements DataViewService {
             PathSuffixFilter.create(".nef"),
             PathSuffixFilter.create(".NEF"),
             PathSuffixFilter.create(".mp4"),
-            PathSuffixFilter.create(".MP4"),
-            PathSuffixFilter.create(".mkv")
+            PathSuffixFilter.create(".MP4") // ,
+            // PathSuffixFilter.create(".mkv")
           });
   public static final TreeFilter IMAGE_FILE_FILTER =
       OrTreeFilter.create(

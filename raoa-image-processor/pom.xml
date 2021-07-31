@@ -96,7 +96,7 @@
                 </executions>
                 <configuration>
                     <from>
-                        <image>docker.berg-turbenthal.ch/distroless-java-dcraw:1</image>
+                        <image>docker.berg-turbenthal.ch/distroless-java-dcraw:2</image>
                     </from>
                     <to>
                         <image>${docker.host}/raoa-image-processor</image>
