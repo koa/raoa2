@@ -2,7 +2,7 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
 import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
-import com.coxautodev.graphql.tools.GraphQLResolver;
+import graphql.kickstart.tools.GraphQLResolver;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Set;

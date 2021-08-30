@@ -348,7 +348,14 @@ public class Poller {
                               data ->
                                   log.info(
                                       "Remove " + data.getName() + "; " + data.getRepositoryId()))
-                          .flatMap(entity -> albumDataRepository.delete(entity).thenReturn(1), 10)
+                          .flatMap(
+                              entity ->
+                                  albumDataEntryRepository
+                                      .findByAlbumId(entity.getRepositoryId())
+                                      .flatMap(albumDataEntryRepository::delete, 5)
+                                      .then(albumDataRepository.delete(entity))
+                                      .thenReturn(1),
+                              10)
                           .count());
 
       try {

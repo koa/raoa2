@@ -2,7 +2,7 @@ package ch.bergturbenthal.raoa.elastic.service;
 
 import ch.bergturbenthal.raoa.elastic.model.*;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
-import com.adobe.xmp.XMPMeta;
+import com.adobe.internal.xmp.XMPMeta;
 import java.time.Instant;
 import java.util.UUID;
 import org.eclipse.jgit.lib.ObjectId;

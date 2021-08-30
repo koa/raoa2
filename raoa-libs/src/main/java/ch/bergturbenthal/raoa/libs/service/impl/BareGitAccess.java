@@ -4,8 +4,8 @@ import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
-import com.adobe.xmp.XMPMeta;
-import com.adobe.xmp.XMPMetaFactory;
+import com.adobe.internal.xmp.XMPMeta;
+import com.adobe.internal.xmp.XMPMetaFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
-import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.apache.tika.exception.TikaException;
@@ -47,7 +46,6 @@ import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.jetbrains.annotations.NotNull;
-import org.joda.time.format.ISODateTimeFormat;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.xml.sax.SAXException;
 import reactor.core.publisher.Flux;
@@ -58,7 +56,6 @@ import reactor.util.function.Tuples;
 import reactor.util.retry.Retry;
 
 @Slf4j
-@ToString
 public class BareGitAccess implements GitAccess {
   public static final String METADATA_FILENAME = ".raoa.json";
   private static final Duration REPOSITORY_CACHE_TIME = Duration.ofSeconds(20);
@@ -339,7 +336,7 @@ public class BareGitAccess implements GitAccess {
         .map(CharBuffer::toString)
         .flatMapIterable(s -> Arrays.asList(s.split("\n")))
         .map(String::trim)
-        .map(line -> ISODateTimeFormat.dateTimeParser().parseDateTime(line).toDate().toInstant());
+        .map(l -> DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(l).query(Instant::from));
   }
 
   @Override

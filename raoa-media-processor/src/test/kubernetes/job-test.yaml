@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: raoa-media-processor
+  namespace: raoa-dev
+data:
+  management.endpoint.health.show-components: always
+  management.endpoint.health.show-details: always
+  management.endpoints.web.exposure.include: '*'
+  management.server.port: "8090"
+  raoa.repository: /data
+  raoa.thumbnailDir: /cache
+  server.port: "8080"
+  server.use-forward-headers: "true"
+  spring.data.elasticsearch.client.reactive.endpoints: raoa-es-http:9200
+  spring.data.elasticsearch.client.reactive.socket-timeout: 1m
+  spring.data.elasticsearch.client.reactive.useSsl: "true"
+  spring.data.elasticsearch.client.reactive.username: elastic
+  spring.elasticsearch.rest.uris: https://raoa-es-http:9200
+  spring.elasticsearch.rest.username: elastic
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: raoa-dev
+  name: media-processor-1
+  labels:
+    media-processor: "1"
+spec:
+  template:
+    metadata:
+      name: media-processor-1
+      labels:
+        group: media-processor
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: media-processor
+          image: docker-snapshot.berg-turbenthal.ch/raoa-media-processor:20210829104954
+          env:
+            - name: XDG_CONFIG_HOME
+              value: /dumps
+            - name: SPRING_DATA_ELASTICSEARCH_CLIENT_REACTIVE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: elastic
+                  name: raoa-es-elastic-user
+            - name: SPRING_ELASTICSEARCH_REST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: elastic
+                  name: raoa-es-elastic-user
+            - name: SPRING_APPLICATION_NAME
+              value: raoa-media-processor
+            - name: RAOA_JOB_REPOSITORY
+              value:  ff8fdc4b-4696-49ed-bd5d-38d6fc4f5e38
+            - name: RAOA_JOB_FILES
+              value: Cedric Scherrer Marathon Hindernis 2.mp4,Cedric Scherrer Marathon Hindernis 3.mp4,Cedric Scherrer Marathon Hindernis 4.mp4
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /actuator/health
+              port: 8090
+              scheme: HTTP
+            initialDelaySeconds: 90
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: "2"
+              ephemeral-storage: 20Gi
+              memory: 2Gi
+            requests:
+              cpu: "1"
+              ephemeral-storage: 10Gi
+              memory: 1536Mi
+          securityContext:
+            runAsGroup: 1000
+            runAsUser: 1000
+          volumeMounts:
+            - mountPath: /cache
+              name: shared-cache
+            - mountPath: /data
+              name: data
+            - mountPath: /dumps
+              name: dumps
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: photos
+        - name: shared-cache
+          persistentVolumeClaim:
+            claimName: photos-cache
+        - emptyDir: { }
+          name: dumps
+      serviceAccountName: raoa
+

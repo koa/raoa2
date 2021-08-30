@@ -7,8 +7,8 @@ import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
 import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
 import ch.bergturbenthal.raoa.processor.image.service.ImageProcessor;
-import com.adobe.xmp.XMPMeta;
-import com.adobe.xmp.XMPMetaFactory;
+import com.adobe.internal.xmp.XMPMeta;
+import com.adobe.internal.xmp.XMPMetaFactory;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import java.awt.*;
@@ -425,8 +425,6 @@ public class DefaultImageProcessor implements ImageProcessor {
                                                             fileCount,
                                                             byteWriteCount,
                                                             entryId,
-                                                            optionalXmpFileId,
-                                                            optionalXMPMeta,
                                                             metadata,
                                                             image.getT1(),
                                                             image.getT2(),
@@ -588,8 +586,6 @@ public class DefaultImageProcessor implements ImageProcessor {
       final AtomicInteger fileCount,
       final AtomicLong byteWriteCount,
       final ObjectId entryId,
-      final Optional<ObjectId> xmpFileId,
-      final Optional<XMPMeta> optionalXMPMeta,
       final Metadata metadata,
       final BufferedImage image,
       final boolean imageAlreadyRotated,

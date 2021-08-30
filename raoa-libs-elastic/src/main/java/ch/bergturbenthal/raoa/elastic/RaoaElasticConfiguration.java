@@ -12,16 +12,13 @@ import java.util.stream.Stream;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.eclipse.jgit.lib.ObjectId;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.springframework.boot.autoconfigure.data.elasticsearch.ReactiveElasticsearchRestClientProperties;
 import org.springframework.boot.context.properties.PropertyMapper;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.*;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.data.convert.Jsr310Converters;
 import org.springframework.data.convert.ReadingConverter;
@@ -32,6 +29,7 @@ import org.springframework.data.elasticsearch.client.reactive.ReactiveElasticsea
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
 import org.springframework.data.elasticsearch.core.ReactiveElasticsearchTemplate;
+import org.springframework.data.elasticsearch.core.RefreshPolicy;
 import org.springframework.data.elasticsearch.core.convert.ElasticsearchConverter;
 import org.springframework.data.elasticsearch.core.convert.ElasticsearchCustomConversions;
 import org.springframework.data.elasticsearch.core.convert.MappingElasticsearchConverter;
@@ -43,6 +41,7 @@ import org.springframework.util.unit.DataSize;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 
 @Slf4j
+@Configuration
 @EnableReactiveElasticsearchRepositories(basePackageClasses = AlbumDataRepository.class)
 @EnableElasticsearchRepositories(basePackageClasses = SyncAlbumDataEntryRepository.class)
 @Import({RaoaLibConfiguration.class})
@@ -69,7 +68,7 @@ public class RaoaElasticConfiguration {
     if (properties.isUseSsl()) {
       SSLContext sslContext = SSLContext.getInstance("TLS");
       sslContext.init(null, new TrustManager[] {new DummyX509TrustManager()}, null);
-      builder.usingSsl(sslContext);
+      builder.usingSsl(sslContext, new NoopHostnameVerifier());
     }
     configureTimeouts(builder, properties);
     configureExchangeStrategies(builder, properties);
@@ -130,9 +129,8 @@ public class RaoaElasticConfiguration {
 
   @Bean(name = {"elasticsearchOperations", "elasticsearchTemplate"})
   public ElasticsearchOperations elasticsearchOperations(
-      ElasticsearchConverter elasticsearchConverter, final ClientConfiguration configuration) {
-    return new ElasticsearchRestTemplate(
-        elasticsearchClient(configuration), elasticsearchConverter);
+      ElasticsearchConverter elasticsearchConverter, final RestHighLevelClient client) {
+    return new ElasticsearchRestTemplate(client, elasticsearchConverter);
   }
 
   @Bean
@@ -153,13 +151,16 @@ public class RaoaElasticConfiguration {
     ReactiveElasticsearchTemplate template = new ReactiveElasticsearchTemplate(client, converter);
 
     template.setIndicesOptions(IndicesOptions.strictExpandOpenAndForbidClosed());
-    template.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+    template.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
     return template;
   }
 
-  private RestHighLevelClient elasticsearchClient(ClientConfiguration configuration) {
+  @Bean
+  public RestHighLevelClient elasticsearchClient(ClientConfiguration configuration) {
 
-    return RestClients.create(configuration).rest();
+    final RestClients.ElasticsearchRestClient elasticsearchRestClient =
+        RestClients.create(configuration);
+    return elasticsearchRestClient.rest();
   }
 
   @WritingConverter

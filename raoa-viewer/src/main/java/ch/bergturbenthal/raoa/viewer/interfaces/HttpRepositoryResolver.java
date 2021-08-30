@@ -7,14 +7,10 @@ import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import java.security.Principal;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
-import org.apache.cxf.common.util.WeakIdentityHashMap;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Repository;
@@ -34,8 +30,7 @@ public class HttpRepositoryResolver
     implements RepositoryResolver<HttpServletRequest>, ReceivePackFactory<HttpServletRequest> {
   private final Map<String, Repository> repositoryCache =
       Collections.synchronizedMap(new LRUMap<>(20));
-  private final Map<Repository, UUID> reverseMap =
-      Collections.synchronizedMap(new WeakIdentityHashMap<>());
+  private final Map<Repository, UUID> reverseMap = Collections.synchronizedMap(new WeakHashMap<>());
   private final AlbumList albumList;
   private final ElasticSearchDataViewService elasticSearchDataViewService;
   private final AuthorizationManager authorizationManager;

@@ -1,10 +1,10 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
-import com.adobe.xmp.XMPConst;
-import com.adobe.xmp.XMPException;
-import com.adobe.xmp.XMPMeta;
-import com.adobe.xmp.options.PropertyOptions;
-import com.adobe.xmp.properties.XMPProperty;
+import com.adobe.internal.xmp.XMPConst;
+import com.adobe.internal.xmp.XMPException;
+import com.adobe.internal.xmp.XMPMeta;
+import com.adobe.internal.xmp.options.PropertyOptions;
+import com.adobe.internal.xmp.properties.XMPProperty;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;

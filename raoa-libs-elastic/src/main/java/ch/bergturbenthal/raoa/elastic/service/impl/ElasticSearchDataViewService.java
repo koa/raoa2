@@ -8,7 +8,7 @@ import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
-import com.adobe.xmp.XMPMeta;
+import com.adobe.internal.xmp.XMPMeta;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;

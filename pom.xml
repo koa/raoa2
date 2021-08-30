@@ -4,7 +4,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.4.3</version>
+        <version>2.5.3</version>
         <relativePath /> <!-- lookup parent from repository -->
     </parent>
     <packaging>pom</packaging>
@@ -21,6 +21,7 @@
         <module>raoa-viewer</module>
         <module>raoa-viewer-client</module>
         <module>raoa-viewer-client-oauth2</module>
+        <module>raoa-media-processor</module>
     </modules>
     <properties>
         <jib.httpTimeout>30000</jib.httpTimeout>
@@ -34,14 +35,14 @@
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
-                <version>2020.0.1</version>
+                <version>2020.0.3</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>org.springframework.data</groupId>
                 <artifactId>spring-data-elasticsearch</artifactId>
-                <version>4.1.5</version>
+                <version>4.2.3</version>
             </dependency>
             <dependency>
                 <groupId>com.jayway.jsonpath</groupId>

@@ -1,0 +1,18 @@
+spring:
+  main:
+    web-application-type: none
+  data:
+    elasticsearch:
+      client:
+        reactive:
+          use-ssl: true
+          username: elastic
+          password: 3aA23W4DOvV4H59Pb4W0uyO8
+  elasticsearch:
+    rest:
+      uris: https://localhost:9200
+      username: elastic
+      password: 3aA23W4DOvV4H59Pb4W0uyO8
+#logging:
+#  level:
+#    org.springframework.data.elasticsearch.client.WIRE: trace

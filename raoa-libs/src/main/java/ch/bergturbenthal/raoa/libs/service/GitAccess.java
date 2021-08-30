@@ -1,7 +1,7 @@
 package ch.bergturbenthal.raoa.libs.service;
 
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
-import com.adobe.xmp.XMPMeta;
+import com.adobe.internal.xmp.XMPMeta;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.function.Function;
