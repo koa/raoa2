@@ -1,3 +1,0 @@
-mutation ManageUsersRemoveUser($id: ID){
-  removeUser(id: $id)
-}

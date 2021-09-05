@@ -1,5 +1,0 @@
-mutation ManageUsersUpdateSuperuser($id: ID, $enabled: Boolean){
-  setCanManageUserFlag(userId: $id, enabled: $enabled){
-    id
-  }
-}

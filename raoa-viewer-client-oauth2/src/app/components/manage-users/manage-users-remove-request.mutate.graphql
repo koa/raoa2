@@ -1,3 +1,0 @@
-mutation ManageUsersRemoveRequest($id: String, $authority: String){
-  removeRequest(id: {id: $id, authority: $authority})
-}

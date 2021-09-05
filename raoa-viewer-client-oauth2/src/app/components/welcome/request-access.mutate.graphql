@@ -1,5 +1,0 @@
-mutation RequestAccessMutation($reason: String){
-  requestAccess(comment: $reason){
-    ok, result
-  }
-}

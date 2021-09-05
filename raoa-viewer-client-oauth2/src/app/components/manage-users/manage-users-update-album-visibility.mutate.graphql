@@ -1,5 +1,0 @@
-mutation ManageUsersUpdateAlbumVisibility($userId: ID, $albumId: ID, $enabled: Boolean){
-  setAlbumVisibility(userId: $userId, albumId: $albumId, visible: $enabled){
-    id
-  }
-}

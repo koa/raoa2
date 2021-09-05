@@ -20,7 +20,6 @@
         <module>raoa-importer</module>
         <module>raoa-viewer</module>
         <module>raoa-viewer-client</module>
-        <module>raoa-viewer-client-oauth2</module>
         <module>raoa-media-processor</module>
     </modules>
     <properties>

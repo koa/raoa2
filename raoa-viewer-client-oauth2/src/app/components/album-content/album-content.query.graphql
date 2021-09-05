@@ -1,9 +1,0 @@
-query AlbumContent($albumId: ID) {
-  albumById(id: $albumId){
-    name
-    entries{
-      id, name, entryUri, targetWidth, targetHeight, created
-      keywords
-    }
-  }
-}
