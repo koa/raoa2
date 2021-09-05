@@ -32,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.imaging.ImageReadException;
 import org.apache.commons.imaging.ImageWriteException;
 import org.apache.commons.imaging.Imaging;
+import org.apache.commons.imaging.common.ImageMetadata;
 import org.apache.commons.imaging.formats.jpeg.JpegImageMetadata;
 import org.apache.commons.imaging.formats.jpeg.exif.ExifRewriter;
 import org.apache.commons.imaging.formats.tiff.constants.TiffTagConstants;
@@ -314,20 +315,32 @@ public class DefaultProcessor implements Processor {
                                             return asyncService.asyncMono(
                                                 () -> {
                                                   final File mediaFile = params.getT2();
-                                                  final Optional<TiffOutputSet> tiffOutputSet =
-                                                      Optional.ofNullable(
-                                                              ((JpegImageMetadata)
-                                                                      Imaging.getMetadata(
-                                                                          mediaFile))
-                                                                  .getExif())
-                                                          .map(
-                                                              m -> {
-                                                                try {
-                                                                  return m.getOutputSet();
-                                                                } catch (ImageWriteException e) {
-                                                                  throw new RuntimeException(e);
-                                                                }
-                                                              });
+
+                                                  final ImageMetadata imageMetadata =
+                                                      Imaging.getMetadata(mediaFile);
+
+                                                  final Optional<TiffOutputSet> tiffOutputSet;
+                                                  if (imageMetadata instanceof JpegImageMetadata) {
+                                                    tiffOutputSet =
+                                                        Optional.ofNullable(
+                                                                ((JpegImageMetadata) imageMetadata)
+                                                                    .getExif())
+                                                            .map(
+                                                                m -> {
+                                                                  try {
+                                                                    return m.getOutputSet();
+                                                                  } catch (ImageWriteException e) {
+                                                                    throw new RuntimeException(e);
+                                                                  }
+                                                                });
+                                                    /*} else if (imageMetadata
+                                                                                                          instanceof TiffImageMetadata) {
+                                                                                                        tiffOutputSet =
+                                                                                                            Optional.ofNullable(
+                                                                                                                ((TiffImageMetadata) imageMetadata)
+                                                                                                                    .getOutputSet());
+                                                    */
+                                                  } else tiffOutputSet = Optional.empty();
 
                                                   final Tuple2<BufferedImage, Boolean> loadedImage =
                                                       loadImage(mediaFile);
@@ -608,7 +621,8 @@ public class DefaultProcessor implements Processor {
                                             return Tuples.of(r, false);
                                           }
                                         })
-                                    .timeout(Duration.ofMinutes(1)));
+                                    .timeout(Duration.ofHours(1))
+                                    .log("img " + scale));
                   }
                   final Mono<Tuple2<ExecuteResult, Boolean>> videoResult;
                   if (videoTargetFile.exists()) videoResult = Mono.empty();
@@ -640,7 +654,8 @@ public class DefaultProcessor implements Processor {
                                             return Tuples.of(r, false);
                                           }
                                         })
-                                    .timeout(Duration.ofHours(1)));
+                                    .timeout(Duration.ofHours(1))
+                                    .log("vid " + scale));
                   }
                   return Flux.concat(imgResult, videoResult)
                       .map(

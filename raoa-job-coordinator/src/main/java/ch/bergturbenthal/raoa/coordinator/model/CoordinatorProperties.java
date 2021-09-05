@@ -11,4 +11,5 @@ public class CoordinatorProperties {
   private int concurrentProcessingAlbums = 6;
   private Duration processTimeout = Duration.ofMinutes(15);
   private String imageProcessorUrl = "discovery://image-processor";
+  private String mediaProcessorTemplate;
 }
