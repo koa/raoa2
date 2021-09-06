@@ -638,8 +638,14 @@ public class DefaultProcessor implements Processor {
                                         new String[] {
                                           "ffmpeg",
                                           "-y",
+                                          "-hwaccel",
+                                          "auto",
                                           "-i",
                                           file.getAbsolutePath(),
+                                          "-preset",
+                                          "faster",
+                                          "-movflags",
+                                          "+faststart",
                                           "-vf",
                                           "scale=" + scale,
                                           tempFile.getAbsolutePath()
@@ -654,7 +660,7 @@ public class DefaultProcessor implements Processor {
                                             return Tuples.of(r, false);
                                           }
                                         })
-                                    .timeout(Duration.ofHours(1))
+                                    .timeout(Duration.ofHours(5))
                                     .log("vid " + scale));
                   }
                   return Flux.concat(imgResult, videoResult)
@@ -699,6 +705,7 @@ public class DefaultProcessor implements Processor {
                     if (line == null) break;
                     stdOutBuffer.append(line);
                     stdOutBuffer.append('\n');
+                    log.info("STDOUT: " + line);
                   }
                 } catch (IOException e) {
                   log.warn("Cannot read stdout", e);
@@ -716,6 +723,7 @@ public class DefaultProcessor implements Processor {
                     if (line == null) break;
                     stdErrBuffer.append(line);
                     stdErrBuffer.append('\n');
+                    log.info("STDERR: " + line);
                   }
                 } catch (IOException e) {
                   log.warn("Cannot read stdout", e);

@@ -8,6 +8,8 @@ import graphql.schema.*;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
+import java.util.Enumeration;
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
@@ -16,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.jgit.transport.resolver.ReceivePackFactory;
 import org.eclipse.jgit.transport.resolver.RepositoryResolver;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.actuate.autoconfigure.elasticsearch.ElasticSearchRestHealthContributorAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -178,13 +181,41 @@ public class RaoaViewerApplication {
     return new OncePerRequestFilter() {
       @Override
       protected void doFilterInternal(
-          final HttpServletRequest request,
-          final HttpServletResponse response,
-          final FilterChain filterChain)
+          final @NotNull HttpServletRequest request,
+          final @NotNull HttpServletResponse response,
+          final @NotNull FilterChain filterChain)
           throws ServletException, IOException {
         final String servletPath = request.getServletPath();
         if (servletPath.equals("/git")) response.setHeader("WWW-Authenticate", "Basic realm=Git");
         filterChain.doFilter(request, response);
+      }
+    };
+  }
+
+  @Bean
+  public OncePerRequestFilter requestLoggingFilter() {
+
+    return new OncePerRequestFilter() {
+
+      @Override
+      protected void doFilterInternal(
+          final @NotNull HttpServletRequest request,
+          final @NotNull HttpServletResponse response,
+          final @NotNull FilterChain filterChain)
+          throws ServletException, IOException {
+        final String requestURI = request.getRequestURI();
+        filterChain.doFilter(request, response);
+        final Collection<String> responseHeaders = response.getHeaderNames();
+        final Enumeration<String> requestHeaders = request.getHeaderNames();
+        log.info("Request: " + requestURI + " code: " + response.getStatus());
+        while (requestHeaders.hasMoreElements()) {
+          String headerName = requestHeaders.nextElement();
+          log.info(" - " + headerName + ": " + String.join(", ", request.getHeader(headerName)));
+        }
+        log.info("-------------");
+        for (String headerName : responseHeaders) {
+          log.info(" - " + headerName + ": " + String.join(", ", response.getHeaders(headerName)));
+        }
       }
     };
   }

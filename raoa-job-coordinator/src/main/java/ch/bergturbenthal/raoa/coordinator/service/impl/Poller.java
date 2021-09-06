@@ -289,7 +289,6 @@ public class Poller {
                             });
                   },
                   coordinatorProperties.getConcurrentProcessingAlbums())
-              .timeout(Duration.ofHours(1))
               .collect(Collectors.toSet())
               .flatMap(
                   touchedRepositories ->
