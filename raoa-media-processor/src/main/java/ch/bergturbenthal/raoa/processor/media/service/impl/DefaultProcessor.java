@@ -370,13 +370,11 @@ public class DefaultProcessor implements Processor {
                                                                   || !fas.getVideoFile().exists())
                                                       .collect(Collectors.toList());
                                           if (!missingThumbnails.isEmpty())
-                                            return asyncService.asyncMono(
-                                                () ->
-                                                    createVideoThumbnails(
-                                                        params.getT1().getNameString(),
-                                                        params.getT2(),
-                                                        metadata,
-                                                        missingThumbnails));
+                                            return createVideoThumbnails(
+                                                params.getT1().getNameString(),
+                                                params.getT2(),
+                                                metadata,
+                                                missingThumbnails);
                                         }
                                         return Mono.just(true);
                                       })
@@ -555,7 +553,7 @@ public class DefaultProcessor implements Processor {
     return true;
   }
 
-  private boolean createVideoThumbnails(
+  private Mono<Boolean> createVideoThumbnails(
       final String filename,
       final File file,
       final Metadata metadata,
@@ -568,124 +566,120 @@ public class DefaultProcessor implements Processor {
     numberInstance.setMinimumFractionDigits(3);
     final String thumbnailPos = numberInstance.format(duration / 3);
 
-    return Boolean.TRUE.equals(
-        Flux.fromIterable(missingOutputs)
-            .flatMap(
-                fileAndScale -> {
-                  int targetLength = Math.min(fileAndScale.getSize(), Math.max(width, height));
-                  int adjustedLength = targetLength - targetLength % 2;
-                  final String scale;
-                  if (width > height) {
-                    int targetHeight = targetLength * height / width;
-                    scale = adjustedLength + ":" + (targetHeight - targetHeight % 2);
-                  } else {
-                    int targetWidth = targetLength * width / height;
-                    scale = (targetWidth - targetWidth % 2) + ":" + adjustedLength;
-                  }
+    return Flux.fromIterable(missingOutputs)
+        .flatMap(
+            fileAndScale -> {
+              int targetLength = Math.min(fileAndScale.getSize(), Math.max(width, height));
+              int adjustedLength = targetLength - targetLength % 2;
+              final String scale;
+              if (width > height) {
+                int targetHeight = targetLength * height / width;
+                scale = adjustedLength + ":" + (targetHeight - targetHeight % 2);
+              } else {
+                int targetWidth = targetLength * width / height;
+                scale = (targetWidth - targetWidth % 2) + ":" + adjustedLength;
+              }
 
-                  final File imgTargetFile = fileAndScale.getFile();
+              final File imgTargetFile = fileAndScale.getFile();
 
-                  final File videoTargetFile = fileAndScale.getVideoFile();
-                  final Mono<Tuple2<ExecuteResult, Boolean>> imgResult;
-                  if (imgTargetFile.exists()) imgResult = Mono.empty();
-                  else {
-                    if (!imgTargetFile.getParentFile().exists())
-                      imgTargetFile.getParentFile().mkdirs();
-                    final File tempFile =
-                        new File(
-                            imgTargetFile.getParentFile(), imgTargetFile.getName() + "-tmp.jpg");
-                    imgResult =
-                        Mono.defer(
-                            () ->
-                                execute(
-                                        new String[] {
-                                          "ffmpeg",
-                                          "-y",
-                                          "-i",
-                                          file.getAbsolutePath(),
-                                          "-ss",
-                                          thumbnailPos,
-                                          "-vframes",
-                                          "1",
-                                          "-vf",
-                                          "scale=" + scale,
-                                          tempFile.getAbsolutePath()
-                                        })
-                                    // .log("thumb " + scale)
-                                    .map(
-                                        r -> {
-                                          if (r.getCode() == 0) {
-                                            return Tuples.of(r, tempFile.renameTo(imgTargetFile));
-                                          } else {
-                                            tempFile.delete();
-                                            return Tuples.of(r, false);
-                                          }
-                                        })
-                                    .timeout(Duration.ofHours(1))
-                                    .log("img " + scale));
-                  }
-                  final Mono<Tuple2<ExecuteResult, Boolean>> videoResult;
-                  if (videoTargetFile.exists()) videoResult = Mono.empty();
-                  else {
-                    final File tempFile =
-                        new File(
-                            videoTargetFile.getParentFile(),
-                            videoTargetFile.getName() + "-tmp.mp4");
-                    videoResult =
-                        Mono.defer(
-                            () ->
-                                execute(
-                                        new String[] {
-                                          "ffmpeg",
-                                          "-y",
-                                          "-hwaccel",
-                                          "auto",
-                                          "-i",
-                                          file.getAbsolutePath(),
-                                          "-preset",
-                                          "faster",
-                                          "-movflags",
-                                          "+faststart",
-                                          "-vf",
-                                          "scale=" + scale,
-                                          tempFile.getAbsolutePath()
-                                        })
-                                    // .log("vid " + scale)
-                                    .map(
-                                        r -> {
-                                          if (r.getCode() == 0) {
-                                            return Tuples.of(r, tempFile.renameTo(videoTargetFile));
-                                          } else {
-                                            tempFile.delete();
-                                            return Tuples.of(r, false);
-                                          }
-                                        })
-                                    .timeout(Duration.ofHours(5))
-                                    .log("vid " + scale));
-                  }
-                  return Flux.concat(imgResult, videoResult)
-                      .map(
-                          result -> {
-                            if (result.getT1().getCode() != 0)
-                              throw new RuntimeException(
-                                  "Error converting video "
-                                      + filename
-                                      + " ("
-                                      + result.getT1().getCode()
-                                      + "): \n"
-                                      + result.getT1().getStdOut()
-                                      + "----------------------\n"
-                                      + result.getT1().getStdErr());
-                            return result.getT2();
-                          })
-                      .all(ok -> ok)
-                  // .log("all :" + targetLength)
-                  ;
-                },
-                1)
-            .all(ok -> ok)
-            // .log("all")
-            .block(Duration.ofHours(2)));
+              final File videoTargetFile = fileAndScale.getVideoFile();
+              final Mono<Tuple2<ExecuteResult, Boolean>> imgResult;
+              if (imgTargetFile.exists()) imgResult = Mono.empty();
+              else {
+                if (!imgTargetFile.getParentFile().exists()) imgTargetFile.getParentFile().mkdirs();
+                final File tempFile =
+                    new File(imgTargetFile.getParentFile(), imgTargetFile.getName() + "-tmp.jpg");
+                imgResult =
+                    Mono.defer(
+                        () ->
+                            execute(
+                                    new String[] {
+                                      "ffmpeg",
+                                      "-y",
+                                      "-i",
+                                      file.getAbsolutePath(),
+                                      "-ss",
+                                      thumbnailPos,
+                                      "-vframes",
+                                      "1",
+                                      "-vf",
+                                      "scale=" + scale,
+                                      tempFile.getAbsolutePath()
+                                    })
+                                // .log("thumb " + scale)
+                                .map(
+                                    r -> {
+                                      if (r.getCode() == 0) {
+                                        return Tuples.of(r, tempFile.renameTo(imgTargetFile));
+                                      } else {
+                                        tempFile.delete();
+                                        return Tuples.of(r, false);
+                                      }
+                                    })
+                                .timeout(Duration.ofHours(1))
+                                .log("img " + scale));
+              }
+              final Mono<Tuple2<ExecuteResult, Boolean>> videoResult;
+              if (videoTargetFile.exists()) videoResult = Mono.empty();
+              else {
+                final File tempFile =
+                    new File(
+                        videoTargetFile.getParentFile(), videoTargetFile.getName() + "-tmp.mp4");
+                videoResult =
+                    Mono.defer(
+                        () ->
+                            execute(
+                                    new String[] {
+                                      "ffmpeg",
+                                      "-y",
+                                      "-hwaccel",
+                                      "auto",
+                                      "-i",
+                                      file.getAbsolutePath(),
+                                      "-preset",
+                                      "faster",
+                                      "-movflags",
+                                      "+faststart",
+                                      "-vf",
+                                      "scale=" + scale,
+                                      tempFile.getAbsolutePath()
+                                    })
+                                // .log("vid " + scale)
+                                .map(
+                                    r -> {
+                                      if (r.getCode() == 0) {
+                                        return Tuples.of(r, tempFile.renameTo(videoTargetFile));
+                                      } else {
+                                        tempFile.delete();
+                                        return Tuples.of(r, false);
+                                      }
+                                    })
+                                .timeout(Duration.ofHours(5))
+                                .log("vid " + scale));
+              }
+              return Flux.concat(imgResult, videoResult)
+                  .map(
+                      result -> {
+                        if (result.getT1().getCode() != 0)
+                          throw new RuntimeException(
+                              "Error converting video "
+                                  + filename
+                                  + " ("
+                                  + result.getT1().getCode()
+                                  + "): \n"
+                                  + result.getT1().getStdOut()
+                                  + "----------------------\n"
+                                  + result.getT1().getStdErr());
+                        return result.getT2();
+                      })
+                  .all(ok -> ok)
+              // .log("all :" + targetLength)
+              ;
+            },
+            1)
+        .all(ok -> ok)
+    // .log("all")
+    ;
   }
 
   private Mono<ExecuteResult> execute(final String[] cmdarray) {
