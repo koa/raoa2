@@ -19,6 +19,7 @@ public class ViewerProperties {
   private boolean enableAuthentication = true;
   private ClientProperties clientProperties = new ClientProperties();
   private boolean alwaysShowLatestRepository = false;
+  private boolean allowAlsoDebugging = false;
 
   public ViewerProperties() throws IOException {
 

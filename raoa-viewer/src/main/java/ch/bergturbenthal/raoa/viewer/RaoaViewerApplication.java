@@ -192,7 +192,7 @@ public class RaoaViewerApplication {
     };
   }
 
-  @Bean
+  // @Bean
   public OncePerRequestFilter requestLoggingFilter() {
 
     return new OncePerRequestFilter() {
