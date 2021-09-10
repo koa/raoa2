@@ -33,7 +33,7 @@ export class InViewportDirective implements AfterViewInit {
             entries.forEach(entry => {
                 this.renderContents(alwaysEnabled || entry.isIntersecting);
             });
-        }, {threshold: [0, .1, .9, 1]});
+        }, {threshold: [0, .1, .9, 1], rootMargin: '100%'});
         observer.observe(elToObserve);
     }
 

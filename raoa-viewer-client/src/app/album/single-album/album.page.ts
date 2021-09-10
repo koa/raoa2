@@ -12,7 +12,7 @@ import {Title} from '@angular/platform-browser';
 
 type AlbumEntryType =
     { __typename?: 'AlbumEntry' }
-    & Pick<AlbumEntry, 'id' | 'name' | 'entryUri' | 'targetWidth' | 'targetHeight' | 'created' | 'keywords'>;
+    & Pick<AlbumEntry, 'id' | 'name' | 'entryUri' | 'targetWidth' | 'targetHeight' | 'created' | 'keywords' | 'contentType'>;
 
 @Component({
     selector: 'app-album',
@@ -251,7 +251,8 @@ export class AlbumPage implements OnInit {
                     const imageShape: Shape = {
                         width: imageWidth,
                         entry,
-                        entryIndex: index++
+                        entryIndex: index++,
+                        isVideo: entry.contentType?.startsWith('video')
                     };
                     appender(imageShape, imageDate);
                 });
@@ -309,6 +310,7 @@ interface Shape {
     width: number;
     entry: AlbumEntryType;
     entryIndex: number;
+    isVideo: boolean;
 }
 
 interface ImageBlock {

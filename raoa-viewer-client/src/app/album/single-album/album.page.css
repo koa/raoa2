@@ -31,3 +31,28 @@ ion-title {
     font-weight: normal;
     margin: 0.3em;
 }
+
+.image-thumbnail-box{
+    contain: strict;
+}
+
+a.image-thumbnail-anchor {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+}
+
+.image-thumbnail-image {
+    grid-column: 1/4;
+    grid-row: 1/4;
+    align-self: center;
+    justify-self: center;
+}
+.image-thumbnail-icon {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    justify-self: center;
+    color: rgba(169, 169, 169, 0.8);
+    filter: blur(0.02em);
+}

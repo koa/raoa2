@@ -22,14 +22,14 @@ const proxyConfig = [
             //target: 'http://localhost:8080/',
             secure: false,
         }
-    ,
-    {
-        context: '/git',
-        target: 'https://photos.berg-turbenthal.ch/',
-        headers: {host: 'photos.berg-turbenthal.ch'},
-        //target: 'http://localhost:8080/',
-        secure: false,
-    }
+        ,
+        {
+            context: '/git',
+            target: 'https://photos.berg-turbenthal.ch/',
+            headers: {host: 'photos.berg-turbenthal.ch'},
+            //target: 'http://localhost:8080/',
+            secure: false,
+        }
     ]
 ;
 
