@@ -2,8 +2,7 @@ package ch.bergturbenthal.raoa.coordinator.service.impl;
 
 import ch.bergturbenthal.raoa.coordinator.model.CoordinatorProperties;
 import ch.bergturbenthal.raoa.coordinator.service.RemoteMediaProcessor;
-import io.fabric8.kubernetes.api.model.ListOptions;
-import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.batch.DoneableJob;
 import io.fabric8.kubernetes.api.model.batch.Job;
 import io.fabric8.kubernetes.api.model.batch.JobList;
@@ -13,6 +12,7 @@ import io.fabric8.kubernetes.client.KubernetesClientException;
 import io.fabric8.kubernetes.client.Watch;
 import io.fabric8.kubernetes.client.Watcher;
 import io.fabric8.kubernetes.client.dsl.MixedOperation;
+import io.fabric8.kubernetes.client.dsl.PodResource;
 import io.fabric8.kubernetes.client.dsl.ScalableResource;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
@@ -48,6 +48,8 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
       final CoordinatorProperties properties,
       ScheduledExecutorService executorService) {
     jobs = kubernetesClient.batch().jobs();
+    final MixedOperation<Pod, PodList, DoneablePod, PodResource<Pod, DoneablePod>> pods =
+        kubernetesClient.pods();
     mediaProcessorTemplate = properties.getMediaProcessorTemplate();
     jobs.delete(jobs.list(createListOptions()).getItems());
     scheduler = Schedulers.fromExecutor(executorService);
@@ -60,9 +62,12 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
           final Integer failed = status.getFailed();
           if (failed != null && failed > 0) {
             log.info("Failed: " + status);
-            jobs.delete(resource);
             final MonoSink<Boolean> waitingSink = waitingForCompletion.remove(jobId);
-            if (waitingSink != null) waitingSink.success(false);
+            if (waitingSink != null) {
+              log.warn("Job Failed: " + jobs.withName(resource.getMetadata().getName()).getLog());
+              waitingSink.success(false);
+            }
+            jobs.delete(resource);
           }
           final Integer succeeded = status.getSucceeded();
           if (succeeded != null && succeeded > 0) {
@@ -92,8 +97,15 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
 
   @NotNull
   private ListOptions createListOptions() {
+    final String label = "coordinator";
+    final String value = "raoa-job-coordinator";
+    return createListOptions(label, value);
+  }
+
+  @NotNull
+  private ListOptions createListOptions(final String label, final String value) {
     final ListOptions listOptions = new ListOptions();
-    listOptions.setLabelSelector("coordinator=raoa-job-coordinator");
+    listOptions.setLabelSelector(label + "=" + value);
     return listOptions;
   }
 

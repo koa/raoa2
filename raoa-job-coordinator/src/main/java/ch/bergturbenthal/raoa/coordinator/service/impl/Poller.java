@@ -210,11 +210,23 @@ public class Poller {
                                                                   remoteMediaProcessor
                                                                       .processFiles(albumId, batch)
                                                                       .doOnNext(
-                                                                          ok ->
+                                                                          ok -> {
+                                                                            if (!ok) {
+                                                                              log.warn(
+                                                                                  "Error processing Files on "
+                                                                                      + albumId);
+                                                                              batch.forEach(
+                                                                                  filename ->
+                                                                                      log.info(
+                                                                                          "- "
+                                                                                              + filename));
+                                                                            } else
                                                                               log.info(
                                                                                   "Processed "
                                                                                       + batch.size()
-                                                                                      + " files ")),
+                                                                                      + " files on "
+                                                                                      + albumId);
+                                                                          }),
                                                               coordinatorProperties
                                                                   .getConcurrentProcessingImages())
                                                           .all(ok -> ok))
