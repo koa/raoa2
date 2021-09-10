@@ -9,6 +9,8 @@ import org.eclipse.jgit.lib.ObjectId;
 public interface ThumbnailFilenameService {
   File findThumbnailOf(UUID album, ObjectId entry, int size);
 
+  File findVideoThumbnailOf(UUID album, ObjectId entry, int size);
+
   Stream<FileAndScale> listThumbnailsOf(UUID album, ObjectId entry);
 
   @Value

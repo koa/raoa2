@@ -24,11 +24,22 @@ public class DefaultThumbnailFilenameService
 
   @Override
   public File findThumbnailOf(final UUID album, final ObjectId entry, final int size) {
+    return doFindThumbnail(album, entry, size, ".jpg");
+  }
+
+  @Override
+  public File findVideoThumbnailOf(final UUID album, final ObjectId entry, final int size) {
+    return doFindThumbnail(album, entry, size, ".mp4");
+  }
+
+  @NotNull
+  private File doFindThumbnail(
+      final UUID album, final ObjectId entry, final int size, final String ending) {
     for (int candidateSize : SCALES) {
-      if (candidateSize >= size) return createThumbnailFile(album, entry, candidateSize, ".jpg");
+      if (candidateSize >= size) return createThumbnailFile(album, entry, candidateSize, ending);
     }
 
-    return createThumbnailFile(album, entry, 3200, ".jpg");
+    return createThumbnailFile(album, entry, 3200, ending);
   }
 
   @Override

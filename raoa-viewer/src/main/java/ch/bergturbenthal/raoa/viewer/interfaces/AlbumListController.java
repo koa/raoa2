@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.servlet.http.HttpServletResponse;
@@ -45,6 +46,7 @@ public class AlbumListController {
   public static final ResponseEntity<Resource> NOT_FOUND_RESPONSE =
       new ResponseEntity<>(HttpStatus.NOT_FOUND);
   public static final MediaType NEF = MediaType.parseMediaType("image/x-nikon-nef");
+  public static final MediaType VIDEO_THUMBNAIL_TYPE = MediaType.valueOf("video/mp4");
   private static final MediaType TIFF = MediaType.parseMediaType("image/tiff");
   private final AlbumList albumList;
   private final ViewerProperties viewerProperties;
@@ -68,12 +70,39 @@ public class AlbumListController {
     meterRegistry.gauge("limiter2.failed", failCount, AtomicInteger::get);
   }
 
+  @NotNull
+  private static MediaType fixContentType(final MediaType mediaType, final String filename) {
+    if (mediaType.equals(TIFF) && filename.toLowerCase().endsWith(".nef")) {
+      return NEF;
+    }
+    return mediaType;
+  }
+
   @GetMapping("album/{albumId}/{imageId}/thumbnail")
   public @ResponseBody Mono<ResponseEntity<Resource>> takeThumbnail(
       @PathVariable("albumId") UUID albumId,
       @PathVariable("imageId") String fileId,
       @RequestParam(name = "maxLength", defaultValue = "1600") int maxLength) {
     final ObjectId objectId = ObjectId.fromString(fileId);
+    return checkAccessAndReturn(
+        albumId,
+        () -> {
+          final File thumbnailFile =
+              thumbnailFilenameService.findThumbnailOf(albumId, objectId, maxLength);
+          Resource res = new FileSystemResource(thumbnailFile);
+          final HttpHeaders headers = new HttpHeaders();
+          headers.setContentType(MediaType.IMAGE_JPEG);
+          headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+          headers.setETag("\"" + fileId + ".tmb\"");
+          // headers.setContentDisposition(
+          //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
+          return new ResponseEntity<>(res, headers, HttpStatus.OK);
+        });
+  }
+
+  @NotNull
+  private Mono<ResponseEntity<Resource>> checkAccessAndReturn(
+      final UUID albumId, final Supplier<ResponseEntity<Resource>> entitySupplier) {
     return authorizationManager
         .currentUser(SecurityContextHolder.getContext())
         .flatMap(
@@ -87,16 +116,7 @@ public class AlbumListController {
                         if (!allowed) {
                           return new ResponseEntity<Resource>(HttpStatus.FORBIDDEN);
                         }
-                        final File thumbnailFile =
-                            thumbnailFilenameService.findThumbnailOf(albumId, objectId, maxLength);
-                        Resource res = new FileSystemResource(thumbnailFile);
-                        final HttpHeaders headers = new HttpHeaders();
-                        headers.setContentType(MediaType.IMAGE_JPEG);
-                        headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
-                        headers.setETag("\"" + fileId + "\"");
-                        // headers.setContentDisposition(
-                        //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
-                        return new ResponseEntity<>(res, headers, HttpStatus.OK);
+                        return entitySupplier.get();
                       })
                   .defaultIfEmpty(NOT_FOUND_RESPONSE)
                   .doOnNext(
@@ -117,6 +137,43 @@ public class AlbumListController {
                         }
                       });
             });
+  }
+
+  @GetMapping("album/{albumId}/{imageId}/videothumbnail")
+  public @ResponseBody Mono<ResponseEntity<Resource>> takeVideoThumbnail(
+      @PathVariable("albumId") UUID albumId,
+      @PathVariable("imageId") String fileId,
+      @RequestParam(name = "maxLength", defaultValue = "1600") int maxLength) {
+    final ObjectId objectId = ObjectId.fromString(fileId);
+    return checkAccessAndReturn(
+        albumId,
+        () -> {
+          final File thumbnailFile =
+              thumbnailFilenameService.findVideoThumbnailOf(albumId, objectId, maxLength);
+          Resource res = new FileSystemResource(thumbnailFile);
+          final HttpHeaders headers = new HttpHeaders();
+          headers.setContentType(VIDEO_THUMBNAIL_TYPE);
+          headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+          headers.setETag("\"" + fileId + ".vid\"");
+          // headers.setContentDisposition(
+          //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
+          return new ResponseEntity<>(res, headers, HttpStatus.OK);
+        });
+  }
+
+  @NotNull
+  private ResponseEntity<Resource> createVideoResponse(
+      final UUID albumId, final String fileId, final int maxLength, final ObjectId objectId) {
+    final File thumbnailFile =
+        thumbnailFilenameService.findVideoThumbnailOf(albumId, objectId, maxLength);
+    Resource res = new FileSystemResource(thumbnailFile);
+    final HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(VIDEO_THUMBNAIL_TYPE);
+    headers.setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+    headers.setETag("\"" + fileId + "\"");
+    // headers.setContentDisposition(
+    //    ContentDisposition.builder("attachment").filename(t.getT1()).build());
+    return new ResponseEntity<>(res, headers, HttpStatus.OK);
   }
 
   @GetMapping("album/{albumId}/{imageId}/original")
@@ -176,14 +233,6 @@ public class AlbumListController {
                         }
                       });
             });
-  }
-
-  @NotNull
-  private static MediaType fixContentType(final MediaType mediaType, final String filename) {
-    if (mediaType.equals(TIFF) && filename.toLowerCase().endsWith(".nef")) {
-      return NEF;
-    }
-    return mediaType;
   }
 
   @GetMapping("album-zip/{albumId}")

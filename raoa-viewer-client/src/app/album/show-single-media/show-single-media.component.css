@@ -20,6 +20,12 @@ ion-slide {
     display: block;
     object-fit: contain;
 }
+.image > video {
+    height: 100%;
+    width: 100%;
+    display: block;
+    object-fit: contain;
+}
 
 .overlay {
     position: absolute;

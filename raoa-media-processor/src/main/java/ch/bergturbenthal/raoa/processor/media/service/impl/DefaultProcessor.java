@@ -657,22 +657,8 @@ public class DefaultProcessor implements Processor {
                                 .timeout(Duration.ofHours(5))
                                 .log("vid " + scale));
               }
-              return Flux.concat(imgResult, videoResult)
-                  .map(
-                      result -> {
-                        if (result.getT1().getCode() != 0)
-                          throw new RuntimeException(
-                              "Error converting video "
-                                  + filename
-                                  + " ("
-                                  + result.getT1().getCode()
-                                  + "): \n"
-                                  + result.getT1().getStdOut()
-                                  + "----------------------\n"
-                                  + result.getT1().getStdErr());
-                        return result.getT2();
-                      })
-                  .all(ok -> ok)
+
+              return Flux.concat(imgResult, videoResult).map(Tuple2::getT2).all(ok -> ok)
               // .log("all :" + targetLength)
               ;
             },
@@ -730,8 +716,7 @@ public class DefaultProcessor implements Processor {
               p -> {
                 final Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
                 log.info("Processed in " + duration + ": " + String.join(" ", cmdarray));
-                return new ExecuteResult(
-                    stdErrBuffer.toString(), stdOutBuffer.toString(), p.exitValue());
+                return new ExecuteResult(p.exitValue());
               });
 
     } catch (IOException e) {
@@ -741,8 +726,8 @@ public class DefaultProcessor implements Processor {
 
   @Value
   private static class ExecuteResult {
-    String stdErr;
-    String stdOut;
+    // String stdErr;
+    // String stdOut;
     int code;
   }
 }

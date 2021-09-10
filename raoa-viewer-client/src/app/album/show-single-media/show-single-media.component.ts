@@ -21,7 +21,6 @@ type AlbumEntryMetadata =
 })
 export class ShowSingleMediaComponent implements OnInit {
 
-
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
                 private albumListService: AlbumListService,
@@ -55,6 +54,7 @@ export class ShowSingleMediaComponent implements OnInit {
     public albumKeywords: string[] = [];
     public currentSelectedKeywords = new Set<string>();
     public canEdit = false;
+    public currentIsVideo = false;
     private filteringKeyword: string;
     private nextIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
     private prevIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
@@ -85,6 +85,19 @@ export class ShowSingleMediaComponent implements OnInit {
             return '/assets/icon/favicon.ico';
         }
         return this.mediaResolver.lookupImage(this.albumId, mediaId, 3200);
+    }
+    loadVideo(mediaId: string): string {
+        if (mediaId === undefined) {
+            return undefined;
+        }
+        return this.mediaResolver.lookupVideo(this.albumId, mediaId, 3200);
+    }
+
+
+    isVideo(mediaId: string): boolean {
+        if (mediaId === undefined) {
+            return false;
+        }
     }
 
     async refreshSequence() {
@@ -137,6 +150,7 @@ export class ShowSingleMediaComponent implements OnInit {
                 this.currentSelectedKeywords = new Set(metadata.albumById.albumEntry.keywords);
                 const allKeywords = new Set(this.albumKeywords);
                 this.currentSelectedKeywords.forEach(keyword => allKeywords.add(keyword));
+                this.currentIsVideo = metadata.albumById.albumEntry.contentType.startsWith('video');
                 for (const keyword of albumData.keywords.keys()) {
                     allKeywords.add(keyword);
                 }
@@ -265,7 +279,7 @@ export class ShowSingleMediaComponent implements OnInit {
         const contentType = metadata.contentType || 'image/jpeg';
         const filename = metadata.name || 'original.jpg';
         const imageBlob = await this.loadOriginal(entryId);
-        console.log('image loaded');
+        // console.log('image loaded');
         const lastModified = Date.parse(metadata.created);
         const file = new File([imageBlob], filename, {type: contentType, lastModified});
         const data = {
@@ -273,8 +287,8 @@ export class ShowSingleMediaComponent implements OnInit {
             files: [file],
             url: window.location.origin + this.location.prepareExternalUrl(this.mediaPath(this.mediaId))
         };
-        console.log('Data: ');
-        console.log(data);
+        // console.log('Data: ');
+        // console.log(data);
         await navigator.share(data).catch(error => {
             console.log('Share error');
             console.log(error.class);
@@ -347,4 +361,5 @@ export class ShowSingleMediaComponent implements OnInit {
             this.currentSelectedKeywords.add(keyword);
         }
     }
+
 }

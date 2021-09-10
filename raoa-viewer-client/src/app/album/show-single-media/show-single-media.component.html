@@ -59,8 +59,11 @@
     </ion-slide>
     <ion-slide>
         <div class="image" (keyup.arrowLeft)="showImage(previousMediaId)" (keyup.arrowRight)="showImage(nextMediaId)">
-            <img [src]="loadImage(this.mediaId) | authImage | async">
-            <div class="overlay">
+            <img [src]="loadImage(this.mediaId) | authImage | async" *ngIf="!currentIsVideo">
+            <video [src]="loadVideo(this.mediaId) | authImage | async" *ngIf="currentIsVideo" controls>
+                <img [src]="loadImage(this.mediaId) | authImage | async">
+            </video>
+            <div class="overlay" *ngIf="!currentIsVideo">
                 <div *ngIf="previousMediaId" class="left-button">
                     <ion-icon class="button" name="arrow-back" (click)="showImage(previousMediaId)"></ion-icon>
                 </div>
@@ -128,7 +131,6 @@
                         <ion-label>{{keyword}}</ion-label>
                     </ion-chip>
                     <ion-input placeholder="Neues Stichwort" (keyup.enter)="addKeyword($event)"></ion-input>
-
                 </div>
             </div>
         </div>

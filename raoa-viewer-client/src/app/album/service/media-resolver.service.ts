@@ -29,6 +29,11 @@ export class MediaResolverService {
     public lookupOriginal(albumId: string, entryId: string) {
         return 'rest/album/' + albumId + '/' + entryId + '/original';
     }
+
+    lookupVideo(albumId: string, entryId: string, maxLength: number) {
+        const nextStepMaxLength = findNextStep(maxLength);
+        return '/rest/album/' + albumId + '/' + entryId + '/videothumbnail?maxLength=' + nextStepMaxLength;
+    }
 }
 
 function findNextStep(maxLength: number): number {
