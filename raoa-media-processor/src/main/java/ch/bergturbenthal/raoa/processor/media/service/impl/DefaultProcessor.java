@@ -312,6 +312,16 @@ public class DefaultProcessor implements Processor {
                                                       .filter(fas -> !fas.getFile().exists())
                                                       .collect(Collectors.toList());
                                           if (!missingThumbnails.isEmpty()) {
+                                            log.info(
+                                                "Scaling "
+                                                    + filename
+                                                    + " to sizes "
+                                                    + missingThumbnails.stream()
+                                                        .map(
+                                                            ThumbnailFilenameService.FileAndScale
+                                                                ::getSize)
+                                                        .map(Object::toString)
+                                                        .collect(Collectors.joining(", ")));
                                             return asyncService.asyncMono(
                                                 () -> {
                                                   final File mediaFile = params.getT2();
@@ -382,14 +392,16 @@ public class DefaultProcessor implements Processor {
                                       params -> {
                                         final Metadata metadata = params.getT3();
                                         final ObjectId imageFileId = params.getT1().getFileId();
-                                        return albumDataEntryRepository.save(
-                                            createAlbumEntry(
-                                                albumId,
-                                                imageFileId,
-                                                params.getT1().getNameString(),
-                                                metadata,
-                                                params.getT4(),
-                                                params.getT5()));
+                                        return albumDataEntryRepository
+                                            .save(
+                                                createAlbumEntry(
+                                                    albumId,
+                                                    imageFileId,
+                                                    params.getT1().getNameString(),
+                                                    metadata,
+                                                    params.getT4(),
+                                                    params.getT5()))
+                                            .doOnNext(f -> log.info("stored " + filename));
                                       })
                               // .log(filename)
                               ;

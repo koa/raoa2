@@ -2,7 +2,8 @@ package ch.bergturbenthal.raoa.coordinator.service.impl;
 
 import ch.bergturbenthal.raoa.coordinator.model.CoordinatorProperties;
 import ch.bergturbenthal.raoa.coordinator.service.RemoteMediaProcessor;
-import io.fabric8.kubernetes.api.model.*;
+import io.fabric8.kubernetes.api.model.ListOptions;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.batch.DoneableJob;
 import io.fabric8.kubernetes.api.model.batch.Job;
 import io.fabric8.kubernetes.api.model.batch.JobList;
@@ -12,7 +13,6 @@ import io.fabric8.kubernetes.client.KubernetesClientException;
 import io.fabric8.kubernetes.client.Watch;
 import io.fabric8.kubernetes.client.Watcher;
 import io.fabric8.kubernetes.client.dsl.MixedOperation;
-import io.fabric8.kubernetes.client.dsl.PodResource;
 import io.fabric8.kubernetes.client.dsl.ScalableResource;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
@@ -48,8 +48,6 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
       final CoordinatorProperties properties,
       ScheduledExecutorService executorService) {
     jobs = kubernetesClient.batch().jobs();
-    final MixedOperation<Pod, PodList, DoneablePod, PodResource<Pod, DoneablePod>> pods =
-        kubernetesClient.pods();
     mediaProcessorTemplate = properties.getMediaProcessorTemplate();
     jobs.delete(jobs.list(createListOptions()).getItems());
     scheduler = Schedulers.fromExecutor(executorService);
@@ -64,7 +62,8 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
             log.info("Failed: " + status);
             final MonoSink<Boolean> waitingSink = waitingForCompletion.remove(jobId);
             if (waitingSink != null) {
-              log.warn("Job Failed: " + jobs.withName(resource.getMetadata().getName()).getLog());
+              log.warn(
+                  "Job Failed: " + jobs.withName(resource.getMetadata().getName()).getLog(true));
               waitingSink.success(false);
             }
             jobs.delete(resource);
