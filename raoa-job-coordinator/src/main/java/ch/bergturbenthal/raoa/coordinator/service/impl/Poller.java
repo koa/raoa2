@@ -91,6 +91,9 @@ public class Poller {
     // log.info("scheduler started");
     while (true) {
       // log.info("poll cycle started");
+      final int concurrentProcessingAlbums = coordinatorProperties.getConcurrentProcessingAlbums();
+      // log.info("Concurrency: " + concurrentProcessingAlbums);
+      // Set<UUID> pendingAlbums = Collections.synchronizedSet(new HashSet<>());
       final Mono<Long> removedRepos =
           albumList
               .listAlbums()
@@ -114,6 +117,7 @@ public class Poller {
                           .retryWhen(Retry.backoff(10, Duration.ofSeconds(10)))
                           .map(touched -> Tuples.of(album, touched)),
                   10)
+              // .log("album in")
               .flatMap(
                   albumData -> {
                     boolean touched = albumData.getT2();
@@ -121,6 +125,8 @@ public class Poller {
                     final AlbumList.FoundAlbum album = albumData.getT1();
                     log.info("Start " + album);
                     final UUID albumId = album.getAlbumId();
+                    // pendingAlbums.add(albumId);
+                    // log.info("Pending: " + pendingAlbums);
                     return albumDataEntryRepository
                         .findByAlbumId(albumId)
                         // .log("entry before")
@@ -289,9 +295,17 @@ public class Poller {
                                                   })
                                               .defaultIfEmpty(albumId);
                                         }))
-                        .timeout(Duration.ofHours(6));
+                        .timeout(Duration.ofHours(6))
+                    /*.doFinally(
+                    signal -> {
+                      log.info("Pending, removed: " + pendingAlbums);
+                      pendingAlbums.remove(albumId);
+                    })*/ ;
                   },
-                  coordinatorProperties.getConcurrentProcessingAlbums())
+                  concurrentProcessingAlbums,
+                  100)
+              // .log("album-out")
+
               .collect(Collectors.toSet())
               .flatMap(
                   touchedRepositories ->
