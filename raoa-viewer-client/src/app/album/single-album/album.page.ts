@@ -163,23 +163,26 @@ export class AlbumPage implements OnInit {
 
     private async refresh() {
         await this.enterWait();
-        const result = await this.albumListService.listAlbum(this.albumId);
-        await this.leaveWait();
-        this.ngZone.run(() => {
-            this.titleService.setTitle(`Album: ${result.title}`);
-            this.title = result.title;
-            if (this.filteringKeyword === undefined) {
-                this.sortedEntries = result.sortedEntries;
-            } else {
-                this.sortedEntries = result.sortedEntries.filter(e => e.keywords.findIndex(k => k === this.filteringKeyword) >= 0);
-            }
-            this.enableSettings = result.canManageUsers;
-            this.fnCompetitionId = result.labels.get(FNCH_COMPETITION_ID);
-            this.keywords = [];
-            result.keywords.forEach((value, key) => this.keywords.push(key));
-            this.keywords.sort((k1, k2) => k1.localeCompare(k2));
-            this.calculateRows();
-        });
+        try {
+            const result = await this.albumListService.listAlbum(this.albumId);
+            this.ngZone.run(() => {
+                this.titleService.setTitle(`Album: ${result.title}`);
+                this.title = result.title;
+                if (this.filteringKeyword === undefined) {
+                    this.sortedEntries = result.sortedEntries;
+                } else {
+                    this.sortedEntries = result.sortedEntries.filter(e => e.keywords.findIndex(k => k === this.filteringKeyword) >= 0);
+                }
+                this.enableSettings = result.canManageUsers;
+                this.fnCompetitionId = result.labels.get(FNCH_COMPETITION_ID);
+                this.keywords = [];
+                result.keywords.forEach((value, key) => this.keywords.push(key));
+                this.keywords.sort((k1, k2) => k1.localeCompare(k2));
+                this.calculateRows();
+            });
+        } finally {
+            await this.leaveWait();
+        }
     }
 
     private async calculateRows() {

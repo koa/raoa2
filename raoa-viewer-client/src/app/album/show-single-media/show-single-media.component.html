@@ -58,7 +58,7 @@
         </div>
     </ion-slide>
     <ion-slide>
-        <div class="image" (keyup.arrowLeft)="showImage(previousMediaId)" (keyup.arrowRight)="showImage(nextMediaId)">
+        <div class="image" (keyup.arrowLeft)="showImage(previousMediaId)" (keyup.arrowRight)="showImage(nextMediaId)" #videoRoot (resized)="resized()">
             <img [src]="loadImage(this.mediaId) | authImage | async" *ngIf="!currentIsVideo">
             <video [src]="loadVideo(this.mediaId) | authImage | async" *ngIf="currentIsVideo" controls>
                 <img [src]="loadImage(this.mediaId) | authImage | async">

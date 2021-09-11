@@ -1,4 +1,4 @@
-import {Component, HostListener, NgZone, OnInit, ViewChild} from '@angular/core';
+import {Component, ElementRef, HostListener, NgZone, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {AlbumListService} from '../service/album-list.service';
@@ -46,6 +46,7 @@ export class ShowSingleMediaComponent implements OnInit {
     public nextMediaId: string;
     @ViewChild('imageSlider', {static: true})
     private imageSlider: IonSlides;
+    @ViewChild('videoRoot') private element: ElementRef<HTMLDivElement>;
     public supportShare: boolean;
     public metadata: AlbumEntryMetadata;
     public previousMetadata: AlbumEntryMetadata;
@@ -58,7 +59,7 @@ export class ShowSingleMediaComponent implements OnInit {
     private filteringKeyword: string;
     private nextIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
     private prevIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
-
+    public elementWidth = 3200;
 
     private static bigint2objectid(value: BigInt): string {
         if (value === undefined) {
@@ -67,6 +68,10 @@ export class ShowSingleMediaComponent implements OnInit {
         return value.toString(16).padStart(40, '0');
     }
 
+
+    public async resized() {
+        this.elementWidth = this.element.nativeElement.clientWidth;
+    }
 
     public async ngOnInit(): Promise<void> {
         const snapshot = this.activatedRoute.snapshot;
@@ -84,13 +89,14 @@ export class ShowSingleMediaComponent implements OnInit {
         if (mediaId === undefined) {
             return '/assets/icon/favicon.ico';
         }
-        return this.mediaResolver.lookupImage(this.albumId, mediaId, 3200);
+        return this.mediaResolver.lookupImage(this.albumId, mediaId, this.elementWidth);
     }
+
     loadVideo(mediaId: string): string {
         if (mediaId === undefined) {
             return undefined;
         }
-        return this.mediaResolver.lookupVideo(this.albumId, mediaId, 3200);
+        return this.mediaResolver.lookupVideo(this.albumId, mediaId, this.elementWidth);
     }
 
 
