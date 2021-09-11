@@ -20,9 +20,7 @@ import java.nio.charset.CharsetDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -336,7 +334,20 @@ public class BareGitAccess implements GitAccess {
         .map(CharBuffer::toString)
         .flatMapIterable(s -> Arrays.asList(s.split("\n")))
         .map(String::trim)
-        .map(l -> DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(l).query(Instant::from));
+        .map(
+            l -> {
+              if (l.length() <= 12)
+                return LocalDate.from(DateTimeFormatter.ISO_LOCAL_DATE.parse(l))
+                    .atTime(LocalTime.NOON)
+                    .atZone(ZoneId.of("UTC"))
+                    .toInstant();
+              else if (l.length() <= 18) {
+                return LocalDateTime.from(DateTimeFormatter.ISO_LOCAL_DATE_TIME.parse(l))
+                    .atZone(ZoneId.of("UTC"))
+                    .toInstant();
+              }
+              return Instant.from(DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(l));
+            });
   }
 
   @Override
