@@ -14,7 +14,6 @@
     <version>0.0.12-SNAPSHOT</version>
     <modules>
         <module>raoa-job-coordinator</module>
-        <module>raoa-image-processor</module>
         <module>raoa-libs</module>
         <module>raoa-libs-elastic</module>
         <module>raoa-importer</module>
