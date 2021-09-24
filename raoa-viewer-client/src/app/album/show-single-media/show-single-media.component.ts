@@ -60,6 +60,7 @@ export class ShowSingleMediaComponent implements OnInit {
     private nextIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
     private prevIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
     public elementWidth = 3200;
+    public playVideo = false;
 
     private static bigint2objectid(value: BigInt): string {
         if (value === undefined) {
@@ -157,6 +158,7 @@ export class ShowSingleMediaComponent implements OnInit {
                 const allKeywords = new Set(this.albumKeywords);
                 this.currentSelectedKeywords.forEach(keyword => allKeywords.add(keyword));
                 this.currentIsVideo = metadata.albumById.albumEntry.contentType.startsWith('video');
+                this.playVideo = false;
                 for (const keyword of albumData.keywords.keys()) {
                     allKeywords.add(keyword);
                 }

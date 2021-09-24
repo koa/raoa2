@@ -56,6 +56,15 @@ ion-slide {
     align-items: center;
 }
 
+.play-button{
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: xx-large;
+}
+
 @media (pointer: coarse) {
     .left-button {
         visibility: hidden;
