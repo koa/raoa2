@@ -2,34 +2,40 @@ const HttpsProxyAgent = require('https-proxy-agent');
 const proxyConfig = [
         {
             context: '/graphql',
-            target: 'https://photos.berg-turbenthal.ch/',
-            headers: {host: 'photos.berg-turbenthal.ch'},
+            target: 'https://photos.lkw.teamkoenig.ch/',
+            headers: {host: 'photos.lkw.teamkoenig.ch'},
+            //target: 'https://photos.berg-turbenthal.ch/',
+            //headers: {host: 'photos.berg-turbenthal.ch'},
             //target: 'http://localhost:8080/',
             secure: false,
         },
         {
             context: '/rest',
-            target: 'https://photos.berg-turbenthal.ch/',
-            headers: {host: 'photos.berg-turbenthal.ch'},
+            target: 'https://photos.lkw.teamkoenig.ch/',
+            headers: {host: 'photos.lkw.teamkoenig.ch'},
+            //target: 'https://photos.berg-turbenthal.ch/',
+            //headers: {host: 'photos.berg-turbenthal.ch'},
             //target: 'http://localhost:8080/',
             secure: false,
         }
         ,
         {
             context: '/config',
-            target: 'https://photos.berg-turbenthal.ch/',
-            headers: {host: 'photos.berg-turbenthal.ch'},
-            //target: 'http://localhost:8080/',
+            target: 'https://photos.lkw.teamkoenig.ch/',
+            headers: {host: 'photos.lkw.teamkoenig.ch'},
+//target: 'https://photos.berg-turbenthal.ch/',
+//headers: {host: 'photos.berg-turbenthal.ch'},
+//target: 'http://localhost:8080/',
             secure: false,
         }
-        ,
-        {
-            context: '/git',
-            target: 'https://photos.berg-turbenthal.ch/',
-            headers: {host: 'photos.berg-turbenthal.ch'},
-            //target: 'http://localhost:8080/',
-            secure: false,
-        }
+    ,
+    {
+        context: '/git',
+        target: 'https://photos.lkw.teamkoenig.ch/',
+        headers: {host: 'photos.lkw.teamkoenig.ch'},
+        //target: 'http://localhost:8080/',
+        secure: false,
+    }
     ]
 ;
 

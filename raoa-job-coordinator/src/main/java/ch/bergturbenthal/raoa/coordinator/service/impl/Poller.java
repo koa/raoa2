@@ -105,22 +105,22 @@ public class Poller {
                               albumDataRepository
                                   .findById(album.getAlbumId())
                                   .map(AlbumData::getCurrentVersion))
-                          .map(t -> t.getT1().equals(t.getT2()))
-                          .defaultIfEmpty(false)
+                          .map(t -> Tuples.of(Optional.of(t.getT1()), !t.getT1().equals(t.getT2())))
+                          .defaultIfEmpty(Tuples.of(Optional.empty(), true))
                           .onErrorResume(
                               ex1 -> {
                                 log.warn("Cannot check album " + album.getAccess(), ex1);
-                                return Mono.just(false);
+                                return Mono.just(Tuples.of(Optional.empty(), true));
                               })
-                          .map(b -> !b)
                           .timeout(Duration.ofSeconds(60))
                           .retryWhen(Retry.backoff(10, Duration.ofSeconds(10)))
-                          .map(touched -> Tuples.of(album, touched)),
+                          .map(touched -> Tuples.of(album, touched.getT1(), touched.getT2())),
                   10)
               // .log("album in")
               .flatMap(
                   albumData -> {
-                    boolean touched = albumData.getT2();
+                    boolean touched = albumData.getT3();
+                    final Optional<ObjectId> newVersion = albumData.getT2();
                     if (!touched) return Mono.just(albumData.getT1().getAlbumId());
                     final AlbumList.FoundAlbum album = albumData.getT1();
                     log.info("Start " + album);
@@ -258,15 +258,15 @@ public class Poller {
                                                               final AlbumStatisticsCollector stats =
                                                                   t.getT1();
                                                               final String name = t.getT2();
-                                                              final ObjectId version = t.getT3();
                                                               final AlbumMeta albumMeta = t.getT4();
 
                                                               AlbumData.AlbumDataBuilder
                                                                   albumDataBuilder =
                                                                       AlbumData.builder()
                                                                           .repositoryId(albumId)
-                                                                          .currentVersion(version)
                                                                           .name(name);
+                                                              newVersion.ifPresent(
+                                                                  albumDataBuilder::currentVersion);
                                                               Optional.ofNullable(
                                                                       albumMeta.getLabels())
                                                                   .ifPresent(
