@@ -2,6 +2,7 @@ package ch.bergturbenthal.raoa.coordinator.service.impl;
 
 import ch.bergturbenthal.raoa.coordinator.model.CoordinatorProperties;
 import ch.bergturbenthal.raoa.coordinator.service.RemoteMediaProcessor;
+import com.drew.lang.Charsets;
 import io.fabric8.kubernetes.api.model.ListOptions;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.batch.DoneableJob;
@@ -16,6 +17,7 @@ import io.fabric8.kubernetes.client.dsl.MixedOperation;
 import io.fabric8.kubernetes.client.dsl.ScalableResource;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
@@ -23,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
@@ -138,7 +141,10 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
     // log.info("Created " + createdJob);
     return Mono.<Boolean>create(
             sink -> {
-              final String fileList = String.join(",", files);
+              final String fileList =
+                  files.stream()
+                      .map(s -> URLEncoder.encode(s, Charsets.UTF_8))
+                      .collect(Collectors.joining(","));
               final String filledTemplate =
                   mediaProcessorTemplate
                       .replace("$repoId$", album.toString())

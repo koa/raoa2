@@ -11,10 +11,12 @@ import ch.bergturbenthal.raoa.processor.media.properties.JobProperties;
 import ch.bergturbenthal.raoa.processor.media.service.Processor;
 import com.adobe.internal.xmp.XMPMeta;
 import com.adobe.internal.xmp.XMPMetaFactory;
+import com.drew.lang.Charsets;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.net.URLDecoder;
 import java.nio.file.Path;
 import java.text.NumberFormat;
 import java.time.Duration;
@@ -214,6 +216,7 @@ public class DefaultProcessor implements Processor {
             .flatMap(
                 ga ->
                     Flux.fromIterable(jobProperties.getFiles())
+                        .map(s -> URLDecoder.decode(s, Charsets.UTF_8))
                         .flatMap(
                             filename -> {
                               final String metadataFilename = filename + ".xmp";
@@ -283,7 +286,15 @@ public class DefaultProcessor implements Processor {
                                                                 meta ->
                                                                     Tuples.of(
                                                                         Optional.of(entry),
-                                                                        Optional.of(meta))))
+                                                                        Optional.of(meta)))
+                                                            .onErrorResume(
+                                                                ex -> {
+                                                                  log.warn(
+                                                                      "Cannot read file "
+                                                                          + metadataFilename,
+                                                                      ex);
+                                                                  return Mono.empty();
+                                                                }))
                                                 .defaultIfEmpty(
                                                     Tuples.of(Optional.empty(), Optional.empty())));
                                       })
