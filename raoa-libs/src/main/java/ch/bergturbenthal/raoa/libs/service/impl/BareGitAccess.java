@@ -730,25 +730,31 @@ public class BareGitAccess implements GitAccess {
     return createUpdater()
         .flatMap(
             updater ->
-                asyncService
-                    .asyncMono(
-                        () -> {
-                          final File file = File.createTempFile("data", ".xmp");
-                          try {
-                            final OutputStream fos = new FileOutputStream(file);
-                            XMPMetaFactory.serialize(xmpMeta, fos);
-                            fos.close();
-                            return updater
-                                .importFile(file.toPath(), filename, true)
-                                .doFinally(signal -> file.delete());
-                          } catch (IOException ex) {
-                            file.delete();
-                            throw ex;
-                          }
-                        })
-                    .flatMap(Function.identity())
+                writeXmpMeta(filename, xmpMeta, updater)
                     .flatMap(fileId -> updater.commit(context))
                     .filter(ok -> ok));
+  }
+
+  @Override
+  public Mono<ObjectId> writeXmpMeta(
+      final String filename, final XMPMeta xmpMeta, final Updater updater) {
+    return asyncService
+        .asyncMono(
+            () -> {
+              final File file = File.createTempFile("data", ".xmp");
+              try {
+                final OutputStream fos = new FileOutputStream(file);
+                XMPMetaFactory.serialize(xmpMeta, fos);
+                fos.close();
+                return updater
+                    .importFile(file.toPath(), filename, true)
+                    .doFinally(signal -> file.delete());
+              } catch (IOException ex) {
+                file.delete();
+                throw ex;
+              }
+            })
+        .flatMap(Function.identity());
   }
 
   @Override

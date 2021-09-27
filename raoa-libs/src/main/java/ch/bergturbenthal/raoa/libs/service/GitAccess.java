@@ -44,6 +44,8 @@ public interface GitAccess {
 
   Mono<Boolean> writeXmpMeta(String filename, XMPMeta xmpMeta, final Updater.CommitContext context);
 
+  Mono<ObjectId> writeXmpMeta(String filename, XMPMeta xmpMeta, Updater updater);
+
   Mono<Repository> getRepository();
 
   @Value
