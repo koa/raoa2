@@ -15,6 +15,7 @@ export interface AlbumData {
     title: string | null;
     sortedEntries: (QueryAlbumEntry)[];
     canManageUsers: boolean;
+    canEdit: boolean;
     keywords: Map<string, number>;
     labels: Map<string, string>;
 }
@@ -49,11 +50,29 @@ export class AlbumListService {
                 });
             const keywords = new Map<string, number>();
             const labels = new Map<string, string>();
-            content.albumById.keywordCounts.forEach(e => keywords.set(e.keyword, e.count));
+            content.albumById.entries.forEach(entry => {
+                const kw = entry.keywords;
+                if (kw) {
+                    kw.forEach(keyword => {
+                        if (keywords.has(keyword)) {
+                            keywords.set(keyword, keywords.get(keyword) + 1);
+                        } else {
+                            keywords.set(keyword, 1);
+                        }
+                    });
+                }
+            });
             if (content.albumById.labels) {
                 content.albumById.labels.forEach(e => labels.set(e.labelName, e.labelValue));
             }
-            const result = {title, sortedEntries, canManageUsers: content.currentUser?.canManageUsers, keywords, labels};
+            const result = {
+                title,
+                sortedEntries,
+                canManageUsers: content.currentUser?.canManageUsers,
+                canEdit: content.currentUser?.canEdit,
+                keywords,
+                labels
+            };
             this.lastAlbumId = albumId;
             this.lastResult = result;
             return result;

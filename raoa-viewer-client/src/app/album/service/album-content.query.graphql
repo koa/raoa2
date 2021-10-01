@@ -6,10 +6,6 @@ query AlbumContent($albumId: ID!) {
             id, name, entryUri, targetWidth, targetHeight, created, contentType
             keywords
         }
-        keywordCounts{
-            keyword
-            count
-        }
         labels{
             labelName
             labelValue
@@ -18,5 +14,6 @@ query AlbumContent($albumId: ID!) {
     currentUser{
         id
         canManageUsers
+        canEdit
     }
 }

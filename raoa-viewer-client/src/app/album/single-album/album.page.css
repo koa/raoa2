@@ -56,3 +56,7 @@ a.image-thumbnail-anchor {
     color: rgba(169, 169, 169, 0.8);
     filter: blur(0.02em);
 }
+.image-selected {
+    border-width: 0.3em;
+    border-style: inset;
+}

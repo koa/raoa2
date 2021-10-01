@@ -1,12 +1,12 @@
 import {Component, ElementRef, NgZone, OnInit, ViewChild} from '@angular/core';
-import {ActivatedRoute} from '@angular/router';
+import {ActivatedRoute, Router} from '@angular/router';
 import {ServerApiService} from '../../service/server-api.service';
-import {AlbumContentGQL, AlbumEntry} from '../../generated/graphql';
+import {AlbumContentGQL, AlbumEntry, MutationData, SingleAlbumMutateGQL} from '../../generated/graphql';
 import {HttpClient} from '@angular/common/http';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {AlbumListService} from '../service/album-list.service';
 import {Location} from '@angular/common';
-import {IonContent, LoadingController, MenuController} from '@ionic/angular';
+import {IonContent, LoadingController, MenuController, ToastController} from '@ionic/angular';
 import {FNCH_COMPETITION_ID} from '../../constants';
 import {Title} from '@angular/platform-browser';
 
@@ -22,11 +22,13 @@ type AlbumEntryType =
 export class AlbumPage implements OnInit {
     public fnCompetitionId: string;
     private loadingElement: HTMLIonLoadingElement;
+    private lastSelectedIndex: number | undefined = undefined;
 
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
                 private albumContentGQL: AlbumContentGQL,
+                private singleAlbumMutateGQL: SingleAlbumMutateGQL,
                 private albumListService: AlbumListService,
                 private ngZone: NgZone,
                 private http: HttpClient,
@@ -34,7 +36,9 @@ export class AlbumPage implements OnInit {
                 private location: Location,
                 private loadingController: LoadingController,
                 private menuController: MenuController,
-                private titleService: Title
+                private titleService: Title,
+                private router: Router,
+                private toastController: ToastController
     ) {
     }
 
@@ -42,9 +46,13 @@ export class AlbumPage implements OnInit {
     public title: string;
     public rows: Array<TableRow> = [];
     public days: string[] = [];
-    public keywords: string[] = [];
+    public keywords = new Set<string>();
+    public sortedKeywords: string[] = [];
     public maxWidth = 8;
     public filteringKeyword: string;
+    public selectionMode = false;
+
+    public selectedEntries = new Set<string>();
 
     @ViewChild('imageList') private element: ElementRef<HTMLDivElement>;
     @ViewChild('content') private contentElement: IonContent;
@@ -55,6 +63,8 @@ export class AlbumPage implements OnInit {
     public enableSettings = false;
     public daycount = 0;
     public timestamp = '';
+    public canEdit = false;
+    public newTag = '';
 
     public async resized() {
         if (this.elementWidth === this.element.nativeElement.clientWidth) {
@@ -100,10 +110,19 @@ export class AlbumPage implements OnInit {
         this.location.replaceState(url.pathname, url.searchParams.toString());
     }
 
-    async enterWait(): Promise<void> {
+    async enterWait(reason: WaitReason): Promise<void> {
         const newCount = ++this.waitCount;
         if (newCount === 1 && this.loadingElement === undefined) {
-            const element = await this.loadingController.create({message: this.title ? ('Lade ' + this.title + ' ...') : 'Lade Album ...'});
+            let message = 'Bitte Warten ...';
+            switch (reason) {
+                case WaitReason.LOAD:
+                    message = this.title ? ('Lade ' + this.title + ' ...') : 'Lade Album ...';
+                    break;
+                case WaitReason.STORE:
+                    message = this.title ? ('Speichere ' + this.title + ' ...') : 'Speichere Album ...';
+                    break;
+            }
+            const element = await this.loadingController.create({message});
             await element.present();
             if (this.waitCount === 0) {
                 await element.dismiss();
@@ -132,6 +151,7 @@ export class AlbumPage implements OnInit {
             if (this.albumId) {
                 if (this.filteringKeyword !== filteringKeyword) {
                     this.filteringKeyword = filteringKeyword;
+                    this.lastSelectedIndex = undefined;
                     await this.refresh();
                 }
                 if (pos) {
@@ -146,23 +166,15 @@ export class AlbumPage implements OnInit {
             const id = params.get('id');
             if (this.albumId !== id) {
                 this.albumId = id;
-                await this.refresh();
-            } else {
-                const result = await this.albumListService.listAlbum(this.albumId);
-                const keywords = new Set<string>();
-                result.keywords.forEach((count, keyword) => keywords.add(keyword));
-                result.sortedEntries.forEach(entry => entry.keywords.forEach(keyword => keywords.add(keyword)));
-                this.ngZone.run(() => {
-                    this.keywords = [];
-                    keywords.forEach(keyword => this.keywords.push(keyword));
-                    this.keywords.sort((k1, k2) => k1.localeCompare(k2));
-                });
+                this.selectedEntries.clear();
+                this.lastSelectedIndex = undefined;
             }
+            await this.refresh();
         });
     }
 
     private async refresh() {
-        await this.enterWait();
+        await this.enterWait(WaitReason.LOAD);
         try {
             const result = await this.albumListService.listAlbum(this.albumId);
             this.ngZone.run(() => {
@@ -175,9 +187,7 @@ export class AlbumPage implements OnInit {
                 }
                 this.enableSettings = result.canManageUsers;
                 this.fnCompetitionId = result.labels.get(FNCH_COMPETITION_ID);
-                this.keywords = [];
-                result.keywords.forEach((value, key) => this.keywords.push(key));
-                this.keywords.sort((k1, k2) => k1.localeCompare(k2));
+                this.canEdit = result.canEdit;
                 this.calculateRows();
             });
         } finally {
@@ -186,7 +196,7 @@ export class AlbumPage implements OnInit {
     }
 
     private async calculateRows() {
-        await this.enterWait();
+        await this.enterWait(WaitReason.LOAD);
         this.ngZone.run(() => {
             this.rows = [];
             const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -240,11 +250,11 @@ export class AlbumPage implements OnInit {
                 currentRowWidth += shape.width;
 
             };
-            const realKeywords = new Set<string>();
+            this.keywords.clear();
             this.sortedEntries
                 .forEach(entry => {
                     entry.keywords.forEach(keyword => {
-                        realKeywords.add(keyword);
+                        this.keywords.add(keyword);
                     });
                     const timestamp: number = Date.parse(entry.created);
                     const date = new Date(timestamp);
@@ -260,12 +270,16 @@ export class AlbumPage implements OnInit {
                     appender(imageShape, imageDate);
                 });
             flushBlock();
-            this.keywords = [];
-            realKeywords.forEach(keyword => this.keywords.push(keyword));
-            this.keywords.sort((k1, k2) => k1.localeCompare(k2));
+            this.sortKeywords();
             this.daycount = dayCount;
         });
         await this.leaveWait();
+    }
+
+    private sortKeywords() {
+        this.sortedKeywords = [];
+        this.keywords.forEach(keyword => this.sortedKeywords.push(keyword));
+        this.sortedKeywords.sort((k1, k2) => k1.localeCompare(k2));
     }
 
     public loadImage(blockPart: ImageBlock, shape: Shape): string {
@@ -278,6 +292,10 @@ export class AlbumPage implements OnInit {
 
     async openDayList($event: MouseEvent) {
         await this.menuController.open('days');
+    }
+
+    async openTagList($event: MouseEvent) {
+        await this.menuController.open('tags');
     }
 
     async scrollTo(id: string) {
@@ -293,6 +311,7 @@ export class AlbumPage implements OnInit {
             this.filteringKeyword = keyword;
         }
         this.setParam('keyword', this.filteringKeyword);
+        this.lastSelectedIndex = undefined;
         await this.refresh();
         await this.menuController.close();
     }
@@ -306,6 +325,133 @@ export class AlbumPage implements OnInit {
             return {keyword: this.filteringKeyword};
         }
         return {};
+    }
+
+    public imageClicked(blockPart: ImageBlock, shape: Shape, $event: MouseEvent) {
+        if (this.selectionMode) {
+            const shiftKey = $event.shiftKey;
+            const entryId = shape.entry.id;
+            const selectedIndex = shape.entryIndex;
+            if (shiftKey) {
+                if (this.lastSelectedIndex !== undefined) {
+                    const selectFrom = Math.min(this.lastSelectedIndex, selectedIndex);
+                    const selectUntil = Math.max(this.lastSelectedIndex, selectedIndex);
+                    const slice = this.sortedEntries.slice(selectFrom, selectUntil + 1);
+                    const allSelected = this.selectedEntries.has(this.sortedEntries[this.lastSelectedIndex].id);
+                    if (!allSelected) {
+                        slice.forEach(entry => this.selectedEntries.delete(entry.id));
+                    } else {
+                        slice.forEach(entry => this.selectedEntries.add(entry.id));
+                    }
+                    this.lastSelectedIndex = undefined;
+                }
+            } else {
+                this.lastSelectedIndex = selectedIndex;
+                if (this.selectedEntries.has(entryId)) {
+                    this.selectedEntries.delete(entryId);
+                } else {
+                    this.selectedEntries.add(entryId);
+                }
+            }
+        } else {
+            this.router.navigate(this.createEntryLink(shape), {queryParams: this.queryParams()});
+        }
+    }
+
+    tagAdded($event: any) {
+        this.keywords.add(this.newTag);
+        this.sortKeywords();
+        this.newTag = '';
+    }
+
+    public selectionCanAdd(keyword: string): boolean {
+
+        for (const entry of this.sortedEntries) {
+            if (!this.selectedEntries.has(entry.id)) {
+                continue;
+            }
+            let canAdd = true;
+            for (const kw of entry.keywords) {
+                if (kw === keyword) {
+                    canAdd = false;
+                }
+            }
+            if (canAdd) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public selectionCanRemove(keyword: string): boolean {
+
+        for (const entry of this.sortedEntries) {
+            if (!this.selectedEntries.has(entry.id)) {
+                continue;
+            }
+            for (const kw of entry.keywords) {
+                if (kw === keyword) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    async addTag(keyword: string) {
+        const updates: MutationData[] = [];
+        this.selectedEntries.forEach(alubmEntryId => {
+            updates.push({
+                addKeywordMutation: {
+                    albumId: this.albumId,
+                    keyword,
+                    albumEntryId: alubmEntryId
+
+                }
+            });
+        });
+        await this.sendMutation(updates);
+    }
+
+    private async sendMutation(updates: MutationData[]) {
+        await this.enterWait(WaitReason.STORE);
+        try {
+            const result = await this.serverApi.update(this.singleAlbumMutateGQL, {updates});
+            if (result.mutate && result.mutate.length > 0) {
+                const messages = result.mutate.map(m => m.message).join(', ');
+                const toastElement = await this.toastController.create({
+                    message: 'Fehler beim Speichern' + messages + '"',
+                    duration: 10000,
+                    color: 'danger'
+                });
+                await toastElement.present();
+            }
+            await this.albumListService.clearAlbum(this.albumId);
+            await this.refresh();
+        } finally {
+            await this.leaveWait();
+        }
+    }
+
+    async removeTag(keyword: string) {
+        const updates: MutationData[] = [];
+        this.selectedEntries.forEach(alubmEntryId => {
+            updates.push({
+                removeKeywordMutation: {
+                    albumId: this.albumId,
+                    keyword,
+                    albumEntryId: alubmEntryId
+
+                }
+            });
+        });
+        await this.sendMutation(updates);
+    }
+
+    selectionModeChanged() {
+        if (!this.selectionMode) {
+            this.selectedEntries.clear();
+        }
     }
 }
 
@@ -336,3 +482,6 @@ interface HeaderRow {
 
 type TableRow = ImagesRow | HeaderRow;
 
+enum WaitReason {
+    LOAD, STORE
+}
