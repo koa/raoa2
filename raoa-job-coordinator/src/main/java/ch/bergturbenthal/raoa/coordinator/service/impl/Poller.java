@@ -101,11 +101,23 @@ public class Poller {
               .flatMap(
                   album ->
                       Mono.zip(
-                              album.getAccess().getCurrentVersion(),
+                              album
+                                  .getAccess()
+                                  .getCurrentVersion()
+                                  .doOnError(ex -> log.warn("Cannot load current version", ex)),
                               albumDataRepository
                                   .findById(album.getAlbumId())
-                                  .map(AlbumData::getCurrentVersion))
-                          .map(t -> Tuples.of(Optional.of(t.getT1()), !t.getT1().equals(t.getT2())))
+                                  .map(
+                                      albumData1 ->
+                                          Optional.ofNullable(albumData1.getCurrentVersion()))
+                                  .defaultIfEmpty(Optional.empty())
+                                  .doOnError(ex -> log.warn("Cannot load version from ES", ex)))
+                          // .doOnError(ex -> log.warn("Cannot zip", ex))
+                          .map(
+                              t ->
+                                  Tuples.of(
+                                      Optional.of(t.getT1()),
+                                      !t.getT2().map(v -> v.equals(t.getT1())).orElse(false)))
                           .defaultIfEmpty(Tuples.of(Optional.empty(), true))
                           .onErrorResume(
                               ex1 -> {
@@ -278,8 +290,7 @@ public class Poller {
                                                                   .timeout(Duration.ofSeconds(20));
                                                             });
                                                   })
-                                              .doOnNext(
-                                                  entry -> log.info("updated: " + entry.getName()))
+                                              .doOnNext(entry -> log.info("updated: " + entry))
                                               .map(AlbumData::getRepositoryId)
                                               .onErrorResume(
                                                   ex -> {
