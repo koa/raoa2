@@ -14,6 +14,12 @@ type AlbumEntryType =
     { __typename?: 'AlbumEntry' }
     & Pick<AlbumEntry, 'id' | 'name' | 'entryUri' | 'targetWidth' | 'targetHeight' | 'created' | 'keywords' | 'contentType'>;
 
+function copyPendingKeywords(pendingKeywords: Map<string, Set<string>>): Map<string, Set<string>> {
+    const ret = new Map<string, Set<string>>();
+    pendingKeywords.forEach((keywords, entry) => ret.set(entry, new Set<string>(keywords)));
+    return ret;
+}
+
 @Component({
     selector: 'app-album',
     templateUrl: './album.page.html',
@@ -65,6 +71,8 @@ export class AlbumPage implements OnInit {
     public timestamp = '';
     public canEdit = false;
     public newTag = '';
+    public pendingAddKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
+    public pendingRemoveKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
 
     public async resized() {
         if (this.elementWidth === this.element.nativeElement.clientWidth) {
@@ -294,8 +302,8 @@ export class AlbumPage implements OnInit {
         await this.menuController.open('days');
     }
 
-    async openTagList($event: MouseEvent) {
-        await this.menuController.open('tags');
+    async toggleEditor($event: MouseEvent) {
+        await this.menuController.toggle('tags');
     }
 
     async scrollTo(id: string) {
@@ -358,10 +366,12 @@ export class AlbumPage implements OnInit {
         }
     }
 
-    tagAdded($event: any) {
-        this.keywords.add(this.newTag);
+    async tagAdded($event: any) {
+        const newKeyword = this.newTag;
+        this.keywords.add(newKeyword);
         this.sortKeywords();
         this.newTag = '';
+        await this.addTag(newKeyword);
     }
 
     public selectionCanAdd(keyword: string): boolean {
@@ -371,7 +381,7 @@ export class AlbumPage implements OnInit {
                 continue;
             }
             let canAdd = true;
-            for (const kw of entry.keywords) {
+            for (const kw of this.keywordsOfEntry(entry)) {
                 if (kw === keyword) {
                     canAdd = false;
                 }
@@ -383,13 +393,29 @@ export class AlbumPage implements OnInit {
         return false;
     }
 
+    private keywordsOfEntry(entry: { __typename?: 'AlbumEntry' } & Pick<AlbumEntry, 'id' | 'keywords'>): Iterable<string> {
+        const pendingAdd = this.pendingAddKeywords.get(entry.id);
+        const pendingRemove = this.pendingRemoveKeywords.get(entry.id);
+        if (pendingAdd === undefined && pendingRemove === undefined) {
+            return entry.keywords;
+        }
+        const ret = new Set<string>(entry.keywords);
+        if (pendingAdd !== undefined) {
+            pendingAdd.forEach(keyword => ret.add(keyword));
+        }
+        if (pendingRemove !== undefined) {
+            pendingRemove.forEach(keyword => ret.delete(keyword));
+        }
+        return ret;
+    }
+
     public selectionCanRemove(keyword: string): boolean {
 
         for (const entry of this.sortedEntries) {
             if (!this.selectedEntries.has(entry.id)) {
                 continue;
             }
-            for (const kw of entry.keywords) {
+            for (const kw of this.keywordsOfEntry(entry)) {
                 if (kw === keyword) {
                     return true;
                 }
@@ -399,23 +425,59 @@ export class AlbumPage implements OnInit {
     }
 
     async addTag(keyword: string) {
-        const updates: MutationData[] = [];
         this.selectedEntries.forEach(alubmEntryId => {
-            updates.push({
-                addKeywordMutation: {
-                    albumId: this.albumId,
-                    keyword,
-                    albumEntryId: alubmEntryId
-
-                }
-            });
+            this.addEntry(this.pendingAddKeywords, alubmEntryId, keyword);
+            this.removeEntry(this.pendingRemoveKeywords, alubmEntryId, keyword);
         });
-        await this.sendMutation(updates);
     }
 
-    private async sendMutation(updates: MutationData[]) {
+
+    addEntry(map: Map<string, Set<string>>, entry: string, keyword: string): void {
+        if (map.has(entry)) {
+            map.get(entry).add(keyword);
+        } else {
+            map.set(entry, new Set<string>([keyword]));
+        }
+    }
+
+    removeEntry(map: Map<string, Set<string>>, entry: string, keyword: string): void {
+        if (map.has(entry)) {
+            const keywords = map.get(entry);
+            keywords.delete(keyword);
+            if (keywords.size === 0) {
+                map.delete(entry);
+            }
+        }
+    }
+
+    public async storeMutation() {
         await this.enterWait(WaitReason.STORE);
         try {
+            const pendingAddKeywords: Map<string, Set<string>> = copyPendingKeywords(this.pendingAddKeywords);
+            const pendingRemoveKeywords: Map<string, Set<string>> = copyPendingKeywords(this.pendingRemoveKeywords);
+            const updates: MutationData[] = [];
+            pendingAddKeywords.forEach((keywords, entry) =>
+                keywords.forEach(keyword =>
+                    updates.push({
+                        addKeywordMutation: {
+                            albumId: this.albumId,
+                            keyword,
+                            albumEntryId: entry
+                        }
+                    })));
+            pendingRemoveKeywords.forEach((keywords, entry) => {
+                keywords.forEach(keyword =>
+                    updates.push({
+                        removeKeywordMutation: {
+                            albumId: this.albumId,
+                            keyword,
+                            albumEntryId: entry
+                        }
+                    }));
+            });
+            if (updates.length === 0) {
+                return;
+            }
             const result = await this.serverApi.update(this.singleAlbumMutateGQL, {updates});
             if (result.mutate && result.mutate.length > 0) {
                 const messages = result.mutate.map(m => m.message).join(', ');
@@ -425,6 +487,14 @@ export class AlbumPage implements OnInit {
                     color: 'danger'
                 });
                 await toastElement.present();
+            } else {
+                pendingAddKeywords.forEach((keywords, entry) => {
+                    keywords.forEach(keyword => {
+                        this.removeEntry(this.pendingAddKeywords, entry, keyword);
+                    });
+                });
+                pendingRemoveKeywords.forEach((keywords, entry) =>
+                    keywords.forEach(keyword => this.removeEntry(this.pendingRemoveKeywords, entry, keyword)));
             }
             await this.albumListService.clearAlbum(this.albumId);
             await this.refresh();
@@ -434,24 +504,29 @@ export class AlbumPage implements OnInit {
     }
 
     async removeTag(keyword: string) {
-        const updates: MutationData[] = [];
         this.selectedEntries.forEach(alubmEntryId => {
-            updates.push({
-                removeKeywordMutation: {
-                    albumId: this.albumId,
-                    keyword,
-                    albumEntryId: alubmEntryId
-
-                }
-            });
+            this.removeEntry(this.pendingAddKeywords, alubmEntryId, keyword);
+            this.addEntry(this.pendingRemoveKeywords, alubmEntryId, keyword);
         });
-        await this.sendMutation(updates);
     }
 
     selectionModeChanged() {
         if (!this.selectionMode) {
             this.selectedEntries.clear();
         }
+    }
+
+    pendingMutations(): boolean {
+        return this.pendingAddKeywords.size > 0 || this.pendingRemoveKeywords.size > 0;
+    }
+
+    clearSelection() {
+        this.selectedEntries.clear();
+    }
+
+    resetMutation() {
+        this.pendingAddKeywords.clear();
+        this.pendingRemoveKeywords.clear();
     }
 }
 

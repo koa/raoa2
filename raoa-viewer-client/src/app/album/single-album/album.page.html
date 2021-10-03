@@ -22,36 +22,6 @@
         </ion-list>
     </ion-content>
 </ion-menu>
-<ion-menu side="end" menu-id="tags" content-id="content-list">
-    <ion-header>
-        <ion-toolbar>
-            <ion-title>Ändern</ion-title>
-        </ion-toolbar>
-    </ion-header>
-    <ion-content>
-        <ion-list>
-            <ion-item-group *ngIf="sortedKeywords.length>0">
-                <ion-item-divider>Tags</ion-item-divider>
-                <ion-item *ngFor="let k of sortedKeywords">
-                    <ion-label>{{k}}</ion-label>
-                    <ion-button *ngIf="selectionCanAdd(k)" (click)="addTag(k)">
-                        <ion-icon name="add-circle"></ion-icon>
-                    </ion-button>
-                    <ion-button *ngIf="selectionCanRemove(k)" (click)="removeTag(k)">
-                        <ion-icon name="remove-circle"></ion-icon>
-                    </ion-button>
-                </ion-item>
-            </ion-item-group>
-            <ion-item-group>
-                <ion-item-divider>Neues Tag</ion-item-divider>
-                <ion-item>
-                    <ion-label>Tag</ion-label>
-                    <ion-input (keydown.enter)="tagAdded($event)" [(ngModel)]="newTag" type="text"></ion-input>
-                </ion-item>
-            </ion-item-group>
-        </ion-list>
-    </ion-content>
-</ion-menu>
 <ion-header>
     <ion-toolbar>
         <ion-back-button defaultHref="/album" slot="start" *ngIf="!selectionMode"></ion-back-button>
@@ -66,12 +36,15 @@
                     [href]="'https://info.fnch.ch/#/resultate/veranstaltungen/'+fnCompetitionId">
             <ion-icon name="list"></ion-icon>
         </ion-button>
-        <ion-button *ngIf="enableSettings && !selectionMode" [routerLink]="'/album/'+albumId+'/manage'" slot="end"
+        <ion-button *ngIf="enableSettings && !selectionMode" [routerLink]="'/album/'+albumId+'/manage'"
+                    slot="end"
                     color="light">
             <ion-icon name="settings"></ion-icon>
         </ion-button>
-        <ion-button *ngIf="selectionMode && canEdit" [disabled]="this.selectedEntries.size==0" slot="end"
-                    (click)="openTagList($event)">
+        <ion-button *ngIf="(selectionMode || pendingMutations()) && canEdit"
+                    [disabled]="this.selectedEntries.size==0"
+                    slot="end"
+                    (click)="toggleEditor($event)">
             <ion-icon name="pencil"></ion-icon>
         </ion-button>
         <!--
@@ -79,42 +52,84 @@
             <ion-icon name="download"></ion-icon>
         </ion-button>
         -->
-        <ion-toggle slot="end" [(ngModel)]="selectionMode" (ngModelChange)="selectionModeChanged()"></ion-toggle>
+        <ion-toggle slot="end" [(ngModel)]="selectionMode" (ngModelChange)="selectionModeChanged()"
+                    *ngIf="canEdit"></ion-toggle>
     </ion-toolbar>
     <span>{{timestamp | date: 'medium'}}</span>
 </ion-header>
+<ion-split-pane content-id="content-list" [disabled]="!((selectionMode || pendingMutations()) && canEdit)">
 
-<ion-content (ionScroll)="onScroll($event)" scroll-events="true" #content id="content-list">
-    <div class="imagelist" #imageList (resized)="resized()">
-        <ng-container *ngFor="let row of rows; index as rowNr" class="row">
-            <h1 *ngIf="row.kind=='timestamp'" [id]="'day-'+row.id">
-                {{row.time | date:'fullDate' }}
-            </h1>
-            <div *ngIf="row.kind=='images'" [ngStyle]="{'height.px':(elementWidth*row.height), 'width.%':100}"
-                 class="image-block">
-                <div *appInViewport>
-                    <div *ngFor="let blockPart of row.blocks"
-                         [ngStyle]="{'height.px':(elementWidth/blockPart.width), 'width.%':100}">
-                        <div *appInViewport="8" class="image-row" [attr.timestamp]="blockPart.title">
-                            <div *ngFor="let shape of blockPart.shapes"
-                                 [ngStyle]="{'height.px':(elementWidth/blockPart.width),'width.px':elementWidth/blockPart.width*shape.width}"
-                                 class="image-thumbnail-box">
-                                <!--<a [routerLink]="createEntryLink(shape)" [queryParams]="queryParams()"
-                                   class="image-thumbnail-anchor">-->
-                                <img [src]="loadImage(blockPart, shape) | authImage | async" width="100%"
-                                     height="100%"
-                                     class="image-thumbnail-image" (click)="imageClicked(blockPart, shape, $event)"
-                                     [class.image-selected]="selectedEntries.has(shape.entry.id)">
-                                <ion-icon name="play-circle-outline" class="image-thumbnail-icon"
-                                          [ngStyle]="{'font-size.px':elementWidth/blockPart.width/3}"
-                                          *ngIf="shape.isVideo">
-                                </ion-icon>
-                                <!--</a>-->
+    <ion-menu side="end" menu-id="tags" content-id="content-list">
+        <ion-header>
+            <ion-toolbar>
+                <ion-title>Ändern</ion-title>
+            </ion-toolbar>
+        </ion-header>
+        <ion-content>
+            <ion-list>
+                <ion-item-group *ngIf="sortedKeywords.length>0">
+                    <ion-item-divider>Tags</ion-item-divider>
+                    <ion-item *ngFor="let k of sortedKeywords">
+                        <ion-label>{{k}}</ion-label>
+                        <ion-button *ngIf="selectionCanAdd(k)" (click)="addTag(k)">
+                            <ion-icon name="add-circle"></ion-icon>
+                        </ion-button>
+                        <ion-button *ngIf="selectionCanRemove(k)" (click)="removeTag(k)">
+                            <ion-icon name="remove-circle"></ion-icon>
+                        </ion-button>
+                    </ion-item>
+                </ion-item-group>
+                <ion-item-group>
+                    <ion-item-divider>Neues Tag</ion-item-divider>
+                    <ion-item>
+                        <ion-label>Tag</ion-label>
+                        <ion-input (keydown.enter)="tagAdded($event)" [(ngModel)]="newTag" type="text"></ion-input>
+                    </ion-item>
+                </ion-item-group>
+                <ion-item-group>
+                    <ion-item-divider>Aktionen</ion-item-divider>
+                    <ion-button [disabled]="!pendingMutations()" (click)="storeMutation()">Speichern</ion-button>
+                    <ion-button [disabled]="!pendingMutations()" (click)="resetMutation()">Abbrechen</ion-button>
+                    <ion-button [disabled]="selectedEntries.size==0" (click)="clearSelection()">Selektion entfernen
+                    </ion-button>
+                </ion-item-group>
+            </ion-list>
+        </ion-content>
+    </ion-menu>
+
+    <ion-content (ionScroll)="onScroll($event)" scroll-events="true" #content id="content-list">
+        <div class="imagelist" #imageList (resized)="resized()">
+            <ng-container *ngFor="let row of rows; index as rowNr" class="row">
+                <h1 *ngIf="row.kind=='timestamp'" [id]="'day-'+row.id">
+                    {{row.time | date:'fullDate' }}
+                </h1>
+                <div *ngIf="row.kind=='images'" [ngStyle]="{'height.px':(elementWidth*row.height), 'width.%':100}"
+                     class="image-block">
+                    <div *appInViewport>
+                        <div *ngFor="let blockPart of row.blocks"
+                             [ngStyle]="{'height.px':(elementWidth/blockPart.width), 'width.%':100}">
+                            <div *appInViewport="8" class="image-row" [attr.timestamp]="blockPart.title">
+                                <div *ngFor="let shape of blockPart.shapes"
+                                     [ngStyle]="{'height.px':(elementWidth/blockPart.width),'width.px':elementWidth/blockPart.width*shape.width}"
+                                     class="image-thumbnail-box">
+                                    <!--<a [routerLink]="createEntryLink(shape)" [queryParams]="queryParams()"
+                                       class="image-thumbnail-anchor">-->
+                                    <img [src]="loadImage(blockPart, shape) | authImage | async" width="100%"
+                                         height="100%"
+                                         class="image-thumbnail-image"
+                                         (click)="imageClicked(blockPart, shape, $event)"
+                                         [class.image-selected]="selectedEntries.has(shape.entry.id)">
+                                    <ion-icon name="play-circle-outline" class="image-thumbnail-icon"
+                                              [ngStyle]="{'font-size.px':elementWidth/blockPart.width/3}"
+                                              *ngIf="shape.isVideo">
+                                    </ion-icon>
+                                    <!--</a>-->
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </ng-container>
-    </div>
-</ion-content>
+            </ng-container>
+        </div>
+    </ion-content>
+</ion-split-pane>
