@@ -217,7 +217,7 @@ public class BareAlbumList implements AlbumList {
                                               .flatMap(
                                                   updater ->
                                                       updater
-                                                          .importFile(file, targetFilename, false)
+                                                          .importFile(file, targetFilename, true)
                                                           .map(
                                                               objectId ->
                                                                   Tuples.of(repositoryId, objectId))
