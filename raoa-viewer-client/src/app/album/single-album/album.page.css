@@ -13,7 +13,7 @@ ion-content {
     transform: initial !important;*/
 }
 
-.imagelist, .row, .image-row {
+.image-list, .row, .image-row {
     width: 100%;
 }
 

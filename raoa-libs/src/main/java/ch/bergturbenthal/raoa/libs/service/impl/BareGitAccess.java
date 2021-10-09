@@ -519,7 +519,10 @@ public class BareGitAccess implements GitAccess {
         final Mono<String> nameMono = getName();
         return Mono.zip(
                 findMasterRef().map(Optional::of).defaultIfEmpty(Optional.empty()), nameMono)
-            .flatMap(t -> executeCommit(context, t.getT1()).log("Commit " + t.getT2()))
+            .flatMap(
+                t -> executeCommit(context, t.getT1())
+                // .log("Commit " + t.getT2())
+                )
             .defaultIfEmpty(Boolean.FALSE)
             .doFinally(
                 signal -> {
@@ -615,7 +618,7 @@ public class BareGitAccess implements GitAccess {
                           reader.open(dirCacheEntry.getObjectId()).copyTo(outputStream);
                         }
                       }
-                    log.info("Commit successful " + rep.getDirectory());
+                    // log.info("Commit successful " + rep.getDirectory());
                     cachedMasterRef.set(null);
                     cachedMasterTree.set(null);
                     return true;

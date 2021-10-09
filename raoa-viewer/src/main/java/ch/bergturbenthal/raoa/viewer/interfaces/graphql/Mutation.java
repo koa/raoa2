@@ -12,6 +12,7 @@ import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
 import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.*;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
+import com.adobe.internal.xmp.XMPMeta;
 import com.adobe.internal.xmp.XMPMetaFactory;
 import graphql.kickstart.tools.GraphQLMutationResolver;
 import java.io.File;
@@ -20,11 +21,15 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import lombok.Builder;
+import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
@@ -41,6 +46,14 @@ import reactor.util.function.Tuples;
 @Slf4j
 @Component
 public class Mutation implements GraphQLMutationResolver {
+  private static final BiConsumer<AtomicBoolean, Boolean> BOOLEAN_ACCUMULATOR =
+      (b, v) -> {
+        if (v) b.set(true);
+      };
+  private static final BiConsumer<AtomicBoolean, AtomicBoolean> BOOLEAN_COMBINER =
+      (b1, b2) -> {
+        if (b2.get()) b1.set(true);
+      };
   private static final Duration TIMEOUT = Duration.ofMinutes(5);
   private final UserManager userManager;
   private final AuthorizationManager authorizationManager;
@@ -853,7 +866,7 @@ public class Mutation implements GraphQLMutationResolver {
         .toFuture();
   }
 
-  public CompletableFuture<List<MutationError>> mutate(List<MutationData> mutations) {
+  public CompletableFuture<MutationResult> mutate(List<MutationData> mutations) {
     return queryContextSupplier
         .createContext()
         .flatMap(
@@ -902,10 +915,15 @@ public class Mutation implements GraphQLMutationResolver {
                                   modificationAllowed -> {
                                     if (!modificationAllowed) {
                                       return Mono.just(
-                                          new MutationError(
-                                              albumEntry.getKey(),
-                                              null,
-                                              "User cannot modify album"));
+                                          MutationResult.builder()
+                                              .modifiedEntries(Collections.emptyList())
+                                              .errors(
+                                                  Collections.singletonList(
+                                                      new MutationError(
+                                                          albumEntry.getKey(),
+                                                          null,
+                                                          "User cannot modify album")))
+                                              .build());
                                     }
                                     final Map<ObjectId, AlbumEntryMutations> albumEntryMutations =
                                         albumEntry.getValue().getEntryMutations();
@@ -944,40 +962,81 @@ public class Mutation implements GraphQLMutationResolver {
                                                                                                           .just(
                                                                                                               XMPMetaFactory
                                                                                                                   .create())))
+                                                                                      .<Optional<
+                                                                                              XMPMeta>>
+                                                                                          map(
+                                                                                              xmpMeta -> {
+                                                                                                final
+                                                                                                XmpWrapper
+                                                                                                    xmpWrapper =
+                                                                                                        new XmpWrapper(
+                                                                                                            xmpMeta);
+                                                                                                final
+                                                                                                boolean
+                                                                                                    addResult =
+                                                                                                        albumEntryMutation
+                                                                                                            .getValue()
+                                                                                                            .getAddKeywords()
+                                                                                                            .stream()
+                                                                                                            .map(
+                                                                                                                xmpWrapper
+                                                                                                                    ::addKeyword)
+                                                                                                            .collect(
+                                                                                                                AtomicBoolean
+                                                                                                                    ::new,
+                                                                                                                BOOLEAN_ACCUMULATOR,
+                                                                                                                BOOLEAN_COMBINER)
+                                                                                                            .get();
+
+                                                                                                final
+                                                                                                boolean
+                                                                                                    removeResult =
+                                                                                                        albumEntryMutation
+                                                                                                            .getValue()
+                                                                                                            .getRemoveKeywords()
+                                                                                                            .stream()
+                                                                                                            .map(
+                                                                                                                xmpWrapper
+                                                                                                                    ::removeKeyword)
+                                                                                                            .collect(
+                                                                                                                AtomicBoolean
+                                                                                                                    ::new,
+                                                                                                                BOOLEAN_ACCUMULATOR,
+                                                                                                                BOOLEAN_COMBINER)
+                                                                                                            .get();
+                                                                                                if (addResult
+                                                                                                    || removeResult)
+                                                                                                  return Optional
+                                                                                                      .of(
+                                                                                                          xmpMeta);
+                                                                                                else
+                                                                                                  return Optional
+                                                                                                      .empty();
+                                                                                              })
+                                                                                      .filter(
+                                                                                          Optional
+                                                                                              ::isPresent)
                                                                                       .map(
-                                                                                          xmpMeta -> {
-                                                                                            final
-                                                                                            XmpWrapper
-                                                                                                xmpWrapper =
-                                                                                                    new XmpWrapper(
-                                                                                                        xmpMeta);
-                                                                                            albumEntryMutation
-                                                                                                .getValue()
-                                                                                                .getAddKeywords()
-                                                                                                .forEach(
-                                                                                                    xmpWrapper
-                                                                                                        ::addKeyword);
-                                                                                            albumEntryMutation
-                                                                                                .getValue()
-                                                                                                .getRemoveKeywords()
-                                                                                                .forEach(
-                                                                                                    xmpWrapper
-                                                                                                        ::removeKeyword);
-                                                                                            return xmpMeta;
-                                                                                          })
+                                                                                          Optional
+                                                                                              ::get)
                                                                                       .flatMap(
                                                                                           xmpMeta ->
                                                                                               ga.writeXmpMeta(
                                                                                                       filename,
                                                                                                       xmpMeta,
                                                                                                       updater)
-                                                                                                  .map(
-                                                                                                      ok ->
-                                                                                                          Tuples
-                                                                                                              .of(
-                                                                                                                  albumId,
-                                                                                                                  entryId,
-                                                                                                                  xmpMeta)))
+                                                                                                  .<ModifiedFileOrError>
+                                                                                                      map(
+                                                                                                          ok ->
+                                                                                                              ModifiedFile
+                                                                                                                  .builder()
+                                                                                                                  .albumId(
+                                                                                                                      albumId)
+                                                                                                                  .entryId(
+                                                                                                                      entryId)
+                                                                                                                  .metadata(
+                                                                                                                      xmpMeta)
+                                                                                                                  .build()))
                                                                                       .onErrorResume(
                                                                                           ex -> {
                                                                                             log
@@ -989,48 +1048,149 @@ public class Mutation implements GraphQLMutationResolver {
                                                                                                             .getKey(),
                                                                                                     ex);
                                                                                             return Mono
-                                                                                                .empty();
+                                                                                                .<ModifiedFileOrError>
+                                                                                                    just(
+                                                                                                        EntryError
+                                                                                                            .builder()
+                                                                                                            .error(
+                                                                                                                new MutationError(
+                                                                                                                    albumId,
+                                                                                                                    entryId
+                                                                                                                        .getName(),
+                                                                                                                    "Cannot write meta of "
+                                                                                                                        + albumId
+                                                                                                                        + ", "
+                                                                                                                        + entryId))
+                                                                                                            .build());
                                                                                           }));
                                                                     })
-                                                                .collectList()
-                                                                .flatMapMany(
-                                                                    modifiedList ->
-                                                                        updater
-                                                                            .commit(context)
-                                                                            .flatMap(
-                                                                                commitOk -> {
-                                                                                  if (!commitOk)
-                                                                                    return Mono
-                                                                                        .just(
-                                                                                            new MutationError(
-                                                                                                albumId,
-                                                                                                null,
-                                                                                                "Cannot commit"));
-                                                                                  return Flux
-                                                                                      .fromIterable(
-                                                                                          modifiedList)
-                                                                                      .flatMap(
-                                                                                          mut ->
-                                                                                              dataViewService
-                                                                                                  .updateKeyword(
-                                                                                                      mut
-                                                                                                          .getT1(),
-                                                                                                      mut
-                                                                                                          .getT2(),
-                                                                                                      mut
-                                                                                                          .getT3()))
-                                                                                      .then()
-                                                                                      .cast(
-                                                                                          MutationError
-                                                                                              .class);
-                                                                                }))));
+                                                                .publish(
+                                                                    in ->
+                                                                        Flux.merge(
+                                                                            in.filter(
+                                                                                    entry ->
+                                                                                        entry
+                                                                                            instanceof
+                                                                                            EntryError)
+                                                                                .cast(
+                                                                                    EntryError
+                                                                                        .class)
+                                                                                .map(
+                                                                                    EntryError
+                                                                                        ::getError)
+                                                                                .collectList()
+                                                                                .map(
+                                                                                    errorList ->
+                                                                                        MutationResult
+                                                                                            .builder()
+                                                                                            .modifiedEntries(
+                                                                                                Collections
+                                                                                                    .emptyList())
+                                                                                            .errors(
+                                                                                                errorList)
+                                                                                            .build()),
+                                                                            in.filter(
+                                                                                    entry ->
+                                                                                        entry
+                                                                                            instanceof
+                                                                                            ModifiedFile)
+                                                                                .cast(
+                                                                                    ModifiedFile
+                                                                                        .class)
+                                                                                .collectList()
+                                                                                .flatMapMany(
+                                                                                    modifiedList ->
+                                                                                        updater
+                                                                                            .commit(
+                                                                                                context)
+                                                                                            .flatMapMany(
+                                                                                                commitOk -> {
+                                                                                                  if (!commitOk) {
+                                                                                                    return Mono
+                                                                                                        .just(
+                                                                                                            MutationResult
+                                                                                                                .builder()
+                                                                                                                .modifiedEntries(
+                                                                                                                    Collections
+                                                                                                                        .emptyList())
+                                                                                                                .errors(
+                                                                                                                    modifiedList
+                                                                                                                        .stream()
+                                                                                                                        .map(
+                                                                                                                            file ->
+                                                                                                                                new MutationError(
+                                                                                                                                    file
+                                                                                                                                        .getAlbumId(),
+                                                                                                                                    file.getEntryId()
+                                                                                                                                        .getName(),
+                                                                                                                                    "Cannot commit"))
+                                                                                                                        .collect(
+                                                                                                                            Collectors
+                                                                                                                                .toList()))
+                                                                                                                .build());
+                                                                                                  }
+                                                                                                  final
+                                                                                                  Album
+                                                                                                      album =
+                                                                                                          new Album(
+                                                                                                              albumId,
+                                                                                                              queryContext,
+                                                                                                              dataViewService
+                                                                                                                  .readAlbum(
+                                                                                                                      albumId)
+                                                                                                                  .cache());
+                                                                                                  return Flux
+                                                                                                      .fromIterable(
+                                                                                                          modifiedList)
+                                                                                                      .flatMap(
+                                                                                                          mut ->
+                                                                                                              dataViewService
+                                                                                                                  .updateKeyword(
+                                                                                                                      mut
+                                                                                                                          .getAlbumId(),
+                                                                                                                      mut
+                                                                                                                          .getEntryId(),
+                                                                                                                      mut
+                                                                                                                          .getMetadata()),
+                                                                                                          3)
+                                                                                                      .map(
+                                                                                                          entryData ->
+                                                                                                              new AlbumEntry(
+                                                                                                                  album,
+                                                                                                                  entryData
+                                                                                                                      .getEntryId()
+                                                                                                                      .getName(),
+                                                                                                                  entryData))
+                                                                                                      .collectList()
+                                                                                                      .map(
+                                                                                                          albumEntryList ->
+                                                                                                              MutationResult
+                                                                                                                  .builder()
+                                                                                                                  .modifiedEntries(
+                                                                                                                      albumEntryList)
+                                                                                                                  .errors(
+                                                                                                                      Collections
+                                                                                                                          .emptyList())
+                                                                                                                  .build());
+                                                                                                }))))));
                                   }),
                       1)
-                  .collectList();
+                  .collect(
+                      () ->
+                          MutationResult.builder()
+                              .modifiedEntries(new ArrayList<>())
+                              .errors(new ArrayList<>())
+                              .build(),
+                      (result, mutation) -> {
+                        result.getErrors().addAll(mutation.getErrors());
+                        result.getModifiedEntries().addAll(mutation.getModifiedEntries());
+                      });
             })
         .timeout(TIMEOUT)
         .toFuture();
   }
+
+  private interface ModifiedFileOrError {}
 
   @Value
   private static class AlbumMutations {
@@ -1041,5 +1201,19 @@ public class Mutation implements GraphQLMutationResolver {
   private static class AlbumEntryMutations {
     Set<String> addKeywords;
     Set<String> removeKeywords;
+  }
+
+  @Value
+  @Builder
+  private static class ModifiedFile implements ModifiedFileOrError {
+    UUID albumId;
+    ObjectId entryId;
+    XMPMeta metadata;
+  }
+
+  @Value
+  @Builder
+  private static class EntryError implements ModifiedFileOrError {
+    @NonNull MutationError error;
   }
 }

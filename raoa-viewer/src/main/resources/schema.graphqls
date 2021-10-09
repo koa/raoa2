@@ -28,12 +28,17 @@ type Mutation{
     commitImport(files: [ImportFile!]!):[ImportedFile!]!
     createAlbum(path: [String!]!):Album
     createTemporaryPassword(duration: Int): TemporaryPassword
-    mutate(updates: [MutationData!]!):[MutationError!]!
+    mutate(updates: [MutationData!]!):MutationResult!
 }
 
 input MutationData {
     addKeywordMutation: AddKeywordMutation
     removeKeywordMutation: RemoveKeywordMutation
+}
+
+type MutationResult{
+    errors: [MutationError!]!
+    modifiedEntries:[AlbumEntry!]!
 }
 
 type MutationError{

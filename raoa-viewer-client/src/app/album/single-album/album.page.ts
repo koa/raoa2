@@ -29,6 +29,7 @@ export class AlbumPage implements OnInit {
     public fnCompetitionId: string;
     private loadingElement: HTMLIonLoadingElement;
     private lastSelectedIndex: number | undefined = undefined;
+    private lastScrollPos = 0;
 
 
     constructor(private activatedRoute: ActivatedRoute,
@@ -104,6 +105,7 @@ export class AlbumPage implements OnInit {
         if (bestElement) {
             this.timestamp = bestElement.getAttribute('timestamp');
         }
+        this.lastScrollPos = detail.scrollTop;
         // this.setParam('pos', detail.scrollTop);
     }
 
@@ -187,6 +189,32 @@ export class AlbumPage implements OnInit {
             const result = await this.albumListService.listAlbum(this.albumId);
             this.ngZone.run(() => {
                 this.titleService.setTitle(`Album: ${result.title}`);
+                // filter pending keyword modifications
+                result.sortedEntries.forEach(albumEntry => {
+                    const albumEntryId = albumEntry.id;
+                    if (this.pendingAddKeywords.has(albumEntryId)) {
+                        const kwlist = this.pendingAddKeywords.get(albumEntryId);
+                        albumEntry.keywords.forEach(kw => kwlist.delete(kw));
+                        if (kwlist.size === 0) {
+                            this.pendingAddKeywords.delete(albumEntryId);
+                        }
+                    }
+                    if (this.pendingRemoveKeywords.has(albumEntryId)) {
+                        const stillExistingKeywords = new Set<string>(albumEntry.keywords);
+                        const kwlist = this.pendingRemoveKeywords.get(albumEntryId);
+                        const newRemoveKeywords = new Set<string>();
+                        for (const kw of kwlist) {
+                            if (stillExistingKeywords.has(kw)) {
+                                newRemoveKeywords.add(kw);
+                            }
+                        }
+                        if (newRemoveKeywords.size === 0) {
+                            this.pendingRemoveKeywords.delete(albumEntryId);
+                        } else {
+                            this.pendingRemoveKeywords.set(albumEntryId, newRemoveKeywords);
+                        }
+                    }
+                });
                 this.title = result.title;
                 if (this.filteringKeyword === undefined) {
                     this.sortedEntries = result.sortedEntries;
@@ -205,9 +233,10 @@ export class AlbumPage implements OnInit {
 
     private async calculateRows() {
         await this.enterWait(WaitReason.LOAD);
+        const scrollPosBefore = this.lastScrollPos;
         this.ngZone.run(() => {
-            this.rows = [];
-            const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const newRows: Array<TableRow> = [];
+            // const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
             const optimalMediaCount = Math.sqrt(this.sortedEntries.length);
             let currentImageDate: number;
             let index = 0;
@@ -233,7 +262,7 @@ export class AlbumPage implements OnInit {
             const flushBlock = () => {
                 flushRow();
                 if (currentBlock.length > 0) {
-                    this.rows.push({kind: 'images', blocks: currentBlock, height: currentBlockLength});
+                    newRows.push({kind: 'images', blocks: currentBlock, height: currentBlockLength});
                 }
                 currentBlock = [];
                 currentBlockLength = 0;
@@ -244,7 +273,7 @@ export class AlbumPage implements OnInit {
                 if (currentImageDate === undefined || currentImageDate !== date) {
                     dayCount += 1;
                     flushBlock();
-                    this.rows.push({kind: 'timestamp', time: new Date(date), id: date.toString()});
+                    newRows.push({kind: 'timestamp', time: new Date(date), id: date.toString()});
                 }
                 currentImageDate = date;
                 const totalWidth = currentRowWidth;
@@ -278,10 +307,13 @@ export class AlbumPage implements OnInit {
                     appender(imageShape, imageDate);
                 });
             flushBlock();
+            this.rows = newRows;
             this.sortKeywords();
             this.daycount = dayCount;
         });
         await this.leaveWait();
+        // scroll back to original position
+        setTimeout(() => this.contentElement.scrollToPoint(0, scrollPosBefore), 100);
     }
 
     private sortKeywords() {
@@ -478,25 +510,7 @@ export class AlbumPage implements OnInit {
             if (updates.length === 0) {
                 return;
             }
-            const result = await this.serverApi.update(this.singleAlbumMutateGQL, {updates});
-            if (result.mutate && result.mutate.length > 0) {
-                const messages = result.mutate.map(m => m.message).join(', ');
-                const toastElement = await this.toastController.create({
-                    message: 'Fehler beim Speichern' + messages + '"',
-                    duration: 10000,
-                    color: 'danger'
-                });
-                await toastElement.present();
-            } else {
-                pendingAddKeywords.forEach((keywords, entry) => {
-                    keywords.forEach(keyword => {
-                        this.removeEntry(this.pendingAddKeywords, entry, keyword);
-                    });
-                });
-                pendingRemoveKeywords.forEach((keywords, entry) =>
-                    keywords.forEach(keyword => this.removeEntry(this.pendingRemoveKeywords, entry, keyword)));
-            }
-            await this.albumListService.clearAlbum(this.albumId);
+            await this.albumListService.modifyAlbum(updates);
             await this.refresh();
         } finally {
             await this.leaveWait();
@@ -504,9 +518,9 @@ export class AlbumPage implements OnInit {
     }
 
     async removeTag(keyword: string) {
-        this.selectedEntries.forEach(alubmEntryId => {
-            this.removeEntry(this.pendingAddKeywords, alubmEntryId, keyword);
-            this.addEntry(this.pendingRemoveKeywords, alubmEntryId, keyword);
+        this.selectedEntries.forEach(albumEntryId => {
+            this.removeEntry(this.pendingAddKeywords, albumEntryId, keyword);
+            this.addEntry(this.pendingRemoveKeywords, albumEntryId, keyword);
         });
     }
 

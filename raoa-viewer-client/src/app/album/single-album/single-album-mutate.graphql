@@ -1,5 +1,0 @@
-mutation singleAlbumMutate($updates: [MutationData!]!){
-    mutate(updates: $updates){
-        message
-    }
-}

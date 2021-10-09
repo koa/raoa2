@@ -16,11 +16,13 @@ public class XmpWrapper {
     this.meta = meta;
   }
 
-  public void addKeyword(final String keyword) {
+  public boolean addKeyword(final String keyword) {
     final Collection<String> existingKeywords = readKeywords();
     if (!existingKeywords.contains(keyword)) {
       appendStringEntry(XMPConst.NS_DC, "subject", keyword);
+      return true;
     }
+    return false;
   }
 
   private void appendStringEntry(
@@ -74,8 +76,9 @@ public class XmpWrapper {
     }
   }
 
-  public void removeKeyword(final String keyword) {
+  public boolean removeKeyword(final String keyword) {
     try {
+      boolean modified = false;
       for (final String[] pair :
           new String[][] {
             new String[] {XMPConst.NS_IPTCCORE, "Keywords"},
@@ -86,12 +89,14 @@ public class XmpWrapper {
         for (int i = 1; i <= meta.countArrayItems(ns, property); ) {
           final XMPProperty arrayItem = meta.getArrayItem(ns, property, i);
           if (arrayItem.getValue().equals(keyword)) {
+            modified = true;
             meta.deleteArrayItem(ns, property, i);
           } else {
             i += 1;
           }
         }
       }
+      return modified;
     } catch (final XMPException e) {
       throw new RuntimeException("Cannot remove keyword \"" + keyword + "\"", e);
     }

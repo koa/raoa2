@@ -1,0 +1,14 @@
+mutation singleAlbumMutate($updates: [MutationData!]!){
+    mutate(updates: $updates){
+        errors{
+            message
+        }
+        modifiedEntries{
+            id, name, entryUri, targetWidth, targetHeight, created, contentType
+            keywords
+            album{
+                id
+            }
+        }
+    }
+}
