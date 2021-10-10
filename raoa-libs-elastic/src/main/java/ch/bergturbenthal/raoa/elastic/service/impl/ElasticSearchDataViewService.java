@@ -586,14 +586,8 @@ public class ElasticSearchDataViewService implements DataViewService {
   @Override
   public Mono<TemporaryPassword> createTemporaryPassword(
       final UUID user, final String password, final Instant validUntil) {
-    return temporaryPasswordRepository
-        .save(
-            TemporaryPassword.builder()
-                .userId(user)
-                .password(password)
-                .validUntil(validUntil)
-                .build())
-        .log("create temp password");
+    return temporaryPasswordRepository.save(
+        TemporaryPassword.builder().userId(user).password(password).validUntil(validUntil).build());
   }
 
   @Override

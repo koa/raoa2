@@ -6,21 +6,22 @@ import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
-import graphql.kickstart.tools.GraphQLResolver;
-import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.Comparator;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
+import org.springframework.graphql.data.method.annotation.SchemaMapping;
+import org.springframework.stereotype.Controller;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Slf4j
-@Component
-public class UserQuery implements GraphQLResolver<UserReference> {
-  private static final Duration TIMEOUT = Duration.ofMinutes(5);
+@Controller
+public class UserQuery {
+  private static final String TYPE_NAME = "User";
   private final DataViewService dataViewService;
   private final AuthorizationManager authorizationManager;
 
@@ -30,20 +31,16 @@ public class UserQuery implements GraphQLResolver<UserReference> {
     this.authorizationManager = authorizationManager;
   }
 
-  public CompletableFuture<List<Album>> canAccess(UserReference user) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<Album> canAccess(UserReference user) {
     return getVisibleAlbums(user)
-        .map(a -> new Album(a.getRepositoryId(), user.getContext(), Mono.just(a)))
-        .collectList()
-        .timeout(TIMEOUT)
-        .toFuture();
+        .map(a -> new Album(a.getRepositoryId(), user.getContext(), Mono.just(a)));
   }
 
-  public CompletableFuture<List<Album>> canAccessDirect(UserReference user) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<Album> canAccessDirect(UserReference user) {
     return getDirectVisibleAlbums(user)
-        .map(a -> new Album(a, user.getContext(), dataViewService.readAlbum(a).cache()))
-        .collectList()
-        .timeout(TIMEOUT)
-        .toFuture();
+        .map(a -> new Album(a, user.getContext(), dataViewService.readAlbum(a).cache()));
   }
 
   private Flux<UUID> getDirectVisibleAlbums(final UserReference user) {
@@ -68,7 +65,8 @@ public class UserQuery implements GraphQLResolver<UserReference> {
         .flatMapMany(authorizationManager::findVisibleAlbumsOfUser);
   }
 
-  public CompletableFuture<Album> newestAlbumCanAccess(UserReference user) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Mono<Album> newestAlbumCanAccess(UserReference user) {
 
     return getVisibleAlbums(user)
         .collect(
@@ -80,56 +78,44 @@ public class UserQuery implements GraphQLResolver<UserReference> {
                             : albumData.getCreateTime())))
         .filter(Optional::isPresent)
         .map(Optional::get)
-        .map(a -> new Album(a.getRepositoryId(), user.getContext(), Mono.just(a)))
-        .timeout(TIMEOUT)
-        .toFuture();
+        .map(a -> new Album(a.getRepositoryId(), user.getContext(), Mono.just(a)));
   }
 
-  public CompletableFuture<Boolean> canManageUsers(UserReference user) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Mono<Boolean> canManageUsers(UserReference user) {
     if (Objects.equals(
         user.getId(), user.getContext().getCurrentUser().map(User::getId).orElse(null))) {
-      return CompletableFuture.completedFuture(user.getContext().canUserManageUsers());
+      return Mono.just(user.getContext().canUserManageUsers());
     }
     if (canShowUserDetails(user)) {
-      return dataViewService
-          .findUserById(user.getId())
-          .map(User::isSuperuser)
-          .timeout(TIMEOUT)
-          .toFuture();
+      return dataViewService.findUserById(user.getId()).map(User::isSuperuser);
     }
-    return CompletableFuture.completedFuture(null);
+    return Mono.just(Boolean.FALSE);
   }
 
-  public CompletableFuture<Boolean> canEdit(UserReference user) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Mono<Boolean> canEdit(UserReference user) {
     final QueryContext context = user.getContext();
     if (Objects.equals(user.getId(), context.getCurrentUser().map(User::getId).orElse(null))) {
       final boolean value = context.canUserEditData() || context.canUserManageUsers();
-      return CompletableFuture.completedFuture(value);
+      return Mono.just(value);
     }
     if (canShowUserDetails(user)) {
-      return dataViewService
-          .findUserById(user.getId())
-          .map(u -> u.isEditor() || u.isSuperuser())
-          .timeout(TIMEOUT)
-          .toFuture();
+      return dataViewService.findUserById(user.getId()).map(u -> u.isEditor() || u.isSuperuser());
     }
-    return CompletableFuture.completedFuture(false);
+    return Mono.just(false);
   }
 
-  public CompletableFuture<Boolean> isEditor(UserReference user) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Mono<Boolean> isEditor(UserReference user) {
     final QueryContext context = user.getContext();
     if (Objects.equals(user.getId(), context.getCurrentUser().map(User::getId).orElse(null))) {
-      return CompletableFuture.completedFuture(context.canUserEditData());
+      return Mono.just(context.canUserEditData());
     }
     if (canShowUserDetails(user)) {
-      return dataViewService
-          .findUserById(user.getId())
-          .log("editor")
-          .map(User::isEditor)
-          .timeout(TIMEOUT)
-          .toFuture();
+      return dataViewService.findUserById(user.getId()).log("editor").map(User::isEditor);
     }
-    return CompletableFuture.completedFuture(false);
+    return Mono.just(false);
   }
 
   private boolean canShowUserDetails(UserReference userReference) {
@@ -140,19 +126,16 @@ public class UserQuery implements GraphQLResolver<UserReference> {
     return currentUser.map(u -> u.getId().equals(userReference.getId())).orElse(false);
   }
 
-  public CompletableFuture<List<AuthenticationId>> getAuthentications(UserReference user) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<AuthenticationId> authentications(UserReference user) {
     if (canShowUserDetails(user)) {
-      return dataViewService
-          .findUserById(user.getId())
-          .flatMapIterable(User::getAuthentications)
-          .collectList()
-          .timeout(TIMEOUT)
-          .toFuture();
+      return dataViewService.findUserById(user.getId()).flatMapIterable(User::getAuthentications);
     }
-    return CompletableFuture.completedFuture(Collections.emptyList());
+    return Flux.empty();
   }
 
-  public CompletableFuture<List<GroupMembershipReference>> groups(UserReference user) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<GroupMembershipReference> groups(UserReference user) {
     if (canShowUserDetails(user)) {
       return dataViewService
           .findUserById(user.getId())
@@ -166,11 +149,8 @@ public class UserQuery implements GraphQLResolver<UserReference> {
                         dataViewService.findGroupById(membership.getGroup()).cache());
                 return new GroupMembershipReference(
                     membership.getFrom(), membership.getUntil(), groupReference);
-              })
-          .collectList()
-          .timeout(TIMEOUT)
-          .toFuture();
+              });
     }
-    return CompletableFuture.completedFuture(Collections.emptyList());
+    return Flux.empty();
   }
 }

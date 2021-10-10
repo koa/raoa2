@@ -11,16 +11,16 @@ import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
 import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
 import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.*;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
+import ch.bergturbenthal.raoa.viewer.model.graphql.TemporaryPassword;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import com.adobe.internal.xmp.XMPMeta;
 import com.adobe.internal.xmp.XMPMetaFactory;
-import graphql.kickstart.tools.GraphQLMutationResolver;
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -34,8 +34,10 @@ import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.graphql.data.method.annotation.Argument;
+import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.security.core.context.SecurityContext;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Controller;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
@@ -44,8 +46,8 @@ import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
 @Slf4j
-@Component
-public class Mutation implements GraphQLMutationResolver {
+@Controller
+public class Mutation {
   private static final BiConsumer<AtomicBoolean, Boolean> BOOLEAN_ACCUMULATOR =
       (b, v) -> {
         if (v) b.set(true);
@@ -54,7 +56,6 @@ public class Mutation implements GraphQLMutationResolver {
       (b1, b2) -> {
         if (b2.get()) b1.set(true);
       };
-  private static final Duration TIMEOUT = Duration.ofMinutes(5);
   private final UserManager userManager;
   private final AuthorizationManager authorizationManager;
   private final QueryContextSupplier queryContextSupplier;
@@ -129,7 +130,29 @@ public class Mutation implements GraphQLMutationResolver {
     return builder.build();
   }
 
-  public CompletableFuture<UserReference> createUser(AuthenticationId authenticationId) {
+  @NotNull
+  private static MutationData convertMutationData(final Map<String, Map<String, String>> e) {
+    final Map<String, String> addKeywordMutationMap = e.get("addKeywordMutation");
+    final AddKeywordMutation addKeywordMutation;
+    if (addKeywordMutationMap != null) {
+      final UUID albumId = UUID.fromString(addKeywordMutationMap.get("albumId"));
+      final String albumEntryId = addKeywordMutationMap.get("albumEntryId");
+      final String keyword = addKeywordMutationMap.get("keyword");
+      addKeywordMutation = new AddKeywordMutation(albumId, albumEntryId, keyword);
+    } else addKeywordMutation = null;
+    final Map<String, String> removeKeywordMutationMap = e.get("removeKeywordMutation");
+    final RemoveKeywordMutation removeKeywordMutation;
+    if (removeKeywordMutationMap != null) {
+      final UUID albumId = UUID.fromString(removeKeywordMutationMap.get("albumId"));
+      final String albumEntryId = removeKeywordMutationMap.get("albumEntryId");
+      final String keyword = removeKeywordMutationMap.get("keyword");
+      removeKeywordMutation = new RemoveKeywordMutation(albumId, albumEntryId, keyword);
+    } else removeKeywordMutation = null;
+    return new MutationData(addKeywordMutation, removeKeywordMutation);
+  }
+
+  @MutationMapping
+  public Mono<UserReference> createUser(@Argument AuthenticationId authenticationId) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
@@ -170,12 +193,11 @@ public class Mutation implements GraphQLMutationResolver {
                                             SignalType.ON_NEXT,
                                             SignalType.ON_ERROR))
                                 .then(Mono.just(user)))
-                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
-        .timeout(TIMEOUT)
-        .toFuture();
+                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)));
   }
 
-  public CompletableFuture<GroupReference> createGroup(String name) {
+  @MutationMapping
+  public Mono<GroupReference> createGroup(@Argument String name) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
@@ -184,12 +206,12 @@ public class Mutation implements GraphQLMutationResolver {
                 userManager
                     .createNewGroup(name, createCommitContext(queryContext, "create group " + name))
                     .map(
-                        group -> new GroupReference(group.getId(), queryContext, Mono.just(group))))
-        .timeout(TIMEOUT)
-        .toFuture();
+                        group ->
+                            new GroupReference(group.getId(), queryContext, Mono.just(group))));
   }
 
-  public CompletableFuture<UpdateResult> updateCredentials(CredentialUpgrade update) {
+  @MutationMapping
+  public Mono<UpdateResult> updateCredentials(@Argument CredentialUpgrade update) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
@@ -347,7 +369,12 @@ public class Mutation implements GraphQLMutationResolver {
                   userMutations.compute(
                       groupMembershipUpdate.getUserId(), mergeFunction(updateFunction));
                 }
-              Map<UUID, Function<Group, Group>> groupMutations = new HashMap<>();
+              Map<
+                      UUID,
+                      Function<
+                          ch.bergturbenthal.raoa.elastic.model.Group,
+                          ch.bergturbenthal.raoa.elastic.model.Group>>
+                  groupMutations = new HashMap<>();
               if (update.getUserUpdates() != null)
                 for (SingleGroupUpdate groupUpdate : update.getGroupUpdates()) {
                   groupMutations.compute(
@@ -403,12 +430,11 @@ public class Mutation implements GraphQLMutationResolver {
                         return Mono.just(false);
                       });
             })
-        .map(UpdateResult::new)
-        .timeout(TIMEOUT)
-        .toFuture();
+        .map(UpdateResult::new);
   }
 
-  public CompletableFuture<Boolean> removeUser(UUID userId) {
+  @MutationMapping
+  public Mono<Boolean> removeUser(@Argument UUID userId) {
     return queryContextSupplier
         .createContext()
         .flatMap(
@@ -418,12 +444,11 @@ public class Mutation implements GraphQLMutationResolver {
                         .removeUser(userId, createCommitContext(queryContext, "remove user"))
                         .flatMap(r -> dataViewService.updateUserData().thenReturn(r))
                         .defaultIfEmpty(false)
-                    : Mono.empty())
-        .timeout(TIMEOUT)
-        .toFuture();
+                    : Mono.just(false));
   }
 
-  public CompletableFuture<? extends RequestAccessResult> requestAccess(String comment) {
+  @MutationMapping
+  public Mono<RequestAccessResult> requestAccess(@Argument String comment) {
     return queryContextSupplier
         .createContext()
         .flatMap(
@@ -466,16 +491,17 @@ public class Mutation implements GraphQLMutationResolver {
                   public RequestAccessResultCode getResult() {
                     return code;
                   }
-                })
-        .timeout(TIMEOUT)
-        .toFuture();
+                });
   }
 
-  public CompletableFuture<Boolean> removeRequest(AuthenticationId id) {
-    return dataViewService.removePendingAccessRequest(id).thenReturn(true).toFuture();
+  @MutationMapping
+  public Mono<Boolean> removeRequest(@Argument AuthenticationId id) {
+    return dataViewService.removePendingAccessRequest(id).thenReturn(true);
   }
 
-  public CompletableFuture<UserReference> setCanManageUserFlag(UUID userId, boolean enabled) {
+  @MutationMapping
+  public Mono<UserReference> setCanManageUserFlag(
+      @Argument UUID userId, @Argument boolean enabled) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
@@ -492,13 +518,12 @@ public class Mutation implements GraphQLMutationResolver {
                               + enabled))
                   .flatMap(user -> dataViewService.updateUserData().thenReturn(user))
                   .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext));
-            })
-        .timeout(TIMEOUT)
-        .toFuture();
+            });
   }
 
-  public CompletableFuture<UserReference> setAlbumVisibility(
-      UUID userId, UUID albumId, boolean enabled) {
+  @MutationMapping
+  public Mono<UserReference> setAlbumVisibility(
+      @Argument UUID userId, @Argument UUID albumId, @Argument boolean enabled) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
@@ -521,12 +546,11 @@ public class Mutation implements GraphQLMutationResolver {
                                 + " album "
                                 + albumId))
                     .flatMap(user -> dataViewService.updateUserData().thenReturn(user))
-                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
-        .timeout(TIMEOUT)
-        .toFuture();
+                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)));
   }
 
-  public CompletableFuture<UserReference> updateUser(UUID userId, UserUpdate update) {
+  @MutationMapping
+  public Mono<UserReference> updateUser(@Argument UUID userId, @Argument UserUpdate update) {
     log.info("update: " + update);
 
     return queryContextSupplier
@@ -565,12 +589,11 @@ public class Mutation implements GraphQLMutationResolver {
                                 + " updates "
                                 + userId))
                     .flatMap(user -> dataViewService.updateUserData().thenReturn(user))
-                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
-        .timeout(TIMEOUT)
-        .toFuture();
+                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)));
   }
 
-  public CompletableFuture<GroupReference> updateGroup(UUID groupId, GroupUpdate update) {
+  @MutationMapping
+  public Mono<GroupReference> updateGroup(@Argument UUID groupId, @Argument GroupUpdate update) {
 
     return queryContextSupplier
         .createContext()
@@ -581,7 +604,8 @@ public class Mutation implements GraphQLMutationResolver {
                     .updateGroup(
                         groupId,
                         group -> {
-                          final Group.GroupBuilder builder = group.toBuilder();
+                          final ch.bergturbenthal.raoa.elastic.model.Group.GroupBuilder builder =
+                              group.toBuilder();
                           Optional.ofNullable(update.getNewName())
                               .map(String::trim)
                               .filter(v -> !v.isEmpty())
@@ -607,13 +631,12 @@ public class Mutation implements GraphQLMutationResolver {
                     .map(
                         u ->
                             new GroupReference(
-                                u, queryContext, dataViewService.findGroupById(u).cache())))
-        .timeout(TIMEOUT)
-        .toFuture();
+                                u, queryContext, dataViewService.findGroupById(u).cache())));
   }
 
-  public CompletableFuture<AlbumEntry> updateAlbumEntry(
-      UUID albumId, String albumEntryId, AlbumEntryUpdate update) {
+  @MutationMapping
+  public Mono<AlbumEntry> updateAlbumEntry(
+      @Argument UUID albumId, @Argument String albumEntryId, @Argument AlbumEntryUpdate update) {
     final ObjectId entryId = ObjectId.fromString(albumEntryId);
     return queryContextSupplier
         .createContext()
@@ -667,12 +690,11 @@ public class Mutation implements GraphQLMutationResolver {
                                     queryContext,
                                     dataViewService.readAlbum(albumId).cache()),
                                 e.getEntryId().name(),
-                                e)))
-        .timeout(TIMEOUT)
-        .toFuture();
+                                e)));
   }
 
-  public CompletableFuture<Album> updateAlbum(UUID albumId, AlbumUpdate update) {
+  @MutationMapping
+  public Mono<Album> updateAlbum(@Argument UUID albumId, @Argument AlbumUpdate update) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
@@ -713,24 +735,26 @@ public class Mutation implements GraphQLMutationResolver {
                   .flatMap(
                       ga -> {
                         if (update.getAutoadd() != null)
-                          return ga.updateAutoadd(update.getAutoadd(), context);
+                          return ga.updateAutoadd(
+                              update.getAutoadd().stream()
+                                  .map(OffsetDateTime::toInstant)
+                                  .collect(Collectors.toList()),
+                              context);
                         return Mono.just(true);
                       })
                   .map(
                       c ->
                           new Album(
                               albumId, queryContext, dataViewService.readAlbum(albumId).cache()));
-            })
-        .timeout(TIMEOUT)
-        .toFuture();
+            });
   }
 
-  public CompletableFuture<List<ImportedFile>> commitImport(List<ImportFile> files) {
-
+  @MutationMapping
+  public Flux<ImportedFile> commitImport(@Argument List<Map<String, Object>> files) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserEditData)
-        .flatMap(
+        .flatMapMany(
             context -> {
               Function<UUID, Mono<Boolean>> authorizer =
                   id -> authorizationManager.canUserModifyAlbum(context.getSecurityContext(), id);
@@ -739,6 +763,14 @@ public class Mutation implements GraphQLMutationResolver {
               return Flux.fromIterable(
                       () ->
                           files.stream()
+                              .map(
+                                  fileData -> {
+                                    String fileId = (String) fileData.get("fileId");
+                                    final String filename = (String) fileData.get("filename");
+                                    Number size = (Number) fileData.get("size");
+                                    return new ImportFile(
+                                        UUID.fromString(fileId), filename, size.longValue());
+                                  })
                               .map(
                                   file -> {
                                     final File uploadFile =
@@ -797,14 +829,13 @@ public class Mutation implements GraphQLMutationResolver {
                                         entryData))
                             .map(entry -> new ImportedFile(fileId, entry));
                       },
-                      20)
-                  .collectList();
+                      20);
             })
-        .doOnError(ex -> log.warn("Cannot commit import", ex))
-        .toFuture();
+        .doOnError(ex -> log.warn("Cannot commit import", ex));
   }
 
-  public CompletableFuture<Album> createAlbum(List<String> path) {
+  @MutationMapping
+  public Mono<Album> createAlbum(@Argument List<String> path) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
@@ -815,12 +846,13 @@ public class Mutation implements GraphQLMutationResolver {
                     .map(
                         albumId ->
                             new Album(
-                                albumId, queryContext, dataViewService.readAlbum(albumId).cache())))
-        .timeout(TIMEOUT)
-        .toFuture();
+                                albumId,
+                                queryContext,
+                                dataViewService.readAlbum(albumId).cache())));
   }
 
-  public CompletableFuture<TemporaryPassword> createTemporaryPassword(Integer duration) {
+  @MutationMapping
+  public Mono<TemporaryPassword> createTemporaryPassword(@Argument Integer duration) {
 
     final Duration passwordTimeout =
         Optional.ofNullable(duration)
@@ -858,15 +890,18 @@ public class Mutation implements GraphQLMutationResolver {
                                       StringBuilder::append,
                                       StringBuilder::append)
                                   .toString();
-                          return dataViewService.createTemporaryPassword(
-                              userId, password, Instant.now().plus(passwordTimeout));
+                          return dataViewService
+                              .createTemporaryPassword(
+                                  userId, password, Instant.now().plus(passwordTimeout))
+                              .map(TemporaryPassword::from);
                         })
-                    .orElse(Mono.empty()))
-        .timeout(TIMEOUT)
-        .toFuture();
+                    .orElse(Mono.empty()));
   }
 
-  public CompletableFuture<MutationResult> mutate(List<MutationData> mutations) {
+  @MutationMapping
+  public Mono<MutationResult> mutate(@Argument List<Map<String, Map<String, String>>> updates) {
+    final Iterable<? extends MutationData> upd2 =
+        updates.stream().map(Mutation::convertMutationData).collect(Collectors.toList());
     return queryContextSupplier
         .createContext()
         .flatMap(
@@ -881,7 +916,7 @@ public class Mutation implements GraphQLMutationResolver {
                           .computeIfAbsent(
                               ObjectId.fromString(entryId),
                               k -> new AlbumEntryMutations(new HashSet<>(), new HashSet<>()));
-              for (MutationData mutation : mutations) {
+              for (MutationData mutation : upd2) {
                 final AddKeywordMutation addKeywordMutation = mutation.getAddKeywordMutation();
                 if (addKeywordMutation != null) {
                   final AlbumEntryMutations albumEntryMutations =
@@ -1185,9 +1220,7 @@ public class Mutation implements GraphQLMutationResolver {
                         result.getErrors().addAll(mutation.getErrors());
                         result.getModifiedEntries().addAll(mutation.getModifiedEntries());
                       });
-            })
-        .timeout(TIMEOUT)
-        .toFuture();
+            });
   }
 
   private interface ModifiedFileOrError {}

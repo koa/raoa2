@@ -2,24 +2,27 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
 import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
-import graphql.kickstart.tools.GraphQLResolver;
-import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.Set;
 import java.util.function.Function;
-import org.springframework.stereotype.Component;
+import org.springframework.graphql.data.method.annotation.SchemaMapping;
+import org.springframework.stereotype.Controller;
 
-@Component
-public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
-  // private static final Duration TIMEOUT = Duration.ofMinutes(5);
+@Controller
+public class AlbumEntryQuery {
+  private static final String TYPE_NAME = "AlbumEntry";
 
   public AlbumEntryQuery() {}
 
-  public String getContentType(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public String contentType(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getContentType);
   }
 
-  public String getEntryUri(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public String entryUri(AlbumEntry entry) {
     return entry.getAlbum().getContext().getContexRootPath()
         + "/rest/album/"
         + entry.getAlbum().getId().toString()
@@ -27,16 +30,19 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
         + entry.getId();
   }
 
-  public String getThumbnailUri(AlbumEntry entry) {
-    return getEntryUri(entry) + "/thumbnail";
+  @SchemaMapping(typeName = TYPE_NAME)
+  public String thumbnailUri(AlbumEntry entry) {
+    return entryUri(entry) + "/thumbnail";
   }
 
-  public String getOriginalUri(AlbumEntry entry) {
-    return getEntryUri(entry) + "/original";
+  @SchemaMapping(typeName = TYPE_NAME)
+  public String originalUri(AlbumEntry entry) {
+    return entryUri(entry) + "/original";
   }
 
-  public Instant getCreated(AlbumEntry entry) {
-    return extractDataEntryValue(entry, AlbumEntryData::getCreateTime);
+  @SchemaMapping(typeName = TYPE_NAME)
+  public OffsetDateTime created(AlbumEntry entry) {
+    return extractDataEntryValue(entry, AlbumEntryData::getCreateTime).atOffset(ZoneOffset.UTC);
   }
 
   public <T> T extractDataEntryValue(
@@ -51,54 +57,67 @@ public class AlbumEntryQuery implements GraphQLResolver<AlbumEntry> {
     return result;
   }
 
-  public Integer getWidth(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Integer width(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getWidth);
   }
 
-  public Integer getHeight(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Integer height(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getHeight);
   }
 
-  public String getCameraModel(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public String cameraModel(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getCameraModel);
   }
 
-  public String getCameraManufacturer(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public String cameraManufacturer(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getCameraManufacturer);
   }
 
-  public Double getFocalLength(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Double focalLength(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getFocalLength);
   }
 
-  public Double getFNumber(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Double fNumber(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getFNumber);
   }
 
-  public Integer getTargetWidth(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Integer targetWidth(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getTargetWidth);
   }
 
-  public Integer getTargetHeight(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Integer targetHeight(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getTargetHeight);
   }
 
-  public Double getFocalLength35(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Double focalLength35(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getFocalLength35);
   }
 
-  public Double getExposureTime(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Double exposureTime(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getExposureTime);
   }
 
-  public Integer getIsoSpeedRatings(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Integer isoSpeedRatings(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getIsoSpeedRatings);
   }
 
-  public Set<String> getKeywords(AlbumEntry entry) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Set<String> keywords(AlbumEntry entry) {
     return extractDataEntryValue(entry, AlbumEntryData::getKeywords, Collections.emptySet());
   }
 
+  @SchemaMapping(typeName = TYPE_NAME)
   public String name(AlbumEntry entry) {
     return entry.getElDataEntry().getFilename();
   }

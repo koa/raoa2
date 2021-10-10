@@ -6,22 +6,26 @@ import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
-import graphql.kickstart.tools.GraphQLResolver;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.eclipse.jgit.lib.ObjectId;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.stereotype.Component;
+import org.springframework.graphql.data.method.annotation.Argument;
+import org.springframework.graphql.data.method.annotation.SchemaMapping;
+import org.springframework.stereotype.Controller;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-@Component
-public class AlbumQuery implements GraphQLResolver<Album> {
+@Controller
+public class AlbumQuery {
   public static final Pattern PATH_SPLIT = Pattern.compile(Pattern.quote("/"));
-  private static final Duration TIMEOUT = Duration.ofMinutes(5);
+  public static final String TYPE_NAME = "Album";
   private final DataViewService dataViewService;
   private final AlbumList albumList;
 
@@ -30,135 +34,116 @@ public class AlbumQuery implements GraphQLResolver<Album> {
     this.albumList = albumList;
   }
 
-  public String getZipDownloadUri(Album album) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public String zipDownloadUri(Album album) {
     return album.getContext().getContexRootPath() + "/rest/album-zip/" + album.getId().toString();
   }
 
   // TODO: resolve also groups
-  public CompletableFuture<List<UserReference>> canAccessedBy(Album album) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<UserReference> canAccessedBy(Album album) {
     if (album.getContext().canUserManageUsers()) {
       return dataViewService
           .listUserForAlbum(album.getId())
-          .map(u -> new UserReference(u.getId(), u.getUserData(), album.getContext()))
-          .collectList()
-          .timeout(TIMEOUT)
-          .toFuture();
+          .map(u -> new UserReference(u.getId(), u.getUserData(), album.getContext()));
     }
-    return CompletableFuture.completedFuture(Collections.emptyList());
+    return Flux.empty();
   }
 
-  public CompletableFuture<List<UserReference>> canAccessedByUser(Album album) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<UserReference> canAccessedByUser(Album album) {
     if (album.getContext().canUserManageUsers()) {
       return dataViewService
           .listUserForAlbum(album.getId())
-          .map(u -> new UserReference(u.getId(), u.getUserData(), album.getContext()))
-          .collectList()
-          .timeout(TIMEOUT)
-          .toFuture();
+          .map(u -> new UserReference(u.getId(), u.getUserData(), album.getContext()));
     }
-    return CompletableFuture.completedFuture(Collections.emptyList());
+    return Flux.empty();
   }
 
-  public CompletableFuture<List<AlbumEntry>> getEntries(Album album) {
-    return dataViewService
-        .listEntries(album.getId())
-        .map(e -> createAlbumEntry(album, e))
-        .collectList()
-        .timeout(TIMEOUT)
-        .toFuture();
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<AlbumEntry> entries(Album album) {
+    return dataViewService.listEntries(album.getId()).map(e -> createAlbumEntry(album, e));
   }
 
-  public CompletableFuture<AlbumEntry> getAlbumEntry(Album album, String entryId) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Mono<AlbumEntry> albumEntry(Album album, @Argument String entryId) {
     return dataViewService
         .loadEntry(album.getId(), ObjectId.fromString(entryId))
-        .map(e -> createAlbumEntry(album, e))
-        .timeout(TIMEOUT)
-        .toFuture();
+        .map(e -> createAlbumEntry(album, e));
   }
 
   @NotNull
-  private AlbumEntry createAlbumEntry(final Album album, final AlbumEntryData entry) {
+  private AlbumEntry createAlbumEntry(final Album album, AlbumEntryData entry) {
     return new AlbumEntry(album, entry.getEntryId().name(), entry);
   }
 
-  public CompletableFuture<String> getName(Album album) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Mono<String> name(Album album) {
     return extractElField(album, AlbumData::getName);
   }
 
-  @NotNull
-  private <T> CompletableFuture<T> extractElField(
-      final Album album, final Function<AlbumData, T> extractor) {
-    return album
-        .getElAlbumData()
-        .flatMap(d -> Mono.justOrEmpty(extractor.apply(d)))
-        .timeout(TIMEOUT)
-        .toFuture();
+  private <T> Mono<T> extractElField(final Album album, final Function<AlbumData, T> extractor) {
+    return album.getElAlbumData().flatMap(d -> Mono.justOrEmpty(extractor.apply(d)));
   }
 
-  public CompletableFuture<Integer> getEntryCount(Album album) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Mono<Integer> entryCount(Album album) {
     return extractElField(album, AlbumData::getEntryCount);
   }
 
-  public CompletableFuture<String> getVersion(Album album) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Mono<String> version(Album album) {
     return extractElField(album, albumData -> albumData.getCurrentVersion().name());
   }
 
-  public CompletableFuture<Instant> getAlbumTime(Album album) {
-    return extractElField(album, AlbumData::getCreateTime);
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Mono<OffsetDateTime> albumTime(Album album) {
+    return extractElField(album, AlbumData::getCreateTime).map(i -> i.atOffset(ZoneOffset.UTC));
   }
 
-  public CompletableFuture<List<GroupReference>> canAccessedByGroup(Album album) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<GroupReference> canAccessedByGroup(Album album) {
     final QueryContext context = album.getContext();
     return dataViewService
         .listGroups()
         .filter(g -> context.canAccessGroup(g.getId()))
         .filter(g -> g.getVisibleAlbums().contains(album.getId()))
-        .map(group -> new GroupReference(group.getId(), context, Mono.just(group)))
-        .collectList()
-        .timeout(TIMEOUT)
-        .toFuture();
+        .map(group -> new GroupReference(group.getId(), context, Mono.just(group)));
   }
 
-  public CompletableFuture<List<LabelValue>> labels(Album album) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<LabelValue> labels(Album album) {
     return album
         .getElAlbumData()
         .map(d -> Optional.ofNullable(d.getLabels()))
         .filter(Optional::isPresent)
         .map(Optional::get)
         .flatMapIterable(Map::entrySet)
-        .map(e -> new LabelValue(e.getKey(), e.getValue()))
-        .collectList()
-        .defaultIfEmpty(Collections.emptyList())
-        .timeout(TIMEOUT)
-        .toFuture();
+        .map(e -> new LabelValue(e.getKey(), e.getValue()));
   }
 
-  public CompletableFuture<List<KeywordCount>> keywordCounts(Album album) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<KeywordCount> keywordCounts(Album album) {
     return album
         .getElAlbumData()
         .flatMapIterable(AlbumData::getKeywordCount)
-        .map(k -> new KeywordCount(k.getKeyword(), k.getEntryCount()))
-        .collectList()
-        .timeout(TIMEOUT)
-        .toFuture();
+        .map(k -> new KeywordCount(k.getKeyword(), k.getEntryCount()));
   }
 
-  public CompletableFuture<List<Instant>> autoaddDates(Album album) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<OffsetDateTime> autoaddDates(Album album) {
     return albumList
         .getAlbum(album.getId())
         .flatMapMany(GitAccess::readAutoadd)
-        .collectList()
-        .timeout(TIMEOUT)
-        .toFuture();
+        .map(i -> i.atOffset(ZoneOffset.UTC));
   }
 
-  public CompletableFuture<List<String>> albumPath(Album album) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Mono<List<String>> albumPath(Album album) {
     return albumList
         .getAlbum(album.getId())
         .flatMap(GitAccess::getFullPath)
         .map(PATH_SPLIT::split)
-        .map(Arrays::asList)
-        .timeout(TIMEOUT)
-        .toFuture();
+        .map(Arrays::asList);
   }
 }

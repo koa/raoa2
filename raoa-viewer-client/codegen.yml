@@ -1,5 +1,5 @@
 overwrite: true
-schema: ../raoa-viewer/src/main/resources/schema.graphqls
+schema: ../raoa-viewer/src/main/resources/graphql/schema.graphqls
 documents: src/app/**/*.graphql
 config:
   scalars:

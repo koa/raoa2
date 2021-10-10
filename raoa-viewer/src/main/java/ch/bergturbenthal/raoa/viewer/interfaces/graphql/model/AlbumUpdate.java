@@ -1,7 +1,7 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql.model;
 
 import ch.bergturbenthal.raoa.viewer.model.graphql.LabelValueInput;
-import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Set;
 import lombok.Value;
@@ -12,5 +12,5 @@ public class AlbumUpdate {
   String newTitleEntry;
   List<LabelValueInput> newLabels;
   Set<String> removeLabels;
-  Set<Instant> autoadd;
+  Set<OffsetDateTime> autoadd;
 }

@@ -4,6 +4,7 @@ import ch.bergturbenthal.raoa.elastic.RaoaElasticConfiguration;
 import ch.bergturbenthal.raoa.viewer.interfaces.AlbumListController;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.impl.DefaultAuthorizationManager;
+import graphql.scalars.ExtendedScalars;
 import graphql.schema.*;
 import java.io.IOException;
 import java.time.Instant;
@@ -28,6 +29,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
+import org.springframework.graphql.execution.RuntimeWiringConfigurer;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -218,5 +220,10 @@ public class RaoaViewerApplication {
         }
       }
     };
+  }
+
+  @Bean
+  public RuntimeWiringConfigurer scalarConfigurer() {
+    return builder -> builder.scalar(ExtendedScalars.DateTime);
   }
 }

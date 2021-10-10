@@ -3,43 +3,42 @@ package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 import ch.bergturbenthal.raoa.elastic.model.Group;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
-import graphql.kickstart.tools.GraphQLResolver;
-import java.time.Duration;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
+import org.springframework.graphql.data.method.annotation.SchemaMapping;
+import org.springframework.stereotype.Controller;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Slf4j
-@Component
-public class GroupQuery implements GraphQLResolver<GroupReference> {
-  private static final Duration TIMEOUT = Duration.ofMinutes(5);
+@Controller
+public class GroupQuery {
+  private static final String TYPE_NAME = "Group";
   private final DataViewService dataViewService;
 
   public GroupQuery(final DataViewService dataViewService) {
     this.dataViewService = dataViewService;
   }
 
-  public CompletableFuture<String> getName(GroupReference group) {
-    return group.getGroup().map(Group::getName).timeout(TIMEOUT).toFuture();
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Mono<String> name(GroupReference groupReference) {
+    return groupReference.getGroup().map(Group::getName);
   }
 
-  public CompletableFuture<List<Album>> canAccess(GroupReference groupReference) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<Album> canAccess(GroupReference groupReference) {
     return groupReference
         .getGroup()
         .flatMapIterable(Group::getVisibleAlbums)
         .map(
-            id -> new Album(id, groupReference.getContext(), dataViewService.readAlbum(id).cache()))
-        .collectList()
-        .timeout(TIMEOUT)
-        .toFuture();
+            id ->
+                new Album(id, groupReference.getContext(), dataViewService.readAlbum(id).cache()));
   }
 
-  public CompletableFuture<List<UserMembershipReference>> members(GroupReference groupReference) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<UserMembershipReference> members(GroupReference groupReference) {
     return dataViewService
         .listUsers()
         .flatMapIterable(
@@ -54,22 +53,19 @@ public class GroupQuery implements GraphQLResolver<GroupReference> {
                                     membership.getUntil(),
                                     new UserReference(
                                         u.getId(), u.getUserData(), groupReference.getContext())))
-                        .iterator())
-        .collectList()
-        .timeout(TIMEOUT)
-        .toFuture();
+                        .iterator());
   }
 
-  public CompletableFuture<List<LabelValue>> labels(GroupReference groupReference) {
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<LabelValue> labels(GroupReference groupReference) {
     return groupReference
         .getGroup()
-        .map(
+        .flatMapIterable(
             g ->
-                Optional.ofNullable(g.getLabels()).map(Map::entrySet).stream()
-                    .flatMap(Collection::stream)
-                    .map(e -> new LabelValue(e.getKey(), e.getValue()))
-                    .collect(Collectors.toList()))
-        .timeout(TIMEOUT)
-        .toFuture();
+                () ->
+                    Optional.ofNullable(g.getLabels()).map(Map::entrySet).stream()
+                        .flatMap(Collection::stream)
+                        .map(e -> new LabelValue(e.getKey(), e.getValue()))
+                        .iterator());
   }
 }

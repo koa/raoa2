@@ -7,22 +7,20 @@ import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
 import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.ImportFile;
 import ch.bergturbenthal.raoa.viewer.model.graphql.*;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
-import graphql.kickstart.tools.GraphQLQueryResolver;
 import java.io.File;
-import java.time.Duration;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
+import org.springframework.graphql.data.method.annotation.Argument;
+import org.springframework.graphql.data.method.annotation.QueryMapping;
+import org.springframework.stereotype.Controller;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Slf4j
-@Component
-public class Query implements GraphQLQueryResolver {
-  private static final Duration TIMEOUT = Duration.ofMinutes(5);
+@Controller
+public class Query {
   private final QueryContextSupplier queryContextSupplier;
   private final DataViewService dataViewService;
   private final AuthorizationManager authorizationManager;
@@ -42,19 +40,18 @@ public class Query implements GraphQLQueryResolver {
     this.uploadFilenameService = uploadFilenameService;
   }
 
-  public CompletableFuture<Album> getAlbumById(UUID albumId) {
+  @QueryMapping
+  public Mono<Album> albumById(@Argument UUID id) {
     return queryContextSupplier
         .createContext()
         .filterWhen(
             queryContext ->
-                authorizationManager.canUserAccessToAlbum(
-                    queryContext.getSecurityContext(), albumId))
-        .map(c -> new Album(albumId, c, dataViewService.readAlbum(albumId).cache()))
-        .timeout(TIMEOUT)
-        .toFuture();
+                authorizationManager.canUserAccessToAlbum(queryContext.getSecurityContext(), id))
+        .map(c -> new Album(id, c, dataViewService.readAlbum(id).cache()));
   }
 
-  public CompletableFuture<List<RegistrationRequest>> listPendingRequests() {
+  @QueryMapping()
+  public Flux<RegistrationRequest> listPendingRequests() {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
@@ -78,16 +75,16 @@ public class Query implements GraphQLQueryResolver {
                           }
                           return builder.build();
                         }))
-        .collectList()
-        // .log("pending request")
-        .timeout(TIMEOUT)
-        .toFuture();
+
+    // .log("pending request")
+    ;
   }
 
-  public CompletableFuture<List<Album>> listAlbums() {
+  @QueryMapping()
+  public Flux<Album> listAlbums() {
     return queryContextSupplier
         .createContext()
-        .flatMap(
+        .flatMapMany(
             queryContext ->
                 dataViewService
                     .listAlbums()
@@ -99,73 +96,67 @@ public class Query implements GraphQLQueryResolver {
                     .map(
                         albumId ->
                             new Album(
-                                albumId, queryContext, dataViewService.readAlbum(albumId).cache()))
-                    .collectList())
-        .timeout(TIMEOUT)
-        .toFuture();
+                                albumId,
+                                queryContext,
+                                dataViewService.readAlbum(albumId).cache())));
   }
 
-  public CompletableFuture<List<UserReference>> listUsers() {
+  @QueryMapping()
+  public Flux<UserReference> listUsers() {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
-        .flatMap(
+        .flatMapMany(
             queryContext ->
                 dataViewService
                     .listUsers()
-                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext))
-                    .collectList())
-        .timeout(TIMEOUT)
-        .toFuture();
+                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)));
   }
 
-  public CompletableFuture<UserReference> userById(UUID userid) {
+  @QueryMapping()
+  public Mono<UserReference> userById(@Argument UUID id) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
         .flatMap(
             queryContext ->
                 dataViewService
-                    .findUserById(userid)
-                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)))
-        .timeout(TIMEOUT)
-        .toFuture();
+                    .findUserById(id)
+                    .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)));
   }
 
-  public CompletableFuture<GroupReference> groupById(UUID userid) {
+  @QueryMapping
+  public Mono<GroupReference> groupById(@Argument UUID id) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
         .flatMap(
             queryContext ->
                 dataViewService
-                    .findGroupById(userid)
-                    .map(u -> new GroupReference(u.getId(), queryContext, Mono.just(u))))
-        .timeout(TIMEOUT)
-        .toFuture();
+                    .findGroupById(id)
+                    .map(u -> new GroupReference(u.getId(), queryContext, Mono.just(u))));
   }
 
-  public CompletableFuture<AuthenticationState> authenticationState() {
+  @QueryMapping
+  public Mono<AuthenticationState> authenticationState() {
     // log.info("Query for authentication state");
     return queryContextSupplier
         .createContext()
         .flatMap(QueryContext::getAuthenticationState)
-        .timeout(TIMEOUT)
-        .defaultIfEmpty(AuthenticationState.UNKNOWN)
-        .toFuture();
+        .defaultIfEmpty(AuthenticationState.UNKNOWN);
   }
 
-  public CompletableFuture<UserReference> currentUser() {
+  @QueryMapping
+  public Mono<UserReference> currentUser() {
     return queryContextSupplier
         .createContext()
         .map(u -> u.getCurrentUser().map(c -> new UserReference(c.getId(), c.getUserData(), u)))
         .filter(Optional::isPresent)
-        .map(Optional::get)
-        .timeout(TIMEOUT)
-        .toFuture();
+        .map(Optional::get);
   }
 
-  public CompletableFuture<List<GroupReference>> listGroups() {
+  @QueryMapping
+  public Flux<GroupReference> listGroups() {
     return queryContextSupplier
         .createContext()
         .flatMapMany(
@@ -177,13 +168,13 @@ public class Query implements GraphQLQueryResolver {
                     .map(g -> new GroupReference(g.getId(), context, Mono.just(g)))
             //          .log("group-ref")
             )
-        // .log("result")
-        .collectList()
-        .timeout(TIMEOUT)
-        .toFuture();
+    // .log("result")
+
+    ;
   }
 
-  public CompletableFuture<Album> previewImport(ImportFile files) {
+  @QueryMapping
+  public Mono<Album> previewImport(@Argument ImportFile file) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserEditData)
@@ -192,7 +183,7 @@ public class Query implements GraphQLQueryResolver {
               Function<UUID, Mono<Boolean>> authorizer =
                   id -> authorizationManager.canUserModifyAlbum(context.getSecurityContext(), id);
 
-              final File uploadFile = uploadFilenameService.createTempUploadFile(files.getFileId());
+              final File uploadFile = uploadFilenameService.createTempUploadFile(file.getFileId());
               if (!uploadFile.exists()) return Mono.empty();
               return albumList
                   .detectTargetAlbum(uploadFile.toPath())
@@ -203,7 +194,6 @@ public class Query implements GraphQLQueryResolver {
                       albumId ->
                           new Album(albumId, context, dataViewService.readAlbum(albumId).cache()));
             })
-        .doOnError(ex -> log.warn("Cannot commit import", ex))
-        .toFuture();
+        .doOnError(ex -> log.warn("Cannot commit import", ex));
   }
 }
