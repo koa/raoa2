@@ -4,7 +4,7 @@ import {ServerApiService} from '../../service/server-api.service';
 import {AlbumContentGQL, AlbumEntry, MutationData, SingleAlbumMutateGQL} from '../../generated/graphql';
 import {HttpClient} from '@angular/common/http';
 import {MediaResolverService} from '../service/media-resolver.service';
-import {AlbumListService} from '../service/album-list.service';
+import {AlbumListService, QueryAlbumEntry} from '../service/album-list.service';
 import {Location} from '@angular/common';
 import {IonContent, LoadingController, MenuController, ToastController} from '@ionic/angular';
 import {FNCH_COMPETITION_ID} from '../../constants';
@@ -19,6 +19,7 @@ function copyPendingKeywords(pendingKeywords: Map<string, Set<string>>): Map<str
     pendingKeywords.forEach((keywords, entry) => ret.set(entry, new Set<string>(keywords)));
     return ret;
 }
+
 
 @Component({
     selector: 'app-album',
@@ -61,7 +62,7 @@ export class AlbumPage implements OnInit {
 
     public selectedEntries = new Set<string>();
 
-    @ViewChild('imageList') private element: ElementRef<HTMLDivElement>;
+    @ViewChild('imageList') private imageListElement: ElementRef<HTMLDivElement>;
     @ViewChild('content') private contentElement: IonContent;
     public elementWidth = 10;
 
@@ -69,17 +70,19 @@ export class AlbumPage implements OnInit {
     private waitCount = 0;
     public enableSettings = false;
     public daycount = 0;
-    public timestamp = '';
+    public timestamp = 0;
     public canEdit = false;
     public newTag = '';
     public pendingAddKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
     public pendingRemoveKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
+    public filterTimeStep = 60 * 1000;
 
     public async resized() {
-        if (this.elementWidth === this.element.nativeElement.clientWidth) {
+        if (this.elementWidth === this.imageListElement.nativeElement.clientWidth) {
             return;
         }
-        this.elementWidth = this.element.nativeElement.clientWidth;
+        const timestampBefore = this.timestamp;
+        this.elementWidth = this.imageListElement.nativeElement.clientWidth;
 
         const maxRowHeight = 2 * Math.sqrt((window.innerWidth * window.innerHeight) / 6 / 6);
         const newMaxWidth = Math.min(10, Math.round(this.elementWidth / (Math.min(100 * window.devicePixelRatio, maxRowHeight)) * 4) / 4);
@@ -87,10 +90,20 @@ export class AlbumPage implements OnInit {
             this.maxWidth = newMaxWidth;
             await this.calculateRows();
         }
+        this.scrollToTimestamp(timestampBefore);
     }
 
     async onScroll(e: CustomEvent) {
         const detail = e.detail;
+        const foundTimestamp = this.findCurrentTimestamp();
+        if (foundTimestamp !== undefined) {
+            this.timestamp = foundTimestamp;
+        }
+        this.lastScrollPos = detail.scrollTop;
+    }
+
+
+    private findCurrentTimestamp() {
         const rows: HTMLCollectionOf<Element> = document.getElementsByClassName('image-row');
         let bestResult = Number.MAX_SAFE_INTEGER;
         let bestElement;
@@ -103,12 +116,12 @@ export class AlbumPage implements OnInit {
             }
         }
         if (bestElement) {
-            this.timestamp = bestElement.getAttribute('timestamp');
+            const foundTimestamp = Date.parse(bestElement.getAttribute('timestamp'));
+            this.setParam('timestamp', foundTimestamp.toString());
+            return foundTimestamp;
         }
-        this.lastScrollPos = detail.scrollTop;
-        // this.setParam('pos', detail.scrollTop);
+        return undefined;
     }
-
 
     private setParam(param: string, value: string | undefined) {
         const url = new URL(window.location.href);
@@ -178,8 +191,15 @@ export class AlbumPage implements OnInit {
                 this.albumId = id;
                 this.selectedEntries.clear();
                 this.lastSelectedIndex = undefined;
+                await this.refresh();
             }
-            await this.refresh();
+        });
+        this.activatedRoute.queryParamMap.subscribe(async params => {
+            const timestamp = params.get('timestamp');
+            if (timestamp !== undefined) {
+                this.timestamp = Number.parseInt(timestamp, 10);
+                await this.refresh();
+            }
         });
     }
 
@@ -187,10 +207,15 @@ export class AlbumPage implements OnInit {
         await this.enterWait(WaitReason.LOAD);
         try {
             const result = await this.albumListService.listAlbum(this.albumId);
+            const rowCountBefore = this.sortedEntries.length;
             this.ngZone.run(() => {
                 this.titleService.setTitle(`Album: ${result.title}`);
                 // filter pending keyword modifications
+                this.keywords.clear();
                 result.sortedEntries.forEach(albumEntry => {
+                    albumEntry.keywords.forEach(keyword => {
+                        this.keywords.add(keyword);
+                    });
                     const albumEntryId = albumEntry.id;
                     if (this.pendingAddKeywords.has(albumEntryId)) {
                         const kwlist = this.pendingAddKeywords.get(albumEntryId);
@@ -215,19 +240,69 @@ export class AlbumPage implements OnInit {
                         }
                     }
                 });
+                this.sortKeywords();
                 this.title = result.title;
+                let filteredEntries: QueryAlbumEntry[];
                 if (this.filteringKeyword === undefined) {
-                    this.sortedEntries = result.sortedEntries;
+                    filteredEntries = result.sortedEntries;
                 } else {
-                    this.sortedEntries = result.sortedEntries.filter(e => e.keywords.findIndex(k => k === this.filteringKeyword) >= 0);
+                    filteredEntries = result.sortedEntries.filter(e => e.keywords.findIndex(k => k === this.filteringKeyword) >= 0);
+                }
+                if (this.filterTimeStep > 0) {
+                    let lastTimestamp = -1;
+                    this.sortedEntries = filteredEntries.filter(e => {
+                        const timestamp: number = Date.parse(e.created);
+                        const t = Math.trunc(timestamp / this.filterTimeStep);
+                        if (lastTimestamp !== t) {
+                            lastTimestamp = t;
+                            return true;
+                        }
+                        return false;
+                    });
+                } else {
+                    this.sortedEntries = filteredEntries;
                 }
                 this.enableSettings = result.canManageUsers;
                 this.fnCompetitionId = result.labels.get(FNCH_COMPETITION_ID);
                 this.canEdit = result.canEdit;
-                this.calculateRows();
+
             });
+            await this.calculateRows();
+            if (rowCountBefore !== this.sortedEntries.length) {
+                this.scrollToTimestamp(this.timestamp);
+            }
+
         } finally {
             await this.leaveWait();
+        }
+    }
+
+    public scrollToTimestamp(timestamp: number) {
+        this.timestamp = timestamp;
+        const foundIndices = this.findIndizesOf(this.rows, timestamp);
+        if (foundIndices !== undefined) {
+            const rowIndex = foundIndices[0];
+            const blockIndex = foundIndices[1];
+            // console.log('scroll to ' + rowIndex + ', ' + blockIndex);
+            // const shapeIndex = foundIndices[2];
+            window.setTimeout(() => {
+                const rowElement = document.getElementById('row-' + rowIndex);
+                const observer = new MutationObserver((mutations => {
+                    const blockElement = document.getElementById('block-' + rowIndex + '-' + blockIndex);
+                    if (blockElement) {
+                        blockElement.scrollIntoView();
+                        observer.disconnect();
+                    }
+                }));
+                observer.observe(rowElement, {childList: true});
+                // console.log(rowElement);
+                rowElement.scrollIntoView();
+                const blockElementDirect = document.getElementById('block-' + rowIndex + '-' + blockIndex);
+                if (blockElementDirect) {
+                    blockElementDirect.scrollIntoView();
+                    observer.disconnect();
+                }
+            }, 100);
         }
     }
 
@@ -248,10 +323,12 @@ export class AlbumPage implements OnInit {
             const flushRow = () => {
                 if (currentRow.length > 0) {
                     const title = currentRow[0].entry.created;
+                    const endTimestamp = currentRow[currentRow.length - 1].timestamp;
                     currentBlock.push({
                         shapes: currentRow,
                         width: currentRowWidth,
-                        title
+                        title,
+                        endTimestamp
                     });
                     currentBlockLength += 1 / currentRowWidth;
                     currentBlockMediaCount += currentRow.length;
@@ -262,7 +339,8 @@ export class AlbumPage implements OnInit {
             const flushBlock = () => {
                 flushRow();
                 if (currentBlock.length > 0) {
-                    newRows.push({kind: 'images', blocks: currentBlock, height: currentBlockLength});
+                    const endTimestamp = currentBlock[currentBlock.length - 1].endTimestamp;
+                    newRows.push({kind: 'images', blocks: currentBlock, height: currentBlockLength, endTimestamp});
                 }
                 currentBlock = [];
                 currentBlockLength = 0;
@@ -287,12 +365,8 @@ export class AlbumPage implements OnInit {
                 currentRowWidth += shape.width;
 
             };
-            this.keywords.clear();
             this.sortedEntries
                 .forEach(entry => {
-                    entry.keywords.forEach(keyword => {
-                        this.keywords.add(keyword);
-                    });
                     const timestamp: number = Date.parse(entry.created);
                     const date = new Date(timestamp);
                     date.setHours(0, 0, 0, 0);
@@ -302,13 +376,13 @@ export class AlbumPage implements OnInit {
                         width: imageWidth,
                         entry,
                         entryIndex: index++,
-                        isVideo: entry.contentType?.startsWith('video')
+                        isVideo: entry.contentType?.startsWith('video'),
+                        timestamp
                     };
                     appender(imageShape, imageDate);
                 });
             flushBlock();
             this.rows = newRows;
-            this.sortKeywords();
             this.daycount = dayCount;
         });
         await this.leaveWait();
@@ -542,6 +616,41 @@ export class AlbumPage implements OnInit {
         this.pendingAddKeywords.clear();
         this.pendingRemoveKeywords.clear();
     }
+
+    async setResolution(time: number) {
+        if (time === this.filterTimeStep) {
+            return;
+        }
+        this.filterTimeStep = time;
+        await this.refresh();
+    }
+
+    private findIndizesOf(rows: Array<TableRow>, timestamp: number): [number, number, number] | undefined {
+        for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+            const row = rows[rowIndex];
+            if (row.kind === 'images') {
+                if (row.endTimestamp < timestamp) {
+                    continue;
+                }
+                const blocks = row.blocks;
+                for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+                    const block = blocks[blockIndex];
+                    const shapes = block.shapes;
+                    for (let shapeIndex = 0; shapeIndex < shapes.length; shapeIndex++) {
+                        const shape = shapes[shapeIndex];
+                        if (shape.timestamp >= timestamp) {
+                            return [rowIndex, blockIndex, shapeIndex];
+                        }
+                    }
+                }
+            }
+        }
+        return undefined;
+    }
+
+    public isResolution(res: number): boolean {
+        return this.filterTimeStep === res;
+    }
 }
 
 interface Shape {
@@ -549,18 +658,21 @@ interface Shape {
     entry: AlbumEntryType;
     entryIndex: number;
     isVideo: boolean;
+    timestamp: number;
 }
 
 interface ImageBlock {
     shapes: Shape[];
     width: number;
     title: string;
+    endTimestamp: number;
 }
 
 interface ImagesRow {
     kind: 'images';
     blocks: ImageBlock[];
     height: number;
+    endTimestamp: number;
 }
 
 interface HeaderRow {
