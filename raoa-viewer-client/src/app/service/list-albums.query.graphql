@@ -3,7 +3,8 @@ query AllAlbums{
         id,
         name,
         entryCount,
-        albumTime
+        albumTime,
+        version,
         labels{
             labelName
             labelValue

@@ -12,7 +12,7 @@ import {ToastController} from '@ionic/angular';
     providedIn: 'root'
 })
 export class ServerApiService {
-    private cache: InMemoryCache;
+    private readonly cache: InMemoryCache;
     private ready = false;
 
     constructor(

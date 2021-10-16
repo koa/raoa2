@@ -1,13 +1,13 @@
 import {Component, ElementRef, HostListener, NgZone, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {MediaResolverService} from '../service/media-resolver.service';
-import {AlbumListService} from '../service/album-list.service';
 import {Location} from '@angular/common';
-import {IonInput, IonSlides, LoadingController, MenuController} from '@ionic/angular';
+import {IonInput, IonSlides, LoadingController} from '@ionic/angular';
 import {HttpClient} from '@angular/common/http';
 import {AlbumEntry, AlbumEntryDetailGQL, ShowSingleMediaEditKeywordsGQL} from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
 import {Title} from '@angular/platform-browser';
+import {AlbumDataService} from '../../service/album-data.service';
 
 type AlbumEntryMetadata =
     { __typename?: 'AlbumEntry' }
@@ -23,14 +23,13 @@ export class ShowSingleMediaComponent implements OnInit {
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
-                private albumListService: AlbumListService,
+                private albumListService: AlbumDataService,
                 private ngZone: NgZone,
                 private location: Location,
                 private http: HttpClient,
                 private serverApi: ServerApiService,
                 private albumEntryDetailGQL: AlbumEntryDetailGQL,
                 private showSingleMediaEditKeywordsGQL: ShowSingleMediaEditKeywordsGQL,
-                private menu: MenuController,
                 private loadingController: LoadingController,
                 private titleService: Title
     ) {
@@ -110,13 +109,13 @@ export class ShowSingleMediaComponent implements OnInit {
     async refreshSequence() {
         this.prevIdMap.clear();
         this.nextIdMap.clear();
-        const albumData = await this.albumListService.listAlbum(this.albumId);
+        const [albumData, albumEntries] = await this.albumListService.listAlbum(this.albumId);
         let lastAlbumId: BigInt;
         const sortedEntries = this.filteringKeyword === undefined ?
-            albumData.sortedEntries :
-            albumData.sortedEntries.filter(entry => entry.keywords.findIndex(k => k === this.filteringKeyword) >= 0);
+            albumEntries :
+            albumEntries.filter(entry => entry.keywords.findIndex(k => k === this.filteringKeyword) >= 0);
         for (const entry of sortedEntries) {
-            const myId: BigInt = BigInt('0x' + entry.id);
+            const myId: BigInt = BigInt('0x' + entry.albumEntryId);
             if (lastAlbumId !== undefined) {
                 this.nextIdMap.set(lastAlbumId, myId);
                 this.prevIdMap.set(myId, lastAlbumId);
@@ -140,7 +139,7 @@ export class ShowSingleMediaComponent implements OnInit {
             });
         }, 500);
         try {
-            const albumData = await this.albumListService.listAlbum(this.albumId);
+            const [albumData, albumEntries] = await this.albumListService.listAlbum(this.albumId);
             const mediaIdAsInt = BigInt('0x' + mediaId);
             const previousMediaId = ShowSingleMediaComponent.bigint2objectid(this.prevIdMap.get(mediaIdAsInt));
             const nextMediaId = ShowSingleMediaComponent.bigint2objectid(this.nextIdMap.get(mediaIdAsInt));
@@ -159,8 +158,8 @@ export class ShowSingleMediaComponent implements OnInit {
                 this.currentSelectedKeywords.forEach(keyword => allKeywords.add(keyword));
                 this.currentIsVideo = metadata.albumById.albumEntry.contentType.startsWith('video');
                 this.playVideo = false;
-                for (const keyword of albumData.keywords.keys()) {
-                    allKeywords.add(keyword);
+                for (const entry of albumEntries) {
+                    entry.keywords.forEach(keyword => allKeywords.add(keyword));
                 }
                 this.albumKeywords = [];
                 allKeywords.forEach(keyword => this.albumKeywords.push(keyword));
@@ -315,10 +314,6 @@ export class ShowSingleMediaComponent implements OnInit {
         } else {
             return exposureTime.toFixed(0);
         }
-    }
-
-    openMenu() {
-        this.menu.open();
     }
 
     toggleMetadata() {

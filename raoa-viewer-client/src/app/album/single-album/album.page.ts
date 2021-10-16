@@ -1,14 +1,14 @@
 import {Component, ElementRef, NgZone, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router} from '@angular/router';
 import {ServerApiService} from '../../service/server-api.service';
-import {AlbumContentGQL, AlbumEntry, MutationData, SingleAlbumMutateGQL} from '../../generated/graphql';
+import {AlbumContentGQL, AlbumEntry, MutationData, SingleAlbumMutateGQL, UserPermissionsGQL} from '../../generated/graphql';
 import {HttpClient} from '@angular/common/http';
 import {MediaResolverService} from '../service/media-resolver.service';
-import {AlbumListService, QueryAlbumEntry} from '../service/album-list.service';
 import {Location} from '@angular/common';
 import {IonContent, LoadingController, MenuController, ToastController} from '@ionic/angular';
-import {FNCH_COMPETITION_ID} from '../../constants';
 import {Title} from '@angular/platform-browser';
+import {AlbumEntryData} from '../../service/storage.service';
+import {AlbumDataService} from '../../service/album-data.service';
 
 type AlbumEntryType =
     { __typename?: 'AlbumEntry' }
@@ -37,7 +37,7 @@ export class AlbumPage implements OnInit {
                 private serverApi: ServerApiService,
                 private albumContentGQL: AlbumContentGQL,
                 private singleAlbumMutateGQL: SingleAlbumMutateGQL,
-                private albumListService: AlbumListService,
+                private albumListService: AlbumDataService,
                 private ngZone: NgZone,
                 private http: HttpClient,
                 private mediaResolver: MediaResolverService,
@@ -46,7 +46,8 @@ export class AlbumPage implements OnInit {
                 private menuController: MenuController,
                 private titleService: Title,
                 private router: Router,
-                private toastController: ToastController
+                private toastController: ToastController,
+                private userPermissionsGQL: UserPermissionsGQL
     ) {
     }
 
@@ -66,7 +67,7 @@ export class AlbumPage implements OnInit {
     @ViewChild('content') private contentElement: IonContent;
     public elementWidth = 10;
 
-    private sortedEntries: AlbumEntryType[] = [];
+    private sortedEntries: AlbumEntryData[] = [];
     private waitCount = 0;
     public enableSettings = false;
     public daycount = 0;
@@ -206,17 +207,18 @@ export class AlbumPage implements OnInit {
     private async refresh() {
         await this.enterWait(WaitReason.LOAD);
         try {
-            const result = await this.albumListService.listAlbum(this.albumId);
+            const userPermissions = await this.serverApi.query(this.userPermissionsGQL, {});
+            const [album, entries] = await this.albumListService.listAlbum(this.albumId);
             const rowCountBefore = this.sortedEntries.length;
             this.ngZone.run(() => {
-                this.titleService.setTitle(`Album: ${result.title}`);
+                this.titleService.setTitle(`Album: ${album.title}`);
                 // filter pending keyword modifications
                 this.keywords.clear();
-                result.sortedEntries.forEach(albumEntry => {
+                entries.forEach(albumEntry => {
                     albumEntry.keywords.forEach(keyword => {
                         this.keywords.add(keyword);
                     });
-                    const albumEntryId = albumEntry.id;
+                    const albumEntryId = albumEntry.albumEntryId;
                     if (this.pendingAddKeywords.has(albumEntryId)) {
                         const kwlist = this.pendingAddKeywords.get(albumEntryId);
                         albumEntry.keywords.forEach(kw => kwlist.delete(kw));
@@ -241,17 +243,17 @@ export class AlbumPage implements OnInit {
                     }
                 });
                 this.sortKeywords();
-                this.title = result.title;
-                let filteredEntries: QueryAlbumEntry[];
+                this.title = album.title;
+                let filteredEntries: AlbumEntryData[];
                 if (this.filteringKeyword === undefined) {
-                    filteredEntries = result.sortedEntries;
+                    filteredEntries = entries;
                 } else {
-                    filteredEntries = result.sortedEntries.filter(e => e.keywords.findIndex(k => k === this.filteringKeyword) >= 0);
+                    filteredEntries = entries.filter(e => e.keywords.findIndex(k => k === this.filteringKeyword) >= 0);
                 }
                 if (this.filterTimeStep > 0) {
                     let lastTimestamp = -1;
                     this.sortedEntries = filteredEntries.filter(e => {
-                        const timestamp: number = Date.parse(e.created);
+                        const timestamp: number = e.created;
                         const t = Math.trunc(timestamp / this.filterTimeStep);
                         if (lastTimestamp !== t) {
                             lastTimestamp = t;
@@ -262,9 +264,9 @@ export class AlbumPage implements OnInit {
                 } else {
                     this.sortedEntries = filteredEntries;
                 }
-                this.enableSettings = result.canManageUsers;
-                this.fnCompetitionId = result.labels.get(FNCH_COMPETITION_ID);
-                this.canEdit = result.canEdit;
+                this.fnCompetitionId = album.fnchAlbumId;
+                this.enableSettings = userPermissions.currentUser.canManageUsers;
+                this.canEdit = userPermissions.currentUser.canEdit;
 
             });
             await this.calculateRows();
@@ -322,12 +324,12 @@ export class AlbumPage implements OnInit {
             let currentBlockMediaCount = 0;
             const flushRow = () => {
                 if (currentRow.length > 0) {
-                    const title = currentRow[0].entry.created;
+                    const beginTimestamp = currentRow[0].entry.created;
                     const endTimestamp = currentRow[currentRow.length - 1].timestamp;
                     currentBlock.push({
                         shapes: currentRow,
                         width: currentRowWidth,
-                        title,
+                        beginTimestamp,
                         endTimestamp
                     });
                     currentBlockLength += 1 / currentRowWidth;
@@ -367,7 +369,7 @@ export class AlbumPage implements OnInit {
             };
             this.sortedEntries
                 .forEach(entry => {
-                    const timestamp: number = Date.parse(entry.created);
+                    const timestamp: number = entry.created;
                     const date = new Date(timestamp);
                     date.setHours(0, 0, 0, 0);
                     const imageDate = date.valueOf();
@@ -376,7 +378,7 @@ export class AlbumPage implements OnInit {
                         width: imageWidth,
                         entry,
                         entryIndex: index++,
-                        isVideo: entry.contentType?.startsWith('video'),
+                        isVideo: entry.entryType === 'video',
                         timestamp
                     };
                     appender(imageShape, imageDate);
@@ -400,7 +402,7 @@ export class AlbumPage implements OnInit {
         const imgWidthPixels = this.elementWidth / blockPart.width * shape.width;
         const maxLength: number = shape.width < 1 ? imgWidthPixels / shape.width : imgWidthPixels;
 
-        const entryId = shape.entry.id;
+        const entryId = shape.entry.albumEntryId;
         return this.mediaResolver.lookupImage(this.albumId, entryId, maxLength);
     }
 
@@ -431,7 +433,7 @@ export class AlbumPage implements OnInit {
     }
 
     public createEntryLink(shape: Shape): (string | object)[] {
-        return ['/album', this.albumId, 'media', shape.entry.id];
+        return ['/album', this.albumId, 'media', shape.entry.albumEntryId];
     }
 
     queryParams() {
@@ -444,18 +446,18 @@ export class AlbumPage implements OnInit {
     public imageClicked(blockPart: ImageBlock, shape: Shape, $event: MouseEvent) {
         if (this.selectionMode) {
             const shiftKey = $event.shiftKey;
-            const entryId = shape.entry.id;
+            const entryId = shape.entry.albumEntryId;
             const selectedIndex = shape.entryIndex;
             if (shiftKey) {
                 if (this.lastSelectedIndex !== undefined) {
                     const selectFrom = Math.min(this.lastSelectedIndex, selectedIndex);
                     const selectUntil = Math.max(this.lastSelectedIndex, selectedIndex);
                     const slice = this.sortedEntries.slice(selectFrom, selectUntil + 1);
-                    const allSelected = this.selectedEntries.has(this.sortedEntries[this.lastSelectedIndex].id);
+                    const allSelected = this.selectedEntries.has(this.sortedEntries[this.lastSelectedIndex].albumEntryId);
                     if (!allSelected) {
-                        slice.forEach(entry => this.selectedEntries.delete(entry.id));
+                        slice.forEach(entry => this.selectedEntries.delete(entry.albumEntryId));
                     } else {
-                        slice.forEach(entry => this.selectedEntries.add(entry.id));
+                        slice.forEach(entry => this.selectedEntries.add(entry.albumEntryId));
                     }
                     this.lastSelectedIndex = undefined;
                 }
@@ -483,7 +485,7 @@ export class AlbumPage implements OnInit {
     public selectionCanAdd(keyword: string): boolean {
 
         for (const entry of this.sortedEntries) {
-            if (!this.selectedEntries.has(entry.id)) {
+            if (!this.selectedEntries.has(entry.albumEntryId)) {
                 continue;
             }
             let canAdd = true;
@@ -499,9 +501,9 @@ export class AlbumPage implements OnInit {
         return false;
     }
 
-    private keywordsOfEntry(entry: { __typename?: 'AlbumEntry' } & Pick<AlbumEntry, 'id' | 'keywords'>): Iterable<string> {
-        const pendingAdd = this.pendingAddKeywords.get(entry.id);
-        const pendingRemove = this.pendingRemoveKeywords.get(entry.id);
+    private keywordsOfEntry(entry: AlbumEntryData): Iterable<string> {
+        const pendingAdd = this.pendingAddKeywords.get(entry.albumEntryId);
+        const pendingRemove = this.pendingRemoveKeywords.get(entry.albumEntryId);
         if (pendingAdd === undefined && pendingRemove === undefined) {
             return entry.keywords;
         }
@@ -518,7 +520,7 @@ export class AlbumPage implements OnInit {
     public selectionCanRemove(keyword: string): boolean {
 
         for (const entry of this.sortedEntries) {
-            if (!this.selectedEntries.has(entry.id)) {
+            if (!this.selectedEntries.has(entry.albumEntryId)) {
                 continue;
             }
             for (const kw of this.keywordsOfEntry(entry)) {
@@ -655,7 +657,7 @@ export class AlbumPage implements OnInit {
 
 interface Shape {
     width: number;
-    entry: AlbumEntryType;
+    entry: AlbumEntryData;
     entryIndex: number;
     isVideo: boolean;
     timestamp: number;
@@ -664,7 +666,7 @@ interface Shape {
 interface ImageBlock {
     shapes: Shape[];
     width: number;
-    title: string;
+    beginTimestamp: number;
     endTimestamp: number;
 }
 
