@@ -12,9 +12,12 @@
             <ion-card-header [routerLink]="[entry.url]" class="link">
                 <ion-card-subtitle
                         *ngIf="entry.data.albumTime">{{entry.data.albumTime | date:'fullDate'}}</ion-card-subtitle>
-                <ion-card-title>{{entry.data.name}}</ion-card-title>
-                <ion-card-subtitle *ngIf="this.canManageUsers && getFnchId(entry.data)">
-                    FNCH ID: {{getFnchId(entry.data)}}
+                <ion-card-title>{{entry.data.title}}</ion-card-title>
+                <ion-card-subtitle *ngIf="this.canManageUsers && entry.data.fnchAlbumId">
+                    FNCH ID: {{entry.data.fnchAlbumId}}
+                </ion-card-subtitle>
+                <ion-card-subtitle>
+                    {{entry.data.entryCount | number}}
                 </ion-card-subtitle>
             </ion-card-header>
             <ion-card-content>

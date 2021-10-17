@@ -4,8 +4,19 @@ mutation singleAlbumMutate($updates: [MutationData!]!){
             message
         }
         modifiedEntries{
-            id, name, entryUri, targetWidth, targetHeight, created, contentType
-            keywords
+            id,
+            name,
+            entryUri,
+            targetWidth,
+            targetHeight,
+            created,
+            contentType,
+            keywords,
+            cameraModel,
+            exposureTime,
+            fNumber,
+            focalLength35,
+            isoSpeedRatings,
             album{
                 id
             }

@@ -1,5 +1,0 @@
-query CanManageUsers{
-    currentUser{
-        canManageUsers
-    }
-}

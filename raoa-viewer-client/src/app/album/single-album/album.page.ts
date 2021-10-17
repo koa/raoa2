@@ -1,14 +1,14 @@
 import {Component, ElementRef, NgZone, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router} from '@angular/router';
 import {ServerApiService} from '../../service/server-api.service';
-import {AlbumContentGQL, AlbumEntry, MutationData, SingleAlbumMutateGQL, UserPermissionsGQL} from '../../generated/graphql';
+import {AlbumContentGQL, AlbumEntry, SingleAlbumMutateGQL, UserPermissionsGQL} from '../../generated/graphql';
 import {HttpClient} from '@angular/common/http';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
 import {IonContent, LoadingController, MenuController, ToastController} from '@ionic/angular';
 import {Title} from '@angular/platform-browser';
 import {AlbumEntryData} from '../../service/storage.service';
-import {AlbumDataService} from '../../service/album-data.service';
+import {DataService} from '../../service/data.service';
 
 type AlbumEntryType =
     { __typename?: 'AlbumEntry' }
@@ -37,7 +37,7 @@ export class AlbumPage implements OnInit {
                 private serverApi: ServerApiService,
                 private albumContentGQL: AlbumContentGQL,
                 private singleAlbumMutateGQL: SingleAlbumMutateGQL,
-                private albumListService: AlbumDataService,
+                private dataService: DataService,
                 private ngZone: NgZone,
                 private http: HttpClient,
                 private mediaResolver: MediaResolverService,
@@ -55,7 +55,9 @@ export class AlbumPage implements OnInit {
     public title: string;
     public rows: Array<TableRow> = [];
     public days: string[] = [];
-    public keywords = new Set<string>();
+    // private keywords = new Set<string>();
+    public canAddKeyword = new Set<string>();
+    public canRemoveKeywords = new Set<string>();
     public sortedKeywords: string[] = [];
     public maxWidth = 8;
     public filteringKeyword: string;
@@ -74,9 +76,10 @@ export class AlbumPage implements OnInit {
     public timestamp = 0;
     public canEdit = false;
     public newTag = '';
-    public pendingAddKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
-    public pendingRemoveKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
+    // public pendingAddKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
+    // public pendingRemoveKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
     public filterTimeStep = 60 * 1000;
+    public hasPendingMutations = false;
 
     public async resized() {
         if (this.elementWidth === this.imageListElement.nativeElement.clientWidth) {
@@ -117,7 +120,7 @@ export class AlbumPage implements OnInit {
             }
         }
         if (bestElement) {
-            const foundTimestamp = Date.parse(bestElement.getAttribute('timestamp'));
+            const foundTimestamp = Number.parseInt(bestElement.getAttribute('timestamp'), 10);
             this.setParam('timestamp', foundTimestamp.toString());
             return foundTimestamp;
         }
@@ -208,12 +211,18 @@ export class AlbumPage implements OnInit {
         await this.enterWait(WaitReason.LOAD);
         try {
             const userPermissions = await this.serverApi.query(this.userPermissionsGQL, {});
-            const [album, entries] = await this.albumListService.listAlbum(this.albumId);
+            const [album, entries] = await this.dataService.listAlbum(this.albumId);
             const rowCountBefore = this.sortedEntries.length;
+            const knownKeywords = new Set<string>();
+            entries.forEach(entry => entry.keywords.forEach(kw => knownKeywords.add(kw)));
+            const [newSortedKeywords, canAddKeywords, canRemoveKeywords] = await this.adjustKeywords(knownKeywords);
+            const hasPendingMutations = await this.dataService.hasPendingMutations(this.albumId);
             this.ngZone.run(() => {
                 this.titleService.setTitle(`Album: ${album.title}`);
+                this.hasPendingMutations = hasPendingMutations;
                 // filter pending keyword modifications
-                this.keywords.clear();
+                // this.keywords.clear();
+                /*
                 entries.forEach(albumEntry => {
                     albumEntry.keywords.forEach(keyword => {
                         this.keywords.add(keyword);
@@ -242,7 +251,11 @@ export class AlbumPage implements OnInit {
                         }
                     }
                 });
-                this.sortKeywords();
+                 */
+                // this.sortKeywords();
+                this.sortedKeywords = newSortedKeywords;
+                this.canAddKeyword = canAddKeywords;
+                this.canRemoveKeywords = canRemoveKeywords;
                 this.title = album.title;
                 let filteredEntries: AlbumEntryData[];
                 if (this.filteringKeyword === undefined) {
@@ -392,10 +405,34 @@ export class AlbumPage implements OnInit {
         setTimeout(() => this.contentElement.scrollToPoint(0, scrollPosBefore), 100);
     }
 
+    /*
     private sortKeywords() {
         this.sortedKeywords = [];
         this.keywords.forEach(keyword => this.sortedKeywords.push(keyword));
         this.sortedKeywords.sort((k1, k2) => k1.localeCompare(k2));
+    }
+
+     */
+
+    private async adjustKeywords(knownKeywords: Set<string>): Promise<[string[], Set<string>, Set<string>]> {
+        const sortedKeywords: string[] = [];
+        knownKeywords.forEach(keyword => sortedKeywords.push(keyword));
+        sortedKeywords.sort((k1, k2) => k1.localeCompare(k2));
+        const keywordStates = await this.dataService.currentKeywordStates(this.albumId, this.selectedEntries);
+        const canRemoveKeywords = new Set<string>();
+        const canAddKeywords = new Set<string>();
+        keywordStates.forEach(state => {
+            sortedKeywords.forEach(kw => {
+                if ((state.existingKeywords.has(kw) || state.pendingAddKeywords.has(kw))
+                    && !state.pendingRemoveKeywords.has(kw)) {
+                    canRemoveKeywords.add(kw);
+                }
+                if (!state.existingKeywords.has(kw) && !state.pendingAddKeywords.has(kw)) {
+                    canAddKeywords.add(kw);
+                }
+            });
+        });
+        return [sortedKeywords, canAddKeywords, canRemoveKeywords];
     }
 
     public loadImage(blockPart: ImageBlock, shape: Shape): string {
@@ -443,7 +480,7 @@ export class AlbumPage implements OnInit {
         return {};
     }
 
-    public imageClicked(blockPart: ImageBlock, shape: Shape, $event: MouseEvent) {
+    public async imageClicked(blockPart: ImageBlock, shape: Shape, $event: MouseEvent) {
         if (this.selectionMode) {
             const shiftKey = $event.shiftKey;
             const entryId = shape.entry.albumEntryId;
@@ -469,124 +506,58 @@ export class AlbumPage implements OnInit {
                     this.selectedEntries.add(entryId);
                 }
             }
+            await this.refreshPossibleKeywords();
         } else {
-            this.router.navigate(this.createEntryLink(shape), {queryParams: this.queryParams()});
+            await this.router.navigate(this.createEntryLink(shape), {queryParams: this.queryParams()});
         }
+    }
+
+    private async refreshPossibleKeywords() {
+        const [newSortedKeywords, canAddKeywords, canRemoveKeywords] = await this.adjustKeywords(new Set(this.sortedKeywords));
+        const hasPendingMutations = await this.dataService.hasPendingMutations(this.albumId);
+        this.ngZone.run(() => {
+            this.canAddKeyword = canAddKeywords;
+            this.canRemoveKeywords = canRemoveKeywords;
+            this.sortedKeywords = newSortedKeywords;
+            this.hasPendingMutations = hasPendingMutations;
+        });
     }
 
     async tagAdded($event: any) {
         const newKeyword = this.newTag;
-        this.keywords.add(newKeyword);
-        this.sortKeywords();
         this.newTag = '';
         await this.addTag(newKeyword);
     }
 
     public selectionCanAdd(keyword: string): boolean {
-
-        for (const entry of this.sortedEntries) {
-            if (!this.selectedEntries.has(entry.albumEntryId)) {
-                continue;
-            }
-            let canAdd = true;
-            for (const kw of this.keywordsOfEntry(entry)) {
-                if (kw === keyword) {
-                    canAdd = false;
-                }
-            }
-            if (canAdd) {
-                return true;
-            }
-        }
-        return false;
+        return this.canAddKeyword.has(keyword);
     }
 
     private keywordsOfEntry(entry: AlbumEntryData): Iterable<string> {
-        const pendingAdd = this.pendingAddKeywords.get(entry.albumEntryId);
-        const pendingRemove = this.pendingRemoveKeywords.get(entry.albumEntryId);
-        if (pendingAdd === undefined && pendingRemove === undefined) {
-            return entry.keywords;
-        }
-        const ret = new Set<string>(entry.keywords);
-        if (pendingAdd !== undefined) {
-            pendingAdd.forEach(keyword => ret.add(keyword));
-        }
-        if (pendingRemove !== undefined) {
-            pendingRemove.forEach(keyword => ret.delete(keyword));
-        }
-        return ret;
+        return entry.keywords;
     }
 
     public selectionCanRemove(keyword: string): boolean {
-
-        for (const entry of this.sortedEntries) {
-            if (!this.selectedEntries.has(entry.albumEntryId)) {
-                continue;
-            }
-            for (const kw of this.keywordsOfEntry(entry)) {
-                if (kw === keyword) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return this.canRemoveKeywords.has(keyword);
     }
 
     async addTag(keyword: string) {
-        this.selectedEntries.forEach(alubmEntryId => {
-            this.addEntry(this.pendingAddKeywords, alubmEntryId, keyword);
-            this.removeEntry(this.pendingRemoveKeywords, alubmEntryId, keyword);
-        });
+        await this.dataService.addKeyword(this.albumId, this.selectedEntriesAsArray(), [keyword]);
+        await this.refreshPossibleKeywords();
     }
 
 
-    addEntry(map: Map<string, Set<string>>, entry: string, keyword: string): void {
-        if (map.has(entry)) {
-            map.get(entry).add(keyword);
-        } else {
-            map.set(entry, new Set<string>([keyword]));
-        }
+    private selectedEntriesAsArray() {
+        const selectedEntries: string[] = [];
+        this.selectedEntries.forEach(id => selectedEntries.push(id));
+        return selectedEntries;
     }
 
-    removeEntry(map: Map<string, Set<string>>, entry: string, keyword: string): void {
-        if (map.has(entry)) {
-            const keywords = map.get(entry);
-            keywords.delete(keyword);
-            if (keywords.size === 0) {
-                map.delete(entry);
-            }
-        }
-    }
 
     public async storeMutation() {
         await this.enterWait(WaitReason.STORE);
         try {
-            const pendingAddKeywords: Map<string, Set<string>> = copyPendingKeywords(this.pendingAddKeywords);
-            const pendingRemoveKeywords: Map<string, Set<string>> = copyPendingKeywords(this.pendingRemoveKeywords);
-            const updates: MutationData[] = [];
-            pendingAddKeywords.forEach((keywords, entry) =>
-                keywords.forEach(keyword =>
-                    updates.push({
-                        addKeywordMutation: {
-                            albumId: this.albumId,
-                            keyword,
-                            albumEntryId: entry
-                        }
-                    })));
-            pendingRemoveKeywords.forEach((keywords, entry) => {
-                keywords.forEach(keyword =>
-                    updates.push({
-                        removeKeywordMutation: {
-                            albumId: this.albumId,
-                            keyword,
-                            albumEntryId: entry
-                        }
-                    }));
-            });
-            if (updates.length === 0) {
-                return;
-            }
-            await this.albumListService.modifyAlbum(updates);
+            await this.dataService.storeMutations(this.albumId);
             await this.refresh();
         } finally {
             await this.leaveWait();
@@ -594,10 +565,8 @@ export class AlbumPage implements OnInit {
     }
 
     async removeTag(keyword: string) {
-        this.selectedEntries.forEach(albumEntryId => {
-            this.removeEntry(this.pendingAddKeywords, albumEntryId, keyword);
-            this.addEntry(this.pendingRemoveKeywords, albumEntryId, keyword);
-        });
+        await this.dataService.removeKeyword(this.albumId, this.selectedEntriesAsArray(), [keyword]);
+        await this.refreshPossibleKeywords();
     }
 
     selectionModeChanged() {
@@ -606,17 +575,20 @@ export class AlbumPage implements OnInit {
         }
     }
 
-    pendingMutations(): boolean {
-        return this.pendingAddKeywords.size > 0 || this.pendingRemoveKeywords.size > 0;
+    async refreshPendingMutations() {
+        const newValue = await this.dataService.hasPendingMutations(this.albumId);
+        this.ngZone.run(() => {
+            this.hasPendingMutations = newValue;
+        });
     }
 
     clearSelection() {
         this.selectedEntries.clear();
     }
 
-    resetMutation() {
-        this.pendingAddKeywords.clear();
-        this.pendingRemoveKeywords.clear();
+    async resetMutation(): Promise<void> {
+        await this.dataService.clearPendingMutations(this.albumId);
+        await this.refreshPendingMutations();
     }
 
     async setResolution(time: number) {

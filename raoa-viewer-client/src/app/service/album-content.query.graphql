@@ -10,8 +10,19 @@ query AlbumContent($albumId: ID!) {
             labelValue
         }
         entries{
-            id, name, entryUri, targetWidth, targetHeight, created, contentType
-            keywords
+            id,
+            name,
+            entryUri,
+            targetWidth,
+            targetHeight,
+            created,
+            contentType,
+            keywords,
+            cameraModel,
+            exposureTime,
+            fNumber,
+            focalLength35,
+            isoSpeedRatings,
         }
     }
 }

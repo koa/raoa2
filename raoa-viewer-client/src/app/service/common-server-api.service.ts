@@ -1,6 +1,7 @@
 import {Injectable} from '@angular/core';
-import {ServerApiService} from './server-api.service';
-import {Album, AllAlbumsGQL, Label} from '../generated/graphql';
+import {Album, Label} from '../generated/graphql';
+import {DataService} from './data.service';
+import {AlbumData} from './storage.service';
 
 
 export type AlbumEntryDataType = { __typename?: 'Album' } &
@@ -8,18 +9,15 @@ export type AlbumEntryDataType = { __typename?: 'Album' } &
     {
         labels: Array<{ __typename?: 'Label' } & Pick<Label, 'labelName' | 'labelValue'>>
     };
-export type MenuEntry = { url: string, data: AlbumEntryDataType };
+export type MenuEntry = { url: string, data: AlbumData };
 
 
 @Injectable({
     providedIn: 'root'
 })
 export class CommonServerApiService {
-    private lastCollectionList: MenuEntry[];
 
-    constructor(private serverApi: ServerApiService,
-                private albumListGQL: AllAlbumsGQL
-    ) {
+    constructor(private dataService: DataService) {
     }
 
     public listCollections(filter?: string): Promise<MenuEntry[]> {
@@ -28,39 +26,23 @@ export class CommonServerApiService {
                 return list;
             } else {
                 const filterValue = RegExp(filter, 'i');
-                return list.filter(entry => entry.data.name.toLowerCase().search(filterValue) >= 0);
+                return list.filter(entry => entry.data.title.toLowerCase().search(filterValue) >= 0);
             }
         });
     }
 
-    private doListCollections(): Promise<MenuEntry[]> {
-        if (this.lastCollectionList !== undefined) {
-            return Promise.resolve(this.lastCollectionList);
-        }
-        return this.serverApi.query(this.albumListGQL, {}).then(result => {
-            return result.listAlbums.slice() //.filter(a => a.albumTime != null)
-                .sort((a, b) => {
-                    if (a.albumTime === b.albumTime) {
-                        return 0;
-                    }
-                    if (a.albumTime === null) {
-                        return 1;
-                    }
-                    if (b.albumTime === null) {
-                        return -1;
-                    }
-                    return -a.albumTime.localeCompare(b.albumTime);
-                })
-                .map((entry: AlbumEntryDataType) => ({
-                    url: '/album/' + entry.id, data: entry
-                }));
-        }).then(result => {
-            this.lastCollectionList = result;
-            return result;
-        });
+    private async doListCollections(): Promise<MenuEntry[]> {
+        const albumList = await this.dataService.listAlbums();
+        return albumList.sort((a, b) => {
+            const aValue = a.albumTime ? a.albumTime : 0;
+            const bValue = b.albumTime ? b.albumTime : 0;
+            return bValue - aValue;
+        }).map((entry: AlbumData) => ({
+            url: '/album/' + entry.id, data: entry
+        }));
     }
 
     public clean() {
-        this.lastCollectionList = undefined;
+        // this.lastCollectionList = undefined;
     }
 }

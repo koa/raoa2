@@ -4,10 +4,11 @@ import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
 import {IonInput, IonSlides, LoadingController} from '@ionic/angular';
 import {HttpClient} from '@angular/common/http';
-import {AlbumEntry, AlbumEntryDetailGQL, ShowSingleMediaEditKeywordsGQL} from '../../generated/graphql';
+import {AlbumEntry} from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
 import {Title} from '@angular/platform-browser';
-import {AlbumDataService} from '../../service/album-data.service';
+import {DataService} from '../../service/data.service';
+import {AlbumEntryData} from '../../service/storage.service';
 
 type AlbumEntryMetadata =
     { __typename?: 'AlbumEntry' }
@@ -23,13 +24,11 @@ export class ShowSingleMediaComponent implements OnInit {
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
-                private albumListService: AlbumDataService,
+                private dataService: DataService,
                 private ngZone: NgZone,
                 private location: Location,
                 private http: HttpClient,
                 private serverApi: ServerApiService,
-                private albumEntryDetailGQL: AlbumEntryDetailGQL,
-                private showSingleMediaEditKeywordsGQL: ShowSingleMediaEditKeywordsGQL,
                 private loadingController: LoadingController,
                 private titleService: Title
     ) {
@@ -47,11 +46,10 @@ export class ShowSingleMediaComponent implements OnInit {
     private imageSlider: IonSlides;
     @ViewChild('videoRoot') private element: ElementRef<HTMLDivElement>;
     public supportShare: boolean;
-    public metadata: AlbumEntryMetadata;
-    public previousMetadata: AlbumEntryMetadata;
-    public nextMetadata: AlbumEntryMetadata;
+    public metadata: AlbumEntryData;
     public showDetails: 'Metadata' | 'Keyword' | null = null;
     public albumKeywords: string[] = [];
+    public allKnownAlbumKeywords = new Set<string>();
     public currentSelectedKeywords = new Set<string>();
     public canEdit = false;
     public currentIsVideo = false;
@@ -80,6 +78,9 @@ export class ShowSingleMediaComponent implements OnInit {
         this.albumId = paramMap.get('id');
         this.mediaId = paramMap.get('mediaId');
         this.filteringKeyword = queryParam.get('keyword') || undefined;
+        const permissions = await this.dataService.userPermission();
+        this.ngZone.run(() => this.canEdit = permissions.canEdit);
+
         await this.showImage(this.mediaId);
         await this.refreshSequence();
         await this.showImage(this.mediaId);
@@ -109,7 +110,8 @@ export class ShowSingleMediaComponent implements OnInit {
     async refreshSequence() {
         this.prevIdMap.clear();
         this.nextIdMap.clear();
-        const [albumData, albumEntries] = await this.albumListService.listAlbum(this.albumId);
+        this.allKnownAlbumKeywords.clear();
+        const [albumData, albumEntries] = await this.dataService.listAlbum(this.albumId);
         let lastAlbumId: BigInt;
         const sortedEntries = this.filteringKeyword === undefined ?
             albumEntries :
@@ -120,13 +122,13 @@ export class ShowSingleMediaComponent implements OnInit {
                 this.nextIdMap.set(lastAlbumId, myId);
                 this.prevIdMap.set(myId, lastAlbumId);
             }
+            entry.keywords.forEach(kw => this.allKnownAlbumKeywords.add(kw));
             lastAlbumId = myId;
         }
     }
 
 
     async showImage(mediaId: string) {
-        await this.storeKeywordMutation();
         let waitIndicator;
         const waitTimeoutHandler = window.setTimeout(() => {
             this.loadingController.create({
@@ -139,28 +141,23 @@ export class ShowSingleMediaComponent implements OnInit {
             });
         }, 500);
         try {
-            const [albumData, albumEntries] = await this.albumListService.listAlbum(this.albumId);
             const mediaIdAsInt = BigInt('0x' + mediaId);
             const previousMediaId = ShowSingleMediaComponent.bigint2objectid(this.prevIdMap.get(mediaIdAsInt));
             const nextMediaId = ShowSingleMediaComponent.bigint2objectid(this.nextIdMap.get(mediaIdAsInt));
-            const metadata = await this.serverApi.query(this.albumEntryDetailGQL, {albumId: this.albumId, entryId: mediaId});
+            const [albumEntry, keywords] = await this.dataService.getAlbumEntry(this.albumId, mediaId);
 
             this.ngZone.run(() => {
                 this.mediaId = mediaId;
-                this.metadata = metadata.albumById.albumEntry;
-                this.canEdit = metadata.currentUser.canEdit;
-                this.titleService.setTitle(metadata.albumById.albumEntry.name);
+                this.metadata = albumEntry;
+                this.titleService.setTitle(albumEntry.name);
                 this.location.replaceState(this.mediaPath(mediaId));
                 this.previousMediaId = previousMediaId;
                 this.nextMediaId = nextMediaId;
-                this.currentSelectedKeywords = new Set(metadata.albumById.albumEntry.keywords);
-                const allKeywords = new Set(this.albumKeywords);
+                this.currentSelectedKeywords = new Set(keywords);
+                const allKeywords = new Set(this.allKnownAlbumKeywords);
                 this.currentSelectedKeywords.forEach(keyword => allKeywords.add(keyword));
-                this.currentIsVideo = metadata.albumById.albumEntry.contentType.startsWith('video');
+                this.currentIsVideo = albumEntry.entryType === 'video';
                 this.playVideo = false;
-                for (const entry of albumEntries) {
-                    entry.keywords.forEach(keyword => allKeywords.add(keyword));
-                }
                 this.albumKeywords = [];
                 allKeywords.forEach(keyword => this.albumKeywords.push(keyword));
                 this.albumKeywords.sort((k1, k2) => k1.localeCompare(k2));
@@ -171,25 +168,6 @@ export class ShowSingleMediaComponent implements OnInit {
             await this.imageSlider.slideTo(1, 0, false);
             await this.imageSlider.lockSwipeToNext(nextMediaId === undefined);
             await this.imageSlider.lockSwipeToPrev(previousMediaId === undefined);
-            const previousMetadataPromise: Promise<AlbumEntryMetadata> = previousMediaId === undefined ?
-                Promise.resolve(undefined) :
-                this.serverApi.query(this.albumEntryDetailGQL, {
-                    albumId: this.albumId,
-                    entryId: previousMediaId
-                }).then(result => result.albumById.albumEntry);
-
-            const nextMetadataPromise: Promise<AlbumEntryMetadata> = nextMediaId === undefined ?
-                Promise.resolve(undefined) :
-                this.serverApi.query(this.albumEntryDetailGQL, {
-                    albumId: this.albumId,
-                    entryId: nextMediaId
-                })
-                    .then(result => result.albumById.albumEntry);
-
-            Promise.all([previousMetadataPromise, nextMetadataPromise]).then(([prevMetadata, nextMetadata]) => {
-                this.previousMetadata = prevMetadata;
-                this.nextMetadata = nextMetadata;
-            });
         } finally {
             window.clearTimeout(waitTimeoutHandler);
             if (waitIndicator !== undefined) {
@@ -199,50 +177,6 @@ export class ShowSingleMediaComponent implements OnInit {
 
     }
 
-    private async storeKeywordMutation() {
-        if (this.metadata && this.mediaId) {
-            const oldKeywords = new Set(this.metadata.keywords);
-            const removeKeywords: string[] = [];
-            const addKeywords: string[] = [];
-            oldKeywords.forEach(kw => {
-                if (!this.currentSelectedKeywords.has(kw)) {
-                    removeKeywords.push(kw);
-                }
-            });
-            this.currentSelectedKeywords.forEach(kw => {
-                if (!oldKeywords.has(kw)) {
-                    addKeywords.push(kw);
-                }
-            });
-            if (removeKeywords.length > 0 || addKeywords.length > 0) {
-                let waitIndicator;
-                const waitTimeoutHandler = window.setTimeout(() => {
-                    this.loadingController.create({
-                        cssClass: 'transparent-spinner',
-                        message: 'Speichern...',
-                        translucent: true
-                    }).then(ind => {
-                        waitIndicator = ind;
-                        ind.present();
-                    });
-                }, 500);
-                try {
-                    await this.serverApi.update(this.showSingleMediaEditKeywordsGQL, {
-                        albumId: this.albumId, albumEntryId: this.mediaId, mutation: {
-                            addKeywords,
-                            removeKeywords
-                        }
-                    });
-                } finally {
-                    window.clearTimeout(waitTimeoutHandler);
-                    if (waitIndicator !== undefined) {
-                        waitIndicator.dismiss();
-                    }
-                }
-                await this.albumListService.clearAlbum(this.albumId);
-            }
-        }
-    }
 
     private mediaPath(mediaId: string) {
         if (this.filteringKeyword === undefined) {
@@ -262,7 +196,7 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
 
-    async downloadCurrentFile(entryId: string, metadata: AlbumEntryMetadata) {
+    async downloadCurrentFile(entryId: string, metadata: AlbumEntryData) {
         const imageBlob = await this.loadOriginal(entryId);
         const a = document.createElement('a');
         const objectUrl = URL.createObjectURL(imageBlob);
@@ -282,12 +216,12 @@ export class ShowSingleMediaComponent implements OnInit {
         });
     }
 
-    async shareCurrentFile(entryId: string, metadata: AlbumEntryMetadata) {
+    async shareCurrentFile(entryId: string, metadata: AlbumEntryData) {
         const contentType = metadata.contentType || 'image/jpeg';
         const filename = metadata.name || 'original.jpg';
         const imageBlob = await this.loadOriginal(entryId);
         // console.log('image loaded');
-        const lastModified = Date.parse(metadata.created);
+        const lastModified = metadata.created;
         const file = new File([imageBlob], filename, {type: contentType, lastModified});
         const data = {
             title: filename,
@@ -304,7 +238,6 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     async back() {
-        await this.storeKeywordMutation();
         this.location.back();
     }
 
@@ -344,25 +277,25 @@ export class ShowSingleMediaComponent implements OnInit {
         }
     }
 
-    addKeyword($event: KeyboardEvent) {
+    async addKeyword($event: KeyboardEvent) {
         const input: IonInput = $event.target as unknown as IonInput;
         if (typeof input.value === 'string') {
             const newKeyword: string = input.value;
-            if (this.albumKeywords.filter(k => k === newKeyword).length === 0) {
-                this.albumKeywords.push(newKeyword);
-            }
-            this.currentSelectedKeywords.add(newKeyword);
+            this.allKnownAlbumKeywords.add(newKeyword);
             input.value = null;
+            await this.dataService.addKeyword(this.albumId, [this.mediaId], [newKeyword]);
+            await this.showImage(this.mediaId);
         }
 
     }
 
-    toggleKeyword(keyword: string) {
+    async toggleKeyword(keyword: string) {
         if (this.currentSelectedKeywords.has(keyword)) {
-            this.currentSelectedKeywords.delete(keyword);
+            await this.dataService.removeKeyword(this.albumId, [this.mediaId], [keyword]);
         } else {
-            this.currentSelectedKeywords.add(keyword);
+            await this.dataService.addKeyword(this.albumId, [this.mediaId], [keyword]);
         }
+        await this.showImage(this.mediaId);
     }
 
 }

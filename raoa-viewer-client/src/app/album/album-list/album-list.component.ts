@@ -1,12 +1,11 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 import {AlbumEntryDataType, CommonServerApiService, MenuEntry} from '../../service/common-server-api.service';
 import {Location} from '@angular/common';
-import {LoadingController} from '@ionic/angular';
 import {FNCH_COMPETITION_ID} from '../../constants';
-import {CanManageUsersGQL} from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
 import {Title} from '@angular/platform-browser';
 import {ActivatedRoute} from '@angular/router';
+import {DataService} from '../../service/data.service';
 
 @Component({
     selector: 'app-album-list',
@@ -19,20 +18,20 @@ export class AlbumListComponent implements OnInit {
     public canManageUsers = false;
 
     constructor(private commonServerApi: CommonServerApiService,
-                private canManageUsersGQL: CanManageUsersGQL,
                 private serverApi: ServerApiService,
                 private ngZone: NgZone,
                 private location: Location,
                 private titleService: Title,
-                private activatedRoute: ActivatedRoute) {
+                private activatedRoute: ActivatedRoute,
+                private albumDataService: DataService) {
     }
 
     async ngOnInit() {
         this.activatedRoute.paramMap.subscribe(params => {
             this.titleService.setTitle('Liste der Alben');
         });
-        const canManageUsersResult = await this.serverApi.query(this.canManageUsersGQL, {});
-        this.canManageUsers = canManageUsersResult.currentUser.canManageUsers;
+        const permissions = await this.albumDataService.userPermission();
+        this.canManageUsers = permissions.canManageUsers;
         await this.updatePhotoCollectionList();
     }
 
