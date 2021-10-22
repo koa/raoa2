@@ -1,14 +1,14 @@
 <ion-slides (ionSlideTransitionEnd)="slided()" #imageSlider>
     <ion-slide>
         <div *ngIf="previousMediaId" class="image">
-            <img [src]="loadImage(this.previousMediaId) | authImage | async">
+            <img [src]="previousMediaContent | async">
         </div>
     </ion-slide>
     <ion-slide>
         <div class="image" (keyup.arrowLeft)="showImage(previousMediaId)" (keyup.arrowRight)="showImage(nextMediaId)" #videoRoot (resized)="resized()">
-            <img [src]="loadImage(this.mediaId) | authImage | async" *ngIf="!playVideo">
+            <img [src]="currentMediaContent | async" *ngIf="!playVideo">
             <video [src]="loadVideo(this.mediaId) | authImage | async" *ngIf="playVideo" controls>
-                <img [src]="loadImage(this.mediaId) | authImage | async">
+                <img [src]="currentMediaContent | async">
             </video>
             <div class="overlay" *ngIf="!playVideo">
                 <div *ngIf="previousMediaId" class="left-button">
@@ -86,7 +86,7 @@
     </ion-slide>
     <ion-slide>
         <div *ngIf="nextMediaId" class="image">
-            <img [src]="loadImage(this.nextMediaId) | authImage | async">
+            <img [src]="nextMediaContent | async">
         </div>
     </ion-slide>
 </ion-slides>

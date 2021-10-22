@@ -7,8 +7,9 @@ import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
 import {IonContent, LoadingController, MenuController, ToastController} from '@ionic/angular';
 import {Title} from '@angular/platform-browser';
-import {AlbumEntryData} from '../../service/storage.service';
+import {AlbumData, AlbumEntryData} from '../../service/storage.service';
 import {DataService} from '../../service/data.service';
+import {defer, Observable} from 'rxjs';
 
 type AlbumEntryType =
     { __typename?: 'AlbumEntry' }
@@ -27,10 +28,6 @@ function copyPendingKeywords(pendingKeywords: Map<string, Set<string>>): Map<str
     styleUrls: ['./album.page.css'],
 })
 export class AlbumPage implements OnInit {
-    public fnCompetitionId: string;
-    private loadingElement: HTMLIonLoadingElement;
-    private lastSelectedIndex: number | undefined = undefined;
-    private lastScrollPos = 0;
 
 
     constructor(private activatedRoute: ActivatedRoute,
@@ -50,6 +47,11 @@ export class AlbumPage implements OnInit {
                 private userPermissionsGQL: UserPermissionsGQL
     ) {
     }
+
+    public fnCompetitionId: string;
+    private loadingElement: HTMLIonLoadingElement;
+    private lastSelectedIndex: number | undefined = undefined;
+    private lastScrollPos = 0;
 
     public albumId: string;
     public title: string;
@@ -80,6 +82,16 @@ export class AlbumPage implements OnInit {
     // public pendingRemoveKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
     public filterTimeStep = 60 * 1000;
     public hasPendingMutations = false;
+
+    /*
+    private sortKeywords() {
+        this.sortedKeywords = [];
+        this.keywords.forEach(keyword => this.sortedKeywords.push(keyword));
+        this.sortedKeywords.sort((k1, k2) => k1.localeCompare(k2));
+    }
+
+     */
+    public syncing: boolean = false;
 
     public async resized() {
         if (this.elementWidth === this.imageListElement.nativeElement.clientWidth) {
@@ -339,13 +351,24 @@ export class AlbumPage implements OnInit {
                 if (currentRow.length > 0) {
                     const beginTimestamp = currentRow[0].entry.created;
                     const endTimestamp = currentRow[currentRow.length - 1].timestamp;
+                    const width = currentRowWidth;
+                    const scaledImages: Observable<string>[] = [];
+                    currentRow.forEach(shape => {
+                        scaledImages.push(defer(() => {
+                            const imageHeight = this.elementWidth / width;
+                            const imageWidth = imageHeight * shape.width;
+                            const maxLength = Math.max(imageHeight, imageWidth);
+                            return this.dataService.getImage(this.albumId, shape.entry.albumEntryId, maxLength);
+                        }));
+                    });
                     currentBlock.push({
                         shapes: currentRow,
-                        width: currentRowWidth,
+                        width,
                         beginTimestamp,
-                        endTimestamp
+                        endTimestamp,
+                        scaledImages
                     });
-                    currentBlockLength += 1 / currentRowWidth;
+                    currentBlockLength += 1 / width;
                     currentBlockMediaCount += currentRow.length;
                 }
                 currentRow = [];
@@ -405,15 +428,6 @@ export class AlbumPage implements OnInit {
         setTimeout(() => this.contentElement.scrollToPoint(0, scrollPosBefore), 100);
     }
 
-    /*
-    private sortKeywords() {
-        this.sortedKeywords = [];
-        this.keywords.forEach(keyword => this.sortedKeywords.push(keyword));
-        this.sortedKeywords.sort((k1, k2) => k1.localeCompare(k2));
-    }
-
-     */
-
     private async adjustKeywords(knownKeywords: Set<string>): Promise<[string[], Set<string>, Set<string>]> {
         const sortedKeywords: string[] = [];
         knownKeywords.forEach(keyword => sortedKeywords.push(keyword));
@@ -435,13 +449,6 @@ export class AlbumPage implements OnInit {
         return [sortedKeywords, canAddKeywords, canRemoveKeywords];
     }
 
-    public loadImage(blockPart: ImageBlock, shape: Shape): string {
-        const imgWidthPixels = this.elementWidth / blockPart.width * shape.width;
-        const maxLength: number = shape.width < 1 ? imgWidthPixels / shape.width : imgWidthPixels;
-
-        const entryId = shape.entry.albumEntryId;
-        return this.mediaResolver.lookupImage(this.albumId, entryId, maxLength);
-    }
 
     async openDayList($event: MouseEvent) {
         await this.menuController.open('days');
@@ -625,6 +632,25 @@ export class AlbumPage implements OnInit {
     public isResolution(res: number): boolean {
         return this.filterTimeStep === res;
     }
+
+    public async syncAlbum(): Promise<void> {
+        this.syncing = true;
+        try {
+            const albumContent: [AlbumData, AlbumEntryData[]] = await this.dataService.listAlbum(this.albumId);
+            let batch: Promise<void>[] = [];
+            let lastPromise = Promise.resolve();
+            for (const entry of albumContent[1]) {
+                batch.push(this.dataService.getImage(this.albumId, entry.albumEntryId, 3200).then());
+                if (batch.length >= 10) {
+                    await lastPromise;
+                    lastPromise = Promise.all(batch).then();
+                    batch = [];
+                }
+            }
+        } finally {
+            this.ngZone.run(() => this.syncing = false);
+        }
+    }
 }
 
 interface Shape {
@@ -637,6 +663,7 @@ interface Shape {
 
 interface ImageBlock {
     shapes: Shape[];
+    scaledImages: Observable<string>[];
     width: number;
     beginTimestamp: number;
     endTimestamp: number;

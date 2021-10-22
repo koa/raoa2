@@ -60,11 +60,12 @@
                     (click)="toggleEditor($event)">
             <ion-icon name="pencil"></ion-icon>
         </ion-button>
-        <!--
-        <ion-button *ngIf="selectionMode" [disabled]="this.selectedEntries.size==0" slot="end">
+        <!--<ion-button *ngIf="selectionMode" [disabled]="this.selectedEntries.size==0" slot="end" (click)="downloadAlbum()">
             <ion-icon name="download"></ion-icon>
+        </ion-button>-->
+        <ion-button slot="end" [disabled]="syncing" (click)="syncAlbum()">
+            <ion-icon name="sync"></ion-icon>
         </ion-button>
-        -->
         <ion-toggle slot="end" [(ngModel)]="selectionMode" (ngModelChange)="selectionModeChanged()"
                     *ngIf="canEdit"></ion-toggle>
     </ion-toolbar>
@@ -123,12 +124,12 @@
                              [ngStyle]="{'height.px':(elementWidth/blockPart.width), 'width.%':100}"
                              [id]="'block-'+rowNr+'-'+blockNr">
                             <div *appInViewport="8" class="image-row" [attr.timestamp]="blockPart.beginTimestamp">
-                                <div *ngFor="let shape of blockPart.shapes"
+                                <div *ngFor="let shape of blockPart.shapes; index as shapeNr"
                                      [ngStyle]="{'height.px':(elementWidth/blockPart.width),'width.px':elementWidth/blockPart.width*shape.width}"
                                      class="image-thumbnail-box">
                                     <!--<a [routerLink]="createEntryLink(shape)" [queryParams]="queryParams()"
                                        class="image-thumbnail-anchor">-->
-                                    <img [src]="loadImage(blockPart, shape) | authImage | async" width="100%"
+                                    <img [src]="blockPart.scaledImages[shapeNr] | async" width="100%"
                                          height="100%"
                                          class="image-thumbnail-image"
                                          (click)="imageClicked(blockPart, shape, $event)"

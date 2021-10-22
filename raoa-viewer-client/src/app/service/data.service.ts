@@ -11,8 +11,9 @@ import {
 import {ServerApiService} from './server-api.service';
 import {Maybe} from 'graphql/jsutils/Maybe';
 import {Router} from '@angular/router';
-import {AlbumData, AlbumEntryData, KeywordState, StorageService} from '../service/storage.service';
+import {AlbumData, AlbumEntryData, ImageBlob, KeywordState, StorageService} from '../service/storage.service';
 import {FNCH_COMPETITION_ID} from '../constants';
+import {HttpClient} from '@angular/common/http';
 
 export type QueryAlbumEntry =
     { __typename?: 'AlbumEntry' }
@@ -100,10 +101,13 @@ function createStoreEntry(albumEntry: { __typename?: 'AlbumEntry' } &
     };
 }
 
+
 @Injectable({
     providedIn: 'root'
 })
 export class DataService {
+
+    private pendingImages: Map<string, [((value: (PromiseLike<string> | string)) => void), (reason?: any) => void][]> = new Map();
 
 
     constructor(private serverApi: ServerApiService,
@@ -112,7 +116,8 @@ export class DataService {
                 private userPermissionsGQL: UserPermissionsGQL,
                 private router: Router,
                 private singleAlbumMutateGQL: SingleAlbumMutateGQL,
-                private storageService: StorageService) {
+                private storageService: StorageService,
+                private http: HttpClient) {
         this.serverApi.query(this.allAlbumsGQL, {}).then(result => {
             const data: AlbumData[] = [];
             result.listAlbums.forEach(album => {
@@ -252,11 +257,63 @@ export class DataService {
         return this.storageService.getAlbumEntry(albumId, albumEntryId);
     }
 
-    async hasPendingMutations(albumId: string): Promise<boolean> {
+    public async hasPendingMutations(albumId: string): Promise<boolean> {
         return this.storageService.hasPendingMutations(albumId);
     }
 
-    async clearPendingMutations(albumId: string) {
+    public async clearPendingMutations(albumId: string) {
         return this.storageService.clearPendingMutations(albumId);
     }
+
+    public async getImage(albumId: string, albumEntryId: string, minSize: number): Promise<string> {
+        const storedImage: ImageBlob | undefined = await this.storageService.readImage(albumId, albumEntryId, minSize);
+        if (storedImage !== undefined) {
+            return encodeDataUrl(storedImage);
+        }
+        const nextStepMaxLength = findNextStep(minSize);
+        const src = '/rest/album/' + albumId + '/' + albumEntryId + '/thumbnail?maxLength=' + nextStepMaxLength;
+        const imageBlob = await this.http.get(src, {responseType: 'blob'}).toPromise();
+        if (!imageBlob.type.startsWith('image')) {
+            throw new Error('unknown content type: ' + imageBlob.type);
+        }
+        const data: ImageBlob = {
+            albumId,
+            albumEntryId,
+            mediaSize: nextStepMaxLength,
+            data: imageBlob
+        };
+        await this.storageService.storeImage(data);
+        return encodeDataUrl(data);
+    }
+}
+
+function findNextStep(maxLength: number): number {
+    if (maxLength > 1600) {
+        return 3200;
+    }
+    if (maxLength > 800) {
+        return 1600;
+    }
+    if (maxLength > 400) {
+        return 800;
+    }
+    if (maxLength > 200) {
+        return 400;
+    }
+    if (maxLength > 100) {
+        return 200;
+    }
+    if (maxLength > 50) {
+        return 100;
+    }
+    return 50;
+}
+
+function encodeDataUrl(storedImage: ImageBlob): Promise<string> {
+    const imageBlob = storedImage.data;
+    const reader = new FileReader();
+    return new Promise((resolve, reject) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(imageBlob);
+    });
 }

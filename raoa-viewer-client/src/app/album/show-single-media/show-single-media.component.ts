@@ -42,6 +42,9 @@ export class ShowSingleMediaComponent implements OnInit {
     public mediaId: string;
     public previousMediaId: string;
     public nextMediaId: string;
+    public currentMediaContent: Promise<string> = undefined;
+    public previousMediaContent: Promise<string> = undefined;
+    public nextMediaContent: Promise<string> = undefined;
     @ViewChild('imageSlider', {static: true})
     private imageSlider: IonSlides;
     @ViewChild('videoRoot') private element: ElementRef<HTMLDivElement>;
@@ -86,12 +89,6 @@ export class ShowSingleMediaComponent implements OnInit {
         await this.showImage(this.mediaId);
     }
 
-    loadImage(mediaId: string): string {
-        if (mediaId === undefined) {
-            return '/assets/icon/favicon.ico';
-        }
-        return this.mediaResolver.lookupImage(this.albumId, mediaId, this.elementWidth);
-    }
 
     loadVideo(mediaId: string): string {
         if (mediaId === undefined) {
@@ -161,6 +158,9 @@ export class ShowSingleMediaComponent implements OnInit {
                 this.albumKeywords = [];
                 allKeywords.forEach(keyword => this.albumKeywords.push(keyword));
                 this.albumKeywords.sort((k1, k2) => k1.localeCompare(k2));
+                this.currentMediaContent = this.dataService.getImage(this.albumId, mediaId, 3200);
+                this.previousMediaContent = previousMediaId ? this.dataService.getImage(this.albumId, previousMediaId, 3200) : undefined;
+                this.nextMediaContent = nextMediaId ? this.dataService.getImage(this.albumId, nextMediaId, 3200) : undefined;
             });
 
             await this.imageSlider.lockSwipeToNext(false);

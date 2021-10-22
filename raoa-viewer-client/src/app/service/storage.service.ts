@@ -1,5 +1,6 @@
 import {Injectable} from '@angular/core';
 import Dexie, {Table, WhereClause} from 'dexie';
+import Semaphore from 'semaphore-async-await';
 
 export interface AlbumData {
     id: string;
@@ -29,6 +30,13 @@ export interface AlbumEntryData {
     isoSpeedRatings: number;
 }
 
+export interface ImageBlob {
+    albumId: string;
+    albumEntryId: string;
+    mediaSize: number;
+    data: Blob;
+}
+
 interface PendingKeywordAddEntry {
     albumId: string;
     albumEntryId: string;
@@ -53,19 +61,22 @@ export interface KeywordState {
 })
 export class StorageService extends Dexie {
 
+
     constructor() {
         super('RaoaDatabase');
-        this.version(1)
+        this.version(2)
             .stores({
                 albumData: 'id',
                 albumEntryData: '[albumId+albumEntryId], albumId, keywords, entryType, created',
                 pendingKeywordAddData: '[albumId+albumEntryId+keyword], [albumId+albumEntryId], albumId',
-                pendingKeywordRemoveData: '[albumId+albumEntryId+keyword], [albumId+albumEntryId], albumId'
+                pendingKeywordRemoveData: '[albumId+albumEntryId+keyword], [albumId+albumEntryId], albumId',
+                images: '[albumId+albumEntryId], albumId'
             });
         this.albumDataTable = this.table('albumData');
         this.albumEntryDataTable = this.table('albumEntryData');
         this.pendingKeywordAddDataTable = this.table('pendingKeywordAddData');
         this.pendingKeywordRemoveDataTable = this.table('pendingKeywordRemoveData');
+        this.imagesTable = this.table('images');
         this.whereAddPendingKeyword = this.pendingKeywordAddDataTable.where(['albumId', 'albumEntryId']);
         this.whereRemovePendingKeyword = this.pendingKeywordRemoveDataTable.where(['albumId', 'albumEntryId']);
         this.albumEntryByEntryAndAlbum = this.albumEntryDataTable.where(['albumId', 'albumEntryId']);
@@ -75,9 +86,12 @@ export class StorageService extends Dexie {
     private readonly albumEntryDataTable: Table<AlbumEntryData, [string, string]>;
     private readonly pendingKeywordAddDataTable: Table<PendingKeywordAddEntry, [string, string, string]>;
     private readonly pendingKeywordRemoveDataTable: Table<PendingKeywordRemoveEntry, [string, string, string]>;
+    private readonly imagesTable: Table<ImageBlob, [string, string]>;
     private readonly whereAddPendingKeyword: WhereClause<PendingKeywordAddEntry, [string, string, string]>;
     private readonly whereRemovePendingKeyword: WhereClause<PendingKeywordRemoveEntry, [string, string, string]>;
     private readonly albumEntryByEntryAndAlbum: WhereClause<AlbumEntryData, [string, string]>;
+    private readonly lastAccessTime = new Map<string, number>();
+    private readonly cleanupSemaphore = new Semaphore(1);
 
     public async updateAlbumEntries(entries: AlbumEntryData[], album?: AlbumData) {
         await this.transaction('rw',
@@ -162,6 +176,7 @@ export class StorageService extends Dexie {
 
     public async listAlbum(albumId: string, filter?: (entry: AlbumEntryData) => boolean):
         Promise<[AlbumData | undefined, AlbumEntryData[] | undefined]> {
+        this.lastAccessTime.set(albumId, Date.now());
         return this.transaction('r',
             [this.albumDataTable, this.albumEntryDataTable, this.pendingKeywordAddDataTable, this.pendingKeywordRemoveDataTable],
             async (tx) => {
@@ -293,7 +308,7 @@ export class StorageService extends Dexie {
             });
     }
 
-    async currentKeywordStates(albumId: string, entries: Set<string>): Promise<Map<string, KeywordState>> {
+    public async currentKeywordStates(albumId: string, entries: Set<string>): Promise<Map<string, KeywordState>> {
         return this.transaction('r',
             this.albumEntryDataTable,
             this.pendingKeywordAddDataTable,
@@ -335,19 +350,19 @@ export class StorageService extends Dexie {
             });
     }
 
-    async pendingAddKeywords(albumId: string, addEntryCallback: (PendingKeywordAddEntry) => void) {
+    public async pendingAddKeywords(albumId: string, addEntryCallback: (PendingKeywordAddEntry) => void) {
         await this.transaction('r', this.pendingKeywordAddDataTable, async () => {
             this.pendingKeywordAddDataTable.where('albumId').equals(albumId).each(addEntryCallback);
         });
     }
 
-    async pendingRemoveKeywords(albumId: string, removeEntryCallback: (PendingKeywordRemoveEntry) => void) {
+    public async pendingRemoveKeywords(albumId: string, removeEntryCallback: (PendingKeywordRemoveEntry) => void) {
         await this.transaction('r', this.pendingKeywordRemoveDataTable, async () => {
             this.pendingKeywordRemoveDataTable.where('albumId').equals(albumId).each(removeEntryCallback);
         });
     }
 
-    hasPendingMutations(albumId: string): Promise<boolean> {
+    public hasPendingMutations(albumId: string): Promise<boolean> {
         return this.transaction('r', this.pendingKeywordAddDataTable, this.pendingKeywordRemoveDataTable, async () => {
             const [addCount, removeCount] = await Promise.all([
                 this.pendingKeywordAddDataTable.where('albumId').equals(albumId).count(),
@@ -357,7 +372,7 @@ export class StorageService extends Dexie {
         });
     }
 
-    clearPendingMutations(albumId: string): Promise<void> {
+    public clearPendingMutations(albumId: string): Promise<void> {
         return this.transaction('rw', this.pendingKeywordAddDataTable, this.pendingKeywordRemoveDataTable, async () => {
             await Promise.all([
                 this.pendingKeywordAddDataTable.where('albumId').equals(albumId).delete(),
@@ -366,7 +381,8 @@ export class StorageService extends Dexie {
         });
     }
 
-    getAlbumEntry(albumId: string, albumEntryId: string): Promise<[AlbumEntryData, Set<string>] | undefined> {
+    public getAlbumEntry(albumId: string, albumEntryId: string): Promise<[AlbumEntryData, Set<string>] | undefined> {
+        this.lastAccessTime.set(albumId, Date.now());
         return this.transaction('r',
             this.albumEntryDataTable,
             this.pendingKeywordAddDataTable,
@@ -387,4 +403,104 @@ export class StorageService extends Dexie {
             }
         );
     }
+
+    public readImage(albumId: string, albumEntryId: string, minSize: number): Promise<ImageBlob | undefined> {
+        return this.transaction('r', this.imagesTable, async () => {
+            const storedData = await this.imagesTable.get([albumId, albumEntryId]);
+            if (storedData !== undefined && storedData.mediaSize >= minSize) {
+                return storedData;
+            }
+            return undefined;
+        });
+    }
+
+    public async storeImage(data: ImageBlob): Promise<void> {
+        await this.cleanupSemaphore.acquire();
+        try {
+            if (navigator.storage && navigator.storage.estimate) {
+                const estimation = await navigator.storage.estimate();
+                const quota = estimation.quota;
+                const usage = estimation.usage;
+                if (usage + data.data.size * 1.5 > quota - 10 * 1000 * 1000) {
+                    // console.log('storage limit reached');
+                    // console.log(`Quota: ${quota}`);
+                    // console.log(`Usage: ${usage}`);
+                    await this.cleanupOldestAlbum();
+                }
+            }
+        } finally {
+            this.cleanupSemaphore.release();
+        }
+        return this.transaction('rw', this.imagesTable, async () => {
+            const oldEntry = await this.imagesTable.get([data.albumId, data.albumEntryId]);
+            if (oldEntry === undefined || oldEntry.mediaSize < data.mediaSize) {
+                await this.imagesTable.put(data);
+            }
+        }).catch(async ex => {
+            console.log(ex);
+            if (isQuotaExceeded(ex)) {
+                // QuotaExceededError may occur as the inner error of an AbortError
+                console.error('QuotaExceeded cleanup oldest album');
+                await this.cleanupOldestAlbum();
+                return this.storeImage(data);
+            }
+            throw ex;
+        });
+    }
+
+
+    private async cleanupOldestAlbum(): Promise<void> {
+        return this.transaction('rw', this.albumDataTable, this.albumEntryDataTable, this.imagesTable, async () => {
+            const emptyAlbums: string[] = [];
+            const albumsWithData: string[] = [];
+            await this.albumDataTable.each(a => {
+                if (a.albumEntryVersion === undefined) {
+                    emptyAlbums.push(a.id);
+                } else {
+                    albumsWithData.push(a.id);
+                }
+            });
+            // cleanup orphaned entries
+            const deleteOrphanCount = await this.albumEntryDataTable.where('albumId').anyOf(emptyAlbums).delete() +
+                await this.imagesTable.where('albumId').anyOf(emptyAlbums).delete();
+            if (deleteOrphanCount > 0) {
+                return;
+            }
+            let oldestEntryTime = Number.MAX_SAFE_INTEGER;
+            let oldestEntryKey;
+            albumsWithData.forEach(key => {
+                const time = this.lastAccessTime.get(key) || -1;
+                if (time < oldestEntryTime) {
+                    oldestEntryKey = key;
+                    oldestEntryTime = time;
+                }
+            });
+            const nextFoundKey = oldestEntryKey;
+            if (nextFoundKey === undefined) {
+                return;
+            }
+            // remove images
+            const removedImages = await this.imagesTable.where('albumId').equals(nextFoundKey).delete();
+            if (removedImages > 0) {
+                return;
+            }
+            const album = await this.albumDataTable.get(nextFoundKey);
+            // invalidate content
+            if (album !== undefined) {
+                album.albumEntryVersion = undefined;
+                await this.albumDataTable.put(album);
+            }
+            // remove entries
+            await this.albumEntryDataTable.where('albumId').equals(nextFoundKey).delete();
+        }).catch(ex => {
+            console.error('cannot cleanup data', ex);
+        });
+
+    }
+}
+
+function isQuotaExceeded(ex: any) {
+    return (ex.name === 'QuotaExceededError') ||
+        (ex.inner && ex.inner.name === 'QuotaExceededError');
+
 }
