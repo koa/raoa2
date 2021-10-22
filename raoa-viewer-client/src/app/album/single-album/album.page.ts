@@ -222,7 +222,7 @@ export class AlbumPage implements OnInit {
     private async refresh() {
         await this.enterWait(WaitReason.LOAD);
         try {
-            const userPermissions = await this.serverApi.query(this.userPermissionsGQL, {});
+            const userPermissions = await this.dataService.userPermission();
             const [album, entries] = await this.dataService.listAlbum(this.albumId);
             const rowCountBefore = this.sortedEntries.length;
             const knownKeywords = new Set<string>();
@@ -290,8 +290,8 @@ export class AlbumPage implements OnInit {
                     this.sortedEntries = filteredEntries;
                 }
                 this.fnCompetitionId = album.fnchAlbumId;
-                this.enableSettings = userPermissions.currentUser.canManageUsers;
-                this.canEdit = userPermissions.currentUser.canEdit;
+                this.enableSettings = userPermissions.canManageUsers;
+                this.canEdit = userPermissions.canEdit;
 
             });
             await this.calculateRows();

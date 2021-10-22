@@ -107,9 +107,6 @@ function createStoreEntry(albumEntry: { __typename?: 'AlbumEntry' } &
 })
 export class DataService {
 
-    private pendingImages: Map<string, [((value: (PromiseLike<string> | string)) => void), (reason?: any) => void][]> = new Map();
-
-
     constructor(private serverApi: ServerApiService,
                 private albumContentGQL: AlbumContentGQL,
                 private allAlbumsGQL: AllAlbumsGQL,
@@ -118,22 +115,25 @@ export class DataService {
                 private singleAlbumMutateGQL: SingleAlbumMutateGQL,
                 private storageService: StorageService,
                 private http: HttpClient) {
-        this.serverApi.query(this.allAlbumsGQL, {}).then(result => {
-            const data: AlbumData[] = [];
-            result.listAlbums.forEach(album => {
-                data.push({
-                    albumTime: Date.parse(album.albumTime),
-                    entryCount: album.entryCount,
-                    albumEntryVersion: undefined,
-                    albumVersion: album.version,
-                    title: album.name,
-                    fnchAlbumId: album.labels.filter(e => e.labelName === FNCH_COMPETITION_ID).map(e => e.labelValue).shift(),
-                    id: album.id,
-                    lastUpdated: Date.now()
+        if (navigator.onLine) {
+            this.serverApi.query(this.allAlbumsGQL, {}).then(result => {
+                const data: AlbumData[] = [];
+                result.listAlbums.forEach(album => {
+                    data.push({
+                        albumTime: Date.parse(album.albumTime),
+                        entryCount: album.entryCount,
+                        albumEntryVersion: undefined,
+                        albumVersion: album.version,
+                        title: album.name,
+                        fnchAlbumId: album.labels.filter(e => e.labelName === FNCH_COMPETITION_ID).map(e => e.labelValue).shift(),
+                        id: album.id,
+                        lastUpdated: Date.now(),
+                        syncOffline: 0
+                    });
                 });
+                return this.storageService.updateAlbums(data);
             });
-            return this.storageService.updateAlbums(data);
-        });
+        }
     }
 
     public async listAlbums(): Promise<AlbumData[]> {
@@ -143,6 +143,9 @@ export class DataService {
     public async listAlbum(albumId: string): Promise<[AlbumData, AlbumEntryData[]]> {
         const [album, entries] = await this.storageService.listAlbum(albumId);
         if (album === undefined || entries === undefined) {
+            if (!navigator.onLine) {
+                throw new Error('Offline');
+            }
             const content = await this.serverApi.query(this.albumContentGQL, {albumId});
             const albumById = content.albumById;
             if (!albumById) {
@@ -162,8 +165,8 @@ export class DataService {
                 title: albumById.name,
                 fnchAlbumId: albumById.labels.filter(e => e.labelName === FNCH_COMPETITION_ID).map(e => e.labelValue).shift(),
                 id: albumById.id,
-                lastUpdated: Date.now()
-
+                lastUpdated: Date.now(),
+                syncOffline: 0
             };
             await this.storageService.updateAlbumEntries(newEntries, newAlbum);
             return await this.listAlbum(albumId);
@@ -195,16 +198,23 @@ export class DataService {
         }
     }
 
-    public async clearAlbum(albumId: string) {
-        await this.serverApi.clear();
-    }
 
     public async userPermission(): Promise<UserPermissions> {
+
+        const storedPermissions = await this.storageService.getUserPermissions();
+        if (storedPermissions !== undefined) {
+            return storedPermissions;
+        }
+        if (!navigator.onLine) {
+            throw new Error('Offline');
+        }
         const data = await this.serverApi.query(this.userPermissionsGQL, {});
-        return {
+        const ret = {
             canEdit: data.currentUser.canEdit,
             canManageUsers: data.currentUser.canManageUsers
         };
+        await this.storageService.setUserPermissions(ret);
+        return ret;
     }
 
     public async addKeyword(albumId: string, selectedEntries: string[], keyword: string[]) {
@@ -222,6 +232,9 @@ export class DataService {
     }
 
     async storeMutations(albumId: string) {
+        if (!navigator.onLine) {
+            return;
+        }
         const mutations: MutationData[] = [];
         await Promise.all([
             this.storageService.pendingAddKeywords(albumId, pendingAddEntry => {
@@ -266,9 +279,12 @@ export class DataService {
     }
 
     public async getImage(albumId: string, albumEntryId: string, minSize: number): Promise<string> {
-        const storedImage: ImageBlob | undefined = await this.storageService.readImage(albumId, albumEntryId, minSize);
+        const storedImage = await this.storageService.readImage(albumId, albumEntryId, navigator.onLine ? minSize : 0);
         if (storedImage !== undefined) {
             return encodeDataUrl(storedImage);
+        }
+        if (!navigator.onLine) {
+            throw new Error('Offline');
         }
         const nextStepMaxLength = findNextStep(minSize);
         const src = '/rest/album/' + albumId + '/' + albumEntryId + '/thumbnail?maxLength=' + nextStepMaxLength;
@@ -285,6 +301,7 @@ export class DataService {
         await this.storageService.storeImage(data);
         return encodeDataUrl(data);
     }
+
 }
 
 function findNextStep(maxLength: number): number {

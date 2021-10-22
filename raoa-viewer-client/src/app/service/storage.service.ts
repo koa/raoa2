@@ -11,6 +11,7 @@ export interface AlbumData {
     fnchAlbumId: string;
     entryCount: number;
     albumTime: number;
+    syncOffline: number;
 }
 
 export interface AlbumEntryData {
@@ -55,28 +56,35 @@ export interface KeywordState {
     pendingRemoveKeywords: Set<string>;
 }
 
+export interface UserPermissions {
+    canManageUsers: boolean;
+    canEdit: boolean;
+}
 
 @Injectable({
     providedIn: 'root'
 })
 export class StorageService extends Dexie {
+    private readonly userPermissionsTable: Table<UserPermissions>;
 
 
     constructor() {
         super('RaoaDatabase');
-        this.version(2)
+        this.version(3)
             .stores({
                 albumData: 'id',
                 albumEntryData: '[albumId+albumEntryId], albumId, keywords, entryType, created',
                 pendingKeywordAddData: '[albumId+albumEntryId+keyword], [albumId+albumEntryId], albumId',
                 pendingKeywordRemoveData: '[albumId+albumEntryId+keyword], [albumId+albumEntryId], albumId',
-                images: '[albumId+albumEntryId], albumId'
+                images: '[albumId+albumEntryId], albumId',
+                userPermissions: '++id'
             });
         this.albumDataTable = this.table('albumData');
         this.albumEntryDataTable = this.table('albumEntryData');
         this.pendingKeywordAddDataTable = this.table('pendingKeywordAddData');
         this.pendingKeywordRemoveDataTable = this.table('pendingKeywordRemoveData');
         this.imagesTable = this.table('images');
+        this.userPermissionsTable = this.table('userPermissions');
         this.whereAddPendingKeyword = this.pendingKeywordAddDataTable.where(['albumId', 'albumEntryId']);
         this.whereRemovePendingKeyword = this.pendingKeywordRemoveDataTable.where(['albumId', 'albumEntryId']);
         this.albumEntryByEntryAndAlbum = this.albumEntryDataTable.where(['albumId', 'albumEntryId']);
@@ -143,7 +151,8 @@ export class StorageService extends Dexie {
                             fnchAlbumId: newAlbumEntry.fnchAlbumId,
                             id: newAlbumEntry.id,
                             lastUpdated: Date.now(),
-                            title: newAlbumEntry.title
+                            title: newAlbumEntry.title,
+                            syncOffline: albumEntryBefore.syncOffline
                         });
                     }
                     dataBefore.delete(newAlbumEntry.id);
@@ -479,23 +488,44 @@ export class StorageService extends Dexie {
             if (nextFoundKey === undefined) {
                 return;
             }
+            const album = await this.albumDataTable.get(nextFoundKey);
             // remove images
+            if (album !== undefined) {
+                album.syncOffline = 0;
+                await this.albumDataTable.put(album);
+            }
             const removedImages = await this.imagesTable.where('albumId').equals(nextFoundKey).delete();
             if (removedImages > 0) {
                 return;
             }
-            const album = await this.albumDataTable.get(nextFoundKey);
-            // invalidate content
+            // remove entries
             if (album !== undefined) {
                 album.albumEntryVersion = undefined;
                 await this.albumDataTable.put(album);
             }
-            // remove entries
             await this.albumEntryDataTable.where('albumId').equals(nextFoundKey).delete();
         }).catch(ex => {
             console.error('cannot cleanup data', ex);
         });
+    }
 
+    public getUserPermissions(): Promise<UserPermissions | undefined> {
+        return this.transaction('r',
+            this.userPermissionsTable, async () => {
+                const entries = await this.userPermissionsTable.toArray();
+                if (entries.length > 0) {
+                    return entries[0];
+                } else {
+                    return undefined;
+                }
+            });
+    }
+
+    public setUserPermissions(userPermissions: UserPermissions): Promise<void> {
+        return this.transaction('rw', this.userPermissionsTable, async () => {
+            await this.userPermissionsTable.clear();
+            await this.userPermissionsTable.put(userPermissions);
+        });
     }
 }
 
