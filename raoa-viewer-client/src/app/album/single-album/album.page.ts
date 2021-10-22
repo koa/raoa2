@@ -7,7 +7,7 @@ import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
 import {IonContent, LoadingController, MenuController, ToastController} from '@ionic/angular';
 import {Title} from '@angular/platform-browser';
-import {AlbumData, AlbumEntryData} from '../../service/storage.service';
+import {AlbumEntryData} from '../../service/storage.service';
 import {DataService} from '../../service/data.service';
 import {defer, Observable} from 'rxjs';
 
@@ -28,6 +28,7 @@ function copyPendingKeywords(pendingKeywords: Map<string, Set<string>>): Map<str
     styleUrls: ['./album.page.css'],
 })
 export class AlbumPage implements OnInit {
+    private syncEnabled: boolean;
 
 
     constructor(private activatedRoute: ActivatedRoute,
@@ -91,7 +92,7 @@ export class AlbumPage implements OnInit {
     }
 
      */
-    public syncing: boolean = false;
+    public syncing = false;
 
     public async resized() {
         if (this.elementWidth === this.imageListElement.nativeElement.clientWidth) {
@@ -269,6 +270,7 @@ export class AlbumPage implements OnInit {
                 this.canAddKeyword = canAddKeywords;
                 this.canRemoveKeywords = canRemoveKeywords;
                 this.title = album.title;
+                this.syncEnabled = album.syncOffline > 0;
                 let filteredEntries: AlbumEntryData[];
                 if (this.filteringKeyword === undefined) {
                     filteredEntries = entries;
@@ -634,6 +636,9 @@ export class AlbumPage implements OnInit {
     }
 
     public async syncAlbum(): Promise<void> {
+        await this.dataService.setSync(this.albumId, 3200);
+        await this.refresh();
+        /*
         this.syncing = true;
         try {
             const albumContent: [AlbumData, AlbumEntryData[]] = await this.dataService.listAlbum(this.albumId);
@@ -650,6 +655,7 @@ export class AlbumPage implements OnInit {
         } finally {
             this.ngZone.run(() => this.syncing = false);
         }
+         */
     }
 }
 

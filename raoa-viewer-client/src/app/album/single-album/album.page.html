@@ -63,7 +63,7 @@
         <!--<ion-button *ngIf="selectionMode" [disabled]="this.selectedEntries.size==0" slot="end" (click)="downloadAlbum()">
             <ion-icon name="download"></ion-icon>
         </ion-button>-->
-        <ion-button slot="end" [disabled]="syncing" (click)="syncAlbum()">
+        <ion-button slot="end" [disabled]="syncEnabled" (click)="syncAlbum()">
             <ion-icon name="sync"></ion-icon>
         </ion-button>
         <ion-toggle slot="end" [(ngModel)]="selectionMode" (ngModelChange)="selectionModeChanged()"

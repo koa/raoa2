@@ -128,12 +128,72 @@ export class DataService {
                         fnchAlbumId: album.labels.filter(e => e.labelName === FNCH_COMPETITION_ID).map(e => e.labelValue).shift(),
                         id: album.id,
                         lastUpdated: Date.now(),
-                        syncOffline: 0
+                        syncOffline: 0,
+                        offlineSyncedVersion: undefined
                     });
                 });
                 return this.storageService.updateAlbums(data);
             });
         }
+        this.setTimer();
+    }
+
+    private runningTimer: number | undefined = undefined;
+    private syncRunning = false;
+
+    private setTimer() {
+        if (this.runningTimer !== undefined) {
+            clearInterval(this.runningTimer);
+        }
+        this.runningTimer = setInterval(() => {
+            this.doSync().then();
+        }, 10 * 1000);
+    }
+
+
+    public async doSync(): Promise<void> {
+        if (!navigator.onLine) {
+            return;
+        }
+        if (this.syncRunning) {
+            return;
+        }
+        this.syncRunning = true;
+        try {
+            const albumsToUpdate = await this.storageService.findDeprecatedAlbums();
+            for (const album of albumsToUpdate) {
+                if (navigator.onLine) {
+                    await this.fetchAlbum(album);
+                }
+            }
+            if (!navigator.onLine) {
+                return;
+            }
+            const albumsToSync = await this.storageService.findAlbumsToSync();
+            for (const album of albumsToSync) {
+                const minSize = album.syncOffline;
+                const missingEntries = await this.storageService.findMissingImagesOfAlbum(album.id, minSize);
+                let batch: Promise<void>[] = [];
+                for (const entry of missingEntries) {
+                    if (!navigator.onLine) {
+                        return;
+                    }
+                    if (batch.length > 20) {
+                        await Promise.all(batch);
+                        batch = [];
+                    }
+                    batch.push(this.fetchImage(album.id, entry, minSize).then());
+                }
+                await Promise.all(batch);
+                await this.storageService.setOfflineSynced(album.id, album.albumEntryVersion);
+            }
+        } finally {
+            this.syncRunning = false;
+        }
+    }
+
+    public setSync(albumId: string, minSize: number) {
+        this.storageService.setSync(albumId, minSize);
     }
 
     public async listAlbums(): Promise<AlbumData[]> {
@@ -146,32 +206,41 @@ export class DataService {
             if (!navigator.onLine) {
                 throw new Error('Offline');
             }
-            const content = await this.serverApi.query(this.albumContentGQL, {albumId});
-            const albumById = content.albumById;
-            if (!albumById) {
+            try {
+                await this.fetchAlbum(albumId);
+            } catch (error) {
                 await this.router.navigate(['/']);
-                throw new Error('insufficient permissions');
             }
-
-            const newEntries: AlbumEntryData[] = [];
-            albumById.entries.forEach(albumEntry => {
-                newEntries.push(createStoreEntry(albumEntry, albumId));
-            });
-            const newAlbum: AlbumData = {
-                albumTime: Date.parse(albumById.albumTime),
-                entryCount: albumById.entryCount,
-                albumEntryVersion: albumById.version,
-                albumVersion: albumById.version,
-                title: albumById.name,
-                fnchAlbumId: albumById.labels.filter(e => e.labelName === FNCH_COMPETITION_ID).map(e => e.labelValue).shift(),
-                id: albumById.id,
-                lastUpdated: Date.now(),
-                syncOffline: 0
-            };
-            await this.storageService.updateAlbumEntries(newEntries, newAlbum);
             return await this.listAlbum(albumId);
         }
         return [album, entries];
+    }
+
+    private async fetchAlbum(albumId: string) {
+        const content = await this.serverApi.query(this.albumContentGQL, {albumId});
+        const albumById = content.albumById;
+        if (!albumById) {
+            // await this.router.navigate(['/']);
+            throw new Error('insufficient permissions');
+        }
+
+        const newEntries: AlbumEntryData[] = [];
+        albumById.entries.forEach(albumEntry => {
+            newEntries.push(createStoreEntry(albumEntry, albumId));
+        });
+        const newAlbum: AlbumData = {
+            albumTime: Date.parse(albumById.albumTime),
+            entryCount: albumById.entryCount,
+            albumEntryVersion: albumById.version,
+            albumVersion: albumById.version,
+            title: albumById.name,
+            fnchAlbumId: albumById.labels.filter(e => e.labelName === FNCH_COMPETITION_ID).map(e => e.labelValue).shift(),
+            id: albumById.id,
+            lastUpdated: Date.now(),
+            syncOffline: 0,
+            offlineSyncedVersion: undefined
+        };
+        await this.storageService.updateAlbumEntries(newEntries, newAlbum);
     }
 
     public async modifyAlbum(updates: MutationData[]): Promise<void> {
@@ -286,6 +355,10 @@ export class DataService {
         if (!navigator.onLine) {
             throw new Error('Offline');
         }
+        return encodeDataUrl(await this.fetchImage(albumId, albumEntryId, minSize));
+    }
+
+    private async fetchImage(albumId: string, albumEntryId: string, minSize: number) {
         const nextStepMaxLength = findNextStep(minSize);
         const src = '/rest/album/' + albumId + '/' + albumEntryId + '/thumbnail?maxLength=' + nextStepMaxLength;
         const imageBlob = await this.http.get(src, {responseType: 'blob'}).toPromise();
@@ -299,9 +372,8 @@ export class DataService {
             data: imageBlob
         };
         await this.storageService.storeImage(data);
-        return encodeDataUrl(data);
+        return data;
     }
-
 }
 
 function findNextStep(maxLength: number): number {

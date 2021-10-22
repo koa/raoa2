@@ -12,6 +12,7 @@ export interface AlbumData {
     entryCount: number;
     albumTime: number;
     syncOffline: number;
+    offlineSyncedVersion: string;
 }
 
 export interface AlbumEntryData {
@@ -70,7 +71,7 @@ export class StorageService extends Dexie {
 
     constructor() {
         super('RaoaDatabase');
-        this.version(3)
+        this.version(4)
             .stores({
                 albumData: 'id',
                 albumEntryData: '[albumId+albumEntryId], albumId, keywords, entryType, created',
@@ -131,6 +132,7 @@ export class StorageService extends Dexie {
         return ret;
     }
 
+
     public async updateAlbums(albums: AlbumData[]) {
         await this.transaction('rw', this.albumDataTable, async () => {
             const dataBefore = new Map<string, AlbumData>();
@@ -152,7 +154,8 @@ export class StorageService extends Dexie {
                             id: newAlbumEntry.id,
                             lastUpdated: Date.now(),
                             title: newAlbumEntry.title,
-                            syncOffline: albumEntryBefore.syncOffline
+                            syncOffline: albumEntryBefore.syncOffline,
+                            offlineSyncedVersion: albumEntryBefore.offlineSyncedVersion
                         });
                     }
                     dataBefore.delete(newAlbumEntry.id);
@@ -423,14 +426,37 @@ export class StorageService extends Dexie {
         });
     }
 
-    public async storeImage(data: ImageBlob): Promise<void> {
+    public findDeprecatedAlbums(): Promise<string[]> {
+        return this.transaction('r', this.albumDataTable, async () => {
+            const ret: string[] = [];
+            this.albumDataTable
+                .filter(album => album.syncOffline > 0 && album.albumEntryVersion !== album.albumVersion)
+                .each(album => ret.push(album.id));
+            return ret;
+        });
+    }
+
+    public findMissingImagesOfAlbum(albumId: string, minSize: number): Promise<Set<string>> {
+        return this.transaction('r', this.albumEntryDataTable, this.imagesTable, async () => {
+            const mediaEntries = new Set<string>();
+            await this.albumEntryDataTable.where('albumId').equals(albumId).each(entry => mediaEntries.add(entry.albumEntryId));
+            await this.imagesTable
+                .where('albumId').equals(albumId).and(img => img.mediaSize >= minSize)
+                .each(img => mediaEntries.delete(img.albumEntryId));
+            return mediaEntries;
+        });
+    }
+
+    public async storeImages(data: ImageBlob[]): Promise<void> {
         await this.cleanupSemaphore.acquire();
         try {
             if (navigator.storage && navigator.storage.estimate) {
                 const estimation = await navigator.storage.estimate();
                 const quota = estimation.quota;
                 const usage = estimation.usage;
-                if (usage + data.data.size * 1.5 > quota - 10 * 1000 * 1000) {
+                let totalSize = 0;
+                data.forEach(img => totalSize += img.data.size);
+                if (usage + totalSize * 1.5 > quota - 10 * 1000 * 1000) {
                     // console.log('storage limit reached');
                     // console.log(`Quota: ${quota}`);
                     // console.log(`Usage: ${usage}`);
@@ -441,20 +467,17 @@ export class StorageService extends Dexie {
             this.cleanupSemaphore.release();
         }
         return this.transaction('rw', this.imagesTable, async () => {
-            const oldEntry = await this.imagesTable.get([data.albumId, data.albumEntryId]);
-            if (oldEntry === undefined || oldEntry.mediaSize < data.mediaSize) {
-                await this.imagesTable.put(data);
+            for (const image of data) {
+                const oldEntry = await this.imagesTable.get([image.albumId, image.albumEntryId]);
+                if (oldEntry === undefined || oldEntry.mediaSize < image.mediaSize) {
+                    await this.imagesTable.put(image);
+                }
             }
-        }).catch(async ex => {
-            console.log(ex);
-            if (isQuotaExceeded(ex)) {
-                // QuotaExceededError may occur as the inner error of an AbortError
-                console.error('QuotaExceeded cleanup oldest album');
-                await this.cleanupOldestAlbum();
-                return this.storeImage(data);
-            }
-            throw ex;
         });
+    }
+
+    public storeImage(data: ImageBlob): Promise<void> {
+        return this.storeImages([data]);
     }
 
 
@@ -492,6 +515,7 @@ export class StorageService extends Dexie {
             // remove images
             if (album !== undefined) {
                 album.syncOffline = 0;
+                album.offlineSyncedVersion = undefined;
                 await this.albumDataTable.put(album);
             }
             const removedImages = await this.imagesTable.where('albumId').equals(nextFoundKey).delete();
@@ -525,6 +549,37 @@ export class StorageService extends Dexie {
         return this.transaction('rw', this.userPermissionsTable, async () => {
             await this.userPermissionsTable.clear();
             await this.userPermissionsTable.put(userPermissions);
+        });
+    }
+
+    public findAlbumsToSync(): Promise<AlbumData[]> {
+        return this.transaction('r',
+            this.albumDataTable,
+            () => this.albumDataTable
+                .filter(album => album.syncOffline > 0
+                    && album.albumVersion === album.albumEntryVersion
+                    && album.albumVersion !== album.offlineSyncedVersion)
+                .toArray());
+    }
+
+    public setSync(albumId: string, minSize: number): Promise<void> {
+        return this.transaction('rw', this.albumDataTable, async () => {
+            const albumData = await this.albumDataTable.get(albumId);
+            if (albumData !== undefined && albumData.syncOffline !== minSize) {
+                albumData.syncOffline = minSize;
+                await this.albumDataTable.put(albumData);
+            }
+        });
+    }
+
+    public setOfflineSynced(id: string, albumEntryVersion: string): Promise<void> {
+        return this.transaction('rw', this.albumDataTable, async () => {
+            const alumData = await this.albumDataTable.get(id);
+            if (alumData === undefined) {
+                return;
+            }
+            alumData.offlineSyncedVersion = albumEntryVersion;
+            await this.albumDataTable.put(alumData);
         });
     }
 }
