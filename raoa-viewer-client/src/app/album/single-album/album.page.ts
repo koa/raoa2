@@ -28,7 +28,7 @@ function copyPendingKeywords(pendingKeywords: Map<string, Set<string>>): Map<str
     styleUrls: ['./album.page.css'],
 })
 export class AlbumPage implements OnInit {
-    private syncEnabled: boolean;
+    public syncEnabled: boolean;
 
 
     constructor(private activatedRoute: ActivatedRoute,
@@ -636,7 +636,7 @@ export class AlbumPage implements OnInit {
     }
 
     public async syncAlbum(): Promise<void> {
-        await this.dataService.setSync(this.albumId, 3200);
+        await this.dataService.setSync(this.albumId, this.syncEnabled ? 0 : 3200);
         await this.refresh();
         /*
         this.syncing = true;
