@@ -62,6 +62,8 @@ export interface UserPermissions {
     canEdit: boolean;
 }
 
+export const MAX_SMALL_IMAGE_SIZE = 800;
+
 @Injectable({
     providedIn: 'root'
 })
@@ -71,20 +73,22 @@ export class StorageService extends Dexie {
 
     constructor() {
         super('RaoaDatabase');
-        this.version(4)
+        this.version(5)
             .stores({
                 albumData: 'id',
                 albumEntryData: '[albumId+albumEntryId], albumId, keywords, entryType, created',
                 pendingKeywordAddData: '[albumId+albumEntryId+keyword], [albumId+albumEntryId], albumId',
                 pendingKeywordRemoveData: '[albumId+albumEntryId+keyword], [albumId+albumEntryId], albumId',
-                images: '[albumId+albumEntryId], albumId',
+                bigImages: '[albumId+albumEntryId], albumId',
+                smallImages: '[albumId+albumEntryId], albumId',
                 userPermissions: '++id'
             });
         this.albumDataTable = this.table('albumData');
         this.albumEntryDataTable = this.table('albumEntryData');
         this.pendingKeywordAddDataTable = this.table('pendingKeywordAddData');
         this.pendingKeywordRemoveDataTable = this.table('pendingKeywordRemoveData');
-        this.imagesTable = this.table('images');
+        this.smallImagesTable = this.table('smallImages');
+        this.bigImagesTable = this.table('bigImages');
         this.userPermissionsTable = this.table('userPermissions');
         this.whereAddPendingKeyword = this.pendingKeywordAddDataTable.where(['albumId', 'albumEntryId']);
         this.whereRemovePendingKeyword = this.pendingKeywordRemoveDataTable.where(['albumId', 'albumEntryId']);
@@ -95,7 +99,8 @@ export class StorageService extends Dexie {
     private readonly albumEntryDataTable: Table<AlbumEntryData, [string, string]>;
     private readonly pendingKeywordAddDataTable: Table<PendingKeywordAddEntry, [string, string, string]>;
     private readonly pendingKeywordRemoveDataTable: Table<PendingKeywordRemoveEntry, [string, string, string]>;
-    private readonly imagesTable: Table<ImageBlob, [string, string]>;
+    private readonly smallImagesTable: Table<ImageBlob, [string, string, number]>;
+    private readonly bigImagesTable: Table<ImageBlob, [string, string, number]>;
     private readonly whereAddPendingKeyword: WhereClause<PendingKeywordAddEntry, [string, string, string]>;
     private readonly whereRemovePendingKeyword: WhereClause<PendingKeywordRemoveEntry, [string, string, string]>;
     private readonly albumEntryByEntryAndAlbum: WhereClause<AlbumEntryData, [string, string]>;
@@ -416,13 +421,40 @@ export class StorageService extends Dexie {
         );
     }
 
-    public readImage(albumId: string, albumEntryId: string, minSize: number): Promise<ImageBlob | undefined> {
-        return this.transaction('r', this.imagesTable, async () => {
-            const storedData = await this.imagesTable.get([albumId, albumEntryId]);
-            if (storedData !== undefined && storedData.mediaSize >= minSize) {
-                return storedData;
+    public readImage(albumId: string, albumEntryId: string, minSize: number, online: boolean): Promise<ImageBlob | undefined> {
+        return this.transaction('r', this.bigImagesTable, this.smallImagesTable, async () => {
+            if (online) {
+                if (minSize <= MAX_SMALL_IMAGE_SIZE) {
+                    const smallStoredData = await this.smallImagesTable.get([albumId, albumEntryId]);
+                    if (smallStoredData !== undefined && smallStoredData.mediaSize >= minSize) {
+                        return smallStoredData;
+                    }
+                    return undefined;
+                }
+                const bigStoredData = await this.bigImagesTable.get([albumId, albumEntryId]);
+                if (bigStoredData !== undefined && bigStoredData.mediaSize >= minSize) {
+                    return bigStoredData;
+                }
+                return undefined;
+            } else {
+                if (minSize <= MAX_SMALL_IMAGE_SIZE) {
+                    const smallStoredData = await this.smallImagesTable.get([albumId, albumEntryId]);
+                    if (smallStoredData !== undefined && smallStoredData.mediaSize >= minSize) {
+                        return smallStoredData;
+                    }
+                    const bigStoredData = await this.bigImagesTable.get([albumId, albumEntryId]);
+                    if (bigStoredData !== undefined) {
+                        return bigStoredData;
+                    }
+                    return smallStoredData;
+                } else {
+                    const bigStoredData = await this.bigImagesTable.get([albumId, albumEntryId]);
+                    if (bigStoredData !== undefined) {
+                        return bigStoredData;
+                    }
+                    return this.smallImagesTable.get([albumId, albumEntryId]);
+                }
             }
-            return undefined;
         });
     }
 
@@ -436,14 +468,21 @@ export class StorageService extends Dexie {
         });
     }
 
-    public findMissingImagesOfAlbum(albumId: string, minSize: number): Promise<Set<string>> {
-        return this.transaction('r', this.albumEntryDataTable, this.imagesTable, async () => {
-            const mediaEntries = new Set<string>();
-            await this.albumEntryDataTable.where('albumId').equals(albumId).each(entry => mediaEntries.add(entry.albumEntryId));
-            await this.imagesTable
+    public findMissingImagesOfAlbum(albumId: string, minSize: number): Promise<[Set<string>, Set<string>]> {
+        return this.transaction('r', this.albumEntryDataTable, this.bigImagesTable, this.smallImagesTable, async () => {
+            const smallEntries = new Set<string>();
+            const bigEntries = new Set<string>();
+            await this.albumEntryDataTable.where('albumId').equals(albumId).each(entry => {
+                bigEntries.add(entry.albumEntryId);
+                smallEntries.add(entry.albumEntryId);
+            });
+            await this.smallImagesTable
+                .where('albumId').equals(albumId).and(img => img.mediaSize >= MAX_SMALL_IMAGE_SIZE)
+                .each(img => smallEntries.delete(img.albumEntryId));
+            await this.bigImagesTable
                 .where('albumId').equals(albumId).and(img => img.mediaSize >= minSize)
-                .each(img => mediaEntries.delete(img.albumEntryId));
-            return mediaEntries;
+                .each(img => bigEntries.delete(img.albumEntryId));
+            return [smallEntries, bigEntries];
         });
     }
 
@@ -466,11 +505,19 @@ export class StorageService extends Dexie {
         } finally {
             this.cleanupSemaphore.release();
         }
-        return this.transaction('rw', this.imagesTable, async () => {
+        return this.transaction('rw', this.smallImagesTable, this.bigImagesTable, async () => {
             for (const image of data) {
-                const oldEntry = await this.imagesTable.get([image.albumId, image.albumEntryId]);
-                if (oldEntry === undefined || oldEntry.mediaSize < image.mediaSize) {
-                    await this.imagesTable.put(image);
+                if (image.mediaSize <= MAX_SMALL_IMAGE_SIZE) {
+                    const oldEntry = await this.smallImagesTable.get([image.albumId, image.albumEntryId]);
+                    if (oldEntry === undefined || oldEntry.mediaSize < image.mediaSize) {
+                        await this.smallImagesTable.put(image);
+                    }
+                } else {
+                    const oldEntry = await this.bigImagesTable.get([image.albumId, image.albumEntryId]);
+                    if (oldEntry === undefined || oldEntry.mediaSize < image.mediaSize) {
+                        await this.bigImagesTable.put(image);
+                    }
+
                 }
             }
         });
@@ -482,53 +529,57 @@ export class StorageService extends Dexie {
 
 
     private async cleanupOldestAlbum(): Promise<void> {
-        return this.transaction('rw', this.albumDataTable, this.albumEntryDataTable, this.imagesTable, async () => {
-            const emptyAlbums: string[] = [];
-            const albumsWithData: string[] = [];
-            await this.albumDataTable.each(a => {
-                if (a.albumEntryVersion === undefined) {
-                    emptyAlbums.push(a.id);
-                } else {
-                    albumsWithData.push(a.id);
+        return this.transaction('rw',
+            this.albumDataTable,
+            this.albumEntryDataTable,
+            this.smallImagesTable,
+            this.bigImagesTable, async () => {
+                const albumsWithData: string[] = [];
+                await this.albumDataTable.each(a => {
+                    if (a.albumEntryVersion !== undefined) {
+                        albumsWithData.push(a.id);
+                    }
+                });
+                // cleanup orphaned entries
+                const deleteOrphanCount = await this.albumEntryDataTable.where('albumId').noneOf(albumsWithData).delete() +
+                    await this.bigImagesTable.where('albumId').noneOf(albumsWithData).delete() +
+                    await this.smallImagesTable.where('albumId').noneOf(albumsWithData).delete();
+                if (deleteOrphanCount > 0) {
+                    return;
                 }
-            });
-            // cleanup orphaned entries
-            const deleteOrphanCount = await this.albumEntryDataTable.where('albumId').anyOf(emptyAlbums).delete() +
-                await this.imagesTable.where('albumId').anyOf(emptyAlbums).delete();
-            if (deleteOrphanCount > 0) {
-                return;
-            }
-            let oldestEntryTime = Number.MAX_SAFE_INTEGER;
-            let oldestEntryKey;
-            albumsWithData.forEach(key => {
-                const time = this.lastAccessTime.get(key) || -1;
-                if (time < oldestEntryTime) {
-                    oldestEntryKey = key;
-                    oldestEntryTime = time;
+                let oldestEntryTime = Number.MAX_SAFE_INTEGER;
+                let oldestEntryKey;
+                albumsWithData.forEach(key => {
+                    const time = this.lastAccessTime.get(key) || -1;
+                    if (time < oldestEntryTime) {
+                        oldestEntryKey = key;
+                        oldestEntryTime = time;
+                    }
+                });
+                const nextFoundKey = oldestEntryKey;
+                if (nextFoundKey === undefined) {
+                    return;
                 }
-            });
-            const nextFoundKey = oldestEntryKey;
-            if (nextFoundKey === undefined) {
-                return;
-            }
-            const album = await this.albumDataTable.get(nextFoundKey);
-            // remove images
-            if (album !== undefined) {
-                album.syncOffline = 0;
-                album.offlineSyncedVersion = undefined;
-                await this.albumDataTable.put(album);
-            }
-            const removedImages = await this.imagesTable.where('albumId').equals(nextFoundKey).delete();
-            if (removedImages > 0) {
-                return;
-            }
-            // remove entries
-            if (album !== undefined) {
-                album.albumEntryVersion = undefined;
-                await this.albumDataTable.put(album);
-            }
-            await this.albumEntryDataTable.where('albumId').equals(nextFoundKey).delete();
-        }).catch(ex => {
+                const album = await this.albumDataTable.get(nextFoundKey);
+                // remove images
+                if (album !== undefined) {
+                    album.syncOffline = 0;
+                    album.offlineSyncedVersion = undefined;
+                    await this.albumDataTable.put(album);
+                }
+                const removedImages = await this.bigImagesTable.where('albumId').equals(nextFoundKey).delete() +
+                    await this.bigImagesTable.where('albumId').equals(nextFoundKey).delete()
+                ;
+                if (removedImages > 0) {
+                    return;
+                }
+                // remove entries
+                if (album !== undefined) {
+                    album.albumEntryVersion = undefined;
+                    await this.albumDataTable.put(album);
+                }
+                await this.albumEntryDataTable.where('albumId').equals(nextFoundKey).delete();
+            }).catch(ex => {
             console.error('cannot cleanup data', ex);
         });
     }
@@ -567,6 +618,7 @@ export class StorageService extends Dexie {
             const albumData = await this.albumDataTable.get(albumId);
             if (albumData !== undefined && albumData.syncOffline !== minSize) {
                 albumData.syncOffline = minSize;
+                albumData.offlineSyncedVersion = undefined;
                 await this.albumDataTable.put(albumData);
             }
         });

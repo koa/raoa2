@@ -11,7 +11,7 @@ import {
 import {ServerApiService} from './server-api.service';
 import {Maybe} from 'graphql/jsutils/Maybe';
 import {Router} from '@angular/router';
-import {AlbumData, AlbumEntryData, ImageBlob, KeywordState, StorageService} from '../service/storage.service';
+import {AlbumData, AlbumEntryData, ImageBlob, KeywordState, MAX_SMALL_IMAGE_SIZE, StorageService} from '../service/storage.service';
 import {FNCH_COMPETITION_ID} from '../constants';
 import {HttpClient} from '@angular/common/http';
 
@@ -173,18 +173,31 @@ export class DataService {
             for (const album of albumsToSync) {
                 const minSize = album.syncOffline;
                 const missingEntries = await this.storageService.findMissingImagesOfAlbum(album.id, minSize);
-                let batch: Promise<void>[] = [];
-                for (const entry of missingEntries) {
+                let batch: Promise<ImageBlob>[] = [];
+                let pendingStore: Promise<void> = Promise.resolve();
+                for (const entry of missingEntries[0]) {
                     if (!navigator.onLine) {
                         return;
                     }
-                    if (batch.length > 20) {
-                        await Promise.all(batch);
+                    if (batch.length > 10) {
+                        await pendingStore;
+                        pendingStore = this.storageService.storeImages(await Promise.all(batch));
                         batch = [];
                     }
-                    batch.push(this.fetchImage(album.id, entry, minSize).then());
+                    batch.push(this.fetchImage(album.id, entry, MAX_SMALL_IMAGE_SIZE));
                 }
-                await Promise.all(batch);
+                for (const entry of missingEntries[1]) {
+                    if (!navigator.onLine) {
+                        return;
+                    }
+                    if (batch.length > 10) {
+                        await pendingStore;
+                        pendingStore = this.storageService.storeImages(await Promise.all(batch));
+                        batch = [];
+                    }
+                    batch.push(this.fetchImage(album.id, entry, minSize));
+                }
+                await this.storageService.storeImages(await Promise.all(batch));
                 await this.storageService.setOfflineSynced(album.id, album.albumEntryVersion);
             }
         } finally {
@@ -348,17 +361,19 @@ export class DataService {
     }
 
     public async getImage(albumId: string, albumEntryId: string, minSize: number): Promise<string> {
-        const storedImage = await this.storageService.readImage(albumId, albumEntryId, navigator.onLine ? minSize : 0);
+        const storedImage = await this.storageService.readImage(albumId, albumEntryId, minSize, navigator.onLine);
         if (storedImage !== undefined) {
             return encodeDataUrl(storedImage);
         }
         if (!navigator.onLine) {
             throw new Error('Offline');
         }
-        return encodeDataUrl(await this.fetchImage(albumId, albumEntryId, minSize));
+        const fetchedImage = await this.fetchImage(albumId, albumEntryId, minSize);
+        await this.storageService.storeImage(fetchedImage);
+        return encodeDataUrl(fetchedImage);
     }
 
-    private async fetchImage(albumId: string, albumEntryId: string, minSize: number) {
+    private async fetchImage(albumId: string, albumEntryId: string, minSize: number): Promise<ImageBlob> {
         const nextStepMaxLength = findNextStep(minSize);
         const src = '/rest/album/' + albumId + '/' + albumEntryId + '/thumbnail?maxLength=' + nextStepMaxLength;
         const imageBlob = await this.http.get(src, {responseType: 'blob'}).toPromise();
@@ -371,7 +386,6 @@ export class DataService {
             mediaSize: nextStepMaxLength,
             data: imageBlob
         };
-        await this.storageService.storeImage(data);
         return data;
     }
 }

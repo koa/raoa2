@@ -144,6 +144,22 @@ export class ShowSingleMediaComponent implements OnInit {
             const [albumEntry, keywords] = await this.dataService.getAlbumEntry(this.albumId, mediaId);
 
             this.ngZone.run(() => {
+                if (this.mediaId === nextMediaId) {
+                    // move fast forward
+                    this.currentMediaContent = this.nextMediaContent;
+                    this.previousMediaContent = this.currentMediaContent;
+                    this.nextMediaContent = nextMediaId ? this.dataService.getImage(this.albumId, nextMediaId, 3200) : undefined;
+                } else if (this.mediaId === previousMediaId) {
+                    // move fast backward
+                    this.nextMediaContent = this.currentMediaContent;
+                    this.currentMediaContent = this.previousMediaContent;
+                    this.previousMediaContent = previousMediaId ? this.dataService.getImage(this.albumId, previousMediaId, 3200) : undefined;
+                } else if (this.mediaId !== mediaId) {
+                    // move anywhere else
+                    this.currentMediaContent = this.dataService.getImage(this.albumId, mediaId, 3200);
+                    this.previousMediaContent = previousMediaId ? this.dataService.getImage(this.albumId, previousMediaId, 3200) : undefined;
+                    this.nextMediaContent = nextMediaId ? this.dataService.getImage(this.albumId, nextMediaId, 3200) : undefined;
+                }
                 this.mediaId = mediaId;
                 this.metadata = albumEntry;
                 this.titleService.setTitle(albumEntry.name);
@@ -158,9 +174,6 @@ export class ShowSingleMediaComponent implements OnInit {
                 this.albumKeywords = [];
                 allKeywords.forEach(keyword => this.albumKeywords.push(keyword));
                 this.albumKeywords.sort((k1, k2) => k1.localeCompare(k2));
-                this.currentMediaContent = this.dataService.getImage(this.albumId, mediaId, 3200);
-                this.previousMediaContent = previousMediaId ? this.dataService.getImage(this.albumId, previousMediaId, 3200) : undefined;
-                this.nextMediaContent = nextMediaId ? this.dataService.getImage(this.albumId, nextMediaId, 3200) : undefined;
             });
 
             await this.imageSlider.lockSwipeToNext(false);
