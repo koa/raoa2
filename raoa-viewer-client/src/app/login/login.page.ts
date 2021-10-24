@@ -16,7 +16,7 @@ export class LoginPage implements OnInit {
     }
 
     async ngOnInit() {
-        await this.loginService.renderLoginButton(this.route.snapshot.queryParams.target);
+        await this.loginService.renderLoginButton(decodeURI(this.route.snapshot.queryParams.target));
     }
 
 }
