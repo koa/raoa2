@@ -62,7 +62,7 @@ export class ShowSingleMediaComponent implements OnInit {
     public elementWidth = 3200;
     public playVideo = false;
 
-    private static bigint2objectid(value: BigInt): string {
+    private static bigint2objectId(value: BigInt): string {
         if (value === undefined) {
             return undefined;
         }
@@ -79,14 +79,27 @@ export class ShowSingleMediaComponent implements OnInit {
         const paramMap = snapshot.paramMap;
         const queryParam = snapshot.queryParamMap;
         this.albumId = paramMap.get('id');
-        this.mediaId = paramMap.get('mediaId');
+        const mediaId = paramMap.get('mediaId');
         this.filteringKeyword = queryParam.get('keyword') || undefined;
         const permissions = await this.dataService.userPermission();
-        this.ngZone.run(() => this.canEdit = permissions.canEdit);
 
-        await this.showImage(this.mediaId);
+        await this.showImage(mediaId);
         await this.refreshSequence();
-        await this.showImage(this.mediaId);
+        const mediaIdAsInt = BigInt('0x' + mediaId);
+        const previousMediaId = ShowSingleMediaComponent.bigint2objectId(this.prevIdMap.get(mediaIdAsInt));
+        const nextMediaId = ShowSingleMediaComponent.bigint2objectId(this.nextIdMap.get(mediaIdAsInt));
+        this.previousMediaContent = previousMediaId
+            ? this.dataService.getImage(this.albumId, previousMediaId, 3200)
+            : undefined;
+        this.nextMediaContent = nextMediaId
+            ? this.dataService.getImage(this.albumId, nextMediaId, 3200)
+            : undefined;
+        this.ngZone.run(() => {
+            this.nextMediaId = nextMediaId;
+            this.previousMediaId = previousMediaId;
+            this.canEdit = permissions.canEdit;
+        });
+        await this.refreshControls();
     }
 
 
@@ -139,26 +152,34 @@ export class ShowSingleMediaComponent implements OnInit {
         }, 500);
         try {
             const mediaIdAsInt = BigInt('0x' + mediaId);
-            const previousMediaId = ShowSingleMediaComponent.bigint2objectid(this.prevIdMap.get(mediaIdAsInt));
-            const nextMediaId = ShowSingleMediaComponent.bigint2objectid(this.nextIdMap.get(mediaIdAsInt));
+            const previousMediaId = ShowSingleMediaComponent.bigint2objectId(this.prevIdMap.get(mediaIdAsInt));
+            const nextMediaId = ShowSingleMediaComponent.bigint2objectId(this.nextIdMap.get(mediaIdAsInt));
             const [albumEntry, keywords] = await this.dataService.getAlbumEntry(this.albumId, mediaId);
 
             this.ngZone.run(() => {
-                if (this.mediaId === nextMediaId) {
+                if (mediaId === this.nextMediaId) {
                     // move fast forward
-                    this.currentMediaContent = this.nextMediaContent;
                     this.previousMediaContent = this.currentMediaContent;
-                    this.nextMediaContent = nextMediaId ? this.dataService.getImage(this.albumId, nextMediaId, 3200) : undefined;
-                } else if (this.mediaId === previousMediaId) {
+                    this.currentMediaContent = this.nextMediaContent;
+                    this.nextMediaContent = nextMediaId
+                        ? this.dataService.getImage(this.albumId, nextMediaId, 3200)
+                        : undefined;
+                } else if (mediaId === this.previousMediaId) {
                     // move fast backward
                     this.nextMediaContent = this.currentMediaContent;
                     this.currentMediaContent = this.previousMediaContent;
-                    this.previousMediaContent = previousMediaId ? this.dataService.getImage(this.albumId, previousMediaId, 3200) : undefined;
+                    this.previousMediaContent = previousMediaId
+                        ? this.dataService.getImage(this.albumId, previousMediaId, 3200)
+                        : undefined;
                 } else if (this.mediaId !== mediaId) {
                     // move anywhere else
                     this.currentMediaContent = this.dataService.getImage(this.albumId, mediaId, 3200);
-                    this.previousMediaContent = previousMediaId ? this.dataService.getImage(this.albumId, previousMediaId, 3200) : undefined;
-                    this.nextMediaContent = nextMediaId ? this.dataService.getImage(this.albumId, nextMediaId, 3200) : undefined;
+                    this.previousMediaContent = previousMediaId
+                        ? this.dataService.getImage(this.albumId, previousMediaId, 3200)
+                        : undefined;
+                    this.nextMediaContent = nextMediaId
+                        ? this.dataService.getImage(this.albumId, nextMediaId, 3200)
+                        : undefined;
                 }
                 this.mediaId = mediaId;
                 this.metadata = albumEntry;
@@ -175,12 +196,7 @@ export class ShowSingleMediaComponent implements OnInit {
                 allKeywords.forEach(keyword => this.albumKeywords.push(keyword));
                 this.albumKeywords.sort((k1, k2) => k1.localeCompare(k2));
             });
-
-            await this.imageSlider.lockSwipeToNext(false);
-            await this.imageSlider.lockSwipeToPrev(false);
-            await this.imageSlider.slideTo(1, 0, false);
-            await this.imageSlider.lockSwipeToNext(nextMediaId === undefined);
-            await this.imageSlider.lockSwipeToPrev(previousMediaId === undefined);
+            await this.refreshControls();
         } finally {
             window.clearTimeout(waitTimeoutHandler);
             if (waitIndicator !== undefined) {
@@ -190,6 +206,14 @@ export class ShowSingleMediaComponent implements OnInit {
 
     }
 
+
+    private async refreshControls() {
+        await this.imageSlider.lockSwipeToNext(false);
+        await this.imageSlider.lockSwipeToPrev(false);
+        await this.imageSlider.slideTo(1, 0, false);
+        await this.imageSlider.lockSwipeToNext(this.nextMediaId === undefined);
+        await this.imageSlider.lockSwipeToPrev(this.previousMediaId === undefined);
+    }
 
     private mediaPath(mediaId: string) {
         if (this.filteringKeyword === undefined) {
