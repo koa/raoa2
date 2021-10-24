@@ -11,6 +11,7 @@
     "src/main.ts",
     "src/polyfills.ts",
     "node_modules/@types/wicg-file-system-access/index.d.ts",
+    "node_modules/network-information-types/dist-types/index.d.ts"
   ],
   "include": [
     "src/**/*.ts",

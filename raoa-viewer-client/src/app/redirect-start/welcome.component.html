@@ -70,7 +70,9 @@
                     href="mailto:photos@teamkoenig.ch">Administrator</a> um Zugang zu den interessanten Photos zu
                 erhalten.
             </p>
-            <p *ngIf="totalPhotoCount>0">{{totalPhotoCount | number}} Photos</p>
+            <p *ngIf="totalPhotoCount>0 && offlinePhotoCount===0">{{totalPhotoCount | number}} Photos</p>
+            <p *ngIf="totalPhotoCount>0 && offlinePhotoCount>0">{{totalPhotoCount | number}} Photos total,
+                {{offlinePhotoCount | number}} offline verfügbar</p>
         </ion-card-content>
     </ion-card>
     <ion-card *ngIf="userState?.currentUser?.canManageUsers" routerLink="/manage-users">

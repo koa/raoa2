@@ -29,6 +29,7 @@ function copyPendingKeywords(pendingKeywords: Map<string, Set<string>>): Map<str
 })
 export class AlbumPage implements OnInit {
     public syncEnabled: boolean;
+    private bigImageSize: number = 1600;
 
 
     constructor(private activatedRoute: ActivatedRoute,
@@ -53,7 +54,6 @@ export class AlbumPage implements OnInit {
     private loadingElement: HTMLIonLoadingElement;
     private lastSelectedIndex: number | undefined = undefined;
     private lastScrollPos = 0;
-
     public albumId: string;
     public title: string;
     public rows: Array<TableRow> = [];
@@ -98,6 +98,8 @@ export class AlbumPage implements OnInit {
         if (this.elementWidth === this.imageListElement.nativeElement.clientWidth) {
             return;
         }
+        this.bigImageSize = Math.max(window.screen.width, window.screen.height);
+
         const timestampBefore = this.timestamp;
         this.elementWidth = this.imageListElement.nativeElement.clientWidth;
 
@@ -542,9 +544,6 @@ export class AlbumPage implements OnInit {
         return this.canAddKeyword.has(keyword);
     }
 
-    private keywordsOfEntry(entry: AlbumEntryData): Iterable<string> {
-        return entry.keywords;
-    }
 
     public selectionCanRemove(keyword: string): boolean {
         return this.canRemoveKeywords.has(keyword);
@@ -636,7 +635,7 @@ export class AlbumPage implements OnInit {
     }
 
     public async syncAlbum(): Promise<void> {
-        await this.dataService.setSync(this.albumId, this.syncEnabled ? 0 : 3200);
+        await this.dataService.setSync(this.albumId, this.syncEnabled ? 0 : this.bigImageSize);
         await this.refresh();
         /*
         this.syncing = true;

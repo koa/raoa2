@@ -19,6 +19,7 @@ import {ServerApiService} from '../service/server-api.service';
 import {LoginService} from '../service/login.service';
 import {HttpClient} from '@angular/common/http';
 import {FNCH_COMPETITION_ID, FNCH_COMPETITOR_ID} from '../constants';
+import {DataService} from '../service/data.service';
 
 interface FnchEvent {
     pruefungen: FnchCompetition[];
@@ -44,7 +45,7 @@ export class WelcomeComponent implements OnInit {
     @ViewChild('message') private message: IonInput;
 
 
-    public totalPhotoCount: number;
+    public totalPhotoCount = 0;
 
     public userState: Maybe<{ __typename?: 'Query' } &
         Pick<Query, 'authenticationState'> & {
@@ -58,6 +59,7 @@ export class WelcomeComponent implements OnInit {
     userName: string;
     userMail: string;
     userPicture: string;
+    offlinePhotoCount = 0;
 
     constructor(private router: Router,
                 private menu: MenuController,
@@ -71,7 +73,8 @@ export class WelcomeComponent implements OnInit {
                 private updateCredentitalsGQL: UpdateCredentitalsGQL,
                 private loadingController: LoadingController,
                 private toastController: ToastController,
-                private httpClient: HttpClient
+                private httpClient: HttpClient,
+                private dataService: DataService
     ) {
     }
 
@@ -85,17 +88,30 @@ export class WelcomeComponent implements OnInit {
     }
 
     private refreshData() {
-        this.commonServerApiService.listCollections().then(list => {
-            this.ngZone.run(() => this.totalPhotoCount = list.reduce((sum, e) => e.data.entryCount + sum, 0));
-        });
-        this.serverApiService.query(this.getUserstateGQL, {}).then(userState => {
+        this.dataService.listAlbums().then(albums => {
+            let totalPhotoCount = 0;
+            let offlinePhotoCount = 0;
+            albums.forEach(albumData => {
+                totalPhotoCount += albumData.entryCount;
+                if (albumData.albumVersion === albumData.offlineSyncedVersion) {
+                    offlinePhotoCount += albumData.entryCount;
+                }
+            });
             this.ngZone.run(() => {
-                this.userName = this.loginService.userName();
-                this.userMail = this.loginService.userMail();
-                this.userPicture = this.loginService.userPicture();
-                this.userState = userState;
+                this.totalPhotoCount = totalPhotoCount;
+                this.offlinePhotoCount = offlinePhotoCount;
             });
         });
+        if (navigator.onLine) {
+            this.serverApiService.query(this.getUserstateGQL, {}).then(userState => {
+                this.ngZone.run(() => {
+                    this.userName = this.loginService.userName();
+                    this.userMail = this.loginService.userMail();
+                    this.userPicture = this.loginService.userPicture();
+                    this.userState = userState;
+                });
+            });
+        }
     }
 
     async logout() {

@@ -1,5 +1,5 @@
-query AllAlbums{
-    listAlbums {
+query GetAlbumDetails ($albumId: ID!){
+    albumById(id: $albumId){
         id,
         name,
         entryCount,

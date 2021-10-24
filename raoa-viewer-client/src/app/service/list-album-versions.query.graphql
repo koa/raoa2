@@ -1,0 +1,6 @@
+query AllAlbumVersions{
+    listAlbums {
+        id,
+        version
+    }
+}

@@ -21,6 +21,15 @@
                 </ion-card-subtitle>
             </ion-card-header>
             <ion-card-content>
+                <ion-button *ngIf="entry.sync==='none'" color="light" (click)="enableSync(entry.data.id)">
+                    <ion-icon name="cloud"></ion-icon>
+                </ion-button>
+                <ion-button *ngIf="entry.sync==='ready'" (click)="disableSync(entry.data.id)">
+                    <ion-icon name="cloud-done"></ion-icon>
+                </ion-button>
+                <ion-button *ngIf="entry.sync==='loading'" (click)="disableSync(entry.data.id)">
+                    <ion-icon name="cloud-offline"></ion-icon>
+                </ion-button>
                 <ion-button *ngIf="this.canManageUsers" [routerLink]="[entry.url,'manage']" color="light">
                     <ion-icon name="settings"></ion-icon>
                 </ion-button>

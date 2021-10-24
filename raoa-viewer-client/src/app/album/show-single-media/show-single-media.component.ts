@@ -59,7 +59,7 @@ export class ShowSingleMediaComponent implements OnInit {
     private filteringKeyword: string;
     private nextIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
     private prevIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
-    public elementWidth = 3200;
+    public bigImageSize = 1600;
     public playVideo = false;
 
     private static bigint2objectId(value: BigInt): string {
@@ -71,7 +71,7 @@ export class ShowSingleMediaComponent implements OnInit {
 
 
     public async resized() {
-        this.elementWidth = this.element.nativeElement.clientWidth;
+        this.bigImageSize = Math.max(window.screen.width, window.screen.height);
     }
 
     public async ngOnInit(): Promise<void> {
@@ -89,10 +89,10 @@ export class ShowSingleMediaComponent implements OnInit {
         const previousMediaId = ShowSingleMediaComponent.bigint2objectId(this.prevIdMap.get(mediaIdAsInt));
         const nextMediaId = ShowSingleMediaComponent.bigint2objectId(this.nextIdMap.get(mediaIdAsInt));
         this.previousMediaContent = previousMediaId
-            ? this.dataService.getImage(this.albumId, previousMediaId, 3200)
+            ? this.dataService.getImage(this.albumId, previousMediaId, this.bigImageSize)
             : undefined;
         this.nextMediaContent = nextMediaId
-            ? this.dataService.getImage(this.albumId, nextMediaId, 3200)
+            ? this.dataService.getImage(this.albumId, nextMediaId, this.bigImageSize)
             : undefined;
         this.ngZone.run(() => {
             this.nextMediaId = nextMediaId;
@@ -107,7 +107,7 @@ export class ShowSingleMediaComponent implements OnInit {
         if (mediaId === undefined) {
             return undefined;
         }
-        return this.mediaResolver.lookupVideo(this.albumId, mediaId, this.elementWidth);
+        return this.mediaResolver.lookupVideo(this.albumId, mediaId, this.bigImageSize);
     }
 
 
@@ -139,6 +139,9 @@ export class ShowSingleMediaComponent implements OnInit {
 
 
     async showImage(mediaId: string) {
+        if (mediaId === undefined) {
+            return;
+        }
         let waitIndicator;
         const waitTimeoutHandler = window.setTimeout(() => {
             this.loadingController.create({
@@ -162,23 +165,23 @@ export class ShowSingleMediaComponent implements OnInit {
                     this.previousMediaContent = this.currentMediaContent;
                     this.currentMediaContent = this.nextMediaContent;
                     this.nextMediaContent = nextMediaId
-                        ? this.dataService.getImage(this.albumId, nextMediaId, 3200)
+                        ? this.dataService.getImage(this.albumId, nextMediaId, this.bigImageSize)
                         : undefined;
                 } else if (mediaId === this.previousMediaId) {
                     // move fast backward
                     this.nextMediaContent = this.currentMediaContent;
                     this.currentMediaContent = this.previousMediaContent;
                     this.previousMediaContent = previousMediaId
-                        ? this.dataService.getImage(this.albumId, previousMediaId, 3200)
+                        ? this.dataService.getImage(this.albumId, previousMediaId, this.bigImageSize)
                         : undefined;
                 } else if (this.mediaId !== mediaId) {
                     // move anywhere else
-                    this.currentMediaContent = this.dataService.getImage(this.albumId, mediaId, 3200);
+                    this.currentMediaContent = this.dataService.getImage(this.albumId, mediaId, this.bigImageSize);
                     this.previousMediaContent = previousMediaId
-                        ? this.dataService.getImage(this.albumId, previousMediaId, 3200)
+                        ? this.dataService.getImage(this.albumId, previousMediaId, this.bigImageSize)
                         : undefined;
                     this.nextMediaContent = nextMediaId
-                        ? this.dataService.getImage(this.albumId, nextMediaId, 3200)
+                        ? this.dataService.getImage(this.albumId, nextMediaId, this.bigImageSize)
                         : undefined;
                 }
                 this.mediaId = mediaId;

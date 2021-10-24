@@ -1,11 +1,16 @@
 import {Component, NgZone, OnInit} from '@angular/core';
-import {AlbumEntryDataType, CommonServerApiService, MenuEntry} from '../../service/common-server-api.service';
+import {CommonServerApiService} from '../../service/common-server-api.service';
 import {Location} from '@angular/common';
-import {FNCH_COMPETITION_ID} from '../../constants';
 import {ServerApiService} from '../../service/server-api.service';
 import {Title} from '@angular/platform-browser';
 import {ActivatedRoute} from '@angular/router';
 import {DataService} from '../../service/data.service';
+import {AlbumData} from '../../service/storage.service';
+
+type MenuEntry = {
+    sync: 'none' | 'ready' | 'loading';
+    url: string, data: AlbumData
+};
 
 @Component({
     selector: 'app-album-list',
@@ -41,7 +46,15 @@ export class AlbumListComponent implements OnInit {
     }
 
     private async updatePhotoCollectionList() {
-        const entries = await this.commonServerApi.listCollections(this.photoCollectionFilter);
+        const entries = (await this.commonServerApi.listCollections(navigator.onLine, this.photoCollectionFilter))
+            .map((entry: AlbumData) => {
+                const newVar: MenuEntry = {
+                    sync: entry.syncOffline === 0 ? 'none' : (entry.albumVersion === entry.offlineSyncedVersion ? 'ready' : 'loading'),
+                    url: '/album/' + entry.id,
+                    data: entry
+                };
+                return newVar;
+            });
         this.ngZone.run(() => this.foundAlbums = entries);
     }
 
@@ -49,15 +62,15 @@ export class AlbumListComponent implements OnInit {
         this.location.back();
     }
 
-    getFnchId(data: AlbumEntryDataType): string | null {
-        if (!data.labels) {
-            return null;
-        }
-        const foundEntries = data.labels.filter(e => e.labelName === FNCH_COMPETITION_ID);
-        if (foundEntries.length === 0) {
-            return null;
-        }
-        return foundEntries[0].labelValue;
+
+    public async enableSync(id: string) {
+        const length = Math.max(window.screen.width, window.screen.height);
+        await this.albumDataService.setSync(id, length);
+        await this.updatePhotoCollectionList();
     }
 
+    public async disableSync(id: string) {
+        await this.albumDataService.setSync(id, 0);
+        await this.updatePhotoCollectionList();
+    }
 }

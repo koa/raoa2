@@ -1,8 +1,7 @@
 import {Component, EventEmitter, Input, NgZone, OnInit, Output} from '@angular/core';
-import {ServerApiService} from '../service/server-api.service';
-import {Album, AllAlbumsGQL} from '../generated/graphql';
+import {DataService} from '../service/data.service';
+import {AlbumData} from '../service/storage.service';
 
-type AlbumType = { __typename?: 'Album' } & Pick<Album, 'id' | 'name' | 'entryCount' | 'albumTime'>;
 
 @Component({
     selector: 'app-album-list-editor',
@@ -17,19 +16,17 @@ export class AlbumListEditorComponent implements OnInit {
     @Output()
     valueChanged = new EventEmitter<Set<string>>();
     private filterValue = '';
-    private sortedList: AlbumType[];
-    public filteredList: AlbumType[];
+    private sortedList: AlbumData[];
+    public filteredList: AlbumData[];
 
-    constructor(private serverApi: ServerApiService,
-                private albumListGQL: AllAlbumsGQL,
+    constructor(private dataService: DataService,
                 private ngZone: NgZone) {
     }
 
     async ngOnInit() {
-        const data = await this.serverApi.query(this.albumListGQL, {});
+        const data = (await this.dataService.listAlbums()).filter(a => a.albumTime).sort((a1, a2) => a1.albumTime - a2.albumTime);
         this.ngZone.run(() => {
-            const sortedList: (AlbumType)[] = data.listAlbums.filter(a => a.albumTime).sort((a1, a2) => -a1.albumTime.localeCompare(a2.albumTime));
-            this.sortedList = sortedList;
+            this.sortedList = data;
             this.filterList();
         });
 
@@ -41,7 +38,7 @@ export class AlbumListEditorComponent implements OnInit {
     }
 
     private filterList() {
-        this.filteredList = this.sortedList.filter(entry => entry.name.toLowerCase().indexOf(this.filterValue) >= 0);
+        this.filteredList = this.sortedList.filter(entry => entry.title.toLowerCase().indexOf(this.filterValue) >= 0);
     }
 
     toggle(id: string) {

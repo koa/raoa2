@@ -133,8 +133,12 @@ export class StorageService extends Dexie {
 
     public async listAlbums(): Promise<AlbumData[]> {
         const ret: AlbumData[] = [];
-        await this.transaction('rw', this.albumDataTable, async () => this.albumDataTable.each(e => ret.push(e)));
+        await this.transaction('r', this.albumDataTable, async () => this.albumDataTable.each(e => ret.push(e)));
         return ret;
+    }
+
+    public getAlbum(albumId: string): Promise<AlbumData | undefined> {
+        return this.transaction('r', this.albumDataTable, () => this.albumDataTable.get(albumId));
     }
 
 
@@ -163,14 +167,16 @@ export class StorageService extends Dexie {
                             offlineSyncedVersion: albumEntryBefore.offlineSyncedVersion
                         });
                     }
-                    dataBefore.delete(newAlbumEntry.id);
                 }
             }
             this.albumDataTable.bulkPut(modifiedAlbums);
-            const remainingKeys: string[] = [];
-            dataBefore.forEach((data, key) => remainingKeys.push(key));
-            this.albumDataTable.bulkDelete(remainingKeys);
         });
+    }
+
+    public keepAlbums(albumIds: string[]): Promise<void> {
+        return this.transaction('rw',
+            this.albumDataTable,
+            () => this.albumDataTable.where('id').noneOf(albumIds).delete().then());
     }
 
     private async adjustPendingKeywords(entry: AlbumEntryData) {
@@ -259,8 +265,7 @@ export class StorageService extends Dexie {
                         });
                     return [foundAlbumData, finalList];
                 } catch (e) {
-                    console.log('error');
-                    console.log(e);
+                    console.log('error', e);
                     throw e;
                 }
             });

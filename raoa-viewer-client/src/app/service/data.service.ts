@@ -1,5 +1,15 @@
 import {Injectable} from '@angular/core';
-import {AlbumContentGQL, AlbumEntry, AllAlbumsGQL, MutationData, SingleAlbumMutateGQL, UserPermissionsGQL} from '../generated/graphql';
+import {
+    Album,
+    AlbumContentGQL,
+    AlbumEntry,
+    AllAlbumVersionsGQL,
+    GetAlbumDetailsGQL,
+    Label,
+    MutationData,
+    SingleAlbumMutateGQL,
+    UserPermissionsGQL
+} from '../generated/graphql';
 import {ServerApiService} from './server-api.service';
 import {Router} from '@angular/router';
 import {AlbumData, AlbumEntryData, ImageBlob, KeywordState, MAX_SMALL_IMAGE_SIZE, StorageService} from '../service/storage.service';
@@ -50,42 +60,71 @@ function createStoreEntry(albumEntry: { __typename?: 'AlbumEntry' } &
 }
 
 
+function createStoreAlbum(album: { __typename?: 'Album' } & Pick<Album, 'id' | 'name' | 'entryCount' | 'albumTime' | 'version'> &
+    { labels: Array<{ __typename?: 'Label' } & Pick<Label, 'labelName' | 'labelValue'>> }): AlbumData {
+    return {
+        albumTime: Date.parse(album.albumTime),
+        entryCount: album.entryCount,
+        albumEntryVersion: undefined,
+        albumVersion: album.version,
+        title: album.name,
+        fnchAlbumId: album.labels.filter(e => e.labelName === FNCH_COMPETITION_ID).map(e => e.labelValue).shift(),
+        id: album.id,
+        lastUpdated: Date.now(),
+        syncOffline: 0,
+        offlineSyncedVersion: undefined
+    };
+}
+
 @Injectable({
     providedIn: 'root'
 })
 export class DataService {// implements OnDestroy {
     private runningTimer: number | undefined = undefined;
     private syncRunning = false;
+    private syncEnabled = true;
+    private syncStateId = 0;
 
     constructor(private serverApi: ServerApiService,
                 private albumContentGQL: AlbumContentGQL,
-                private allAlbumsGQL: AllAlbumsGQL,
+                private allAlbumVersionsGQL: AllAlbumVersionsGQL,
+                private getAlbumDetailsGQL: GetAlbumDetailsGQL,
                 private userPermissionsGQL: UserPermissionsGQL,
                 private router: Router,
                 private singleAlbumMutateGQL: SingleAlbumMutateGQL,
                 private storageService: StorageService,
                 private http: HttpClient) {
         if (navigator.onLine) {
-            this.serverApi.query(this.allAlbumsGQL, {}).then(result => {
-                const data: AlbumData[] = [];
-                result.listAlbums.forEach(album => {
-                    data.push({
-                        albumTime: Date.parse(album.albumTime),
-                        entryCount: album.entryCount,
-                        albumEntryVersion: undefined,
-                        albumVersion: album.version,
-                        title: album.name,
-                        fnchAlbumId: album.labels.filter(e => e.labelName === FNCH_COMPETITION_ID).map(e => e.labelValue).shift(),
-                        id: album.id,
-                        lastUpdated: Date.now(),
-                        syncOffline: 0,
-                        offlineSyncedVersion: undefined
-                    });
-                });
-                return this.storageService.updateAlbums(data);
-            });
+            this.updateAlbumData().then();
         }
         this.setTimer();
+    }
+
+    async updateAlbumData() {
+        const [albumVersionList, storedAlbums] = await
+            Promise.all([this.serverApi.query(this.allAlbumVersionsGQL, {}),
+                this.storageService.listAlbums()]);
+        const storeAlbumsVersions = new Map<string, string>();
+        storedAlbums.forEach(album => storeAlbumsVersions.set(album.id, album.albumVersion));
+        const albumDataBatch: Promise<AlbumData>[] = [];
+        let lastStore: Promise<void> = Promise.resolve();
+        const keepAlbums: string[] = [];
+        for (const albumVersion of albumVersionList.listAlbums) {
+            const albumId = albumVersion.id;
+            keepAlbums.push(albumId);
+            const latestVersion = albumVersion.version;
+            if (storeAlbumsVersions.get(albumId) === latestVersion) {
+                // already up to date
+                continue;
+            }
+            if (albumDataBatch.length > 100) {
+                await lastStore;
+                lastStore = Promise.all(albumDataBatch).then(fetchedAlbums => this.storageService.updateAlbums(fetchedAlbums));
+            }
+            albumDataBatch.push(this.serverApi.query(this.getAlbumDetailsGQL, {albumId}).then(v => createStoreAlbum(v.albumById)));
+        }
+        Promise.all(albumDataBatch).then(fetchedAlbums => this.storageService.updateAlbums(fetchedAlbums));
+        this.storageService.keepAlbums(keepAlbums).then();
     }
 
 
@@ -94,6 +133,17 @@ export class DataService {// implements OnDestroy {
         this.runningTimer = setInterval(() => {
             this.doSync().then();
         }, 10 * 1000);
+        const connection: NetworkInformation = navigator.connection;
+        if (connection) {
+            const type = connection.type;
+            this.syncEnabled = type === undefined || type === 'wifi' || type === 'ethernet';
+            connection.addEventListener('change', () => {
+                const c = navigator.connection;
+                this.syncEnabled = c.type === undefined || c.type === 'wifi' || c.type === 'ethernet';
+            });
+        } else {
+            this.syncEnabled = true;
+        }
     }
 
 
@@ -104,22 +154,27 @@ export class DataService {// implements OnDestroy {
         }
     }
 
+    private isSyncEnabled(): boolean {
+        return navigator.onLine && this.syncEnabled;
+    }
+
     public async doSync(): Promise<void> {
-        if (!navigator.onLine) {
+        if (!this.isSyncEnabled()) {
             return;
         }
         if (this.syncRunning) {
             return;
         }
         this.syncRunning = true;
+        const startSyncState = this.syncStateId;
         try {
             const albumsToUpdate = await this.storageService.findDeprecatedAlbums();
             for (const album of albumsToUpdate) {
-                if (navigator.onLine) {
+                if (this.isSyncEnabled() && startSyncState === this.syncStateId) {
                     await this.fetchAlbum(album);
                 }
             }
-            if (!navigator.onLine) {
+            if (!this.isSyncEnabled() || startSyncState !== this.syncStateId) {
                 return;
             }
             const albumsToSync = await this.storageService.findAlbumsToSync();
@@ -129,7 +184,7 @@ export class DataService {// implements OnDestroy {
                 let batch: Promise<ImageBlob>[] = [];
                 let pendingStore: Promise<void> = Promise.resolve();
                 for (const entry of missingEntries[0]) {
-                    if (!navigator.onLine) {
+                    if (!this.isSyncEnabled() || startSyncState !== this.syncStateId) {
                         return;
                     }
                     if (batch.length > 10) {
@@ -140,7 +195,7 @@ export class DataService {// implements OnDestroy {
                     batch.push(this.fetchImage(album.id, entry, MAX_SMALL_IMAGE_SIZE));
                 }
                 for (const entry of missingEntries[1]) {
-                    if (!navigator.onLine) {
+                    if (!this.isSyncEnabled() || startSyncState !== this.syncStateId) {
                         return;
                     }
                     if (batch.length > 10) {
@@ -153,13 +208,16 @@ export class DataService {// implements OnDestroy {
                 await this.storageService.storeImages(await Promise.all(batch));
                 await this.storageService.setOfflineSynced(album.id, album.albumEntryVersion);
             }
+        } catch (error) {
+            console.error(error);
         } finally {
             this.syncRunning = false;
         }
     }
 
-    public setSync(albumId: string, minSize: number) {
-        this.storageService.setSync(albumId, minSize);
+    public async setSync(albumId: string, minSize: number) {
+        await this.storageService.setSync(albumId, minSize);
+        this.syncStateId += 1;
     }
 
     public async listAlbums(): Promise<AlbumData[]> {
@@ -183,6 +241,7 @@ export class DataService {// implements OnDestroy {
     }
 
     private async fetchAlbum(albumId: string) {
+        const oldAlbumState = await this.storageService.getAlbum(albumId);
         const content = await this.serverApi.query(this.albumContentGQL, {albumId});
         const albumById = content.albumById;
         if (!albumById) {
@@ -203,8 +262,8 @@ export class DataService {// implements OnDestroy {
             fnchAlbumId: albumById.labels.filter(e => e.labelName === FNCH_COMPETITION_ID).map(e => e.labelValue).shift(),
             id: albumById.id,
             lastUpdated: Date.now(),
-            syncOffline: 0,
-            offlineSyncedVersion: undefined
+            syncOffline: oldAlbumState ? oldAlbumState.syncOffline : 0,
+            offlineSyncedVersion: oldAlbumState?.offlineSyncedVersion
         };
         await this.storageService.updateAlbumEntries(newEntries, newAlbum);
     }
@@ -293,6 +352,7 @@ export class DataService {// implements OnDestroy {
         ]);
         if (mutations.length > 0) {
             await this.modifyAlbum(mutations);
+            this.syncStateId += 1;
         }
     }
 
