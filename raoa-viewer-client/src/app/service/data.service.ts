@@ -1,15 +1,6 @@
 import {Injectable} from '@angular/core';
-import {
-    Album,
-    AlbumContentGQL,
-    AlbumEntry,
-    AllAlbumsGQL,
-    MutationData,
-    SingleAlbumMutateGQL,
-    UserPermissionsGQL
-} from '../generated/graphql';
+import {AlbumContentGQL, AlbumEntry, AllAlbumsGQL, MutationData, SingleAlbumMutateGQL, UserPermissionsGQL} from '../generated/graphql';
 import {ServerApiService} from './server-api.service';
-import {Maybe} from 'graphql/jsutils/Maybe';
 import {Router} from '@angular/router';
 import {AlbumData, AlbumEntryData, ImageBlob, KeywordState, MAX_SMALL_IMAGE_SIZE, StorageService} from '../service/storage.service';
 import {FNCH_COMPETITION_ID} from '../constants';
@@ -19,52 +10,9 @@ export type QueryAlbumEntry =
     { __typename?: 'AlbumEntry' }
     & Pick<AlbumEntry, 'id' | 'name' | 'entryUri' | 'targetWidth' | 'targetHeight' | 'created' | 'keywords'>;
 
-type AlbumListResult = Maybe<{ __typename?: 'Query' } &
-    { albumById?: Maybe<{ __typename?: 'Album' } & Pick<Album, 'name'> & { entries: Array<QueryAlbumEntry> }> }>;
-
-export interface LocalAlbumData {
-    title: string | null;
-    sortedEntries: (QueryAlbumEntry)[];
-    keywords: Map<string, number>;
-    labels: Map<string, string>;
-}
-
 export interface UserPermissions {
     canManageUsers: boolean;
     canEdit: boolean;
-}
-
-
-function sortAlbumEntries(albumEntries: IterableIterator<QueryAlbumEntry> | QueryAlbumEntry[]): QueryAlbumEntry[] {
-    const ret: QueryAlbumEntry [] = [];
-    for (const entry of albumEntries) {
-        if (entry.created) {
-            ret.push(entry);
-        }
-    }
-    ret.sort((e1, e2) => {
-        const c1 = e1?.created;
-        const c2 = e2?.created;
-        return c1 === c2 ? e1.name.localeCompare(e2.name) : c1 === null || c1 === undefined ? 1 : c1.localeCompare(c2);
-    });
-    return ret;
-}
-
-function createKeywordStats(albumEntries: QueryAlbumEntry[]) {
-    const keywords = new Map<string, number>();
-    albumEntries.forEach(entry => {
-        const kw = entry.keywords;
-        if (kw) {
-            kw.forEach(keyword => {
-                if (keywords.has(keyword)) {
-                    keywords.set(keyword, keywords.get(keyword) + 1);
-                } else {
-                    keywords.set(keyword, 1);
-                }
-            });
-        }
-    });
-    return keywords;
 }
 
 function createStoreEntry(albumEntry: { __typename?: 'AlbumEntry' } &
@@ -105,7 +53,9 @@ function createStoreEntry(albumEntry: { __typename?: 'AlbumEntry' } &
 @Injectable({
     providedIn: 'root'
 })
-export class DataService {
+export class DataService {// implements OnDestroy {
+    private runningTimer: number | undefined = undefined;
+    private syncRunning = false;
 
     constructor(private serverApi: ServerApiService,
                 private albumContentGQL: AlbumContentGQL,
@@ -138,18 +88,21 @@ export class DataService {
         this.setTimer();
     }
 
-    private runningTimer: number | undefined = undefined;
-    private syncRunning = false;
 
     private setTimer() {
-        if (this.runningTimer !== undefined) {
-            clearInterval(this.runningTimer);
-        }
+        this.stopRunningTimer();
         this.runningTimer = setInterval(() => {
             this.doSync().then();
         }, 10 * 1000);
     }
 
+
+    private stopRunningTimer() {
+        if (this.runningTimer !== undefined) {
+            clearInterval(this.runningTimer);
+            this.runningTimer = undefined;
+        }
+    }
 
     public async doSync(): Promise<void> {
         if (!navigator.onLine) {
@@ -262,15 +215,15 @@ export class DataService {
                 {updates: updates.slice(i, Math.min(i + 100, updates.length))});
             const mutate = result.mutate;
             if (mutate) {
-                if (mutate.errors && mutate.errors.length > 0) {
+                /*if (mutate.errors && mutate.errors.length > 0) {
                     const messages = mutate.errors.map(m => m.message).join(', ');
                     /*const toastElement = await this.toastController.create({
                         message: 'Fehler beim Speichern' + messages + '"',
                         duration: 10000,
                         color: 'danger'
                     });
-                    await toastElement.present();*/
-                }
+                    await toastElement.present();
+                }*/
                 if (mutate.modifiedEntries && mutate.modifiedEntries.length > 0) {
                     const modifiedEntries: AlbumEntryData[] = [];
                     mutate.modifiedEntries.forEach(entry => modifiedEntries.push(createStoreEntry(entry, entry.album.id)));
@@ -376,18 +329,30 @@ export class DataService {
     private async fetchImage(albumId: string, albumEntryId: string, minSize: number): Promise<ImageBlob> {
         const nextStepMaxLength = findNextStep(minSize);
         const src = '/rest/album/' + albumId + '/' + albumEntryId + '/thumbnail?maxLength=' + nextStepMaxLength;
-        const imageBlob = await this.http.get(src, {responseType: 'blob'}).toPromise();
-        if (!imageBlob.type.startsWith('image')) {
-            throw new Error('unknown content type: ' + imageBlob.type);
+        for (let i = 0; i < 10; i++) {
+            try {
+                const imageBlob = await this.http.get(src, {responseType: 'blob'}).toPromise();
+                if (!imageBlob.type.startsWith('image')) {
+                    console.error(`wrong content type of ${albumEntryId}: ${imageBlob.type}`);
+                    continue;
+                }
+                const data: ImageBlob = {
+                    albumId,
+                    albumEntryId,
+                    mediaSize: nextStepMaxLength,
+                    data: imageBlob
+                };
+                return data;
+            } catch (error) {
+                console.error(`Cannot load ${albumEntryId}, try ${i}`, error);
+            }
         }
-        const data: ImageBlob = {
-            albumId,
-            albumEntryId,
-            mediaSize: nextStepMaxLength,
-            data: imageBlob
-        };
-        return data;
+        throw new Error('Error fetching image');
     }
+
+    /*public ngOnDestroy(): void {
+        this.stopRunningTimer();
+    }*/
 }
 
 function findNextStep(maxLength: number): number {
