@@ -7,19 +7,19 @@ import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import java.security.Principal;
 import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
+import java.util.UUID;
+import java.util.WeakHashMap;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
-import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.ReceivePack;
-import org.eclipse.jgit.transport.ServiceMayNotContinueException;
 import org.eclipse.jgit.transport.resolver.ReceivePackFactory;
 import org.eclipse.jgit.transport.resolver.RepositoryResolver;
 import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
-import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -52,9 +52,8 @@ public class HttpRepositoryResolver
 
   @Override
   public Repository open(final HttpServletRequest req, final String name)
-      throws RepositoryNotFoundException, ServiceNotAuthorizedException, ServiceNotEnabledException,
-          ServiceMayNotContinueException {
-    final String method = req.getMethod();
+      throws ServiceNotAuthorizedException {
+    /*final String method = req.getMethod();
 
     log.info("Repository: " + name);
     log.info("method: " + method);
@@ -68,9 +67,9 @@ public class HttpRepositoryResolver
         final String headerValue = headerValues.nextElement();
         log.info("Header: " + headerName + ": " + headerValue);
       }
-    }
+    }*/
     User user = extractUser(req);
-    log.info("User: " + user);
+    // log.info("User: " + user);
 
     final UUID albumId = UUID.fromString(name);
 
@@ -92,7 +91,7 @@ public class HttpRepositoryResolver
 
   @Override
   public ReceivePack create(HttpServletRequest req, Repository db)
-      throws ServiceNotEnabledException, ServiceNotAuthorizedException {
+      throws ServiceNotAuthorizedException {
     final UUID albumId = reverseMap.get(db);
 
     final User user = extractUser(req);
