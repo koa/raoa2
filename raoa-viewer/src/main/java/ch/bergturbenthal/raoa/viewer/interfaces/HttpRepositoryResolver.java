@@ -1,7 +1,6 @@
 package ch.bergturbenthal.raoa.viewer.interfaces;
 
 import ch.bergturbenthal.raoa.elastic.model.User;
-import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
@@ -13,7 +12,6 @@ import java.util.UUID;
 import java.util.WeakHashMap;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.map.LRUMap;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.ReceivePack;
@@ -28,19 +26,13 @@ import reactor.core.publisher.Mono;
 @Service
 public class HttpRepositoryResolver
     implements RepositoryResolver<HttpServletRequest>, ReceivePackFactory<HttpServletRequest> {
-  private final Map<String, Repository> repositoryCache =
-      Collections.synchronizedMap(new LRUMap<>(20));
   private final Map<Repository, UUID> reverseMap = Collections.synchronizedMap(new WeakHashMap<>());
   private final AlbumList albumList;
-  private final ElasticSearchDataViewService elasticSearchDataViewService;
   private final AuthorizationManager authorizationManager;
 
   public HttpRepositoryResolver(
-      final AlbumList albumList,
-      final ElasticSearchDataViewService elasticSearchDataViewService,
-      final AuthorizationManager authorizationManager) {
+      final AlbumList albumList, final AuthorizationManager authorizationManager) {
     this.albumList = albumList;
-    this.elasticSearchDataViewService = elasticSearchDataViewService;
     this.authorizationManager = authorizationManager;
   }
 
@@ -53,23 +45,8 @@ public class HttpRepositoryResolver
   @Override
   public Repository open(final HttpServletRequest req, final String name)
       throws ServiceNotAuthorizedException {
-    /*final String method = req.getMethod();
 
-    log.info("Repository: " + name);
-    log.info("method: " + method);
-    log.info("URI: " + req.getRequestURI());
-    log.info("Auth Type: " + req.getAuthType());
-    final Enumeration<String> headerNames = req.getHeaderNames();
-    while (headerNames.hasMoreElements()) {
-      final String headerName = headerNames.nextElement();
-      final Enumeration<String> headerValues = req.getHeaders(headerName);
-      while (headerValues.hasMoreElements()) {
-        final String headerValue = headerValues.nextElement();
-        log.info("Header: " + headerName + ": " + headerValue);
-      }
-    }*/
     User user = extractUser(req);
-    // log.info("User: " + user);
 
     final UUID albumId = UUID.fromString(name);
 
