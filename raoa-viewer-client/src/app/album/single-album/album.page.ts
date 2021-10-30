@@ -29,7 +29,6 @@ function copyPendingKeywords(pendingKeywords: Map<string, Set<string>>): Map<str
 })
 export class AlbumPage implements OnInit {
     public syncEnabled: boolean;
-    private bigImageSize: number = 1600;
 
 
     constructor(private activatedRoute: ActivatedRoute,
@@ -98,7 +97,8 @@ export class AlbumPage implements OnInit {
         if (this.elementWidth === this.imageListElement.nativeElement.clientWidth) {
             return;
         }
-        this.bigImageSize = Math.max(window.screen.width, window.screen.height);
+        const screenSize = Math.max(window.screen.width, window.screen.height);
+        const storeScreenSizePromise = this.dataService.storeScreenSize(screenSize);
 
         const timestampBefore = this.timestamp;
         this.elementWidth = this.imageListElement.nativeElement.clientWidth;
@@ -109,6 +109,7 @@ export class AlbumPage implements OnInit {
             this.maxWidth = newMaxWidth;
             await this.calculateRows();
         }
+        await storeScreenSizePromise;
         this.scrollToTimestamp(timestampBefore);
     }
 
@@ -203,6 +204,12 @@ export class AlbumPage implements OnInit {
                     }, 500);
                 }
             }
+            const timestamp = params.get('timestamp');
+            if (timestamp !== undefined) {
+                this.timestamp = Number.parseInt(timestamp, 10);
+                await this.refresh();
+            }
+
         });
         this.activatedRoute.paramMap.subscribe(async params => {
             const id = params.get('id');
@@ -213,20 +220,14 @@ export class AlbumPage implements OnInit {
                 await this.refresh();
             }
         });
-        this.activatedRoute.queryParamMap.subscribe(async params => {
-            const timestamp = params.get('timestamp');
-            if (timestamp !== undefined) {
-                this.timestamp = Number.parseInt(timestamp, 10);
-                await this.refresh();
-            }
-        });
     }
 
     private async refresh() {
         await this.enterWait(WaitReason.LOAD);
         try {
             const userPermissions = await this.dataService.userPermission();
-            const [album, entries] = await this.dataService.listAlbum(this.albumId);
+            const [album, entries, albumSettings] = await this.dataService.listAlbum(this.albumId);
+
             const rowCountBefore = this.sortedEntries.length;
             const knownKeywords = new Set<string>();
             entries.forEach(entry => entry.keywords.forEach(kw => knownKeywords.add(kw)));
@@ -272,7 +273,7 @@ export class AlbumPage implements OnInit {
                 this.canAddKeyword = canAddKeywords;
                 this.canRemoveKeywords = canRemoveKeywords;
                 this.title = album.title;
-                this.syncEnabled = album.syncOffline > 0;
+                this.syncEnabled = albumSettings ? albumSettings.syncOffline : false;
                 let filteredEntries: AlbumEntryData[];
                 if (this.filteringKeyword === undefined) {
                     filteredEntries = entries;
@@ -635,7 +636,7 @@ export class AlbumPage implements OnInit {
     }
 
     public async syncAlbum(): Promise<void> {
-        await this.dataService.setSync(this.albumId, this.syncEnabled ? 0 : this.bigImageSize);
+        await this.dataService.setSync(this.albumId, !this.syncEnabled);
         await this.refresh();
         /*
         this.syncing = true;

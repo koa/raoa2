@@ -92,9 +92,9 @@ export class WelcomeComponent implements OnInit {
             let totalPhotoCount = 0;
             let offlinePhotoCount = 0;
             albums.forEach(albumData => {
-                totalPhotoCount += albumData.entryCount;
-                if (albumData.albumVersion === albumData.offlineSyncedVersion) {
-                    offlinePhotoCount += albumData.entryCount;
+                totalPhotoCount += albumData[0].entryCount;
+                if (albumData[0].albumVersion === albumData[1]?.offlineSyncedVersion) {
+                    offlinePhotoCount += albumData[0].entryCount;
                 }
             });
             this.ngZone.run(() => {

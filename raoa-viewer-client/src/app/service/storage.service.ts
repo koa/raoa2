@@ -6,13 +6,17 @@ export interface AlbumData {
     id: string;
     title: string;
     albumVersion: string;
-    albumEntryVersion: string;
-    lastUpdated: number;
     fnchAlbumId: string;
     entryCount: number;
     albumTime: number;
-    syncOffline: number;
+}
+
+export interface AlbumSettings {
+    id: string;
+    lastUpdated: number;
+    albumEntryVersion: string;
     offlineSyncedVersion: string;
+    syncOffline: boolean;
 }
 
 export interface AlbumEntryData {
@@ -62,65 +66,99 @@ export interface UserPermissions {
     canEdit: boolean;
 }
 
-export const MAX_SMALL_IMAGE_SIZE = 800;
+export interface DeviceData {
+    screenSize: number;
+}
 
 @Injectable({
     providedIn: 'root'
 })
 export class StorageService extends Dexie {
-    private readonly userPermissionsTable: Table<UserPermissions>;
-
-
     constructor() {
         super('RaoaDatabase');
-        this.version(5)
+        this.version(6)
             .stores({
                 albumData: 'id',
+                albumSettings: 'id, offlineSyncedVersion',
                 albumEntryData: '[albumId+albumEntryId], albumId, keywords, entryType, created',
                 pendingKeywordAddData: '[albumId+albumEntryId+keyword], [albumId+albumEntryId], albumId',
                 pendingKeywordRemoveData: '[albumId+albumEntryId+keyword], [albumId+albumEntryId], albumId',
                 bigImages: '[albumId+albumEntryId], albumId',
                 smallImages: '[albumId+albumEntryId], albumId',
-                userPermissions: '++id'
+                userPermissions: '++id',
+                deviceData: '++id'
             });
         this.albumDataTable = this.table('albumData');
+        this.albumSettingsTable = this.table('albumSettings');
         this.albumEntryDataTable = this.table('albumEntryData');
         this.pendingKeywordAddDataTable = this.table('pendingKeywordAddData');
         this.pendingKeywordRemoveDataTable = this.table('pendingKeywordRemoveData');
-        this.smallImagesTable = this.table('smallImages');
         this.bigImagesTable = this.table('bigImages');
+        this.smallImagesTable = this.table('smallImages');
         this.userPermissionsTable = this.table('userPermissions');
+        this.deviceDataTable = this.table('deviceData');
+
         this.whereAddPendingKeyword = this.pendingKeywordAddDataTable.where(['albumId', 'albumEntryId']);
         this.whereRemovePendingKeyword = this.pendingKeywordRemoveDataTable.where(['albumId', 'albumEntryId']);
         this.albumEntryByEntryAndAlbum = this.albumEntryDataTable.where(['albumId', 'albumEntryId']);
+
+        this.getDeviceData().then(deviceData => {
+            if (deviceData !== undefined) {
+                this.screenSize = deviceData.screenSize;
+                this.maxSmallScreenSize = this.screenSize / 4;
+            }
+        }).catch(er => console.error(er));
     }
 
+    private readonly userPermissionsTable: Table<UserPermissions>;
+    private readonly albumSettingsTable: Table<AlbumSettings, string>;
     private readonly albumDataTable: Table<AlbumData, string>;
     private readonly albumEntryDataTable: Table<AlbumEntryData, [string, string]>;
     private readonly pendingKeywordAddDataTable: Table<PendingKeywordAddEntry, [string, string, string]>;
     private readonly pendingKeywordRemoveDataTable: Table<PendingKeywordRemoveEntry, [string, string, string]>;
     private readonly smallImagesTable: Table<ImageBlob, [string, string, number]>;
     private readonly bigImagesTable: Table<ImageBlob, [string, string, number]>;
+    private readonly deviceDataTable: Table<DeviceData>;
+
     private readonly whereAddPendingKeyword: WhereClause<PendingKeywordAddEntry, [string, string, string]>;
     private readonly whereRemovePendingKeyword: WhereClause<PendingKeywordRemoveEntry, [string, string, string]>;
     private readonly albumEntryByEntryAndAlbum: WhereClause<AlbumEntryData, [string, string]>;
     private readonly lastAccessTime = new Map<string, number>();
     private readonly cleanupSemaphore = new Semaphore(1);
 
-    public async updateAlbumEntries(entries: AlbumEntryData[], album?: AlbumData) {
+    private screenSize = 3200;
+    private maxSmallScreenSize = this.screenSize / 4;
+
+
+    public async updateAlbumEntries(entries: AlbumEntryData[], albumId?: string, albumVersion?: string) {
         await this.transaction('rw',
-            this.albumDataTable,
+            this.albumSettingsTable,
             this.albumEntryDataTable,
             this.pendingKeywordAddDataTable,
             this.pendingKeywordRemoveDataTable,
             async () => {
-                if (album) {
+                if (albumId) {
+                    if (albumVersion) {
+                        const settings = await this.albumSettingsTable.get(albumId);
+                        if (settings) {
+                            settings.albumEntryVersion = albumVersion;
+                            settings.lastUpdated = Date.now();
+                            await this.albumSettingsTable.put(settings);
+                        } else {
+                            await this.albumSettingsTable.put({
+                                albumEntryVersion: albumVersion,
+                                id: albumId,
+                                lastUpdated: Date.now(),
+                                offlineSyncedVersion: undefined,
+                                syncOffline: false
+                            });
+                        }
+                    }
                     const keepEntries = new Set<string>();
                     entries.forEach(entry => keepEntries.add(entry.albumEntryId));
-                    await this.albumDataTable.put(album);
                     await this.albumEntryDataTable
                         .where('albumId')
-                        .equals(album.id)
+                        .equals(albumId)
                         .filter(entry => !keepEntries.has(entry.albumEntryId))
                         .delete();
                 }
@@ -131,10 +169,14 @@ export class StorageService extends Dexie {
             });
     }
 
-    public async listAlbums(): Promise<AlbumData[]> {
-        const ret: AlbumData[] = [];
-        await this.transaction('r', this.albumDataTable, async () => this.albumDataTable.each(e => ret.push(e)));
-        return ret;
+    public listAlbums(): Promise<[AlbumData, AlbumSettings | undefined][]> {
+        return this.transaction('r', this.albumDataTable, this.albumSettingsTable, async () => {
+            const settings = new Map<string, AlbumSettings>();
+            await this.albumSettingsTable.each(s => settings.set(s.id, s));
+            const ret: [AlbumData, AlbumSettings][] = [];
+            await this.albumDataTable.each(e => ret.push([e, settings.get(e.id)]));
+            return ret;
+        });
     }
 
     public getAlbum(albumId: string): Promise<AlbumData | undefined> {
@@ -150,22 +192,10 @@ export class StorageService extends Dexie {
             for (const newAlbumEntry of albums) {
                 const albumEntryBefore = dataBefore.get(newAlbumEntry.id);
                 if (albumEntryBefore === undefined) {
-                    newAlbumEntry.albumEntryVersion = undefined;
                     modifiedAlbums.push(newAlbumEntry);
                 } else {
                     if (albumEntryBefore.albumVersion !== newAlbumEntry.albumVersion) {
-                        modifiedAlbums.push({
-                            albumEntryVersion: albumEntryBefore.albumEntryVersion,
-                            albumTime: newAlbumEntry.albumTime,
-                            albumVersion: newAlbumEntry.albumVersion,
-                            entryCount: newAlbumEntry.entryCount,
-                            fnchAlbumId: newAlbumEntry.fnchAlbumId,
-                            id: newAlbumEntry.id,
-                            lastUpdated: Date.now(),
-                            title: newAlbumEntry.title,
-                            syncOffline: albumEntryBefore.syncOffline,
-                            offlineSyncedVersion: albumEntryBefore.offlineSyncedVersion
-                        });
+                        modifiedAlbums.push(newAlbumEntry);
                     }
                 }
             }
@@ -176,7 +206,12 @@ export class StorageService extends Dexie {
     public keepAlbums(albumIds: string[]): Promise<void> {
         return this.transaction('rw',
             this.albumDataTable,
-            () => this.albumDataTable.where('id').noneOf(albumIds).delete().then());
+            this.albumSettingsTable,
+            async () =>
+                Promise.all([
+                    this.albumDataTable.where('id').noneOf(albumIds).delete(),
+                    this.albumSettingsTable.where('id').noneOf(albumIds).delete()
+                ]).then());
     }
 
     private async adjustPendingKeywords(entry: AlbumEntryData) {
@@ -198,19 +233,26 @@ export class StorageService extends Dexie {
     }
 
     public async listAlbum(albumId: string, filter?: (entry: AlbumEntryData) => boolean):
-        Promise<[AlbumData | undefined, AlbumEntryData[] | undefined]> {
+        Promise<[AlbumData | undefined, AlbumEntryData[] | undefined, AlbumSettings | undefined]> {
         this.lastAccessTime.set(albumId, Date.now());
         return this.transaction('r',
-            [this.albumDataTable, this.albumEntryDataTable, this.pendingKeywordAddDataTable, this.pendingKeywordRemoveDataTable],
+            [this.albumDataTable,
+                this.albumSettingsTable,
+                this.albumEntryDataTable,
+                this.pendingKeywordAddDataTable,
+                this.pendingKeywordRemoveDataTable],
             async (tx) => {
                 try {
-                    const foundAlbumData = await this.albumDataTable.get(albumId);
+                    const [foundAlbumData, foundAlbumSettings] = await Promise.all([
+                        await this.albumDataTable.get(albumId),
+                        await this.albumSettingsTable.get(albumId)
+                    ]);
                     if (foundAlbumData === undefined) {
-                        return [undefined, undefined];
+                        return [undefined, undefined, undefined];
                     }
-                    if (foundAlbumData.albumEntryVersion === undefined
-                        || foundAlbumData.albumEntryVersion !== foundAlbumData.albumVersion) {
-                        return [foundAlbumData, undefined];
+                    if (foundAlbumSettings?.albumEntryVersion === undefined
+                        || foundAlbumSettings.albumEntryVersion !== foundAlbumData.albumVersion) {
+                        return [foundAlbumData, undefined, foundAlbumSettings];
                     }
                     const entryFilter = filter ? filter : e => true;
                     const addKeywords = new Map<string, Set<string>>();
@@ -263,7 +305,7 @@ export class StorageService extends Dexie {
                                 contentType: entry.contentType
                             });
                         });
-                    return [foundAlbumData, finalList];
+                    return [foundAlbumData, finalList, foundAlbumSettings];
                 } catch (e) {
                     console.log('error', e);
                     throw e;
@@ -429,7 +471,7 @@ export class StorageService extends Dexie {
     public readImage(albumId: string, albumEntryId: string, minSize: number, online: boolean): Promise<ImageBlob | undefined> {
         return this.transaction('r', this.bigImagesTable, this.smallImagesTable, async () => {
             if (online) {
-                if (minSize <= MAX_SMALL_IMAGE_SIZE) {
+                if (minSize <= this.maxSmallScreenSize) {
                     const smallStoredData = await this.smallImagesTable.get([albumId, albumEntryId]);
                     if (smallStoredData !== undefined && smallStoredData.mediaSize >= minSize) {
                         return smallStoredData;
@@ -442,7 +484,7 @@ export class StorageService extends Dexie {
                 }
                 return undefined;
             } else {
-                if (minSize <= MAX_SMALL_IMAGE_SIZE) {
+                if (minSize <= this.maxSmallScreenSize) {
                     const smallStoredData = await this.smallImagesTable.get([albumId, albumEntryId]);
                     if (smallStoredData !== undefined && smallStoredData.mediaSize >= minSize) {
                         return smallStoredData;
@@ -464,16 +506,18 @@ export class StorageService extends Dexie {
     }
 
     public findDeprecatedAlbums(): Promise<string[]> {
-        return this.transaction('r', this.albumDataTable, async () => {
+        return this.transaction('r', this.albumDataTable, this.albumSettingsTable, async () => {
             const ret: string[] = [];
-            this.albumDataTable
-                .filter(album => album.syncOffline > 0 && album.albumEntryVersion !== album.albumVersion)
+            const albumVersions = new Map<string, string>();
+            await this.albumDataTable.each(album => albumVersions.set(album.id, album.albumVersion));
+            this.albumSettingsTable
+                .filter(album => album.syncOffline && album.albumEntryVersion !== albumVersions.get(album.id))
                 .each(album => ret.push(album.id));
             return ret;
         });
     }
 
-    public findMissingImagesOfAlbum(albumId: string, minSize: number): Promise<[Set<string>, Set<string>]> {
+    public findMissingImagesOfAlbum(albumId: string): Promise<[Set<string>, Set<string>]> {
         return this.transaction('r', this.albumEntryDataTable, this.bigImagesTable, this.smallImagesTable, async () => {
             const smallEntries = new Set<string>();
             const bigEntries = new Set<string>();
@@ -482,10 +526,10 @@ export class StorageService extends Dexie {
                 smallEntries.add(entry.albumEntryId);
             });
             await this.smallImagesTable
-                .where('albumId').equals(albumId).and(img => img.mediaSize >= MAX_SMALL_IMAGE_SIZE)
+                .where('albumId').equals(albumId).and(img => img.mediaSize >= this.maxSmallScreenSize)
                 .each(img => smallEntries.delete(img.albumEntryId));
             await this.bigImagesTable
-                .where('albumId').equals(albumId).and(img => img.mediaSize >= minSize)
+                .where('albumId').equals(albumId).and(img => img.mediaSize >= this.screenSize)
                 .each(img => bigEntries.delete(img.albumEntryId));
             return [smallEntries, bigEntries];
         });
@@ -512,7 +556,7 @@ export class StorageService extends Dexie {
         }
         return this.transaction('rw', this.smallImagesTable, this.bigImagesTable, async () => {
             for (const image of data) {
-                if (image.mediaSize <= MAX_SMALL_IMAGE_SIZE) {
+                if (image.mediaSize <= this.maxSmallScreenSize) {
                     const oldEntry = await this.smallImagesTable.get([image.albumId, image.albumEntryId]);
                     if (oldEntry === undefined || oldEntry.mediaSize < image.mediaSize) {
                         await this.smallImagesTable.put(image);
@@ -535,12 +579,12 @@ export class StorageService extends Dexie {
 
     private async cleanupOldestAlbum(): Promise<void> {
         return this.transaction('rw',
-            this.albumDataTable,
+            this.albumSettingsTable,
             this.albumEntryDataTable,
             this.smallImagesTable,
             this.bigImagesTable, async () => {
                 const albumsWithData: string[] = [];
-                await this.albumDataTable.each(a => {
+                await this.albumSettingsTable.each(a => {
                     if (a.albumEntryVersion !== undefined) {
                         albumsWithData.push(a.id);
                     }
@@ -565,12 +609,12 @@ export class StorageService extends Dexie {
                 if (nextFoundKey === undefined) {
                     return;
                 }
-                const album = await this.albumDataTable.get(nextFoundKey);
+                const albumSettings = await this.albumSettingsTable.get(nextFoundKey);
                 // remove images
-                if (album !== undefined) {
-                    album.syncOffline = 0;
-                    album.offlineSyncedVersion = undefined;
-                    await this.albumDataTable.put(album);
+                if (albumSettings !== undefined) {
+                    albumSettings.syncOffline = false;
+                    albumSettings.offlineSyncedVersion = undefined;
+                    await this.albumSettingsTable.put(albumSettings);
                 }
                 const removedImages = await this.bigImagesTable.where('albumId').equals(nextFoundKey).delete() +
                     await this.bigImagesTable.where('albumId').equals(nextFoundKey).delete()
@@ -579,9 +623,9 @@ export class StorageService extends Dexie {
                     return;
                 }
                 // remove entries
-                if (album !== undefined) {
-                    album.albumEntryVersion = undefined;
-                    await this.albumDataTable.put(album);
+                if (albumSettings !== undefined) {
+                    albumSettings.albumEntryVersion = undefined;
+                    await this.albumSettingsTable.put(albumSettings);
                 }
                 await this.albumEntryDataTable.where('albumId').equals(nextFoundKey).delete();
             }).catch(ex => {
@@ -608,37 +652,80 @@ export class StorageService extends Dexie {
         });
     }
 
-    public findAlbumsToSync(): Promise<AlbumData[]> {
-        return this.transaction('r',
-            this.albumDataTable,
-            () => this.albumDataTable
-                .filter(album => album.syncOffline > 0
-                    && album.albumVersion === album.albumEntryVersion
-                    && album.albumVersion !== album.offlineSyncedVersion)
-                .toArray());
+    public getDeviceData(): Promise<DeviceData | undefined> {
+        return this.transaction('r', this.deviceDataTable, async () => {
+            const entries = await this.deviceDataTable.toArray();
+            if (entries.length > 0) {
+                return entries[0];
+            }
+            return undefined;
+        });
     }
 
-    public setSync(albumId: string, minSize: number): Promise<void> {
-        return this.transaction('rw', this.albumDataTable, async () => {
-            const albumData = await this.albumDataTable.get(albumId);
-            if (albumData !== undefined && albumData.syncOffline !== minSize) {
-                albumData.syncOffline = minSize;
-                albumData.offlineSyncedVersion = undefined;
-                await this.albumDataTable.put(albumData);
+    public setDeviceData(deviceData: DeviceData): Promise<void> {
+        return this.transaction('rw', this.deviceDataTable, async () => {
+            await this.deviceDataTable.clear();
+            await this.deviceDataTable.put(deviceData);
+            this.screenSize = deviceData.screenSize;
+            this.maxSmallScreenSize = this.screenSize / 4;
+        });
+    }
+
+    public findAlbumsToSync(): Promise<AlbumSettings[]> {
+        return this.transaction('r',
+            this.albumSettingsTable,
+            this.albumDataTable,
+            async () => {
+                const versions = new Map<string, string>();
+                await this.albumDataTable.each(album => versions.set(album.id, album.albumVersion));
+                return this.albumSettingsTable
+                    .filter(album => album.syncOffline
+                        && versions.get(album.id) === album.albumEntryVersion
+                        && album.albumEntryVersion !== album.offlineSyncedVersion)
+                    .toArray();
+            });
+    }
+
+    public setSync(albumId: string, enabled: boolean): Promise<void> {
+        return this.transaction('rw', this.albumSettingsTable, async () => {
+            const albumSettings = await this.albumSettingsTable.get(albumId);
+            if (albumSettings === undefined) {
+                this.albumSettingsTable.put({
+                    albumEntryVersion: undefined,
+                    lastUpdated: 0,
+                    offlineSyncedVersion: undefined,
+                    syncOffline: enabled,
+                    id: albumId
+                });
+            } else if (albumSettings.syncOffline !== enabled) {
+                albumSettings.syncOffline = enabled;
+                albumSettings.offlineSyncedVersion = undefined;
+                await this.albumSettingsTable.put(albumSettings);
             }
         });
     }
 
     public setOfflineSynced(id: string, albumEntryVersion: string): Promise<void> {
-        return this.transaction('rw', this.albumDataTable, async () => {
-            const alumData = await this.albumDataTable.get(id);
+        return this.transaction('rw', this.albumSettingsTable, async () => {
+            const alumData = await this.albumSettingsTable.get(id);
             if (alumData === undefined) {
                 return;
             }
             alumData.offlineSyncedVersion = albumEntryVersion;
-            await this.albumDataTable.put(alumData);
+            await this.albumSettingsTable.put(alumData);
         });
     }
+
+    public listOfflineAvailableVersions(): Promise<Map<string, string>> {
+        return this.transaction('r', this.albumSettingsTable, async () => {
+            const ret = new Map<string, string>();
+            await this.albumSettingsTable
+                .where('offlineSyncedVersion')
+                .notEqual(undefined).each(settings => ret.set(settings.id, settings.offlineSyncedVersion));
+            return ret;
+        });
+    }
+
 }
 
 function isQuotaExceeded(ex: any) {

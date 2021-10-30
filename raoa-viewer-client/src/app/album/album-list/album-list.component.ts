@@ -5,7 +5,7 @@ import {ServerApiService} from '../../service/server-api.service';
 import {Title} from '@angular/platform-browser';
 import {ActivatedRoute} from '@angular/router';
 import {DataService} from '../../service/data.service';
-import {AlbumData} from '../../service/storage.service';
+import {AlbumData, AlbumSettings} from '../../service/storage.service';
 
 type MenuEntry = {
     sync: 'none' | 'ready' | 'loading';
@@ -47,11 +47,11 @@ export class AlbumListComponent implements OnInit {
 
     private async updatePhotoCollectionList() {
         const entries = (await this.commonServerApi.listCollections(navigator.onLine, this.photoCollectionFilter))
-            .map((entry: AlbumData) => {
+            .map((entry: [AlbumData, AlbumSettings | undefined]) => {
                 const newVar: MenuEntry = {
-                    sync: entry.syncOffline === 0 ? 'none' : (entry.albumVersion === entry.offlineSyncedVersion ? 'ready' : 'loading'),
-                    url: '/album/' + entry.id,
-                    data: entry
+                    sync: entry[1]?.syncOffline ? (entry[0].albumVersion === entry[1]?.offlineSyncedVersion ? 'ready' : 'loading') : 'none',
+                    url: '/album/' + entry[0].id,
+                    data: entry[0]
                 };
                 return newVar;
             });
@@ -64,13 +64,12 @@ export class AlbumListComponent implements OnInit {
 
 
     public async enableSync(id: string) {
-        const length = Math.max(window.screen.width, window.screen.height);
-        await this.albumDataService.setSync(id, length);
+        await this.albumDataService.setSync(id, true);
         await this.updatePhotoCollectionList();
     }
 
     public async disableSync(id: string) {
-        await this.albumDataService.setSync(id, 0);
+        await this.albumDataService.setSync(id, false);
         await this.updatePhotoCollectionList();
     }
 }

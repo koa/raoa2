@@ -10,11 +10,11 @@ import {AlbumData} from '../service/storage.service';
 })
 export class AlbumListEditorComponent implements OnInit {
 
-    private groupFilter = '';
-    @Input('selectedCollections')
+    @Input()
     public selectedCollections: Set<string> = new Set();
     @Output()
     valueChanged = new EventEmitter<Set<string>>();
+    private groupFilter = '';
     private filterValue = '';
     private sortedList: AlbumData[];
     public filteredList: AlbumData[];
@@ -24,9 +24,9 @@ export class AlbumListEditorComponent implements OnInit {
     }
 
     async ngOnInit() {
-        const data = (await this.dataService.listAlbums()).filter(a => a.albumTime).sort((a1, a2) => a1.albumTime - a2.albumTime);
+        const data = (await this.dataService.listAlbums()).filter(a => a[0].albumTime).sort((a1, a2) => a1[0].albumTime - a2[0].albumTime);
         this.ngZone.run(() => {
-            this.sortedList = data;
+            this.sortedList = data.map(e => e[0]);
             this.filterList();
         });
 

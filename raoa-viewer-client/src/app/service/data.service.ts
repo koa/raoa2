@@ -12,7 +12,7 @@ import {
 } from '../generated/graphql';
 import {ServerApiService} from './server-api.service';
 import {Router} from '@angular/router';
-import {AlbumData, AlbumEntryData, ImageBlob, KeywordState, MAX_SMALL_IMAGE_SIZE, StorageService} from '../service/storage.service';
+import {AlbumData, AlbumEntryData, AlbumSettings, ImageBlob, KeywordState, StorageService} from './storage.service';
 import {FNCH_COMPETITION_ID} from '../constants';
 import {HttpClient} from '@angular/common/http';
 
@@ -65,14 +65,10 @@ function createStoreAlbum(album: { __typename?: 'Album' } & Pick<Album, 'id' | '
     return {
         albumTime: Date.parse(album.albumTime),
         entryCount: album.entryCount,
-        albumEntryVersion: undefined,
         albumVersion: album.version,
         title: album.name,
         fnchAlbumId: album.labels.filter(e => e.labelName === FNCH_COMPETITION_ID).map(e => e.labelValue).shift(),
-        id: album.id,
-        lastUpdated: Date.now(),
-        syncOffline: 0,
-        offlineSyncedVersion: undefined
+        id: album.id
     };
 }
 
@@ -101,11 +97,12 @@ export class DataService {// implements OnDestroy {
     }
 
     async updateAlbumData() {
-        const [albumVersionList, storedAlbums] = await
+        console.log('updateAlbumData');
+        const [albumVersionList, storedAlbumEnties] = await
             Promise.all([this.serverApi.query(this.allAlbumVersionsGQL, {}),
                 this.storageService.listAlbums()]);
         const storeAlbumsVersions = new Map<string, string>();
-        storedAlbums.forEach(album => storeAlbumsVersions.set(album.id, album.albumVersion));
+        storedAlbumEnties.forEach(entry => storeAlbumsVersions.set(entry[0].id, entry[0].albumVersion));
         const albumDataBatch: Promise<AlbumData>[] = [];
         let lastStore: Promise<void> = Promise.resolve();
         const keepAlbums: string[] = [];
@@ -168,6 +165,8 @@ export class DataService {// implements OnDestroy {
         this.syncRunning = true;
         const startSyncState = this.syncStateId;
         try {
+            const deviceData = await this.storageService.getDeviceData();
+            const screenSize = deviceData?.screenSize || 3200;
             const albumsToUpdate = await this.storageService.findDeprecatedAlbums();
             for (const album of albumsToUpdate) {
                 if (this.isSyncEnabled() && startSyncState === this.syncStateId) {
@@ -180,7 +179,7 @@ export class DataService {// implements OnDestroy {
             const albumsToSync = await this.storageService.findAlbumsToSync();
             for (const album of albumsToSync) {
                 const minSize = album.syncOffline;
-                const missingEntries = await this.storageService.findMissingImagesOfAlbum(album.id, minSize);
+                const missingEntries = await this.storageService.findMissingImagesOfAlbum(album.id);
                 let batch: Promise<ImageBlob>[] = [];
                 let pendingStore: Promise<void> = Promise.resolve();
                 for (const entry of missingEntries[0]) {
@@ -192,7 +191,7 @@ export class DataService {// implements OnDestroy {
                         pendingStore = this.storageService.storeImages(await Promise.all(batch));
                         batch = [];
                     }
-                    batch.push(this.fetchImage(album.id, entry, MAX_SMALL_IMAGE_SIZE));
+                    batch.push(this.fetchImage(album.id, entry, screenSize / 4));
                 }
                 for (const entry of missingEntries[1]) {
                     if (!this.isSyncEnabled() || startSyncState !== this.syncStateId) {
@@ -203,7 +202,7 @@ export class DataService {// implements OnDestroy {
                         pendingStore = this.storageService.storeImages(await Promise.all(batch));
                         batch = [];
                     }
-                    batch.push(this.fetchImage(album.id, entry, minSize));
+                    batch.push(this.fetchImage(album.id, entry, screenSize));
                 }
                 await this.storageService.storeImages(await Promise.all(batch));
                 await this.storageService.setOfflineSynced(album.id, album.albumEntryVersion);
@@ -215,17 +214,17 @@ export class DataService {// implements OnDestroy {
         }
     }
 
-    public async setSync(albumId: string, minSize: number) {
-        await this.storageService.setSync(albumId, minSize);
+    public async setSync(albumId: string, enabled: boolean) {
+        await this.storageService.setSync(albumId, enabled);
         this.syncStateId += 1;
     }
 
-    public async listAlbums(): Promise<AlbumData[]> {
+    public async listAlbums(): Promise<[AlbumData, AlbumSettings | undefined][]> {
         return await this.storageService.listAlbums();
     }
 
-    public async listAlbum(albumId: string): Promise<[AlbumData, AlbumEntryData[]]> {
-        const [album, entries] = await this.storageService.listAlbum(albumId);
+    public async listAlbum(albumId: string): Promise<[AlbumData, AlbumEntryData[], AlbumSettings]> {
+        const [album, entries, albumSettings] = await this.storageService.listAlbum(albumId);
         if (album === undefined || entries === undefined) {
             if (!navigator.onLine) {
                 throw new Error('Offline');
@@ -237,7 +236,7 @@ export class DataService {// implements OnDestroy {
             }
             return await this.listAlbum(albumId);
         }
-        return [album, entries];
+        return [album, entries, albumSettings];
     }
 
     private async fetchAlbum(albumId: string) {
@@ -253,19 +252,8 @@ export class DataService {// implements OnDestroy {
         albumById.entries.forEach(albumEntry => {
             newEntries.push(createStoreEntry(albumEntry, albumId));
         });
-        const newAlbum: AlbumData = {
-            albumTime: Date.parse(albumById.albumTime),
-            entryCount: albumById.entryCount,
-            albumEntryVersion: albumById.version,
-            albumVersion: albumById.version,
-            title: albumById.name,
-            fnchAlbumId: albumById.labels.filter(e => e.labelName === FNCH_COMPETITION_ID).map(e => e.labelValue).shift(),
-            id: albumById.id,
-            lastUpdated: Date.now(),
-            syncOffline: oldAlbumState ? oldAlbumState.syncOffline : 0,
-            offlineSyncedVersion: oldAlbumState?.offlineSyncedVersion
-        };
-        await this.storageService.updateAlbumEntries(newEntries, newAlbum);
+        await this.storageService.updateAlbums([createStoreAlbum(albumById)]);
+        await this.storageService.updateAlbumEntries(newEntries, albumId, albumById.version);
     }
 
     public async modifyAlbum(updates: MutationData[]): Promise<void> {
@@ -413,6 +401,19 @@ export class DataService {// implements OnDestroy {
     /*public ngOnDestroy(): void {
         this.stopRunningTimer();
     }*/
+    public listOfflineAvailableVersions(): Promise<Map<string, string>> {
+        return this.storageService.listOfflineAvailableVersions();
+    }
+
+    public async storeScreenSize(screenSize: number): Promise<void> {
+        const deviceData = await this.storageService.getDeviceData();
+        if (deviceData === undefined) {
+            await this.storageService.setDeviceData({screenSize});
+        } else if (deviceData.screenSize !== screenSize) {
+            deviceData.screenSize = screenSize;
+            await this.storageService.setDeviceData(deviceData);
+        }
+    }
 }
 
 function findNextStep(maxLength: number): number {
