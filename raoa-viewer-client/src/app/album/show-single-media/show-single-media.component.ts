@@ -1,19 +1,82 @@
 import {Component, ElementRef, HostListener, NgZone, OnInit, ViewChild} from '@angular/core';
-import {ActivatedRoute} from '@angular/router';
+import {ActivatedRoute, ParamMap} from '@angular/router';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
 import {IonInput, IonSlides, LoadingController} from '@ionic/angular';
 import {HttpClient} from '@angular/common/http';
-import {AlbumEntry} from '../../generated/graphql';
 import {ServerApiService} from '../../service/server-api.service';
 import {Title} from '@angular/platform-browser';
-import {DataService} from '../../service/data.service';
+import {createFilter, DataService, filterTimeResolution} from '../../service/data.service';
 import {AlbumEntryData} from '../../service/storage.service';
 
-type AlbumEntryMetadata =
-    { __typename?: 'AlbumEntry' }
-    & Pick<AlbumEntry, 'name' |
-    'created' | 'cameraModel' | 'exposureTime' | 'fNumber' | 'focalLength35' | 'isoSpeedRatings' | 'keywords' | 'contentType'>;
+
+export type KeywordCombine = 'and' | 'or';
+export type TimeRange = [number, number] | undefined;
+
+export function collectFilterParams(
+    keywords: string[],
+    keywordCombine: KeywordCombine,
+    filteringTimeRange: TimeRange,
+    timeResolution: number):
+    Map<string, string | undefined> {
+    const params = new Map<string, string>();
+    if (keywords !== undefined && keywords.length > 0) {
+        params.set('keyword', keywords.map(kw => encodeURI(kw)).join(','));
+        params.set('c', keywordCombine === 'and' ? 'a' : 'o');
+    } else {
+        params.set('keyword', undefined);
+        params.set('c', undefined);
+    }
+    if (filteringTimeRange !== undefined) {
+        params.set('tf', filteringTimeRange[0].toString(10));
+        params.set('tu', filteringTimeRange[1].toString(10));
+    } else {
+        params.set('tf', undefined);
+        params.set('tf', undefined);
+    }
+    if (timeResolution > 0) {
+        params.set('tr', timeResolution.toString(10));
+    } else {
+        params.set('tr', undefined);
+    }
+    return params;
+}
+
+
+export function createMediaPath(
+    albumId: string,
+    mediaId: string,
+    strings: string[],
+    keywordCombine: KeywordCombine,
+    filteringTimeRange: TimeRange,
+    timeResolution: number): string {
+    let path = '/album/' + albumId + '/media/' + mediaId;
+    const params = collectFilterParams(strings, keywordCombine, filteringTimeRange, timeResolution);
+
+    if (params.size === 0) {
+        return path;
+    }
+    path += '?';
+    params.forEach((value, key) => {
+        path += key + '=' + encodeURIComponent(value);
+    });
+    return path;
+}
+
+
+export function parseFilterParams(queryParam: ParamMap): [string[], KeywordCombine, TimeRange, number] {
+    const filteringKeyword = queryParam.get('keyword') || undefined;
+    const combination = queryParam.get('c');
+    const tf = queryParam.get('tf');
+    const tu = queryParam.get('tu');
+    const tr = queryParam.get('tr');
+    return [
+        filteringKeyword?.split(',').map(e => decodeURI(e)) ?? [],
+        combination ? combination === 'a' ? 'and' : 'or' : 'and',
+        tf && tu ? [Number.parseInt(tf, 10), Number.parseInt(tu, 10)] : undefined,
+        tr ? Number.parseInt(tr, 10) : 0
+    ];
+}
 
 @Component({
     selector: 'app-show-single-media',
@@ -35,7 +98,6 @@ export class ShowSingleMediaComponent implements OnInit {
         let hackNavi: any;
         hackNavi = window.navigator;
         this.supportShare = hackNavi.share !== undefined;
-
     }
 
     public albumId: string;
@@ -56,11 +118,14 @@ export class ShowSingleMediaComponent implements OnInit {
     public currentSelectedKeywords = new Set<string>();
     public canEdit = false;
     public currentIsVideo = false;
-    private filteringKeyword: string;
+    private filteringKeywords: string[];
+    private keywordCombine: KeywordCombine = 'and';
+    private filteringTimeRange: [number, number] | undefined;
     private nextIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
     private prevIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
     public bigImageSize = 1600;
     public playVideo = false;
+    private timeResolution = 0;
 
     private static bigint2objectId(value: BigInt): string {
         if (value === undefined) {
@@ -80,7 +145,13 @@ export class ShowSingleMediaComponent implements OnInit {
         const queryParam = snapshot.queryParamMap;
         this.albumId = paramMap.get('id');
         const mediaId = paramMap.get('mediaId');
-        this.filteringKeyword = queryParam.get('keyword') || undefined;
+        const [filteringKeywords, keywordCombine, filteringTimeRange, timeResolution] = parseFilterParams(queryParam);
+
+        this.filteringKeywords = filteringKeywords;
+        this.keywordCombine = keywordCombine;
+        this.filteringTimeRange = filteringTimeRange;
+        this.timeResolution = timeResolution;
+
         const permissions = await this.dataService.userPermission();
 
         await this.showImage(mediaId);
@@ -121,11 +192,15 @@ export class ShowSingleMediaComponent implements OnInit {
         this.prevIdMap.clear();
         this.nextIdMap.clear();
         this.allKnownAlbumKeywords.clear();
-        const [albumData, albumEntries] = await this.dataService.listAlbum(this.albumId);
+
+        const filteringKeywords: string[] = this.filteringKeywords;
+        const filteringTimeRange: [number, number] = this.filteringTimeRange;
+        const keywordCombine: KeywordCombine = this.keywordCombine;
+        const filter = createFilter(filteringKeywords, keywordCombine, filteringTimeRange);
+        const [, albumEntries] = await this.dataService.listAlbum(this.albumId, filter);
         let lastAlbumId: BigInt;
-        const sortedEntries = this.filteringKeyword === undefined ?
-            albumEntries :
-            albumEntries.filter(entry => entry.keywords.findIndex(k => k === this.filteringKeyword) >= 0);
+        const timeResolution = this.timeResolution;
+        const sortedEntries = filterTimeResolution(albumEntries, timeResolution);
         for (const entry of sortedEntries) {
             const myId: BigInt = BigInt('0x' + entry.albumEntryId);
             if (lastAlbumId !== undefined) {
@@ -219,11 +294,13 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     private mediaPath(mediaId: string) {
-        if (this.filteringKeyword === undefined) {
-            return '/album/' + this.albumId + '/media/' + mediaId;
-        } else {
-            return '/album/' + this.albumId + '/media/' + mediaId + '?keyword=' + this.filteringKeyword;
-        }
+        return createMediaPath(
+            this.albumId,
+            mediaId,
+            this.filteringKeywords,
+            this.keywordCombine,
+            this.filteringTimeRange,
+            this.timeResolution);
     }
 
     async slided() {

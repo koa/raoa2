@@ -72,6 +72,52 @@ function createStoreAlbum(album: { __typename?: 'Album' } & Pick<Album, 'id' | '
     };
 }
 
+export function createFilter(filteringKeywords: string[], keywordCombine: 'and' | 'or', filteringTimeRange: [number, number]):
+    (AlbumEntryData) => boolean {
+    const filters: ((entry: AlbumEntryData) => boolean)[] = [];
+    if (filteringKeywords.length > 0) {
+        if (keywordCombine === 'and') {
+            filters.push((entry: AlbumEntryData) =>
+                filteringKeywords
+                    .filter(fkw => entry.keywords.find(kw => kw === fkw) !== undefined)
+                    .length === filteringKeywords.length);
+        } else {
+            const filterKeywords = new Set<string>();
+            filteringKeywords.forEach(k => filterKeywords.add(k));
+            filters.push((entry: AlbumEntryData) => entry.keywords.find(k => filterKeywords.has(k)) !== undefined);
+        }
+    }
+    if (filteringTimeRange !== undefined) {
+        const filterFrom = filteringTimeRange[0];
+        const filterUntil = filteringTimeRange[1];
+        filters.push(entry => entry.created >= filterFrom && entry.created < filterUntil);
+    }
+    if (filters.length === 0) {
+        return () => true;
+    }
+    if (filters.length === 1) {
+        return filters[0];
+    }
+    return entry => filters.find(f => f(entry)) !== undefined;
+}
+
+export function filterTimeResolution(albumEntries: AlbumEntryData[], timeResolution: number): AlbumEntryData[] {
+    if (timeResolution > 0) {
+        const sortedEntries: AlbumEntryData[] = [];
+        let lastTime = Number.MIN_SAFE_INTEGER;
+        albumEntries.forEach(entry => {
+            if (entry.created - lastTime > timeResolution) {
+                lastTime = entry.created;
+                sortedEntries.push(entry);
+            }
+        });
+        return sortedEntries;
+    } else {
+        return albumEntries;
+    }
+}
+
+
 @Injectable({
     providedIn: 'root'
 })
@@ -97,7 +143,6 @@ export class DataService {// implements OnDestroy {
     }
 
     async updateAlbumData() {
-        console.log('updateAlbumData');
         const [albumVersionList, storedAlbumEnties] = await
             Promise.all([this.serverApi.query(this.allAlbumVersionsGQL, {}),
                 this.storageService.listAlbums()]);
@@ -223,8 +268,8 @@ export class DataService {// implements OnDestroy {
         return await this.storageService.listAlbums();
     }
 
-    public async listAlbum(albumId: string): Promise<[AlbumData, AlbumEntryData[], AlbumSettings]> {
-        const [album, entries, albumSettings] = await this.storageService.listAlbum(albumId);
+    public async listAlbum(albumId: string, filter?: (AlbumEntryData) => boolean): Promise<[AlbumData, AlbumEntryData[], AlbumSettings]> {
+        const [album, entries, albumSettings] = await this.storageService.listAlbum(albumId, filter);
         if (album === undefined || entries === undefined) {
             if (!navigator.onLine) {
                 throw new Error('Offline');
@@ -234,12 +279,12 @@ export class DataService {// implements OnDestroy {
             } catch (error) {
                 await this.router.navigate(['/']);
             }
-            return await this.listAlbum(albumId);
+            return await this.listAlbum(albumId, filter);
         }
         return [album, entries, albumSettings];
     }
 
-    private async fetchAlbum(albumId: string) {
+    private async fetchAlbum(albumId: string): Promise<void> {
         const oldAlbumState = await this.storageService.getAlbum(albumId);
         const content = await this.serverApi.query(this.albumContentGQL, {albumId});
         const albumById = content.albumById;
@@ -349,7 +394,7 @@ export class DataService {// implements OnDestroy {
         if (albumEntry !== undefined) {
             return albumEntry;
         }
-        await this.listAlbum(albumId);
+        await this.fetchAlbumIfMissing(albumId);
         return this.storageService.getAlbumEntry(albumId, albumEntryId);
     }
 
@@ -412,6 +457,13 @@ export class DataService {// implements OnDestroy {
         } else if (deviceData.screenSize !== screenSize) {
             deviceData.screenSize = screenSize;
             await this.storageService.setDeviceData(deviceData);
+        }
+    }
+
+    private async fetchAlbumIfMissing(albumId: string): Promise<void> {
+        const [storedAlbum, storedSettings] = await this.storageService.getAlbumAndSettings(albumId);
+        if (storedAlbum === undefined || storedSettings === undefined || storedAlbum.albumVersion !== storedSettings.albumEntryVersion) {
+            await this.fetchAlbum(albumId);
         }
     }
 }

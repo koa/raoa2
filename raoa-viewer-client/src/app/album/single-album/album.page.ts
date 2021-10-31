@@ -8,8 +8,15 @@ import {Location} from '@angular/common';
 import {IonContent, LoadingController, MenuController, ToastController} from '@ionic/angular';
 import {Title} from '@angular/platform-browser';
 import {AlbumEntryData} from '../../service/storage.service';
-import {DataService} from '../../service/data.service';
+import {createFilter, DataService, filterTimeResolution} from '../../service/data.service';
 import {defer, Observable} from 'rxjs';
+import {
+    collectFilterParams,
+    createMediaPath,
+    KeywordCombine,
+    parseFilterParams,
+    TimeRange
+} from '../show-single-media/show-single-media.component';
 
 type AlbumEntryType =
     { __typename?: 'AlbumEntry' }
@@ -28,8 +35,6 @@ function copyPendingKeywords(pendingKeywords: Map<string, Set<string>>): Map<str
     styleUrls: ['./album.page.css'],
 })
 export class AlbumPage implements OnInit {
-    public syncEnabled: boolean;
-
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
@@ -49,10 +54,8 @@ export class AlbumPage implements OnInit {
     ) {
     }
 
+    public syncEnabled: boolean;
     public fnCompetitionId: string;
-    private loadingElement: HTMLIonLoadingElement;
-    private lastSelectedIndex: number | undefined = undefined;
-    private lastScrollPos = 0;
     public albumId: string;
     public title: string;
     public rows: Array<TableRow> = [];
@@ -62,27 +65,19 @@ export class AlbumPage implements OnInit {
     public canRemoveKeywords = new Set<string>();
     public sortedKeywords: string[] = [];
     public maxWidth = 8;
-    public filteringKeyword: string;
+    public filteringKeywords = new Set<string>();
+    public keywordCombinator: KeywordCombine = 'and';
     public selectionMode = false;
-
     public selectedEntries = new Set<string>();
-
-    @ViewChild('imageList') private imageListElement: ElementRef<HTMLDivElement>;
-    @ViewChild('content') private contentElement: IonContent;
     public elementWidth = 10;
-
-    private sortedEntries: AlbumEntryData[] = [];
-    private waitCount = 0;
     public enableSettings = false;
     public daycount = 0;
     public timestamp = 0;
     public canEdit = false;
     public newTag = '';
-    // public pendingAddKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
     // public pendingRemoveKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
     public filterTimeStep = 60 * 1000;
     public hasPendingMutations = false;
-
     /*
     private sortKeywords() {
         this.sortedKeywords = [];
@@ -92,6 +87,38 @@ export class AlbumPage implements OnInit {
 
      */
     public syncing = false;
+    private filteringTimeRange: TimeRange;
+    private loadingElement: HTMLIonLoadingElement;
+    private lastSelectedIndex: number | undefined = undefined;
+    private lastScrollPos = 0;
+    @ViewChild('imageList') private imageListElement: ElementRef<HTMLDivElement>;
+    @ViewChild('content') private contentElement: IonContent;
+    // public pendingAddKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
+    private sortedEntries: AlbumEntryData[] = [];
+    private waitCount = 0;
+
+    private static findIndizesOf(rows: Array<TableRow>, timestamp: number): [number, number, number] | undefined {
+        for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+            const row = rows[rowIndex];
+            if (row.kind === 'images') {
+                if (row.endTimestamp < timestamp) {
+                    continue;
+                }
+                const blocks = row.blocks;
+                for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+                    const block = blocks[blockIndex];
+                    const shapes = block.shapes;
+                    for (let shapeIndex = 0; shapeIndex < shapes.length; shapeIndex++) {
+                        const shape = shapes[shapeIndex];
+                        if (shape.timestamp >= timestamp) {
+                            return [rowIndex, blockIndex, shapeIndex];
+                        }
+                    }
+                }
+            }
+        }
+        return undefined;
+    }
 
     public async resized() {
         if (this.elementWidth === this.imageListElement.nativeElement.clientWidth) {
@@ -120,37 +147,6 @@ export class AlbumPage implements OnInit {
             this.timestamp = foundTimestamp;
         }
         this.lastScrollPos = detail.scrollTop;
-    }
-
-
-    private findCurrentTimestamp() {
-        const rows: HTMLCollectionOf<Element> = document.getElementsByClassName('image-row');
-        let bestResult = Number.MAX_SAFE_INTEGER;
-        let bestElement;
-        for (let i = 0; i < rows.length; i++) {
-            const element: Element = rows.item(i);
-            const bottom = element.getBoundingClientRect().bottom;
-            if (bottom > 0 && bottom < bestResult) {
-                bestResult = bottom;
-                bestElement = element;
-            }
-        }
-        if (bestElement) {
-            const foundTimestamp = Number.parseInt(bestElement.getAttribute('timestamp'), 10);
-            this.setParam('timestamp', foundTimestamp.toString());
-            return foundTimestamp;
-        }
-        return undefined;
-    }
-
-    private setParam(param: string, value: string | undefined) {
-        const url = new URL(window.location.href);
-        if (value === undefined) {
-            url.searchParams.delete(param);
-        } else {
-            url.searchParams.set(param, value);
-        }
-        this.location.replaceState(url.pathname, url.searchParams.toString());
     }
 
     async enterWait(reason: WaitReason): Promise<void> {
@@ -185,28 +181,38 @@ export class AlbumPage implements OnInit {
         }
     }
 
-
     async ngOnInit() {
         this.titleService.setTitle('Album laden');
         this.activatedRoute.queryParamMap.subscribe(async params => {
-            const filteringKeyword = params.get('keyword') || undefined;
-            const pos = params.get('pos');
-            if (this.albumId) {
-                if (this.filteringKeyword !== filteringKeyword) {
-                    this.filteringKeyword = filteringKeyword;
-                    this.lastSelectedIndex = undefined;
-                    await this.refresh();
-                }
-                if (pos) {
-                    const scrollPos: number = Number.parseInt(pos, 10);
-                    window.setTimeout(() => {
-                        this.contentElement.scrollToPoint(0, scrollPos);
-                    }, 500);
-                }
+
+            const [filteringKeywords, keywordCombine, filteringTimeRange, timeResolution] = parseFilterParams(params);
+            let refreshNeeded = false;
+            //if (this.albumId) {
+            const keywordSet = new Set<string>(filteringKeywords);
+            if (this.filteringKeywords !== keywordSet) {
+                this.filteringKeywords = keywordSet;
+                this.lastSelectedIndex = undefined;
+                refreshNeeded = true;
             }
+            if (this.keywordCombinator !== keywordCombine) {
+                this.keywordCombinator = keywordCombine;
+                refreshNeeded = true;
+            }
+            if (this.filteringTimeRange !== filteringTimeRange) {
+                this.filteringTimeRange = filteringTimeRange;
+                refreshNeeded = true;
+            }
+            if (this.filterTimeStep !== timeResolution) {
+                this.filterTimeStep = timeResolution;
+                refreshNeeded = true;
+            }
+            //}
             const timestamp = params.get('timestamp');
             if (timestamp !== undefined) {
                 this.timestamp = Number.parseInt(timestamp, 10);
+                refreshNeeded = true;
+            }
+            if (refreshNeeded) {
                 await this.refresh();
             }
 
@@ -222,12 +228,259 @@ export class AlbumPage implements OnInit {
         });
     }
 
+    public scrollToTimestamp(timestamp: number) {
+        this.timestamp = timestamp;
+        const foundIndices = AlbumPage.findIndizesOf(this.rows, timestamp);
+        if (foundIndices !== undefined) {
+            const rowIndex = foundIndices[0];
+            const blockIndex = foundIndices[1];
+            // console.log('scroll to ' + rowIndex + ', ' + blockIndex);
+            // const shapeIndex = foundIndices[2];
+            window.setTimeout(() => {
+                const rowElement = document.getElementById('row-' + rowIndex);
+                const observer = new MutationObserver((mutations => {
+                    const blockElement = document.getElementById('block-' + rowIndex + '-' + blockIndex);
+                    if (blockElement) {
+                        blockElement.scrollIntoView();
+                        observer.disconnect();
+                    }
+                }));
+                observer.observe(rowElement, {childList: true});
+                // console.log(rowElement);
+                rowElement.scrollIntoView();
+                const blockElementDirect = document.getElementById('block-' + rowIndex + '-' + blockIndex);
+                if (blockElementDirect) {
+                    blockElementDirect.scrollIntoView();
+                    observer.disconnect();
+                }
+            }, 100);
+        }
+    }
+
+    async openDayList($event: MouseEvent) {
+        await this.menuController.open('days');
+    }
+
+    async toggleEditor($event: MouseEvent) {
+        await this.menuController.toggle('tags');
+    }
+
+    async scrollTo(id: string) {
+        const y = document.getElementById(id).offsetTop;
+        await this.contentElement.scrollToPoint(0, y);
+        await this.menuController.close();
+    }
+
+    async filter(keyword: string) {
+        if (this.filteringKeywords.has(keyword)) {
+            this.filteringKeywords.delete(keyword);
+        } else {
+            this.filteringKeywords.add(keyword);
+        }
+        const kwlist: string[] = [];
+        for (const kw of this.filteringKeywords) {
+            kwlist.push(encodeURIComponent(kw));
+        }
+        this.setParams(collectFilterParams(kwlist, this.keywordCombinator, this.filteringTimeRange, this.filterTimeStep));
+        this.lastSelectedIndex = undefined;
+        await this.refresh();
+        await this.menuController.close();
+    }
+
+    public createEntryLink(shape: Shape): string {
+        const filteringKeywords: string[] = [];
+        this.filteringKeywords.forEach(kw => filteringKeywords.push(kw));
+        return createMediaPath(this.albumId,
+            shape.entry.albumEntryId,
+            filteringKeywords,
+            'and',
+            this.filteringTimeRange,
+            this.filterTimeStep);
+    }
+
+    queryParams() {
+        const ret = new Map<string, string>();
+        if (this.filteringKeywords.size > 0) {
+            const kwlist: string[] = [];
+            this.filteringKeywords.forEach(kw => kwlist.push(encodeURIComponent(kw)));
+            ret.set('keyword', kwlist.join(','));
+        }
+        return ret;
+    }
+
+    public async imageClicked(blockPart: ImageBlock, shape: Shape, $event: MouseEvent) {
+        if (this.selectionMode) {
+            const shiftKey = $event.shiftKey;
+            const entryId = shape.entry.albumEntryId;
+            const selectedIndex = shape.entryIndex;
+            if (shiftKey) {
+                if (this.lastSelectedIndex !== undefined) {
+                    const selectFrom = Math.min(this.lastSelectedIndex, selectedIndex);
+                    const selectUntil = Math.max(this.lastSelectedIndex, selectedIndex);
+                    const slice = this.sortedEntries.slice(selectFrom, selectUntil + 1);
+                    const allSelected = this.selectedEntries.has(this.sortedEntries[this.lastSelectedIndex].albumEntryId);
+                    if (!allSelected) {
+                        slice.forEach(entry => this.selectedEntries.delete(entry.albumEntryId));
+                    } else {
+                        slice.forEach(entry => this.selectedEntries.add(entry.albumEntryId));
+                    }
+                    this.lastSelectedIndex = undefined;
+                }
+            } else {
+                this.lastSelectedIndex = selectedIndex;
+                if (this.selectedEntries.has(entryId)) {
+                    this.selectedEntries.delete(entryId);
+                } else {
+                    this.selectedEntries.add(entryId);
+                }
+            }
+            await this.refreshPossibleKeywords();
+        } else {
+            await this.router.navigateByUrl(this.createEntryLink(shape));
+        }
+    }
+
+    async tagAdded($event: any) {
+        const newKeyword = this.newTag;
+        this.newTag = '';
+        await this.addTag(newKeyword);
+    }
+
+    public selectionCanAdd(keyword: string): boolean {
+        return this.canAddKeyword.has(keyword);
+    }
+
+    public selectionCanRemove(keyword: string): boolean {
+        return this.canRemoveKeywords.has(keyword);
+    }
+
+    async addTag(keyword: string) {
+        await this.dataService.addKeyword(this.albumId, this.selectedEntriesAsArray(), [keyword]);
+        await this.refreshPossibleKeywords();
+    }
+
+    public async storeMutation() {
+        await this.enterWait(WaitReason.STORE);
+        try {
+            await this.dataService.storeMutations(this.albumId);
+            await this.refresh();
+        } finally {
+            await this.leaveWait();
+        }
+    }
+
+    async removeTag(keyword: string) {
+        await this.dataService.removeKeyword(this.albumId, this.selectedEntriesAsArray(), [keyword]);
+        await this.refreshPossibleKeywords();
+    }
+
+    selectionModeChanged() {
+        if (!this.selectionMode) {
+            this.selectedEntries.clear();
+        }
+    }
+
+    async refreshPendingMutations() {
+        const newValue = await this.dataService.hasPendingMutations(this.albumId);
+        this.ngZone.run(() => {
+            this.hasPendingMutations = newValue;
+        });
+    }
+
+    clearSelection() {
+        this.selectedEntries.clear();
+    }
+
+    async resetMutation(): Promise<void> {
+        await this.dataService.clearPendingMutations(this.albumId);
+        await this.refreshPendingMutations();
+    }
+
+    async setResolution(time: number) {
+        if (time === this.filterTimeStep) {
+            return;
+        }
+        this.filterTimeStep = time;
+        await this.refresh();
+    }
+
+    public isResolution(res: number): boolean {
+        return this.filterTimeStep === res;
+    }
+
+    public async syncAlbum(): Promise<void> {
+        await this.dataService.setSync(this.albumId, !this.syncEnabled);
+        await this.refresh();
+        /*
+        this.syncing = true;
+        try {
+            const albumContent: [AlbumData, AlbumEntryData[]] = await this.dataService.listAlbum(this.albumId);
+            let batch: Promise<void>[] = [];
+            let lastPromise = Promise.resolve();
+            for (const entry of albumContent[1]) {
+                batch.push(this.dataService.getImage(this.albumId, entry.albumEntryId, 3200).then());
+                if (batch.length >= 10) {
+                    await lastPromise;
+                    lastPromise = Promise.all(batch).then();
+                    batch = [];
+                }
+            }
+        } finally {
+            this.ngZone.run(() => this.syncing = false);
+        }
+         */
+    }
+
+    private findCurrentTimestamp() {
+        const rows: HTMLCollectionOf<Element> = document.getElementsByClassName('image-row');
+        let bestResult = Number.MAX_SAFE_INTEGER;
+        let bestElement;
+        for (let i = 0; i < rows.length; i++) {
+            const element: Element = rows.item(i);
+            const bottom = element.getBoundingClientRect().bottom;
+            if (bottom > 0 && bottom < bestResult) {
+                bestResult = bottom;
+                bestElement = element;
+            }
+        }
+        if (bestElement) {
+            const foundTimestamp = Number.parseInt(bestElement.getAttribute('timestamp'), 10);
+            this.setParam('timestamp', foundTimestamp.toString());
+            return foundTimestamp;
+        }
+        return undefined;
+    }
+
+    private setParam(param: string, value: string | undefined) {
+        const url = new URL(window.location.href);
+        if (value === undefined) {
+            url.searchParams.delete(param);
+        } else {
+            url.searchParams.set(param, value);
+        }
+        this.location.replaceState(url.pathname, url.searchParams.toString());
+    }
+
+    private setParams(params: Map<string, string | undefined>) {
+        const url = new URL(window.location.href);
+        params.forEach((value, param) => {
+            if (value === undefined) {
+                url.searchParams.delete(param);
+            } else {
+                url.searchParams.set(param, value);
+            }
+        });
+        this.location.replaceState(url.pathname, url.searchParams.toString());
+    }
+
     private async refresh() {
         await this.enterWait(WaitReason.LOAD);
         try {
             const userPermissions = await this.dataService.userPermission();
-            const [album, entries, albumSettings] = await this.dataService.listAlbum(this.albumId);
-
+            const keywords: string[] = [];
+            this.filteringKeywords.forEach(kw => keywords.push(kw));
+            const [album, entries, albumSettings] = await this.dataService.listAlbum(this.albumId,
+                createFilter(keywords, 'and', undefined));
             const rowCountBefore = this.sortedEntries.length;
             const knownKeywords = new Set<string>();
             entries.forEach(entry => entry.keywords.forEach(kw => knownKeywords.add(kw)));
@@ -274,26 +527,8 @@ export class AlbumPage implements OnInit {
                 this.canRemoveKeywords = canRemoveKeywords;
                 this.title = album.title;
                 this.syncEnabled = albumSettings ? albumSettings.syncOffline : false;
-                let filteredEntries: AlbumEntryData[];
-                if (this.filteringKeyword === undefined) {
-                    filteredEntries = entries;
-                } else {
-                    filteredEntries = entries.filter(e => e.keywords.findIndex(k => k === this.filteringKeyword) >= 0);
-                }
-                if (this.filterTimeStep > 0) {
-                    let lastTimestamp = -1;
-                    this.sortedEntries = filteredEntries.filter(e => {
-                        const timestamp: number = e.created;
-                        const t = Math.trunc(timestamp / this.filterTimeStep);
-                        if (lastTimestamp !== t) {
-                            lastTimestamp = t;
-                            return true;
-                        }
-                        return false;
-                    });
-                } else {
-                    this.sortedEntries = filteredEntries;
-                }
+                this.sortedEntries = filterTimeResolution(entries, this.filterTimeStep);
+
                 this.fnCompetitionId = album.fnchAlbumId;
                 this.enableSettings = userPermissions.canManageUsers;
                 this.canEdit = userPermissions.canEdit;
@@ -306,35 +541,6 @@ export class AlbumPage implements OnInit {
 
         } finally {
             await this.leaveWait();
-        }
-    }
-
-    public scrollToTimestamp(timestamp: number) {
-        this.timestamp = timestamp;
-        const foundIndices = this.findIndizesOf(this.rows, timestamp);
-        if (foundIndices !== undefined) {
-            const rowIndex = foundIndices[0];
-            const blockIndex = foundIndices[1];
-            // console.log('scroll to ' + rowIndex + ', ' + blockIndex);
-            // const shapeIndex = foundIndices[2];
-            window.setTimeout(() => {
-                const rowElement = document.getElementById('row-' + rowIndex);
-                const observer = new MutationObserver((mutations => {
-                    const blockElement = document.getElementById('block-' + rowIndex + '-' + blockIndex);
-                    if (blockElement) {
-                        blockElement.scrollIntoView();
-                        observer.disconnect();
-                    }
-                }));
-                observer.observe(rowElement, {childList: true});
-                // console.log(rowElement);
-                rowElement.scrollIntoView();
-                const blockElementDirect = document.getElementById('block-' + rowIndex + '-' + blockIndex);
-                if (blockElementDirect) {
-                    blockElementDirect.scrollIntoView();
-                    observer.disconnect();
-                }
-            }, 100);
         }
     }
 
@@ -454,76 +660,6 @@ export class AlbumPage implements OnInit {
         return [sortedKeywords, canAddKeywords, canRemoveKeywords];
     }
 
-
-    async openDayList($event: MouseEvent) {
-        await this.menuController.open('days');
-    }
-
-    async toggleEditor($event: MouseEvent) {
-        await this.menuController.toggle('tags');
-    }
-
-    async scrollTo(id: string) {
-        const y = document.getElementById(id).offsetTop;
-        await this.contentElement.scrollToPoint(0, y);
-        await this.menuController.close();
-    }
-
-    async filter(keyword: string) {
-        if (this.filteringKeyword !== undefined && this.filteringKeyword === keyword) {
-            this.filteringKeyword = undefined;
-        } else {
-            this.filteringKeyword = keyword;
-        }
-        this.setParam('keyword', this.filteringKeyword);
-        this.lastSelectedIndex = undefined;
-        await this.refresh();
-        await this.menuController.close();
-    }
-
-    public createEntryLink(shape: Shape): (string | object)[] {
-        return ['/album', this.albumId, 'media', shape.entry.albumEntryId];
-    }
-
-    queryParams() {
-        if (this.filteringKeyword !== undefined) {
-            return {keyword: this.filteringKeyword};
-        }
-        return {};
-    }
-
-    public async imageClicked(blockPart: ImageBlock, shape: Shape, $event: MouseEvent) {
-        if (this.selectionMode) {
-            const shiftKey = $event.shiftKey;
-            const entryId = shape.entry.albumEntryId;
-            const selectedIndex = shape.entryIndex;
-            if (shiftKey) {
-                if (this.lastSelectedIndex !== undefined) {
-                    const selectFrom = Math.min(this.lastSelectedIndex, selectedIndex);
-                    const selectUntil = Math.max(this.lastSelectedIndex, selectedIndex);
-                    const slice = this.sortedEntries.slice(selectFrom, selectUntil + 1);
-                    const allSelected = this.selectedEntries.has(this.sortedEntries[this.lastSelectedIndex].albumEntryId);
-                    if (!allSelected) {
-                        slice.forEach(entry => this.selectedEntries.delete(entry.albumEntryId));
-                    } else {
-                        slice.forEach(entry => this.selectedEntries.add(entry.albumEntryId));
-                    }
-                    this.lastSelectedIndex = undefined;
-                }
-            } else {
-                this.lastSelectedIndex = selectedIndex;
-                if (this.selectedEntries.has(entryId)) {
-                    this.selectedEntries.delete(entryId);
-                } else {
-                    this.selectedEntries.add(entryId);
-                }
-            }
-            await this.refreshPossibleKeywords();
-        } else {
-            await this.router.navigate(this.createEntryLink(shape), {queryParams: this.queryParams()});
-        }
-    }
-
     private async refreshPossibleKeywords() {
         const [newSortedKeywords, canAddKeywords, canRemoveKeywords] = await this.adjustKeywords(new Set(this.sortedKeywords));
         const hasPendingMutations = await this.dataService.hasPendingMutations(this.albumId);
@@ -535,127 +671,10 @@ export class AlbumPage implements OnInit {
         });
     }
 
-    async tagAdded($event: any) {
-        const newKeyword = this.newTag;
-        this.newTag = '';
-        await this.addTag(newKeyword);
-    }
-
-    public selectionCanAdd(keyword: string): boolean {
-        return this.canAddKeyword.has(keyword);
-    }
-
-
-    public selectionCanRemove(keyword: string): boolean {
-        return this.canRemoveKeywords.has(keyword);
-    }
-
-    async addTag(keyword: string) {
-        await this.dataService.addKeyword(this.albumId, this.selectedEntriesAsArray(), [keyword]);
-        await this.refreshPossibleKeywords();
-    }
-
-
     private selectedEntriesAsArray() {
         const selectedEntries: string[] = [];
         this.selectedEntries.forEach(id => selectedEntries.push(id));
         return selectedEntries;
-    }
-
-
-    public async storeMutation() {
-        await this.enterWait(WaitReason.STORE);
-        try {
-            await this.dataService.storeMutations(this.albumId);
-            await this.refresh();
-        } finally {
-            await this.leaveWait();
-        }
-    }
-
-    async removeTag(keyword: string) {
-        await this.dataService.removeKeyword(this.albumId, this.selectedEntriesAsArray(), [keyword]);
-        await this.refreshPossibleKeywords();
-    }
-
-    selectionModeChanged() {
-        if (!this.selectionMode) {
-            this.selectedEntries.clear();
-        }
-    }
-
-    async refreshPendingMutations() {
-        const newValue = await this.dataService.hasPendingMutations(this.albumId);
-        this.ngZone.run(() => {
-            this.hasPendingMutations = newValue;
-        });
-    }
-
-    clearSelection() {
-        this.selectedEntries.clear();
-    }
-
-    async resetMutation(): Promise<void> {
-        await this.dataService.clearPendingMutations(this.albumId);
-        await this.refreshPendingMutations();
-    }
-
-    async setResolution(time: number) {
-        if (time === this.filterTimeStep) {
-            return;
-        }
-        this.filterTimeStep = time;
-        await this.refresh();
-    }
-
-    private findIndizesOf(rows: Array<TableRow>, timestamp: number): [number, number, number] | undefined {
-        for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
-            const row = rows[rowIndex];
-            if (row.kind === 'images') {
-                if (row.endTimestamp < timestamp) {
-                    continue;
-                }
-                const blocks = row.blocks;
-                for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-                    const block = blocks[blockIndex];
-                    const shapes = block.shapes;
-                    for (let shapeIndex = 0; shapeIndex < shapes.length; shapeIndex++) {
-                        const shape = shapes[shapeIndex];
-                        if (shape.timestamp >= timestamp) {
-                            return [rowIndex, blockIndex, shapeIndex];
-                        }
-                    }
-                }
-            }
-        }
-        return undefined;
-    }
-
-    public isResolution(res: number): boolean {
-        return this.filterTimeStep === res;
-    }
-
-    public async syncAlbum(): Promise<void> {
-        await this.dataService.setSync(this.albumId, !this.syncEnabled);
-        await this.refresh();
-        /*
-        this.syncing = true;
-        try {
-            const albumContent: [AlbumData, AlbumEntryData[]] = await this.dataService.listAlbum(this.albumId);
-            let batch: Promise<void>[] = [];
-            let lastPromise = Promise.resolve();
-            for (const entry of albumContent[1]) {
-                batch.push(this.dataService.getImage(this.albumId, entry.albumEntryId, 3200).then());
-                if (batch.length >= 10) {
-                    await lastPromise;
-                    lastPromise = Promise.all(batch).then();
-                    batch = [];
-                }
-            }
-        } finally {
-            this.ngZone.run(() => this.syncing = false);
-        }
-         */
     }
 }
 

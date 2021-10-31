@@ -70,6 +70,7 @@ export interface DeviceData {
     screenSize: number;
 }
 
+
 @Injectable({
     providedIn: 'root'
 })
@@ -254,7 +255,7 @@ export class StorageService extends Dexie {
                         || foundAlbumSettings.albumEntryVersion !== foundAlbumData.albumVersion) {
                         return [foundAlbumData, undefined, foundAlbumSettings];
                     }
-                    const entryFilter = filter ? filter : e => true;
+                    const entryFilter = filter ? filter : () => true;
                     const addKeywords = new Map<string, Set<string>>();
                     const removeKeywords = new Map<string, Set<string>>();
                     await Promise.all([
@@ -726,6 +727,13 @@ export class StorageService extends Dexie {
         });
     }
 
+    public getAlbumAndSettings(albumId: string): Promise<[AlbumData | undefined, AlbumSettings | undefined]> {
+        return this.transaction('r', this.albumDataTable, this.albumSettingsTable, () => {
+            return Promise.all([this.albumDataTable.get(albumId),
+                this.albumSettingsTable.get(albumId)]);
+        });
+
+    }
 }
 
 function isQuotaExceeded(ex: any) {
