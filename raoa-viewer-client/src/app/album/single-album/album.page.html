@@ -69,7 +69,8 @@
                 <ion-list-header>Tags</ion-list-header>
                 <ion-chip *ngFor="let kw of sortedKeywords" color="primary"
                           [outline]="!filteringKeywords.has(kw)" (click)="filter(kw)">
-                    {{kw}} ({{keywordCounters.get(kw)}})
+                    <ion-icon name="person" *ngIf="kw.startsWith('@')"></ion-icon>
+                    <ion-label>{{kw}} ({{keywordCounters.get(kw)}})</ion-label>
                 </ion-chip>
             </ion-item-group>
             <ion-item-group>
@@ -118,7 +119,8 @@
                     ({{pendingMutationCount}})
                 </ion-button>
                 <ion-button [disabled]="pendingMutationCount == 0" (click)="resetMutation()">Abbrechen</ion-button>
-                <ion-button [disabled]="selectedEntries.size==0" (click)="clearSelection()">Selektion entfernen ({{selectedEntries.size}})
+                <ion-button [disabled]="selectedEntries.size==0" (click)="clearSelection()">Selektion entfernen
+                    ({{selectedEntries.size}})
                 </ion-button>
             </ion-item-group>
         </ion-list>
