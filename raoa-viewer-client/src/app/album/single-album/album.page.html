@@ -6,8 +6,9 @@
     </ion-header>
     <ion-content>
         <ion-list>
-            <ion-item-group>
+            <ion-item-group *ngIf="selectableDates.length>0">
                 <ion-item-divider>Datum</ion-item-divider>
+                <ion-item (click)="selectDate(undefined)">Alle</ion-item>
                 <div *ngFor="let row of rows; index as rowNr" class="row">
                     <ion-item *ngIf="row.kind=='timestamp'" (click)="scrollToTimestamp(row.time)">
                         {{row.time | date:'fullDate' }}
@@ -29,36 +30,109 @@
             </ion-item-group>
             <ion-item-group *ngIf="sortedKeywords.length>0">
                 <ion-item-divider>Tags</ion-item-divider>
-                <ion-item *ngFor="let k of sortedKeywords" [color]="this.filteringKeyword === k?'primary':undefined"
+                <ion-item *ngFor="let k of sortedKeywords" [color]="this.filteringKeywords.has(k) ?'primary':undefined"
                           (click)="filter(k)">{{k}}</ion-item>
+            </ion-item-group>
+        </ion-list>
+    </ion-content>
+</ion-menu>
+<ion-menu side="end" menu-id="filter" content-id="content-list">
+    <ion-header>
+        <ion-toolbar>
+            <ion-button fill="clear" color="dark" slot="start" (click)="closeFilterMenu()">
+                <ion-icon name="close-outline"></ion-icon>
+            </ion-button>
+            <ion-title *ngIf="!enableSettings">Filtern nach</ion-title>
+            <ion-title *ngIf="enableSettings">Details</ion-title>
+        </ion-toolbar>
+    </ion-header>
+    <ion-content>
+        <ion-list>
+            <ion-item *ngIf="enableSettings" [routerLink]="'/album/'+albumId+'/manage'"
+                      slot="end"
+                      color="light">
+                <ion-label>Manage</ion-label>
+                <ion-icon name="settings" slot="start"></ion-icon>
+            </ion-item>
+            <ion-radio-group *ngIf="days.length>0" [(ngModel)]="selectedDay" (ionChange)="refreshFilters()">
+                <ion-list-header>Datum</ion-list-header>
+                <ion-item>
+                    <ion-label>Alle ({{allDateCounts}})</ion-label>
+                    <ion-radio slot="start" [value]="undefined"></ion-radio>
+                </ion-item>
+                <ion-item *ngFor="let day of days">
+                    <ion-label>{{day | date}} ({{dayCounters.get(day)}})</ion-label>
+                    <ion-radio slot="start" [value]="day"></ion-radio>
+                </ion-item>
+            </ion-radio-group>
+            <ion-item-group *ngIf="sortedKeywords.length>0">
+                <ion-list-header>Tags</ion-list-header>
+                <ion-chip *ngFor="let kw of sortedKeywords" color="primary"
+                          [outline]="!filteringKeywords.has(kw)" (click)="filter(kw)">
+                    {{kw}} ({{keywordCounters.get(kw)}})
+                </ion-chip>
+            </ion-item-group>
+            <ion-item-group>
+                <ion-radio-group [(ngModel)]="filterTimeStep" (ionChange)="refreshFilters()">
+                    <ion-list-header>Anzahl Fotos reduzieren nach</ion-list-header>
+                    <ion-item>
+                        <ion-label>Sekunden</ion-label>
+                        <ion-radio slot="start" [value]="1000"></ion-radio>
+                    </ion-item>
+                    <ion-item>
+                        <ion-label>Minuten</ion-label>
+                        <ion-radio slot="start" [value]="60*1000"></ion-radio>
+                    </ion-item>
+                    <ion-item>
+                        <ion-label>10 Minuten</ion-label>
+                        <ion-radio slot="start" [value]="10*60*1000"></ion-radio>
+                    </ion-item>
+                    <ion-item>
+                        <ion-label>keine Reduktion</ion-label>
+                        <ion-radio slot="start" [value]="0"></ion-radio>
+                    </ion-item>
+                </ion-radio-group>
+            </ion-item-group>
+            <ion-item-group *ngIf="sortedKeywords.length>0 && canEdit && selectedEntries.size>0">
+                <ion-item-divider>Tags</ion-item-divider>
+                <ion-item *ngFor="let k of sortedKeywords">
+                    <ion-label>{{k}}</ion-label>
+                    <ion-button [disabled]="!selectionCanAdd(k)" (click)="addTag(k)">
+                        <ion-icon name="add-circle"></ion-icon>
+                    </ion-button>
+                    <ion-button [disabled]="!selectionCanRemove(k)" (click)="removeTag(k)">
+                        <ion-icon name="remove-circle"></ion-icon>
+                    </ion-button>
+                </ion-item>
+            </ion-item-group>
+            <ion-item-group *ngIf="canEdit && selectedEntries.size>0">
+                <ion-item-divider>Neues Tag</ion-item-divider>
+                <ion-item>
+                    <ion-label>Tag</ion-label>
+                    <ion-input (keydown.enter)="tagAdded($event)" [(ngModel)]="newTag" type="text"></ion-input>
+                </ion-item>
+            </ion-item-group>
+            <ion-item-group *ngIf="pendingMutationCount>0 || selectedEntries.size>0">
+                <ion-item-divider>Aktionen</ion-item-divider>
+                <ion-button [disabled]="pendingMutationCount === 0" (click)="storeMutation()">Speichern
+                    ({{pendingMutationCount}})
+                </ion-button>
+                <ion-button [disabled]="pendingMutationCount == 0" (click)="resetMutation()">Abbrechen</ion-button>
+                <ion-button [disabled]="selectedEntries.size==0" (click)="clearSelection()">Selektion entfernen ({{selectedEntries.size}})
+                </ion-button>
             </ion-item-group>
         </ion-list>
     </ion-content>
 </ion-menu>
 <ion-header>
     <ion-toolbar>
-        <ion-back-button defaultHref="/album" slot="start" *ngIf="!selectionMode"></ion-back-button>
+        <ion-back-button defaultHref="/album" slot="start"></ion-back-button>
         <ion-title>
             <span>{{title}}</span>
         </ion-title>
-        <ion-button (click)="openDayList($event)" slot="end" color="light"
-                    *ngIf="daycount>1 || this.sortedKeywords.length>0 || this.filteringKeyword !== undefined">
-            <ion-icon name="filter"></ion-icon>
-        </ion-button>
         <ion-button *ngIf="fnCompetitionId" slot="end"
                     [href]="'https://info.fnch.ch/#/resultate/veranstaltungen/'+fnCompetitionId">
             <ion-icon name="list"></ion-icon>
-        </ion-button>
-        <ion-button *ngIf="enableSettings && !selectionMode" [routerLink]="'/album/'+albumId+'/manage'"
-                    slot="end"
-                    color="light">
-            <ion-icon name="settings"></ion-icon>
-        </ion-button>
-        <ion-button *ngIf="(selectionMode || hasPendingMutations) && canEdit"
-                    [disabled]="this.selectedEntries.size==0"
-                    slot="end"
-                    (click)="toggleEditor($event)">
-            <ion-icon name="pencil"></ion-icon>
         </ion-button>
         <!--<ion-button *ngIf="selectionMode" [disabled]="this.selectedEntries.size==0" slot="end" (click)="downloadAlbum()">
             <ion-icon name="download"></ion-icon>
@@ -66,13 +140,15 @@
         <ion-button slot="end" [color]="syncEnabled?'':'light'" (click)="syncAlbum()">
             <ion-icon name="sync"></ion-icon>
         </ion-button>
-        <ion-toggle slot="end" [(ngModel)]="selectionMode" (ngModelChange)="selectionModeChanged()"
-                    *ngIf="canEdit"></ion-toggle>
+        <ion-button slot="end" fill="clear" color="dark" (click)="showFilters()">
+            <ion-icon name="options-outline"></ion-icon>
+        </ion-button>
     </ion-toolbar>
     <span>{{timestamp | date: 'medium'}}</span>
 </ion-header>
-<ion-split-pane content-id="content-list" [disabled]="!(selectionMode && canEdit)">
+<ion-split-pane content-id="content-list" [disabled]="!(canEdit)">
 
+    <!--
     <ion-menu side="end" menu-id="tags" content-id="content-list">
         <ion-header>
             <ion-toolbar>
@@ -109,8 +185,7 @@
                 </ion-item-group>
             </ion-list>
         </ion-content>
-    </ion-menu>
-
+    </ion-menu>-->
     <ion-content (ionScroll)="onScroll($event)" scroll-events="true" #content id="content-list">
         <div class="image-list" #imageList (resized)="resized()">
             <ng-container *ngFor="let row of rows; index as rowNr" class="row">
@@ -132,6 +207,8 @@
                                     <img [src]="blockPart.scaledImages[shapeNr] | async" width="100%"
                                          height="100%"
                                          class="image-thumbnail-image"
+                                         (touchstart)="touchStart(blockPart, shape, $event)"
+                                         (touchend)="touchEnd(blockPart, shape, $event)"
                                          (click)="imageClicked(blockPart, shape, $event)"
                                          [class.image-selected]="selectedEntries.has(shape.entry.albumEntryId)">
                                     <ion-icon name="play-circle-outline" class="image-thumbnail-icon"

@@ -278,7 +278,7 @@ export class StorageService extends Dexie {
                             }
                         })]);
                     const finalList: AlbumEntryData[] = [];
-                    (await this.albumEntryDataTable.where('albumId').equals(albumId).filter(entryFilter).sortBy('created'))
+                    (await this.albumEntryDataTable.where('albumId').equals(albumId).sortBy('created'))
                         .forEach(entry => {
                             const keywords = new Set<string>(entry.keywords);
                             if (addKeywords.has(entry.albumEntryId)) {
@@ -289,7 +289,7 @@ export class StorageService extends Dexie {
                             }
                             const kwList: string[] = [];
                             keywords.forEach(kw => kwList.push(kw));
-                            finalList.push({
+                            const adjustedEntry = {
                                 cameraModel: entry.cameraModel,
                                 exposureTime: entry.exposureTime,
                                 fNumber: entry.fNumber,
@@ -304,7 +304,10 @@ export class StorageService extends Dexie {
                                 targetHeight: entry.targetHeight,
                                 targetWidth: entry.targetWidth,
                                 contentType: entry.contentType
-                            });
+                            };
+                            if (entryFilter(adjustedEntry)) {
+                                finalList.push(adjustedEntry);
+                            }
                         });
                     return [foundAlbumData, finalList, foundAlbumSettings];
                 } catch (e) {
@@ -427,13 +430,13 @@ export class StorageService extends Dexie {
         });
     }
 
-    public hasPendingMutations(albumId: string): Promise<boolean> {
+    public countPendingMutations(albumId: string): Promise<number> {
         return this.transaction('r', this.pendingKeywordAddDataTable, this.pendingKeywordRemoveDataTable, async () => {
             const [addCount, removeCount] = await Promise.all([
                 this.pendingKeywordAddDataTable.where('albumId').equals(albumId).count(),
                 this.pendingKeywordRemoveDataTable.where('albumId').equals(albumId).count()
             ]);
-            return addCount + removeCount > 0;
+            return addCount + removeCount;
         });
     }
 

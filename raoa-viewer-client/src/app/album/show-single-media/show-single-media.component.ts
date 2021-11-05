@@ -13,32 +13,69 @@ import {AlbumEntryData} from '../../service/storage.service';
 export type KeywordCombine = 'and' | 'or';
 export type TimeRange = [number, number] | undefined;
 
+export interface FilterQueryParams {
+    keyword: string | undefined;
+    c: string | undefined;
+    tf: number | undefined;
+    tu: number | undefined;
+    tr: number | undefined;
+}
+
+export function createFilterQueryParams(
+    keywords: string[],
+    keywordCombine: KeywordCombine,
+    filteringTimeRange: TimeRange,
+    timeResolution: number): FilterQueryParams {
+    const [keyword, c] = (keywords !== undefined && keywords.length > 0)
+        ? [keywords.map(v => encodeURI(v)).join(','), keywordCombine === 'and' ? 'a' : 'o']
+        : [undefined, undefined];
+    const [tf, tu] = filteringTimeRange !== undefined
+        ? filteringTimeRange
+        : [undefined, undefined];
+    const tr = timeResolution > 0 ? timeResolution : undefined;
+    return {
+        keyword, c,
+        tf, tu,
+        tr
+    };
+
+}
+
+export function updateSearchParams(
+    keywords: string[],
+    keywordCombine: KeywordCombine,
+    filteringTimeRange: TimeRange | undefined,
+    timeResolution: number,
+    params: URLSearchParams) {
+    if (keywords !== undefined && keywords.length > 0) {
+        params.set('keyword', keywords.map(kw => encodeURI(kw)).join(','));
+        params.set('c', keywordCombine === 'and' ? 'a' : 'o');
+    } else {
+        params.delete('keyword');
+        params.delete('c');
+    }
+    if (filteringTimeRange !== undefined && filteringTimeRange !== null) {
+        params.set('tf', filteringTimeRange[0].toString(10));
+        params.set('tu', filteringTimeRange[1].toString(10));
+    } else {
+        params.delete('tf');
+        params.delete('tu');
+    }
+    if (timeResolution > 0) {
+        params.set('tr', timeResolution.toString(10));
+    } else {
+        params.delete('tr');
+    }
+}
+
 export function collectFilterParams(
     keywords: string[],
     keywordCombine: KeywordCombine,
     filteringTimeRange: TimeRange,
     timeResolution: number):
-    Map<string, string | undefined> {
-    const params = new Map<string, string>();
-    if (keywords !== undefined && keywords.length > 0) {
-        params.set('keyword', keywords.map(kw => encodeURI(kw)).join(','));
-        params.set('c', keywordCombine === 'and' ? 'a' : 'o');
-    } else {
-        params.set('keyword', undefined);
-        params.set('c', undefined);
-    }
-    if (filteringTimeRange !== undefined) {
-        params.set('tf', filteringTimeRange[0].toString(10));
-        params.set('tu', filteringTimeRange[1].toString(10));
-    } else {
-        params.set('tf', undefined);
-        params.set('tf', undefined);
-    }
-    if (timeResolution > 0) {
-        params.set('tr', timeResolution.toString(10));
-    } else {
-        params.set('tr', undefined);
-    }
+    URLSearchParams {
+    const params = new URLSearchParams();
+    updateSearchParams(keywords, keywordCombine, filteringTimeRange, timeResolution, params);
     return params;
 }
 
@@ -46,21 +83,14 @@ export function collectFilterParams(
 export function createMediaPath(
     albumId: string,
     mediaId: string,
-    strings: string[],
+    keywords: string[],
     keywordCombine: KeywordCombine,
     filteringTimeRange: TimeRange,
     timeResolution: number): string {
-    let path = '/album/' + albumId + '/media/' + mediaId;
-    const params = collectFilterParams(strings, keywordCombine, filteringTimeRange, timeResolution);
-
-    if (params.size === 0) {
-        return path;
-    }
-    path += '?';
-    params.forEach((value, key) => {
-        path += key + '=' + encodeURIComponent(value);
-    });
-    return path;
+    const path = new URL(window.location.href);
+    path.pathname = '/album/' + albumId + '/media/' + mediaId;
+    updateSearchParams(keywords, keywordCombine, filteringTimeRange, timeResolution, path.searchParams);
+    return path.toString();
 }
 
 

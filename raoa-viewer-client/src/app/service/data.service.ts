@@ -90,7 +90,7 @@ export function createFilter(filteringKeywords: string[], keywordCombine: 'and' 
     if (filteringTimeRange !== undefined) {
         const filterFrom = filteringTimeRange[0];
         const filterUntil = filteringTimeRange[1];
-        filters.push(entry => entry.created >= filterFrom && entry.created < filterUntil);
+        filters.push((entry: AlbumEntryData) => entry.created >= filterFrom && entry.created < filterUntil);
     }
     if (filters.length === 0) {
         return () => true;
@@ -117,6 +117,18 @@ export function filterTimeResolution(albumEntries: AlbumEntryData[], timeResolut
     }
 }
 
+
+function sortKey(data: MutationData) {
+    const addKeywordMutation = data.addKeywordMutation;
+    if (addKeywordMutation) {
+        return addKeywordMutation.albumId + ':' + addKeywordMutation.albumEntryId + ':' + addKeywordMutation.keyword;
+    }
+    const removeKeywordMutation = data.removeKeywordMutation;
+    if (removeKeywordMutation) {
+        return removeKeywordMutation.albumId + ':' + removeKeywordMutation.albumEntryId + ':' + removeKeywordMutation.keyword;
+    }
+    return '';
+}
 
 @Injectable({
     providedIn: 'root'
@@ -302,10 +314,11 @@ export class DataService {// implements OnDestroy {
     }
 
     public async modifyAlbum(updates: MutationData[]): Promise<void> {
-        for (let i = 0; i < updates.length; i += 100) {
+        const MUTATION_BATCH_SIZE = 50;
+        for (let i = 0; i < updates.length; i += MUTATION_BATCH_SIZE) {
             const result = await this.serverApi.update(this.singleAlbumMutateGQL,
-                {updates: updates.slice(i, Math.min(i + 100, updates.length))});
-            const mutate = result.mutate;
+                {updates: updates.slice(i, Math.min(i + MUTATION_BATCH_SIZE, updates.length))});
+            const mutate = result?.mutate;
             if (mutate) {
                 /*if (mutate.errors && mutate.errors.length > 0) {
                     const messages = mutate.errors.map(m => m.message).join(', ');
@@ -383,6 +396,9 @@ export class DataService {// implements OnDestroy {
                 });
             })
         ]);
+        mutations.sort((a, b) => {
+            return sortKey(a).localeCompare(sortKey(b));
+        });
         if (mutations.length > 0) {
             await this.modifyAlbum(mutations);
             this.syncStateId += 1;
@@ -398,8 +414,8 @@ export class DataService {// implements OnDestroy {
         return this.storageService.getAlbumEntry(albumId, albumEntryId);
     }
 
-    public async hasPendingMutations(albumId: string): Promise<boolean> {
-        return this.storageService.hasPendingMutations(albumId);
+    public async countPendingMutations(albumId: string): Promise<number> {
+        return this.storageService.countPendingMutations(albumId);
     }
 
     public async clearPendingMutations(albumId: string) {
