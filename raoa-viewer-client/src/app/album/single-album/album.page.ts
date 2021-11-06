@@ -520,6 +520,11 @@ export class AlbumPage implements OnInit {
             const [album, entries, albumSettings] = await this.dataService.listAlbum(this.albumId, entry => {
                 const keywordFiltered = keywordFilter(entry);
                 if (!keywordFiltered) {
+                    entry.keywords.forEach(kw => {
+                        if (!knownKeywords.has(kw)) {
+                            knownKeywords.set(kw, 0);
+                        }
+                    });
                     return false;
                 }
                 const timeFiltered = timeFilter(entry);
