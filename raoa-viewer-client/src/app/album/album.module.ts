@@ -27,7 +27,13 @@ import {UserListEditorComponent} from '../user-list-editor/user-list-editor.comp
         SuperTabsModule,
         ManageUsersPageModule
     ],
-    declarations: [AlbumPage, AuthImagePipe, InViewportDirective, ShowSingleMediaComponent, AlbumListComponent, ManageAlbumComponent, UserListEditorComponent],
+    declarations: [AlbumPage,
+        AuthImagePipe,
+        InViewportDirective,
+        ShowSingleMediaComponent,
+        AlbumListComponent,
+        ManageAlbumComponent,
+        UserListEditorComponent],
     exports: [
         AuthImagePipe,
         UserListEditorComponent

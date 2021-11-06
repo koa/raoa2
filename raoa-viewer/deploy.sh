@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-namespace=raoa-dev
-#namespace=raoa-prod
+#namespace=raoa-dev
+namespace=raoa-prod
 #namespace=raoa-lkw
 
 cd "$(dirname "$0")"
