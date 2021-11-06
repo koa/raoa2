@@ -5,6 +5,7 @@ import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import org.springframework.graphql.data.method.annotation.SchemaMapping;
@@ -42,7 +43,9 @@ public class AlbumEntryQuery {
 
   @SchemaMapping(typeName = TYPE_NAME)
   public OffsetDateTime created(AlbumEntry entry) {
-    return extractDataEntryValue(entry, AlbumEntryData::getCreateTime).atOffset(ZoneOffset.UTC);
+    return Optional.ofNullable(extractDataEntryValue(entry, AlbumEntryData::getCreateTime))
+        .map(i -> i.atOffset(ZoneOffset.UTC))
+        .orElse(null);
   }
 
   public <T> T extractDataEntryValue(
