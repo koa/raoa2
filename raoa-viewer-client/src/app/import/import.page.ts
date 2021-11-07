@@ -12,7 +12,7 @@ import {
     Maybe
 } from '../generated/graphql';
 import {ServerApiService} from '../service/server-api.service';
-import {LoadingController, ToastController} from '@ionic/angular';
+import {LoadingController, MenuController, ToastController} from '@ionic/angular';
 import {HttpClient, HttpEvent, HttpEventType} from '@angular/common/http';
 
 interface UploadResult {
@@ -88,6 +88,7 @@ export class ImportPage implements OnInit {
                 private httpClient: HttpClient,
                 private toastController: ToastController,
                 private loadingController: LoadingController,
+                private menuController: MenuController,
                 private ngZone: NgZone) {
     }
 
@@ -336,5 +337,9 @@ export class ImportPage implements OnInit {
                 statEntry.scheduler = undefined;
             }
         }, 100);
+    }
+
+    public openNavigationMenu(): Promise<void> {
+        return this.menuController.open('navigation').then();
     }
 }

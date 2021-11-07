@@ -13,9 +13,9 @@ import {InViewportDirective} from './in-viewport.directive';
 import {ShowSingleMediaComponent} from './show-single-media/show-single-media.component';
 import {AlbumListComponent} from './album-list/album-list.component';
 import {ManageAlbumComponent} from './manage-album/manage-album.component';
-import {SuperTabsModule} from '@ionic-super-tabs/angular';
 import {ManageUsersPageModule} from '../manage-users/manage-users.module';
 import {UserListEditorComponent} from '../user-list-editor/user-list-editor.component';
+import {MainMenuComponentModule} from '../main-menu/main-menu.module';
 
 @NgModule({
     imports: [
@@ -24,8 +24,8 @@ import {UserListEditorComponent} from '../user-list-editor/user-list-editor.comp
         IonicModule,
         AlbumPageRoutingModule,
         AngularResizedEventModule,
-        SuperTabsModule,
-        ManageUsersPageModule
+        ManageUsersPageModule,
+        MainMenuComponentModule
     ],
     declarations: [AlbumPage,
         AuthImagePipe,

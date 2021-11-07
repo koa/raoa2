@@ -74,7 +74,8 @@ export class WelcomeComponent implements OnInit {
                 private loadingController: LoadingController,
                 private toastController: ToastController,
                 private httpClient: HttpClient,
-                private dataService: DataService
+                private dataService: DataService,
+                private menuController: MenuController
     ) {
     }
 
@@ -206,5 +207,9 @@ export class WelcomeComponent implements OnInit {
             duration: 5000
         });
         await toast.present();
+    }
+
+    public openNavigationMenu(): Promise<void> {
+        return this.menuController.open('navigation').then();
     }
 }

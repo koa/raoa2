@@ -8,7 +8,6 @@ import {ManageTeamsPageRoutingModule} from './manage-teams-routing.module';
 
 import {ManageTeamsPage} from './manage-teams.page';
 import {EditGroupComponent} from './edit-group/edit-group.component';
-import {SuperTabsModule} from '@ionic-super-tabs/angular';
 import {ManageUsersPageModule} from '../manage-users/manage-users.module';
 import {AlbumPageModule} from '../album/album.module';
 
@@ -18,7 +17,6 @@ import {AlbumPageModule} from '../album/album.module';
         FormsModule,
         IonicModule,
         ManageTeamsPageRoutingModule,
-        SuperTabsModule,
         ManageUsersPageModule,
         AlbumPageModule
     ],

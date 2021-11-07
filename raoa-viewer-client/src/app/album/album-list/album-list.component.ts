@@ -6,6 +6,7 @@ import {Title} from '@angular/platform-browser';
 import {ActivatedRoute} from '@angular/router';
 import {DataService} from '../../service/data.service';
 import {AlbumData, AlbumSettings} from '../../service/storage.service';
+import {MenuController} from '@ionic/angular';
 
 type MenuEntry = {
     sync: 'none' | 'ready' | 'loading';
@@ -28,7 +29,9 @@ export class AlbumListComponent implements OnInit {
                 private location: Location,
                 private titleService: Title,
                 private activatedRoute: ActivatedRoute,
-                private albumDataService: DataService) {
+                private albumDataService: DataService,
+                private menuController: MenuController
+    ) {
     }
 
     async ngOnInit() {
@@ -71,5 +74,9 @@ export class AlbumListComponent implements OnInit {
     public async disableSync(id: string) {
         await this.albumDataService.setSync(id, false);
         await this.updatePhotoCollectionList();
+    }
+
+    public openNavigationMenu(): Promise<void> {
+        return this.menuController.open('navigation').then();
     }
 }

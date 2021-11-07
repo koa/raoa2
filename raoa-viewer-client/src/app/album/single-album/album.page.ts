@@ -1,11 +1,11 @@
 import {Component, ElementRef, NgZone, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router} from '@angular/router';
 import {ServerApiService} from '../../service/server-api.service';
-import {AlbumContentGQL, SingleAlbumMutateGQL, UserPermissionsGQL} from '../../generated/graphql';
+import {AlbumContentGQL, SingleAlbumMutateGQL} from '../../generated/graphql';
 import {HttpClient} from '@angular/common/http';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
-import {IonContent, LoadingController, MenuController, ToastController} from '@ionic/angular';
+import {IonContent, LoadingController, MenuController} from '@ionic/angular';
 import {Title} from '@angular/platform-browser';
 import {AlbumEntryData} from '../../service/storage.service';
 import {createFilter, DataService, filterTimeResolution} from '../../service/data.service';
@@ -20,14 +20,14 @@ import {
 } from '../show-single-media/show-single-media.component';
 
 
+let instanceCounter = 0;
+
 @Component({
     selector: 'app-album',
     templateUrl: './album.page.html',
     styleUrls: ['./album.page.css'],
 })
 export class AlbumPage implements OnInit {
-    public allDateCounts = 0;
-    private touchTimer: number | undefined;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
@@ -41,12 +41,14 @@ export class AlbumPage implements OnInit {
                 private loadingController: LoadingController,
                 private menuController: MenuController,
                 private titleService: Title,
-                private router: Router,
-                private toastController: ToastController,
-                private userPermissionsGQL: UserPermissionsGQL
+                private router: Router
     ) {
+        this.filterId = 'filter-' + instanceCounter++;
     }
 
+    @ViewChild('imageList') private imageListElement: ElementRef<HTMLDivElement>;
+    @ViewChild('content') private contentElement: IonContent;
+    public allDateCounts = 0;
     public syncEnabled: boolean;
     public fnCompetitionId: string;
     public albumId: string;
@@ -83,15 +85,15 @@ export class AlbumPage implements OnInit {
      */
     public syncing = false;
     private filteringTimeRange: TimeRange;
+    private touchTimer: number | undefined;
     private loadingElement: HTMLIonLoadingElement;
     private lastSelectedIndex: number | undefined = undefined;
     private lastScrollPos = 0;
-    @ViewChild('imageList') private imageListElement: ElementRef<HTMLDivElement>;
-    @ViewChild('content') private contentElement: IonContent;
     // public pendingAddKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
     private sortedEntries: AlbumEntryData[] = [];
     private waitCount = 0;
     public selectedDay: number | undefined;
+    public filterId = 'filter';
 
     private static findIndizesOf(rows: Array<TableRow>, timestamp: number): [number, number, number] | undefined {
         for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
@@ -347,7 +349,6 @@ export class AlbumPage implements OnInit {
             clearTimeout(this.touchTimer);
         }
         this.touchTimer = setTimeout(() => {
-            const shiftKey = $event.shiftKey;
             this.touchTimer = undefined;
             const entryId = shape.entry.albumEntryId;
             const selectedIndex = shape.entryIndex;
@@ -360,7 +361,6 @@ export class AlbumPage implements OnInit {
                 }
             });
         }, 600);
-        console.log('start', shape, $event);
     }
 
     public async touchEnd(blockPart: ImageBlock, shape: Shape, $event: TouchEvent) {
@@ -771,13 +771,16 @@ export class AlbumPage implements OnInit {
         this.updateFilterQueryParams();
         this.lastSelectedIndex = undefined;
         await this.refresh();
-        await this.menuController.close();
+        // await this.menuController.close();
     }
 
     public showFilters(): Promise<void> {
-        return this.menuController.open('filter').then();
+        return this.menuController.open(this.filterId).then();
     }
 
+    public async openNavigationMenu(): Promise<void> {
+        return this.menuController.open('navigation').then();
+    }
 }
 
 interface Shape {

@@ -8,7 +8,7 @@ import {ManageUsersPageRoutingModule} from './manage-users-routing.module';
 
 import {ManageUsersPage} from './manage-users.page';
 import {EditUserComponent} from './edit-user/edit-user.component';
-import {SuperTabsModule} from '@ionic-super-tabs/angular';
+import {MainMenuComponentModule} from '../main-menu/main-menu.module';
 
 @NgModule({
     imports: [
@@ -16,7 +16,7 @@ import {SuperTabsModule} from '@ionic-super-tabs/angular';
         FormsModule,
         IonicModule,
         ManageUsersPageRoutingModule,
-        SuperTabsModule
+        MainMenuComponentModule
     ],
     exports: [],
     declarations: [ManageUsersPage, EditUserComponent]

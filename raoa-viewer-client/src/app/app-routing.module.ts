@@ -5,8 +5,13 @@ import {AuthGuard} from './auth.guard';
 
 const routes: Routes = [
     {
-        canActivate: [AuthGuard],
         path: '',
+        redirectTo: 'album',
+        pathMatch: 'full'
+    },
+    {
+        canActivate: [AuthGuard],
+        path: 'welcome',
         component: WelcomeComponent,
         pathMatch: 'full'
     },

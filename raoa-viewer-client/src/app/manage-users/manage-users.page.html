@@ -1,11 +1,13 @@
 <ion-header>
     <ion-toolbar>
-        <ion-back-button defaultHref="/" slot="start"></ion-back-button>
+        <ion-button slot="start" fill="clear" color="dark" (click)="openNavigationMenu()">
+            <ion-icon name="menu"></ion-icon>
+        </ion-button>
         <ion-title>Nutzer</ion-title>
     </ion-toolbar>
     <ion-searchbar (ionChange)="updateSearch($event)"></ion-searchbar>
 </ion-header>
-<ion-content>
+<ion-content id="user-list-content">
     <ion-list>
         <ion-item *ngFor="let user of filteredUserList" [routerLink]="'user/'+user.id">
             <ion-avatar><img [src]="user.info.picture"></ion-avatar>

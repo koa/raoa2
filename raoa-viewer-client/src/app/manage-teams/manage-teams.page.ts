@@ -1,7 +1,7 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 import {ServerApiService} from '../service/server-api.service';
 import {Album, Group, Label, ManageGroupsCreateGroupGQL, ManageTeamsListAllGroupsGQL, User} from '../generated/graphql';
-import {IonInput, LoadingController} from '@ionic/angular';
+import {IonInput, LoadingController, MenuController} from '@ionic/angular';
 import {FNCH_COMPETITOR_ID} from '../constants';
 
 type GroupEntry = { __typename?: 'Group' } & Pick<Group, 'id' | 'name'> &
@@ -25,7 +25,8 @@ export class ManageTeamsPage implements OnInit {
                 private createGroupGQL: ManageGroupsCreateGroupGQL,
                 private manageTeamsListAllGroupsGQL: ManageTeamsListAllGroupsGQL,
                 private loadController: LoadingController,
-                private ngZone: NgZone) {
+                private ngZone: NgZone,
+                private menuController: MenuController) {
     }
 
     async ngOnInit() {
@@ -85,5 +86,9 @@ export class ManageTeamsPage implements OnInit {
             return null;
         }
         return foundLabels[0].labelValue;
+    }
+
+    public openNavigationMenu(): Promise<void> {
+        return this.menuController.open('navigation').then();
     }
 }
