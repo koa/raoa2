@@ -14,8 +14,9 @@ import {ShowSingleMediaComponent} from './show-single-media/show-single-media.co
 import {AlbumListComponent} from './album-list/album-list.component';
 import {ManageAlbumComponent} from './manage-album/manage-album.component';
 import {ManageUsersPageModule} from '../manage-users/manage-users.module';
-import {UserListEditorComponent} from '../user-list-editor/user-list-editor.component';
 import {MainMenuComponentModule} from '../main-menu/main-menu.module';
+import {GroupListEditorModule} from '../group-list-editor/group-list-editor.module';
+import {UserListEditorModule} from '../user-list-editor/user-list-editor.module';
 
 @NgModule({
     imports: [
@@ -25,18 +26,19 @@ import {MainMenuComponentModule} from '../main-menu/main-menu.module';
         AlbumPageRoutingModule,
         AngularResizedEventModule,
         ManageUsersPageModule,
-        MainMenuComponentModule
+        MainMenuComponentModule,
+        GroupListEditorModule,
+        UserListEditorModule
     ],
     declarations: [AlbumPage,
         AuthImagePipe,
         InViewportDirective,
         ShowSingleMediaComponent,
         AlbumListComponent,
-        ManageAlbumComponent,
-        UserListEditorComponent],
+        ManageAlbumComponent
+    ],
     exports: [
-        AuthImagePipe,
-        UserListEditorComponent
+        AuthImagePipe
     ]
 })
 export class AlbumPageModule {

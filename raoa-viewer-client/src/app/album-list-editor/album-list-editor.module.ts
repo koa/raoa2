@@ -5,6 +5,9 @@ import {CommonModule} from '@angular/common';
 
 @NgModule({
     declarations: [AlbumListEditorComponent],
+    exports: [
+        AlbumListEditorComponent
+    ],
     imports: [
         IonicModule,
         CommonModule

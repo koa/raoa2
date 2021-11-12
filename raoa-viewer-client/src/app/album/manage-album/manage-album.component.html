@@ -6,37 +6,25 @@
         </ion-title>
     </ion-toolbar>
 </ion-header>
-<super-tabs>
-    <super-tabs-toolbar color="">
-        <super-tab-button>
-            <ion-label>Einstellungen</ion-label>
-        </super-tab-button>
-        <super-tab-button>
-            <ion-label>Gruppen</ion-label>
-        </super-tab-button>
-        <super-tab-button>
-            <ion-label>User</ion-label>
-        </super-tab-button>
-    </super-tabs-toolbar>
-    <super-tabs-container>
-        <super-tab>
-            <ion-card>
-                <ion-card-subtitle>Auto-Add</ion-card-subtitle>
-                <ion-datetime [(ngModel)]="autoAddTimestamp" displayFormat="D MMM YYYY HH:mm"></ion-datetime>
-            </ion-card>
-            <ion-card>
-                <ion-card-subtitle>FNCH Veranstaltungs-ID</ion-card-subtitle>
-                <ion-card-title><ion-input [(ngModel)]="fnchCompetitionId"></ion-input></ion-card-title>
-            </ion-card>
-        </super-tab>
-        <super-tab>
-            <app-group-list-editor [selectedGroups]="selectedGroups" (valueChanged)="groupChanged($event)"></app-group-list-editor>
-        </super-tab>
-        <super-tab>
-            <app-user-list-editor [selectedUsers]="selectedUsers" (valueChanged)="usersChanged($event)" ></app-user-list-editor>
-        </super-tab>
-    </super-tabs-container>
-</super-tabs>
-<ion-footer>
+<ion-content>
+    <ion-card>
+        <ion-card-subtitle>Auto-Add</ion-card-subtitle>
+        <ion-datetime [(ngModel)]="autoAddTimestamp" displayFormat="D MMM YYYY HH:mm"></ion-datetime>
+    </ion-card>
+    <ion-card>
+        <ion-card-subtitle>FNCH Veranstaltungs-ID</ion-card-subtitle>
+        <ion-card-title>
+            <ion-input [(ngModel)]="fnchCompetitionId"></ion-input>
+        </ion-card-title>
+    </ion-card>
+    <app-group-list-editor
+            [selectedGroups]="selectedGroups"
+            (valueChanged)="groupChanged($event)">
+
+    </app-group-list-editor>
+    <app-user-list-editor
+            [selectedUsers]="selectedUsers"
+            (valueChanged)="usersChanged($event)">
+    </app-user-list-editor>
     <ion-button (click)="store()">Speichern</ion-button>
-</ion-footer>
+</ion-content>

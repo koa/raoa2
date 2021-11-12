@@ -344,7 +344,8 @@ export class AlbumPage implements OnInit {
     }
 
     public touchStart(blockPart: ImageBlock, shape: Shape, $event: TouchEvent) {
-        $event.preventDefault();
+        // $event.preventDefault();
+        /*
         if (this.touchTimer !== undefined) {
             clearTimeout(this.touchTimer);
         }
@@ -361,13 +362,16 @@ export class AlbumPage implements OnInit {
                 }
             });
         }, 600);
+         */
     }
 
     public async touchEnd(blockPart: ImageBlock, shape: Shape, $event: TouchEvent) {
+        /*
         if (this.touchTimer !== undefined) {
             clearTimeout(this.touchTimer);
             await this.goToAlbumEntry(shape);
         }
+         */
     }
 
 

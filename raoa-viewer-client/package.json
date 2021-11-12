@@ -22,6 +22,7 @@
     "@angular/router": "^12.2.11",
     "@angular/service-worker": "~12.2.11",
     "@apollo/client": "^3.3.16",
+    "@ionic-super-tabs/angular": "^7.0.8",
     "@ionic/angular": "^5.8.5",
     "@types/gapi.auth2": "0.0.54",
     "@types/node-forge": "^0.9.7",

@@ -5,6 +5,9 @@ import {CommonModule} from '@angular/common';
 
 @NgModule({
     declarations: [GroupListEditorComponent],
+    exports: [
+        GroupListEditorComponent
+    ],
     imports: [
         IonicModule,
         CommonModule

@@ -25,6 +25,7 @@
             <goals>
               <goal>install-node-and-npm</goal>
             </goals>
+            <phase>initialize</phase>
           </execution>
           <execution>
             <id>prepare npm modules</id>
@@ -34,7 +35,7 @@
             <configuration>
               <arguments>ci</arguments>
             </configuration>
-            <phase>generate-resources</phase>
+            <phase>generate-sources</phase>
           </execution>
           <execution>
             <id>generate graphql client</id>
@@ -44,7 +45,7 @@
             <configuration>
               <arguments>run-script graphql</arguments>
             </configuration>
-            <phase>generate-resources</phase>
+            <phase>generate-sources</phase>
           </execution>
           <execution>
             <id>prod</id>
@@ -54,7 +55,7 @@
             <configuration>
               <arguments>run-script build -- --prod --outputPath=target/classes/resources</arguments>
             </configuration>
-            <phase>generate-resources</phase>
+            <phase>compile</phase>
           </execution>
         </executions>
       </plugin>

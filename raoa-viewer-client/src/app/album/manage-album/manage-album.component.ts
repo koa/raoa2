@@ -1,4 +1,4 @@
-import {Component, NgZone, OnInit} from '@angular/core';
+import {Component, NgZone, OnDestroy, OnInit} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {ServerApiService} from '../../service/server-api.service';
 import {
@@ -6,37 +6,25 @@ import {
     LabelInput,
     ManageAlbumUpdateGQL,
     ManageAlbumUpdateMutationVariables,
-    Maybe,
     QueryAlbumSettingsGQL,
     SingleGroupVisibilityUpdate,
     SingleUserVisibilityUpdate,
     UpdateCredentitalsGQL,
-    UpdateCredentitalsMutationVariables,
-    User,
-    UserInfo
+    UpdateCredentitalsMutationVariables
 } from '../../generated/graphql';
 import {LoadingController, ToastController} from '@ionic/angular';
 import {Location} from '@angular/common';
 import {FNCH_COMPETITION_ID} from '../../constants';
+import {Subscription} from 'rxjs';
 
-
-type UserDataType =
-    { __typename?: 'User' }
-    & Pick<User, 'id'>
-    & { info?: Maybe<{ __typename?: 'UserInfo' } & Pick<UserInfo, 'name' | 'email' | 'picture'>> };
-
-interface UserEntry {
-    selectedBefore: boolean;
-    newSelected: boolean;
-    data: UserDataType;
-}
+type VisibleTab = 'details' | 'teams' | 'users';
 
 @Component({
     selector: 'app-manage-album',
     templateUrl: './manage-album.component.html',
     styleUrls: ['./manage-album.component.css'],
 })
-export class ManageAlbumComponent implements OnInit {
+export class ManageAlbumComponent implements OnInit, OnDestroy {
     public albumId: string;
     public albumName: string;
     public selectedGroups: Set<string> = new Set();
@@ -46,6 +34,8 @@ export class ManageAlbumComponent implements OnInit {
     public fnchCompetitionId: string;
     public autoAddTimestamp: string;
     private unmodifiedAutoAddTimestamp: string;
+    public visibleTab: VisibleTab = 'details';
+    private routeSubscription: Subscription | undefined = undefined;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
@@ -62,7 +52,31 @@ export class ManageAlbumComponent implements OnInit {
 
     async ngOnInit() {
         this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
+        this.routeSubscription = this.activatedRoute.paramMap.subscribe(params => {
+            console.log(params);
+            const albumId = params.get('id');
+            console.log(albumId);
+            const visibleTab = params.get('view') as VisibleTab;
+            console.log(visibleTab);
+            const albumModified = albumId !== this.albumId;
+            console.log(albumModified);
+            this.ngZone.run(() => {
+                this.albumId = albumId;
+                this.visibleTab = visibleTab;
+            });
+            console.log('updated');
+            if (albumModified) {
+                this.refreshData();
+            }
+        });
         await this.refreshData();
+    }
+
+    ngOnDestroy() {
+        if (this.routeSubscription !== undefined) {
+            this.routeSubscription.unsubscribe();
+            this.routeSubscription = undefined;
+        }
     }
 
     private async refreshData() {

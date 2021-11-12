@@ -9,8 +9,8 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 @Builder
 public class AuthenticationId {
   @Field(type = FieldType.Keyword)
-  private String authority;
+  String authority;
 
   @Field(type = FieldType.Keyword)
-  private String id;
+  String id;
 }
