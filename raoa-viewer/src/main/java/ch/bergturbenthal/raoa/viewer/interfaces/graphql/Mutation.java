@@ -152,7 +152,7 @@ public class Mutation {
   }
 
   @MutationMapping
-  public Mono<UserReference> createUser(@Argument AuthenticationId authenticationId) {
+  public Mono<UserReference> createUser(@Argument("id") AuthenticationId authenticationId) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
@@ -197,7 +197,7 @@ public class Mutation {
   }
 
   @MutationMapping
-  public Mono<GroupReference> createGroup(@Argument String name) {
+  public Mono<GroupReference> createGroup(@Argument("groupId") String name) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
@@ -434,7 +434,7 @@ public class Mutation {
   }
 
   @MutationMapping
-  public Mono<Boolean> removeUser(@Argument UUID userId) {
+  public Mono<Boolean> removeUser(@Argument("id") UUID userId) {
     return queryContextSupplier
         .createContext()
         .flatMap(
@@ -523,7 +523,7 @@ public class Mutation {
 
   @MutationMapping
   public Mono<UserReference> setAlbumVisibility(
-      @Argument UUID userId, @Argument UUID albumId, @Argument boolean enabled) {
+      @Argument UUID userId, @Argument UUID albumId, @Argument("visible") boolean enabled) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
