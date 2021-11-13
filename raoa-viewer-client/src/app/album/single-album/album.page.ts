@@ -5,7 +5,7 @@ import {AlbumContentGQL, SingleAlbumMutateGQL} from '../../generated/graphql';
 import {HttpClient} from '@angular/common/http';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
-import {IonContent, LoadingController, MenuController, PopoverController} from '@ionic/angular';
+import {GestureController, IonContent, LoadingController, MenuController, PopoverController} from '@ionic/angular';
 import {Title} from '@angular/platform-browser';
 import {AlbumEntryData} from '../../service/storage.service';
 import {createFilter, DataService, filterTimeResolution} from '../../service/data.service';
@@ -22,6 +22,13 @@ import {SingleAlbumRightPopoverMenuComponent} from './single-album-right-popover
 
 
 let instanceCounter = 0;
+
+function calcTouchDist(t0: Touch, t1: Touch) {
+    const xDist = t0.screenX - t1.screenX;
+    const yDist = t0.screenY - t1.screenY;
+    const dist = Math.sqrt(yDist * yDist + xDist * xDist);
+    return dist;
+}
 
 @Component({
     selector: 'app-album',
@@ -58,7 +65,7 @@ export class AlbumPage implements OnInit {
     public selectedDay: number | undefined;
     public filterId = 'filter';
     public selectionMode = false;
-    @ViewChild('imageList') private imageListElement: ElementRef<HTMLDivElement>;
+    private imageListElement: ElementRef<HTMLDivElement>;
     @ViewChild('content') private contentElement: IonContent;
     private filteringTimeRange: TimeRange;
     private loadingElement: HTMLIonLoadingElement;
@@ -66,6 +73,9 @@ export class AlbumPage implements OnInit {
     private lastScrollPos = 0;
     private sortedEntries: AlbumEntryData[] = [];
     private waitCount = 0;
+    private zoomStartDist = 1;
+    private currentZoomState = 1;
+    private zoomStartMaxWidth = 1;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
@@ -80,7 +90,8 @@ export class AlbumPage implements OnInit {
                 private menuController: MenuController,
                 private titleService: Title,
                 private router: Router,
-                private popoverController: PopoverController
+                private popoverController: PopoverController,
+                private gestureController: GestureController
     ) {
         this.filterId = 'filter-' + instanceCounter++;
     }
@@ -106,6 +117,11 @@ export class AlbumPage implements OnInit {
             }
         }
         return undefined;
+    }
+
+    @ViewChild('imageList')
+    set imageList(imageListElement: ElementRef<HTMLDivElement>) {
+        this.imageListElement = imageListElement;
     }
 
     public async resized() {
@@ -680,6 +696,35 @@ export class AlbumPage implements OnInit {
         });
         await popover.present();
     }
+
+    onTouchStart(ev: TouchEvent) {
+        if (ev.touches.length !== 2) {
+            return;
+        }
+
+        const data = calcTouchDist(ev.touches[0], ev.touches[1]);
+        this.zoomStartDist = data;
+        this.zoomStartMaxWidth = this.maxWidth;
+        this.currentZoomState = 1;
+    }
+
+    async onTouchMove(ev: TouchEvent) {
+        if (ev.touches.length !== 2) {
+            return;
+        }
+        const currentDist = calcTouchDist(ev.touches[0], ev.touches[1]);
+
+        const data = currentDist / this.zoomStartDist;
+        this.currentZoomState = data;
+        const width = Math.round(this.zoomStartMaxWidth / data);
+        if (width !== this.maxWidth) {
+            const timestampBefore = this.timestamp;
+            this.maxWidth = width;
+            await this.calculateRows();
+            this.scrollToTimestamp(timestampBefore);
+        }
+    }
+
 }
 
 interface Shape {
