@@ -17,6 +17,7 @@ import {ManageUsersPageModule} from '../manage-users/manage-users.module';
 import {MainMenuComponentModule} from '../main-menu/main-menu.module';
 import {GroupListEditorModule} from '../group-list-editor/group-list-editor.module';
 import {UserListEditorModule} from '../user-list-editor/user-list-editor.module';
+import {SingleAlbumRightPopoverMenuComponent} from './single-album/single-album-right-popover-menu/single-album-right-popover-menu.component';
 
 @NgModule({
     imports: [
@@ -35,7 +36,7 @@ import {UserListEditorModule} from '../user-list-editor/user-list-editor.module'
         InViewportDirective,
         ShowSingleMediaComponent,
         AlbumListComponent,
-        ManageAlbumComponent
+        ManageAlbumComponent, SingleAlbumRightPopoverMenuComponent
     ],
     exports: [
         AuthImagePipe

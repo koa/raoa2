@@ -1,0 +1,15 @@
+<ion-list>
+    <ion-item>
+        <ion-checkbox slot="end" [checked]="selectMode" (click)="toggleSelectMode()">
+        </ion-checkbox>
+        <ion-label>
+            Auswählen
+        </ion-label>
+    </ion-item>
+    <ion-item *ngIf="fnchCompetitionId !== undefined"
+              [href]="'https://info.fnch.ch/#/resultate/veranstaltungen/'+fnchCompetitionId" (click)="onShowRanking()">
+        <ion-label>
+            FNCH Rangliste
+        </ion-label>
+    </ion-item>
+</ion-list>

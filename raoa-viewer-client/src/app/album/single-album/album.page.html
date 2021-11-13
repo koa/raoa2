@@ -6,18 +6,17 @@
         <ion-title>
             <span>{{title}}</span>
         </ion-title>
-        <ion-button *ngIf="fnCompetitionId" slot="end"
-                    [href]="'https://info.fnch.ch/#/resultate/veranstaltungen/'+fnCompetitionId">
-            <ion-icon name="list"></ion-icon>
-        </ion-button>
         <!--<ion-button *ngIf="selectionMode" [disabled]="this.selectedEntries.size==0" slot="end" (click)="downloadAlbum()">
             <ion-icon name="download"></ion-icon>
         </ion-button>-->
         <ion-button slot="end" [color]="syncEnabled?'':'light'" (click)="syncAlbum()">
             <ion-icon name="sync"></ion-icon>
         </ion-button>
-        <ion-button slot="end" fill="clear" color="dark" (click)="showFilters()">
+        <ion-button slot="end" fill="clear" (click)="showFilters()">
             <ion-icon name="options-outline"></ion-icon>
+        </ion-button>
+        <ion-button slot="end" fill="clear" color="dark" (click)="popupMenu($event)">
+            <ion-icon name="ellipsis-vertical"></ion-icon>
         </ion-button>
     </ion-toolbar>
     <span>{{timestamp | date: 'medium'}}</span>
@@ -133,8 +132,6 @@
                                 <img [src]="blockPart.scaledImages[shapeNr] | async" width="100%"
                                      height="100%"
                                      class="image-thumbnail-image"
-                                     (touchstart)="touchStart(blockPart, shape, $event)"
-                                     (touchend)="touchEnd(blockPart, shape, $event)"
                                      (click)="imageClicked(blockPart, shape, $event)"
                                      [class.image-selected]="selectedEntries.has(shape.entry.albumEntryId)">
                                 <ion-icon name="play-circle-outline" class="image-thumbnail-icon"

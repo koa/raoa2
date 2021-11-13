@@ -5,7 +5,7 @@ import {AlbumContentGQL, SingleAlbumMutateGQL} from '../../generated/graphql';
 import {HttpClient} from '@angular/common/http';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
-import {IonContent, LoadingController, MenuController} from '@ionic/angular';
+import {IonContent, LoadingController, MenuController, PopoverController} from '@ionic/angular';
 import {Title} from '@angular/platform-browser';
 import {AlbumEntryData} from '../../service/storage.service';
 import {createFilter, DataService, filterTimeResolution} from '../../service/data.service';
@@ -18,6 +18,7 @@ import {
     TimeRange,
     updateSearchParams
 } from '../show-single-media/show-single-media.component';
+import {SingleAlbumRightPopoverMenuComponent} from './single-album-right-popover-menu/single-album-right-popover-menu.component';
 
 
 let instanceCounter = 0;
@@ -28,6 +29,43 @@ let instanceCounter = 0;
     styleUrls: ['./album.page.css'],
 })
 export class AlbumPage implements OnInit {
+
+    public allDateCounts = 0;
+    public syncEnabled: boolean;
+    public fnCompetitionId: string;
+    public albumId: string;
+    public title: string;
+    public rows: Array<TableRow> = [];
+    public days: number[] = [];
+    public canAddKeyword = new Set<string>();
+    public canRemoveKeywords = new Set<string>();
+    public sortedKeywords: string[] = [];
+    public maxWidth = 8;
+    public filteringKeywords = new Set<string>();
+    public keywordCombinator: KeywordCombine = 'and';
+    public selectedEntries = new Set<string>();
+    public elementWidth = 10;
+    public enableSettings = false;
+    public daycount = 0;
+    public timestamp = 0;
+    public canEdit = false;
+    public newTag = '';
+    public filterTimeStep = 60 * 1000;
+    public pendingMutationCount = 0;
+    public keywordCounters: Map<string, number> = new Map<string, number>();
+    public dayCounters = new Map<number, number>();
+    public syncing = false;
+    public selectedDay: number | undefined;
+    public filterId = 'filter';
+    public selectionMode = false;
+    @ViewChild('imageList') private imageListElement: ElementRef<HTMLDivElement>;
+    @ViewChild('content') private contentElement: IonContent;
+    private filteringTimeRange: TimeRange;
+    private loadingElement: HTMLIonLoadingElement;
+    private lastSelectedIndex: number | undefined = undefined;
+    private lastScrollPos = 0;
+    private sortedEntries: AlbumEntryData[] = [];
+    private waitCount = 0;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
@@ -41,59 +79,11 @@ export class AlbumPage implements OnInit {
                 private loadingController: LoadingController,
                 private menuController: MenuController,
                 private titleService: Title,
-                private router: Router
+                private router: Router,
+                private popoverController: PopoverController
     ) {
         this.filterId = 'filter-' + instanceCounter++;
     }
-
-    @ViewChild('imageList') private imageListElement: ElementRef<HTMLDivElement>;
-    @ViewChild('content') private contentElement: IonContent;
-    public allDateCounts = 0;
-    public syncEnabled: boolean;
-    public fnCompetitionId: string;
-    public albumId: string;
-    public title: string;
-    public rows: Array<TableRow> = [];
-    public days: number[] = [];
-    // private keywords = new Set<string>();
-    public canAddKeyword = new Set<string>();
-    public canRemoveKeywords = new Set<string>();
-    public sortedKeywords: string[] = [];
-    public maxWidth = 8;
-    public filteringKeywords = new Set<string>();
-    public keywordCombinator: KeywordCombine = 'and';
-    public selectedEntries = new Set<string>();
-    public selectableDates: number[] = [];
-    public elementWidth = 10;
-    public enableSettings = false;
-    public daycount = 0;
-    public timestamp = 0;
-    public canEdit = false;
-    public newTag = '';
-    // public pendingRemoveKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
-    public filterTimeStep = 60 * 1000;
-    public pendingMutationCount = 0;
-    public keywordCounters: Map<string, number> = new Map<string, number>();
-    public dayCounters = new Map<number, number>();
-    /*
-    private sortKeywords() {
-        this.sortedKeywords = [];
-        this.keywords.forEach(keyword => this.sortedKeywords.push(keyword));
-        this.sortedKeywords.sort((k1, k2) => k1.localeCompare(k2));
-    }
-
-     */
-    public syncing = false;
-    private filteringTimeRange: TimeRange;
-    private touchTimer: number | undefined;
-    private loadingElement: HTMLIonLoadingElement;
-    private lastSelectedIndex: number | undefined = undefined;
-    private lastScrollPos = 0;
-    // public pendingAddKeywords: Map<string, Set<string>> = new Map<string, Set<string>>();
-    private sortedEntries: AlbumEntryData[] = [];
-    private waitCount = 0;
-    public selectedDay: number | undefined;
-    public filterId = 'filter';
 
     private static findIndizesOf(rows: Array<TableRow>, timestamp: number): [number, number, number] | undefined {
         for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
@@ -185,7 +175,6 @@ export class AlbumPage implements OnInit {
 
             const [filteringKeywords, keywordCombine, filteringTimeRange, timeResolution] = parseFilterParams(params);
             let refreshNeeded = false;
-            // if (this.albumId) {
             const keywordSet = new Set<string>(filteringKeywords);
             if (this.filteringKeywords !== keywordSet) {
                 this.filteringKeywords = keywordSet;
@@ -209,7 +198,6 @@ export class AlbumPage implements OnInit {
                 this.filterTimeStep = timeResolution;
                 refreshNeeded = true;
             }
-            // }
             const timestamp = params.get('timestamp');
             if (timestamp !== undefined) {
                 this.timestamp = Number.parseInt(timestamp, 10);
@@ -261,12 +249,6 @@ export class AlbumPage implements OnInit {
     }
 
 
-    async scrollTo(id: string) {
-        const y = document.getElementById(id).offsetTop;
-        await this.contentElement.scrollToPoint(0, y);
-        await this.menuController.close();
-    }
-
     async filter(keyword: string) {
         if (this.filteringKeywords.has(keyword)) {
             this.filteringKeywords.delete(keyword);
@@ -274,19 +256,6 @@ export class AlbumPage implements OnInit {
             this.filteringKeywords.add(keyword);
         }
         await this.refreshFilters();
-    }
-
-    private updateFilterQueryParams() {
-        const kwlist: string[] = [];
-        for (const kw of this.filteringKeywords) {
-            kwlist.push(kw);
-        }
-        const url = new URL(window.location.href);
-        for (const param of ['keyword', 'c']) {
-            url.searchParams.delete(param);
-        }
-        updateSearchParams(kwlist, this.keywordCombinator, this.filteringTimeRange, this.filterTimeStep, url.searchParams);
-        this.location.replaceState(url.pathname, url.searchParams.toString());
     }
 
     public createEntryLink(shape: Shape): string {
@@ -300,20 +269,11 @@ export class AlbumPage implements OnInit {
             this.filterTimeStep);
     }
 
-    queryParams() {
-        const ret = new Map<string, string>();
-        if (this.filteringKeywords.size > 0) {
-            const kwlist: string[] = [];
-            this.filteringKeywords.forEach(kw => kwlist.push(encodeURIComponent(kw)));
-            ret.set('keyword', kwlist.join(','));
-        }
-        return ret;
-    }
 
     public async imageClicked(blockPart: ImageBlock, shape: Shape, $event: MouseEvent) {
         const shiftKey = $event.shiftKey;
-        const ctrlKey = $event.ctrlKey;
-        if (ctrlKey || shiftKey) {
+        const selectionMode = $event.ctrlKey || this.selectionMode;
+        if (selectionMode || shiftKey) {
             const entryId = shape.entry.albumEntryId;
             const selectedIndex = shape.entryIndex;
             if (shiftKey) {
@@ -327,68 +287,19 @@ export class AlbumPage implements OnInit {
                     } else {
                         slice.forEach(entry => this.selectedEntries.add(entry.albumEntryId));
                     }
-                    this.lastSelectedIndex = undefined;
                 }
             } else {
-                this.lastSelectedIndex = selectedIndex;
                 if (this.selectedEntries.has(entryId)) {
                     this.selectedEntries.delete(entryId);
                 } else {
                     this.selectedEntries.add(entryId);
                 }
             }
+            this.lastSelectedIndex = selectedIndex;
             await this.refreshPossibleKeywords();
         } else {
             await this.goToAlbumEntry(shape);
         }
-    }
-
-    public touchStart(blockPart: ImageBlock, shape: Shape, $event: TouchEvent) {
-        // $event.preventDefault();
-        /*
-        if (this.touchTimer !== undefined) {
-            clearTimeout(this.touchTimer);
-        }
-        this.touchTimer = setTimeout(() => {
-            this.touchTimer = undefined;
-            const entryId = shape.entry.albumEntryId;
-            const selectedIndex = shape.entryIndex;
-            this.ngZone.run(() => {
-                this.lastSelectedIndex = selectedIndex;
-                if (this.selectedEntries.has(entryId)) {
-                    this.selectedEntries.delete(entryId);
-                } else {
-                    this.selectedEntries.add(entryId);
-                }
-            });
-        }, 600);
-         */
-    }
-
-    public async touchEnd(blockPart: ImageBlock, shape: Shape, $event: TouchEvent) {
-        /*
-        if (this.touchTimer !== undefined) {
-            clearTimeout(this.touchTimer);
-            await this.goToAlbumEntry(shape);
-        }
-         */
-    }
-
-
-    private async goToAlbumEntry(shape: Shape) {
-        const path = ['album', this.albumId, 'media', shape.entry.albumEntryId];
-
-        const filteringKeywords: string[] = [];
-        this.filteringKeywords.forEach(kw => filteringKeywords.push(kw));
-
-
-        const urlTree = this.router.createUrlTree(path, {
-            queryParams: createFilterQueryParams(filteringKeywords,
-                this.keywordCombinator,
-                this.filteringTimeRange,
-                this.filterTimeStep)
-        });
-        await this.router.navigateByUrl(urlTree);
     }
 
     async tagAdded($event: any) {
@@ -425,7 +336,6 @@ export class AlbumPage implements OnInit {
         await this.refresh();
     }
 
-
     async refreshPendingMutations() {
         const newValue = await this.dataService.countPendingMutations(this.albumId);
         this.ngZone.run(() => {
@@ -442,40 +352,71 @@ export class AlbumPage implements OnInit {
         await this.refreshPendingMutations();
     }
 
-    async setResolution(time: number) {
-        if (time === this.filterTimeStep) {
-            return;
-        }
-        this.filterTimeStep = time;
-        this.updateFilterQueryParams();
-        await this.refresh();
-    }
-
-    public isResolution(res: number): boolean {
-        return this.filterTimeStep === res;
-    }
-
     public async syncAlbum(): Promise<void> {
         await this.dataService.setSync(this.albumId, !this.syncEnabled);
         await this.refresh();
-        /*
-        this.syncing = true;
-        try {
-            const albumContent: [AlbumData, AlbumEntryData[]] = await this.dataService.listAlbum(this.albumId);
-            let batch: Promise<void>[] = [];
-            let lastPromise = Promise.resolve();
-            for (const entry of albumContent[1]) {
-                batch.push(this.dataService.getImage(this.albumId, entry.albumEntryId, 3200).then());
-                if (batch.length >= 10) {
-                    await lastPromise;
-                    lastPromise = Promise.all(batch).then();
-                    batch = [];
-                }
-            }
-        } finally {
-            this.ngZone.run(() => this.syncing = false);
+    }
+
+    public async selectDate(date: number | undefined): Promise<void> {
+        const newDateRange: TimeRange = date === undefined ? undefined : [date, date + 24 * 3600 * 1000];
+        if (newDateRange !== this.filteringTimeRange) {
+            this.filteringTimeRange = newDateRange;
+            this.updateFilterQueryParams();
+            await this.refresh();
         }
-         */
+    }
+
+    public async closeFilterMenu(): Promise<void> {
+        await this.menuController.close();
+    }
+
+    public async refreshFilters(): Promise<void> {
+        if (this.selectedDay === undefined || !Number.isInteger(this.selectedDay)) {
+            this.filteringTimeRange = undefined;
+        } else {
+            this.filteringTimeRange = [this.selectedDay, this.selectedDay + 24 * 3600 * 1000];
+        }
+        this.updateFilterQueryParams();
+        this.lastSelectedIndex = undefined;
+        await this.refresh();
+        // await this.menuController.close();
+    }
+
+    public showFilters(): Promise<void> {
+        return this.menuController.open(this.filterId).then();
+    }
+
+    public async openNavigationMenu(): Promise<void> {
+        return this.menuController.open('navigation').then();
+    }
+
+    private updateFilterQueryParams() {
+        const kwlist: string[] = [];
+        for (const kw of this.filteringKeywords) {
+            kwlist.push(kw);
+        }
+        const url = new URL(window.location.href);
+        for (const param of ['keyword', 'c']) {
+            url.searchParams.delete(param);
+        }
+        updateSearchParams(kwlist, this.keywordCombinator, this.filteringTimeRange, this.filterTimeStep, url.searchParams);
+        this.location.replaceState(url.pathname, url.searchParams.toString());
+    }
+
+    private async goToAlbumEntry(shape: Shape) {
+        const path = ['album', this.albumId, 'media', shape.entry.albumEntryId];
+
+        const filteringKeywords: string[] = [];
+        this.filteringKeywords.forEach(kw => filteringKeywords.push(kw));
+
+
+        const urlTree = this.router.createUrlTree(path, {
+            queryParams: createFilterQueryParams(filteringKeywords,
+                this.keywordCombinator,
+                this.filteringTimeRange,
+                this.filterTimeStep)
+        });
+        await this.router.navigateByUrl(urlTree);
     }
 
     private findCurrentTimestamp() {
@@ -562,39 +503,6 @@ export class AlbumPage implements OnInit {
                 }
                 this.allDateCounts = allDateCounts;
                 this.dayCounters = foundDates;
-                // filter pending keyword modifications
-                // this.keywords.clear();
-                /*
-                entries.forEach(albumEntry => {
-                    albumEntry.keywords.forEach(keyword => {
-                        this.keywords.add(keyword);
-                    });
-                    const albumEntryId = albumEntry.albumEntryId;
-                    if (this.pendingAddKeywords.has(albumEntryId)) {
-                        const kwlist = this.pendingAddKeywords.get(albumEntryId);
-                        albumEntry.keywords.forEach(kw => kwlist.delete(kw));
-                        if (kwlist.size === 0) {
-                            this.pendingAddKeywords.delete(albumEntryId);
-                        }
-                    }
-                    if (this.pendingRemoveKeywords.has(albumEntryId)) {
-                        const stillExistingKeywords = new Set<string>(albumEntry.keywords);
-                        const kwlist = this.pendingRemoveKeywords.get(albumEntryId);
-                        const newRemoveKeywords = new Set<string>();
-                        for (const kw of kwlist) {
-                            if (stillExistingKeywords.has(kw)) {
-                                newRemoveKeywords.add(kw);
-                            }
-                        }
-                        if (newRemoveKeywords.size === 0) {
-                            this.pendingRemoveKeywords.delete(albumEntryId);
-                        } else {
-                            this.pendingRemoveKeywords.set(albumEntryId, newRemoveKeywords);
-                        }
-                    }
-                });
-                 */
-                // this.sortKeywords();
                 this.keywordCounters = knownKeywords;
                 this.sortedKeywords = newSortedKeywords;
                 this.canAddKeyword = canAddKeywords;
@@ -623,7 +531,6 @@ export class AlbumPage implements OnInit {
         const scrollPosBefore = this.lastScrollPos;
         this.ngZone.run(() => {
             const newRows: Array<TableRow> = [];
-            // const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
             const optimalMediaCount = Math.sqrt(this.sortedEntries.length);
             let currentImageDate: number;
             let index = 0;
@@ -753,37 +660,25 @@ export class AlbumPage implements OnInit {
         return selectedEntries;
     }
 
-    public async selectDate(date: number | undefined): Promise<void> {
-        const newDateRange: TimeRange = date === undefined ? undefined : [date, date + 24 * 3600 * 1000];
-        if (newDateRange !== this.filteringTimeRange) {
-            this.filteringTimeRange = newDateRange;
-            this.updateFilterQueryParams();
-            await this.refresh();
-        }
-    }
-
-    public async closeFilterMenu(): Promise<void> {
-        await this.menuController.close();
-    }
-
-    public async refreshFilters(): Promise<void> {
-        if (this.selectedDay === undefined || !Number.isInteger(this.selectedDay)) {
-            this.filteringTimeRange = undefined;
-        } else {
-            this.filteringTimeRange = [this.selectedDay, this.selectedDay + 24 * 3600 * 1000];
-        }
-        this.updateFilterQueryParams();
-        this.lastSelectedIndex = undefined;
-        await this.refresh();
-        // await this.menuController.close();
-    }
-
-    public showFilters(): Promise<void> {
-        return this.menuController.open(this.filterId).then();
-    }
-
-    public async openNavigationMenu(): Promise<void> {
-        return this.menuController.open('navigation').then();
+    public async popupMenu(ev: Event): Promise<void> {
+        console.log(this.selectionMode);
+        const popover = await this.popoverController.create({
+            component: SingleAlbumRightPopoverMenuComponent,
+            event: ev,
+            componentProps: {
+                fnchCompetitionId: this.fnCompetitionId,
+                onShowRanking: () => {
+                    popover.dismiss();
+                },
+                selectMode: this.selectionMode,
+                toggleSelectMode: () => {
+                    popover.dismiss();
+                    this.selectionMode = !this.selectionMode;
+                }
+            },
+            translucent: true
+        });
+        await popover.present();
     }
 }
 
