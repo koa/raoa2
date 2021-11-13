@@ -266,7 +266,7 @@ export class AlbumPage implements OnInit {
             filteringKeywords,
             'and',
             this.filteringTimeRange,
-            this.filterTimeStep);
+            this.filterTimeStep).toString();
     }
 
 

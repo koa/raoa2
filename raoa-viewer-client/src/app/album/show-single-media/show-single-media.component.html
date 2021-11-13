@@ -1,92 +1,89 @@
-<ion-slides (ionSlideTransitionEnd)="slided()" #imageSlider>
-    <ion-slide>
-        <div *ngIf="previousMediaId" class="image">
-            <img [src]="previousMediaContent | async">
-        </div>
-    </ion-slide>
-    <ion-slide>
-        <div class="image" (keyup.arrowLeft)="showImage(previousMediaId)" (keyup.arrowRight)="showImage(nextMediaId)" #videoRoot (resized)="resized()">
+<div class="image" (keyup.arrowLeft)="showImage(previousMediaId)" (keyup.arrowRight)="showImage(nextMediaId)" #videoRoot
+     (resized)="resized()">
+    <ion-slides (ionSlideTransitionEnd)="slided()" #imageSlider>
+        <ion-slide>
+            <img [src]="previousMediaContent | async" *ngIf="previousMediaId">
+        </ion-slide>
+        <ion-slide>
             <img [src]="currentMediaContent | async" *ngIf="!playVideo">
             <video [src]="loadVideo(this.mediaId) | authImage | async" *ngIf="playVideo" controls>
                 <img [src]="currentMediaContent | async">
             </video>
-            <div class="overlay" *ngIf="!playVideo">
-                <div *ngIf="previousMediaId" class="left-button">
-                    <ion-icon class="button" name="arrow-back" (click)="showImage(previousMediaId)"></ion-icon>
-                </div>
-                <div *ngIf="nextMediaId" class="right-button">
-                    <ion-icon class="button" name="arrow-forward" (click)="showImage(nextMediaId)"></ion-icon>
-                </div>
-                <div class="play-button" *ngIf="currentIsVideo">
-                    <ion-icon class="button" name="play-circle-outline" (click)="playVideo=true"></ion-icon>
-                </div>
-                <div class="left-actions">
-                    <ion-icon (click)="back()" class="button" name="arrow-back"></ion-icon>
-                </div>
+        </ion-slide>
+        <ion-slide>
+            <img [src]="nextMediaContent | async" *ngIf="nextMediaId">
+        </ion-slide>
+    </ion-slides>
+    <div class="overlay" *ngIf="!playVideo">
+        <div *ngIf="previousMediaId" class="left-button">
+            <ion-icon class="button" name="arrow-back" (click)="showImage(previousMediaId)"></ion-icon>
+        </div>
+        <div *ngIf="nextMediaId" class="right-button">
+            <ion-icon class="button" name="arrow-forward" (click)="showImage(nextMediaId)"></ion-icon>
+        </div>
+        <div class="play-button" *ngIf="currentIsVideo">
+            <ion-icon class="button" name="play-circle-outline" (click)="playVideo=true"></ion-icon>
+        </div>
+        <div class="left-actions">
+            <ion-icon (click)="back()" class="button" name="arrow-back"></ion-icon>
+        </div>
 
-                <div class="right-actions">
-                    <ion-button (click)="downloadCurrentFile(mediaId, metadata)">
-                        <ion-icon name="download-outline"
-                        ></ion-icon>
-                    </ion-button>
-                    <ion-button *ngIf="supportShare" (click)="shareCurrentFile(mediaId, metadata)">
-                        <ion-icon name="share-social-outline"
-                        ></ion-icon>
-                    </ion-button>
-                    <ion-button (click)="toggleMetadata()">
-                        <ion-icon name="information-circle-outline"></ion-icon>
-                    </ion-button>
-                    <ion-button *ngIf="canEdit" (click)="toggleKeywords()">
-                        <ion-icon name="bookmark-outline"></ion-icon>
-                    </ion-button>
-                </div>
-                <div *ngIf="showDetails=='Metadata'" class="file-meta">
-                    <ion-label *ngIf="metadata?.name">
-                        <ion-icon name="document"></ion-icon>
-                        {{metadata.name}}</ion-label>
-                    <ion-label *ngIf="metadata?.created">
-                        <ion-icon name="time"></ion-icon>
-                        {{metadata.created | date:'medium' }}
-                    </ion-label>
-                    <ion-label *ngIf="metadata?.cameraModel">
-                        <ion-icon name="camera"></ion-icon>
-                        {{metadata.cameraModel}}
-                    </ion-label>
-                    <ion-label *ngIf="metadata?.exposureTime">
-                        <ion-icon name="stopwatch"></ion-icon>
-                        {{calcTime(metadata.exposureTime)}}
-                    </ion-label>
-                    <ion-label *ngIf="metadata?.fNumber">
-                        <ion-icon name="aperture"></ion-icon>
-                        F{{metadata.fNumber}}
-                    </ion-label>
-                    <ion-label *ngIf="metadata?.focalLength35">
-                        {{metadata.focalLength35}} mm
-                    </ion-label>
-                    <ion-label *ngIf="metadata?.isoSpeedRatings">
-                        ISO {{metadata.isoSpeedRatings}}
-                    </ion-label>
-                    <ion-label *ngFor="let keyword of metadata?.keywords">
-                        <ion-icon name="bookmark"></ion-icon>
-                        {{keyword}}
-                    </ion-label>
-                </div>
-                <div *ngIf="showDetails=='Keyword'" class="file-meta">
-                    <ion-chip *ngFor="let keyword of albumKeywords"
-                              [color]="currentSelectedKeywords.has(keyword)?'primary':'light'"
-                              [outline]="!currentSelectedKeywords.has(keyword)" (click)="toggleKeyword(keyword)">
-                        <ion-icon *ngIf="!currentSelectedKeywords.has(keyword)" name="bookmark-outline"></ion-icon>
-                        <ion-icon *ngIf="currentSelectedKeywords.has(keyword)" name="bookmark"></ion-icon>
-                        <ion-label>{{keyword}}</ion-label>
-                    </ion-chip>
-                    <ion-input placeholder="Neues Stichwort" (keyup.enter)="addKeyword($event)"></ion-input>
-                </div>
-            </div>
+        <div class="right-actions">
+            <ion-button (click)="downloadCurrentFile(mediaId, metadata)">
+                <ion-icon name="download-outline"
+                ></ion-icon>
+            </ion-button>
+            <ion-button *ngIf="supportShare" (click)="shareCurrentFile(mediaId, metadata)">
+                <ion-icon name="share-social-outline"
+                ></ion-icon>
+            </ion-button>
+            <ion-button (click)="toggleMetadata()">
+                <ion-icon name="information-circle-outline"></ion-icon>
+            </ion-button>
+            <ion-button *ngIf="canEdit" (click)="toggleKeywords()">
+                <ion-icon name="bookmark-outline"></ion-icon>
+            </ion-button>
         </div>
-    </ion-slide>
-    <ion-slide>
-        <div *ngIf="nextMediaId" class="image">
-            <img [src]="nextMediaContent | async">
+        <div *ngIf="showDetails=='Metadata'" class="file-meta">
+            <ion-label *ngIf="metadata?.name">
+                <ion-icon name="document"></ion-icon>
+                {{metadata.name}}</ion-label>
+            <ion-label *ngIf="metadata?.created">
+                <ion-icon name="time"></ion-icon>
+                {{metadata.created | date:'medium' }}
+            </ion-label>
+            <ion-label *ngIf="metadata?.cameraModel">
+                <ion-icon name="camera"></ion-icon>
+                {{metadata.cameraModel}}
+            </ion-label>
+            <ion-label *ngIf="metadata?.exposureTime">
+                <ion-icon name="stopwatch"></ion-icon>
+                {{calcTime(metadata.exposureTime)}}
+            </ion-label>
+            <ion-label *ngIf="metadata?.fNumber">
+                <ion-icon name="aperture"></ion-icon>
+                F{{metadata.fNumber}}
+            </ion-label>
+            <ion-label *ngIf="metadata?.focalLength35">
+                {{metadata.focalLength35}} mm
+            </ion-label>
+            <ion-label *ngIf="metadata?.isoSpeedRatings">
+                ISO {{metadata.isoSpeedRatings}}
+            </ion-label>
+            <ion-label *ngFor="let keyword of metadata?.keywords">
+                <ion-icon name="bookmark"></ion-icon>
+                {{keyword}}
+            </ion-label>
         </div>
-    </ion-slide>
-</ion-slides>
+        <div *ngIf="showDetails=='Keyword'" class="file-meta">
+            <ion-chip *ngFor="let keyword of albumKeywords"
+                      [color]="currentSelectedKeywords.has(keyword)?'primary':'light'"
+                      [outline]="!currentSelectedKeywords.has(keyword)" (click)="toggleKeyword(keyword)">
+                <ion-icon *ngIf="!currentSelectedKeywords.has(keyword)" name="bookmark-outline"></ion-icon>
+                <ion-icon *ngIf="currentSelectedKeywords.has(keyword)" name="bookmark"></ion-icon>
+                <ion-label>{{keyword}}</ion-label>
+            </ion-chip>
+            <ion-input placeholder="Neues Stichwort" (keyup.enter)="addKeyword($event)"></ion-input>
+        </div>
+    </div>
+</div>

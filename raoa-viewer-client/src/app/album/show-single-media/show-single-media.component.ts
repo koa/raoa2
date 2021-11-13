@@ -86,11 +86,11 @@ export function createMediaPath(
     keywords: string[],
     keywordCombine: KeywordCombine,
     filteringTimeRange: TimeRange,
-    timeResolution: number): string {
+    timeResolution: number): URL {
     const path = new URL(window.location.href);
     path.pathname = '/album/' + albumId + '/media/' + mediaId;
     updateSearchParams(keywords, keywordCombine, filteringTimeRange, timeResolution, path.searchParams);
-    return path.toString();
+    return path;
 }
 
 
@@ -292,7 +292,7 @@ export class ShowSingleMediaComponent implements OnInit {
                 this.mediaId = mediaId;
                 this.metadata = albumEntry;
                 this.titleService.setTitle(albumEntry.name);
-                this.location.replaceState(this.mediaPath(mediaId));
+                this.location.replaceState(this.mediaPath(mediaId).pathname);
                 this.previousMediaId = previousMediaId;
                 this.nextMediaId = nextMediaId;
                 this.currentSelectedKeywords = new Set(keywords);
@@ -323,7 +323,7 @@ export class ShowSingleMediaComponent implements OnInit {
         await this.imageSlider.lockSwipeToPrev(this.previousMediaId === undefined);
     }
 
-    private mediaPath(mediaId: string) {
+    private mediaPath(mediaId: string): URL {
         return createMediaPath(
             this.albumId,
             mediaId,
@@ -373,7 +373,7 @@ export class ShowSingleMediaComponent implements OnInit {
         const data = {
             title: filename,
             files: [file],
-            url: window.location.origin + this.location.prepareExternalUrl(this.mediaPath(this.mediaId))
+            url: this.mediaPath(this.mediaId).toString()
         };
         // console.log('Data: ');
         // console.log(data);
