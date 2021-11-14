@@ -20,6 +20,7 @@ ion-slide {
     display: block;
     object-fit: contain;
 }
+
 .image > video {
     height: 100%;
     width: 100%;
@@ -27,7 +28,7 @@ ion-slide {
     object-fit: contain;
 }
 
-.overlay {
+div.overlay {
     position: absolute;
     display: grid;
     right: 0;
@@ -38,6 +39,34 @@ ion-slide {
     grid-template-rows: repeat(3, 1fr);
     color: white;
 }
+
+div.overlay > ion-header {
+    grid-column-start: 1;
+    grid-column-end: 4;
+    grid-row: 1;
+    align-self: flex-start;
+}
+
+div.overlay > div.footer {
+    grid-column-start: 1;
+    grid-column-end: 4;
+    grid-row: 3;
+    align-self: flex-end;
+}
+
+div.overlay > div.footer > div {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+div.overlay > div.footer > div.toolbar {
+    justify-content: space-around;
+}
+
+div.overlay > div.footer > div.file-label {
+    flex-direction: column;
+}
+
 
 .right-button {
     grid-column: 3;
@@ -55,7 +84,7 @@ ion-slide {
     align-items: center;
 }
 
-.play-button{
+.play-button {
     grid-column: 2;
     grid-row: 2;
     display: flex;
@@ -78,60 +107,32 @@ ion-slide {
     }
 }
 
-.right-actions {
-    grid-column: 3;
-    grid-row: 1;
-    display: flex;
-    align-items: flex-end;
-    flex-direction: column;
-}
-.right-actions > ion-button{
-    padding: unset;
-    --background: unset;
-}
 
-.left-actions {
-    grid-column: 1;
-    grid-row: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-}
-
-.file-meta {
-    grid-row: 3;
-    grid-column-start: 1;
-    grid-column-end: 4;
-    align-self: end;
-    line-height: 2em;
+ion-chip {
+    --color: white;
+    background-color: #00000080;
+    white-space: nowrap;
     z-index: 1;
 }
 
-.file-meta > ion-label {
+.file-label > ion-input {
     border-radius: 2ex;
     padding: 0.5ex;
     background-color: #00000080;
-    margin: 0.4em;
     white-space: nowrap;
-}
-.file-meta > ion-chip{
-    background-color: #00000080;
-}
-.file-meta > ion-input {
-    border-radius: 2ex;
-    padding: 0.5ex;
-    background-color: #00000080;
-    margin: 0.4em;
-    white-space: nowrap;
+    width: 100%;
 }
 
 .button {
-    font-size: 3ex;
     color: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(0.3em);
     padding: 0.5ex;
     border-radius: 50%;
     z-index: 1;
+}
+
+.ion-color-dark {
+    --ion-color-base: #00000020 !important;
 }
 
 .input-new-label {

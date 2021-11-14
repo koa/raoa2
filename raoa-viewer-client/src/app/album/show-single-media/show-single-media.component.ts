@@ -2,7 +2,7 @@ import {Component, ElementRef, HostListener, NgZone, OnInit, ViewChild} from '@a
 import {ActivatedRoute, ParamMap} from '@angular/router';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
-import {IonInput, IonSlides, LoadingController} from '@ionic/angular';
+import {IonSlides, LoadingController} from '@ionic/angular';
 import {HttpClient} from '@angular/common/http';
 import {ServerApiService} from '../../service/server-api.service';
 import {Title} from '@angular/platform-browser';
@@ -114,6 +114,35 @@ export function parseFilterParams(queryParam: ParamMap): [string[], KeywordCombi
     styleUrls: ['./show-single-media.component.css'],
 })
 export class ShowSingleMediaComponent implements OnInit {
+    public autoCompleteKwCandidates: string[] = [];
+    public albumId: string;
+    public mediaId: string;
+    public previousMediaId: string;
+    public nextMediaId: string;
+    public currentMediaContent: Promise<string> = undefined;
+    public previousMediaContent: Promise<string> = undefined;
+    public nextMediaContent: Promise<string> = undefined;
+    public supportShare: boolean;
+    public metadata: AlbumEntryData;
+    public showDetails: 'Metadata' | 'Keyword' | null = null;
+    public albumKeywords: string[] = [];
+    public allKnownAlbumKeywords = new Set<string>();
+    public currentSelectedKeywords = new Set<string>();
+    public canEdit = false;
+    public currentIsVideo = false;
+    public bigImageSize = 1600;
+    public playVideo = false;
+    public title = '';
+    public inputKeyword = '';
+    @ViewChild('imageSlider', {static: true})
+    private imageSlider: IonSlides;
+    @ViewChild('videoRoot') private element: ElementRef<HTMLDivElement>;
+    private filteringKeywords: string[];
+    private keywordCombine: KeywordCombine = 'and';
+    private filteringTimeRange: [number, number] | undefined;
+    private nextIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
+    private prevIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
+    private timeResolution = 0;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
@@ -129,33 +158,6 @@ export class ShowSingleMediaComponent implements OnInit {
         hackNavi = window.navigator;
         this.supportShare = hackNavi.share !== undefined;
     }
-
-    public albumId: string;
-    public mediaId: string;
-    public previousMediaId: string;
-    public nextMediaId: string;
-    public currentMediaContent: Promise<string> = undefined;
-    public previousMediaContent: Promise<string> = undefined;
-    public nextMediaContent: Promise<string> = undefined;
-    @ViewChild('imageSlider', {static: true})
-    private imageSlider: IonSlides;
-    @ViewChild('videoRoot') private element: ElementRef<HTMLDivElement>;
-    public supportShare: boolean;
-    public metadata: AlbumEntryData;
-    public showDetails: 'Metadata' | 'Keyword' | null = null;
-    public albumKeywords: string[] = [];
-    public allKnownAlbumKeywords = new Set<string>();
-    public currentSelectedKeywords = new Set<string>();
-    public canEdit = false;
-    public currentIsVideo = false;
-    private filteringKeywords: string[];
-    private keywordCombine: KeywordCombine = 'and';
-    private filteringTimeRange: [number, number] | undefined;
-    private nextIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
-    private prevIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
-    public bigImageSize = 1600;
-    public playVideo = false;
-    private timeResolution = 0;
 
     private static bigint2objectId(value: BigInt): string {
         if (value === undefined) {
@@ -227,7 +229,11 @@ export class ShowSingleMediaComponent implements OnInit {
         const filteringTimeRange: [number, number] = this.filteringTimeRange;
         const keywordCombine: KeywordCombine = this.keywordCombine;
         const filter = createFilter(filteringKeywords, keywordCombine, filteringTimeRange);
-        const [, albumEntries] = await this.dataService.listAlbum(this.albumId, filter);
+        const knownKeywords = new Set<string>();
+        const [albumData, albumEntries] = await this.dataService.listAlbum(this.albumId, entryCandidate => {
+            entryCandidate.keywords.forEach(kw => knownKeywords.add(kw));
+            return filter(entryCandidate);
+        });
         let lastAlbumId: BigInt;
         const timeResolution = this.timeResolution;
         const sortedEntries = filterTimeResolution(albumEntries, timeResolution);
@@ -237,9 +243,12 @@ export class ShowSingleMediaComponent implements OnInit {
                 this.nextIdMap.set(lastAlbumId, myId);
                 this.prevIdMap.set(myId, lastAlbumId);
             }
-            entry.keywords.forEach(kw => this.allKnownAlbumKeywords.add(kw));
             lastAlbumId = myId;
         }
+        this.ngZone.run(() => {
+            this.title = albumData.title;
+            this.allKnownAlbumKeywords = knownKeywords;
+        });
     }
 
 
@@ -314,25 +323,6 @@ export class ShowSingleMediaComponent implements OnInit {
 
     }
 
-
-    private async refreshControls() {
-        await this.imageSlider.lockSwipeToNext(false);
-        await this.imageSlider.lockSwipeToPrev(false);
-        await this.imageSlider.slideTo(1, 0, false);
-        await this.imageSlider.lockSwipeToNext(this.nextMediaId === undefined);
-        await this.imageSlider.lockSwipeToPrev(this.previousMediaId === undefined);
-    }
-
-    private mediaPath(mediaId: string): URL {
-        return createMediaPath(
-            this.albumId,
-            mediaId,
-            this.filteringKeywords,
-            this.keywordCombine,
-            this.filteringTimeRange,
-            this.timeResolution);
-    }
-
     async slided() {
         const index = await this.imageSlider.getActiveIndex();
         if (index === 2 && this.nextMediaId !== undefined) {
@@ -341,7 +331,6 @@ export class ShowSingleMediaComponent implements OnInit {
             await this.showImage(this.previousMediaId);
         }
     }
-
 
     async downloadCurrentFile(entryId: string, metadata: AlbumEntryData) {
         const imageBlob = await this.loadOriginal(entryId);
@@ -352,15 +341,6 @@ export class ShowSingleMediaComponent implements OnInit {
         a.click();
         a.remove();
         URL.revokeObjectURL(objectUrl);
-    }
-
-    private async loadOriginal(entryId: string): Promise<Blob> {
-        const loadingOriginalIndicator = await this.loadingController.create({message: 'Original wird geladen...'});
-        const src = this.mediaResolver.lookupOriginal(this.albumId, entryId);
-        await loadingOriginalIndicator.present();
-        return await this.http.get(src, {responseType: 'blob'}).toPromise().finally(() => {
-            loadingOriginalIndicator.dismiss();
-        });
     }
 
     async shareCurrentFile(entryId: string, metadata: AlbumEntryData) {
@@ -404,15 +384,6 @@ export class ShowSingleMediaComponent implements OnInit {
         }
     }
 
-    toggleKeywords() {
-        if (this.showDetails === 'Keyword') {
-            this.showDetails = null;
-        } else {
-            this.showDetails = 'Keyword';
-        }
-
-    }
-
     @HostListener('window:keyup', ['$event'])
     async keyup($event: KeyboardEvent) {
         if ($event.key === 'ArrowRight' && this.nextMediaId) {
@@ -424,25 +395,60 @@ export class ShowSingleMediaComponent implements OnInit {
         }
     }
 
-    async addKeyword($event: KeyboardEvent) {
-        const input: IonInput = $event.target as unknown as IonInput;
-        if (typeof input.value === 'string') {
-            const newKeyword: string = input.value;
-            this.allKnownAlbumKeywords.add(newKeyword);
-            input.value = null;
-            await this.dataService.addKeyword(this.albumId, [this.mediaId], [newKeyword]);
-            await this.showImage(this.mediaId);
-        }
-
-    }
-
-    async toggleKeyword(keyword: string) {
-        if (this.currentSelectedKeywords.has(keyword)) {
-            await this.dataService.removeKeyword(this.albumId, [this.mediaId], [keyword]);
-        } else {
-            await this.dataService.addKeyword(this.albumId, [this.mediaId], [keyword]);
-        }
+    public async removeKeyword(keyword: string) {
+        await this.dataService.removeKeyword(this.albumId, [this.mediaId], [keyword]);
         await this.showImage(this.mediaId);
     }
 
+    public updateAutocomplete() {
+        const searchText = this.inputKeyword.toLowerCase();
+        const kwCandiates: string[] = [];
+        if (searchText.length > 0) {
+            this.allKnownAlbumKeywords.forEach(kw => {
+                if (this.currentSelectedKeywords.has(kw)) {
+                    return;
+                }
+                if (kw.toLowerCase().indexOf(searchText) >= 0) {
+                    kwCandiates.push(kw);
+                }
+            });
+        }
+        kwCandiates.sort((a, b) => a.localeCompare(b));
+        this.autoCompleteKwCandidates = kwCandiates;
+    }
+
+    public async addKeyword(keyword: string) {
+        this.autoCompleteKwCandidates = [];
+        this.inputKeyword = '';
+        this.allKnownAlbumKeywords.add(keyword);
+        await this.dataService.addKeyword(this.albumId, [this.mediaId], [keyword]);
+        await this.showImage(this.mediaId);
+    }
+
+    private async refreshControls() {
+        await this.imageSlider.lockSwipeToNext(false);
+        await this.imageSlider.lockSwipeToPrev(false);
+        await this.imageSlider.slideTo(1, 0, false);
+        await this.imageSlider.lockSwipeToNext(this.nextMediaId === undefined);
+        await this.imageSlider.lockSwipeToPrev(this.previousMediaId === undefined);
+    }
+
+    private mediaPath(mediaId: string): URL {
+        return createMediaPath(
+            this.albumId,
+            mediaId,
+            this.filteringKeywords,
+            this.keywordCombine,
+            this.filteringTimeRange,
+            this.timeResolution);
+    }
+
+    private async loadOriginal(entryId: string): Promise<Blob> {
+        const loadingOriginalIndicator = await this.loadingController.create({message: 'Original wird geladen...'});
+        const src = this.mediaResolver.lookupOriginal(this.albumId, entryId);
+        await loadingOriginalIndicator.present();
+        return await this.http.get(src, {responseType: 'blob'}).toPromise().finally(() => {
+            loadingOriginalIndicator.dismiss();
+        });
+    }
 }
