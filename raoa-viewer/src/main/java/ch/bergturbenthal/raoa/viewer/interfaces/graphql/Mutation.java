@@ -197,7 +197,7 @@ public class Mutation {
   }
 
   @MutationMapping
-  public Mono<GroupReference> createGroup(@Argument("groupId") String name) {
+  public Mono<GroupReference> createGroup(@Argument String name) {
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
