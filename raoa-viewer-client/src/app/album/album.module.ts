@@ -8,7 +8,7 @@ import {AlbumPageRoutingModule} from './album-routing.module';
 
 import {AlbumPage} from './single-album/album.page';
 import {AuthImagePipe} from './pipe/auth-image.pipe';
-import {AngularResizedEventModule} from 'angular-resize-event';
+import {AngularResizeEventModule} from 'angular-resize-event';
 import {InViewportDirective} from './in-viewport.directive';
 import {ShowSingleMediaComponent} from './show-single-media/show-single-media.component';
 import {AlbumListComponent} from './album-list/album-list.component';
@@ -25,7 +25,7 @@ import {SingleAlbumRightPopoverMenuComponent} from './single-album/single-album-
         FormsModule,
         IonicModule,
         AlbumPageRoutingModule,
-        AngularResizedEventModule,
+        AngularResizeEventModule,
         ManageUsersPageModule,
         MainMenuComponentModule,
         GroupListEditorModule,
