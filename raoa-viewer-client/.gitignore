@@ -31,3 +31,4 @@ npm-debug.log*
 /www
 /src/app/generated/graphql.ts
 /schema.json
+/.angular/cache/
