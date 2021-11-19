@@ -60,3 +60,7 @@ a.image-thumbnail-anchor {
     border-width: 0.3em;
     border-style: inset;
 }
+ion-menu{
+    --max-width: 100%;
+    --min-width: 30%;
+}
