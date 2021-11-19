@@ -234,7 +234,7 @@ export class ShowSingleMediaComponent implements OnInit {
             entryCandidate.keywords.forEach(kw => knownKeywords.add(kw));
             return filter(entryCandidate);
         });
-        let lastAlbumId: BigInt;
+        let lastAlbumId: BigInt | undefined;
         const timeResolution = this.timeResolution;
         const sortedEntries = filterTimeResolution(albumEntries, timeResolution);
         for (const entry of sortedEntries) {
@@ -447,8 +447,10 @@ export class ShowSingleMediaComponent implements OnInit {
         const loadingOriginalIndicator = await this.loadingController.create({message: 'Original wird geladen...'});
         const src = this.mediaResolver.lookupOriginal(this.albumId, entryId);
         await loadingOriginalIndicator.present();
-        return await this.http.get(src, {responseType: 'blob'}).toPromise().finally(() => {
-            loadingOriginalIndicator.dismiss();
-        });
+        try {
+            return await this.http.get(src, {responseType: 'blob'}).toPromise();
+        } finally {
+            await loadingOriginalIndicator.dismiss();
+        }
     }
 }

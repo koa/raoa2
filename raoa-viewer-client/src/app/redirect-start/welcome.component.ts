@@ -79,11 +79,13 @@ export class WelcomeComponent implements OnInit {
     ) {
     }
 
-    ngOnInit() {
+    async ngOnInit(): Promise<void> {
         const redirectRoute = sessionStorage.getItem('redirect_route');
         if (redirectRoute !== null) {
             sessionStorage.removeItem('redirect_route');
-            this.router.navigateByUrl(redirectRoute);
+            const parsedUrl = this.router.parseUrl(redirectRoute);
+            console.log('parsed url', parsedUrl);
+            await this.router.navigateByUrl(parsedUrl);
         }
         this.refreshData();
     }
