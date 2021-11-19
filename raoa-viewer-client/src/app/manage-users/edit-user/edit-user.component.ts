@@ -33,6 +33,7 @@ export class EditUserComponent implements OnInit {
     private originalCanManageUsers = false;
     public isEditor = false;
     private originalIsEditor = false;
+    public visibleTab: 'details' | 'groups' | 'albums' = 'details';
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,

@@ -46,6 +46,7 @@ export class EditGroupComponent implements OnInit {
     }
         )>;
     public fnchCompetitorId: string | null;
+    public visibleTab: 'details' | 'users' | 'albums' = 'details';
 
 
     constructor(private activatedRoute: ActivatedRoute,

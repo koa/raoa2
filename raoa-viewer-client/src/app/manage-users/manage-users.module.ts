@@ -9,7 +9,6 @@ import {ManageUsersPageRoutingModule} from './manage-users-routing.module';
 import {ManageUsersPage} from './manage-users.page';
 import {EditUserComponent} from './edit-user/edit-user.component';
 import {MainMenuComponentModule} from '../main-menu/main-menu.module';
-import {SuperTabsModule} from '@ionic-super-tabs/angular';
 import {GroupListEditorModule} from '../group-list-editor/group-list-editor.module';
 import {AlbumListEditorModule} from '../album-list-editor/album-list-editor.module';
 
@@ -20,7 +19,6 @@ import {AlbumListEditorModule} from '../album-list-editor/album-list-editor.modu
         IonicModule,
         ManageUsersPageRoutingModule,
         MainMenuComponentModule,
-        SuperTabsModule,
         GroupListEditorModule,
         AlbumListEditorModule
     ],

@@ -1,19 +1,15 @@
-<ion-header>
-    <ion-searchbar (ionChange)="searchUser($event)"></ion-searchbar>
-</ion-header>
-<ion-content>
-    <ion-list>
-        <ion-card *ngFor="let user of filteredUsers" (click)="toggle(user.id)"
-                  [color]="selectedUsers.has(user.id)?'primary':''">
-            <ion-card-header class="person">
-                <div>
-                    <ion-card-title>{{user.info.name}}</ion-card-title>
-                    <ion-card-subtitle>{{user.info.email}}</ion-card-subtitle>
-                </div>
-                <ion-avatar><img [src]="user.info.picture"></ion-avatar>
-            </ion-card-header>
-            <ion-card-content>
-            </ion-card-content>
-        </ion-card>
-    </ion-list>
-</ion-content>
+<ion-searchbar (ionChange)="searchUser($event)"></ion-searchbar>
+<ion-list>
+    <ion-card *ngFor="let user of filteredUsers" (click)="toggle(user.id)"
+              [color]="selectedUsers.has(user.id)?'primary':''">
+        <ion-card-header class="person">
+            <div>
+                <ion-card-title>{{user.info.name}}</ion-card-title>
+                <ion-card-subtitle>{{user.info.email}}</ion-card-subtitle>
+            </div>
+            <ion-avatar><img [src]="user.info.picture" [alt]="user.info.name"></ion-avatar>
+        </ion-card-header>
+        <ion-card-content>
+        </ion-card-content>
+    </ion-card>
+</ion-list>

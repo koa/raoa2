@@ -4,50 +4,45 @@
         <ion-title>
             {{user?.info.name}}</ion-title>
     </ion-toolbar>
+    <ion-segment [(ngModel)]="visibleTab">
+        <ion-segment-button value="details">
+            <ion-label>Details</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="groups">
+            <ion-label>Gruppen</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="albums">
+            <ion-label>Alben</ion-label>
+        </ion-segment-button>
+    </ion-segment>
 </ion-header>
-<ion-content>
-    <super-tabs>
-        <super-tabs-toolbar color="">
-            <super-tab-button>
-                <ion-label>Details</ion-label>
-            </super-tab-button>
-            <super-tab-button>
-                <ion-label>Gruppen</ion-label>
-            </super-tab-button>
-            <super-tab-button>
-                <ion-label>Alben</ion-label>
-            </super-tab-button>
-        </super-tabs-toolbar>
-        <super-tabs-container>
-            <super-tab>
-                <ion-card *ngIf="user?.info">
-                    <ion-card-header>
-                        <ion-card-title>{{user.info.name}}</ion-card-title>
-                        <ion-card-subtitle>{{user.info.email}}</ion-card-subtitle>
-                    </ion-card-header>
-                    <ion-card-content>
-                    </ion-card-content>
-                </ion-card>
-                <ion-list>
-                    <ion-item>
-                        <ion-label>Administrator</ion-label>
-                        <ion-checkbox [(ngModel)]="canManageUsers"></ion-checkbox>
-                    </ion-item>
-                    <ion-item>
-                        <ion-label>Editor</ion-label>
-                        <ion-checkbox [(ngModel)]="isEditor"></ion-checkbox>
-                    </ion-item>
-                </ion-list>
-            </super-tab>
-            <super-tab>
-                <app-group-list-editor [selectedGroups]="selectedGroups"
-                                       (valueChanged)="groupChanged($event)"></app-group-list-editor>
-            </super-tab>
-            <super-tab>
-                <app-album-list-editor [selectedCollections]="selectedAlbums"></app-album-list-editor>
-            </super-tab>
-        </super-tabs-container>
-    </super-tabs>
+<ion-content [ngSwitch]="visibleTab">
+    <ng-container *ngSwitchCase="'details'">
+        <ion-card *ngIf="user?.info">
+            <ion-card-header>
+                <ion-card-title>{{user.info.name}}</ion-card-title>
+                <ion-card-subtitle>{{user.info.email}}</ion-card-subtitle>
+            </ion-card-header>
+            <ion-card-content>
+            </ion-card-content>
+        </ion-card>
+        <ion-list>
+            <ion-item>
+                <ion-label>Administrator</ion-label>
+                <ion-checkbox [(ngModel)]="canManageUsers"></ion-checkbox>
+            </ion-item>
+            <ion-item>
+                <ion-label>Editor</ion-label>
+                <ion-checkbox [(ngModel)]="isEditor"></ion-checkbox>
+            </ion-item>
+        </ion-list>
+    </ng-container>
+
+    <app-group-list-editor *ngSwitchCase="'groups'" [selectedGroups]="selectedGroups"
+                           (valueChanged)="groupChanged($event)"></app-group-list-editor>
+
+    <app-album-list-editor *ngSwitchCase="'albums'" [selectedCollections]="selectedAlbums"></app-album-list-editor>
+
 </ion-content>
 <ion-footer>
     <ion-button (click)="apply()">
