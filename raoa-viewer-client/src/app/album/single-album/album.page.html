@@ -46,7 +46,7 @@
                     <ion-radio slot="start" [value]="undefined"></ion-radio>
                 </ion-item>
                 <ion-item *ngFor="let day of days">
-                    <ion-label>{{day | date}} ({{dayCounters.get(day)}})</ion-label>
+                    <ion-label>{{day | date:'E dd.MM.yyyy'}} ({{dayCounters.get(day)}})</ion-label>
                     <ion-radio slot="start" [value]="day"></ion-radio>
                 </ion-item>
             </ion-radio-group>
