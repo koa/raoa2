@@ -1,7 +1,7 @@
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {LoginService} from '../service/login.service';
 import {Subscription} from 'rxjs';
-import {ActivatedRoute} from '@angular/router';
+import {ActivatedRoute, Router} from '@angular/router';
 
 
 @Component({
@@ -14,7 +14,9 @@ export class LoginPage implements OnInit, OnDestroy {
     subscription: Subscription | undefined;
     private redirectTarget: string | undefined;
 
-    constructor(private loginService: LoginService, activatedRoute: ActivatedRoute
+    constructor(private loginService: LoginService,
+                activatedRoute: ActivatedRoute,
+                private router: Router
     ) {
         activatedRoute.queryParamMap.subscribe(params => {
             this.redirectTarget = params.get('target');
@@ -23,6 +25,9 @@ export class LoginPage implements OnInit, OnDestroy {
 
     async ngOnInit() {
         await this.loginService.initoAuth();
+        if (this.loginService.hasValidToken()) {
+            await this.router.navigate([this.redirectTarget || '/album']);
+        }
     }
 
     ngOnDestroy() {
