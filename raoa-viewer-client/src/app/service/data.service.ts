@@ -15,6 +15,7 @@ import {Router} from '@angular/router';
 import {AlbumData, AlbumEntryData, AlbumSettings, ImageBlob, KeywordState, StorageService} from './storage.service';
 import {FNCH_COMPETITION_ID} from '../constants';
 import {HttpClient} from '@angular/common/http';
+import {LoginService} from './login.service';
 
 export type QueryAlbumEntry =
     { __typename?: 'AlbumEntry' }
@@ -147,9 +148,10 @@ export class DataService {// implements OnDestroy {
                 private router: Router,
                 private singleAlbumMutateGQL: SingleAlbumMutateGQL,
                 private storageService: StorageService,
-                private http: HttpClient) {
-        if (navigator.onLine) {
+                private http: HttpClient, loginService: LoginService) {
+        if (navigator.onLine && loginService.hasValidToken()) {
             this.updateAlbumData().then();
+        } else {
         }
         this.setTimer();
     }
@@ -158,6 +160,9 @@ export class DataService {// implements OnDestroy {
         const [albumVersionList, storedAlbumEnties] = await
             Promise.all([this.serverApi.query(this.allAlbumVersionsGQL, {}),
                 this.storageService.listAlbums()]);
+        if (!albumVersionList) {
+            return;
+        }
         const storeAlbumsVersions = new Map<string, string>();
         storedAlbumEnties.forEach(entry => storeAlbumsVersions.set(entry[0].id, entry[0].albumVersion));
         const albumDataBatch: Promise<AlbumData>[] = [];

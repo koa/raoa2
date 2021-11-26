@@ -70,7 +70,8 @@ export class ServerApiService {
 
     public async query<T, V>(query: Apollo.Query<T, V>, variables: V): Promise<Maybe<T>> {
         if (!this.tryComeReady()) {
-            console.log('not ready');
+            console.error('not ready');
+            // return Promise.resolve(null);
             return Promise.reject('Cannot init');
         }
 

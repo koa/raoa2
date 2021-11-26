@@ -79,13 +79,17 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
       userAuthentication = ((OAuth2Authentication) authentication).getUserAuthentication();
     } else userAuthentication = authentication;
     final Object principal = userAuthentication.getPrincipal();
-
     if (principal instanceof Jwt) {
       final Map<String, Object> claims = ((Jwt) principal).getClaims();
       final String subject = (String) claims.get("sub");
       String authorizedClientRegistrationId = (String) claims.get("iss");
+      final String PREFIX_TO_REMOVE = "https://";
+      final String authId;
+      if (authorizedClientRegistrationId.startsWith(PREFIX_TO_REMOVE))
+        authId = authorizedClientRegistrationId.substring(PREFIX_TO_REMOVE.length());
+      else authId = authorizedClientRegistrationId;
       final AuthenticationId authenticationId =
-          AuthenticationId.builder().authority(authorizedClientRegistrationId).id(subject).build();
+          AuthenticationId.builder().authority(authId).id(subject).build();
       return Optional.of(
           new UserIdentification() {
             @Override

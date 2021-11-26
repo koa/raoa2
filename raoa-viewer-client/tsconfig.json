@@ -21,8 +21,6 @@
       "node_modules/@types"
     ],
     "types": [
-      "gapi",
-      "gapi.auth2",
       "network-information-types"
     ]
   },

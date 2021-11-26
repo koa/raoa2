@@ -53,18 +53,11 @@ export class ManageAlbumComponent implements OnInit, OnDestroy {
     async ngOnInit() {
         this.albumId = this.activatedRoute.snapshot.paramMap.get('id');
         this.routeSubscription = this.activatedRoute.paramMap.subscribe(params => {
-            console.log(params);
             const albumId = params.get('id');
-            console.log(albumId);
-            const visibleTab = params.get('view') as VisibleTab;
-            console.log(visibleTab);
             const albumModified = albumId !== this.albumId;
-            console.log(albumModified);
             this.ngZone.run(() => {
                 this.albumId = albumId;
-                this.visibleTab = visibleTab;
             });
-            console.log('updated');
             if (albumModified) {
                 this.refreshData();
             }

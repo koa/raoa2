@@ -13,9 +13,10 @@ import localeDe from '@angular/common/locales/de';
 import localeFr from '@angular/common/locales/fr';
 import localeEn from '@angular/common/locales/en';
 import {WelcomeComponent} from './redirect-start/welcome.component';
-import { ServiceWorkerModule } from '@angular/service-worker';
-import { environment } from '../environments/environment';
+import {ServiceWorkerModule} from '@angular/service-worker';
+import {environment} from '../environments/environment';
 import {MainMenuComponentModule} from './main-menu/main-menu.module';
+import {OAuthModule} from 'angular-oauth2-oidc';
 
 registerLocaleData(localeDe, 'de');
 registerLocaleData(localeFr, 'fr');
@@ -28,6 +29,12 @@ registerLocaleData(localeEn, 'en');
     imports: [
         BrowserModule,
         IonicModule.forRoot(),
+        OAuthModule.forRoot({
+            resourceServer: {
+                allowedUrls: [window.location.href],
+                sendAccessToken: true
+            }
+        }),
         AppRoutingModule,
         HttpClientModule,
         ServiceWorkerModule.register('ngsw-worker.js', {

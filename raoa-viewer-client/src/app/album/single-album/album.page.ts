@@ -677,7 +677,6 @@ export class AlbumPage implements OnInit {
     }
 
     public async popupMenu(ev: Event): Promise<void> {
-        console.log(this.selectionMode);
         const popover = await this.popoverController.create({
             component: SingleAlbumRightPopoverMenuComponent,
             event: ev,

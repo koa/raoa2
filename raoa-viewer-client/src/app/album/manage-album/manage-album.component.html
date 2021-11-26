@@ -5,26 +5,43 @@
             <span *ngIf="albumName">{{albumName}}</span>
         </ion-title>
     </ion-toolbar>
+    <ion-segment [(ngModel)]="visibleTab">
+        <ion-segment-button value="details">
+            <ion-label>Details</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="users">
+            <ion-label>Users</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="teams">
+            <ion-label>Gruppen</ion-label>
+        </ion-segment-button>
+    </ion-segment>
 </ion-header>
-<ion-content>
-    <ion-card>
-        <ion-card-subtitle>Auto-Add</ion-card-subtitle>
-        <ion-datetime [(ngModel)]="autoAddTimestamp" displayFormat="D MMM YYYY HH:mm"></ion-datetime>
-    </ion-card>
-    <ion-card>
-        <ion-card-subtitle>FNCH Veranstaltungs-ID</ion-card-subtitle>
-        <ion-card-title>
-            <ion-input [(ngModel)]="fnchCompetitionId"></ion-input>
-        </ion-card-title>
-    </ion-card>
+<ion-content [ngSwitch]="visibleTab">
+    <ng-container *ngSwitchCase="'details'">
+        <ion-card>
+            <ion-card-subtitle>Auto-Add</ion-card-subtitle>
+            <ion-datetime [(ngModel)]="autoAddTimestamp" displayFormat="D MMM YYYY HH:mm"></ion-datetime>
+        </ion-card>
+        <ion-card>
+            <ion-card-subtitle>FNCH Veranstaltungs-ID</ion-card-subtitle>
+            <ion-card-title>
+                <ion-input [(ngModel)]="fnchCompetitionId"></ion-input>
+            </ion-card-title>
+        </ion-card>
+    </ng-container>
     <app-group-list-editor
+            *ngSwitchCase="'users'"
             [selectedGroups]="selectedGroups"
             (valueChanged)="groupChanged($event)">
 
     </app-group-list-editor>
     <app-user-list-editor
+            *ngSwitchCase="'teams'"
             [selectedUsers]="selectedUsers"
             (valueChanged)="usersChanged($event)">
     </app-user-list-editor>
-    <ion-button (click)="store()">Speichern</ion-button>
 </ion-content>
+<ion-footer>
+    <ion-button (click)="store()">Speichern</ion-button>
+</ion-footer>

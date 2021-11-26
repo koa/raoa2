@@ -2,11 +2,40 @@ import {Injectable, NgZone} from '@angular/core';
 import {AppConfigService} from './app-config.service';
 import {Router} from '@angular/router';
 import {Location, LocationStrategy} from '@angular/common';
-import GoogleUser = gapi.auth2.GoogleUser;
+import {AuthConfig, OAuthService} from 'angular-oauth2-oidc';
+import {JwksValidationHandler} from 'angular-oauth2-oidc-jwks';
+
 
 interface CachedAuth {
-    auth: gapi.auth2.GoogleAuth;
+    auth: any;
 }
+
+interface GoogleTokenContent {
+    iss: string;
+    azp: string;
+    aud: string;
+    sub: string;
+    hd: string;
+    email: string;
+    email_verified: boolean;
+    at_hash: string;
+    nonce: string;
+    name: string;
+    picture: string;
+    given_name: string;
+    family_name: string;
+    locale: string;
+    iat: number;
+    exp: number;
+    jti: string;
+}
+
+interface JwtTokenContent {
+    name: string;
+    email: string;
+    picture: string;
+}
+
 
 @Injectable({
     providedIn: 'root'
@@ -17,104 +46,96 @@ export class LoginService {
                 private router: Router,
                 private location: Location,
                 private ngZone: NgZone,
-                private locationStrategy: LocationStrategy) {
+                private locationStrategy: LocationStrategy,
+                private oAuthService: OAuthService
+    ) {
+
+        // this.oAuthService.events.subscribe(event => console.log(event));
     }
 
-    private cachingAuth: Promise<CachedAuth>;
-    private auth2: gapi.auth2.GoogleAuth = {} as gapi.auth2.GoogleAuth;
 
-    private static storeCurrentToken(authResponse: gapi.auth2.AuthResponse, user: gapi.auth2.GoogleUser) {
-        localStorage.setItem('token', authResponse.id_token);
-        const basicProfile = user.getBasicProfile();
-        localStorage.setItem('username', basicProfile.getName());
-        localStorage.setItem('usermail', basicProfile.getEmail());
-        localStorage.setItem('userpicture', basicProfile.getImageUrl());
-        localStorage.setItem('token_expires', authResponse.expires_at.toString());
+    public login(redirectTarget?: string) {
+        console.log('init login');
+        this.oAuthService.initCodeFlow(redirectTarget);
+        //this.oAuthService.initLoginFlow(redirectTarget);
     }
 
-    public async renderLoginButton(target) {
+    public async initoAuth() {
+        console.log('init oAuth');
         const appConfigPromise = await this.configService.loadAppConfig();
         const clientId = appConfigPromise.googleClientId;
-        window.gapi.load('auth2', () => {
-            this.ngZone.run(() => {
-                this.auth2 = window.gapi.auth2.init({
-                    client_id: clientId
-                });
-                // console.log('Signed in: ' + this.auth2.isSignedIn.get());
-                if (this.auth2.isSignedIn.get() === true) {
-                    // console.log('Signed in');
-                    this.auth2.signIn();
-                }
-                this.auth2.attachClickHandler('signin-button', {}, async (googleUser: gapi.auth2.GoogleUser) => {
-                    const user: GoogleUser = googleUser;
-                    const authResponse = user.getAuthResponse(true);
-                    if (authResponse === null || authResponse === undefined || Date.now() > authResponse.expires_at) {
-                        const reloadedResponse = await user.reloadAuthResponse();
-                        LoginService.storeCurrentToken(reloadedResponse, user);
-                    } else {
-                        LoginService.storeCurrentToken(authResponse, user);
-                    }
-                    this.ngZone.run(() => {
-                        if (target) {
-                            this.router.navigate([target], {replaceUrl: true});
-                        } else {
-                            this.router.navigate([], {replaceUrl: true});
-                        }
-                    });
-                }, ex => {
-                    console.log(ex);
-                });
+        const authCodeFlowConfig: AuthConfig = {
+            // Url of the Identity Provider
+            issuer: 'https://accounts.google.com',
 
-            });
+            // URL of the SPA to redirect the user to after login
+            redirectUri: window.location.origin + '/login',
+
+            // The SPA's id. The SPA is registerd with this id at the auth-server
+            // clientId: 'server.code',
+            clientId,
+
+            // Just needed if your auth server demands a secret. In general, this
+            // is a sign that the auth server is not configured with SPAs in mind
+            // and it might not enforce further best practices vital for security
+            // such applications.
+            // dummyClientSecret: 'secret',
+
+            responseType: 'token id_token',
+
+            // set the scope for the permissions the client should request
+            // The first four are defined by OIDC.
+            // Important: Request offline_access to get a refresh token
+            // The api scope is a usecase specific one
+            scope: 'openid profile email',
+
+            strictDiscoveryDocumentValidation: false,
+
+            showDebugInformation: true,
+            sessionChecksEnabled: false
+        };
+        this.oAuthService.configure(authCodeFlowConfig);
+        this.oAuthService.tokenValidationHandler = new JwksValidationHandler();
+
+
+        const loginSuccessful = await this.oAuthService.loadDiscoveryDocumentAndTryLogin({
+            onTokenReceived: context => {
+                console.debug('logged in');
+                console.debug(context);
+            }
         });
-
-    }
-
-    public isSignedIn(): boolean {
-        return this.auth2.isSignedIn?.get();
-    }
-
-    public auth(): Promise<CachedAuth> {
-        if (this.auth2.isSignedIn?.get() === true) {
-            return Promise.resolve({auth: this.auth2});
+        if (loginSuccessful) {
+            this.oAuthService.setupAutomaticSilentRefresh();
         }
-        this.location.go('/login');
     }
 
-    private signedInUser(): gapi.auth2.GoogleUser {
-        if (this.auth2.isSignedIn?.get()) {
-            return this.auth2.currentUser.get();
+
+    public auth(): JwtTokenContent | undefined {
+        const identityClaims = this.oAuthService.getIdentityClaims() as GoogleTokenContent;
+        if (!identityClaims) {
+            return undefined;
         }
-        return undefined;
+
+        return {email: identityClaims.email, name: identityClaims.name, picture: identityClaims.picture};
     }
+
 
     public hasValidToken(): boolean {
-        const expiration = localStorage.getItem('token_expires');
-        return expiration !== null && Date.now() < Number.parseInt(expiration, 10);
+        return this.oAuthService.hasValidIdToken() && this.oAuthService.getAccessTokenExpiration() > Date.now();
     }
 
     public currentValidToken(): string | null {
-        if (this.hasValidToken()) {
-            return localStorage.getItem('token');
-        } else {
-            return null;
-        }
+        return this.oAuthService.getIdToken();
     }
 
 
     public async logout(): Promise<void> {
-        localStorage.removeItem('token_expires');
-        if (this.auth2) {
-            console.log(this.auth2.signOut);
-            this.auth2.signOut();
-            this.auth2.disconnect();
-        }
-        location.reload();
+        this.oAuthService.logOut();
     }
 
     public userName(): string {
         if (this.hasValidToken()) {
-            return localStorage.getItem('username');
+            return this.auth()?.name;
         } else {
             return null;
         }
@@ -122,7 +143,7 @@ export class LoginService {
 
     public userMail(): string {
         if (this.hasValidToken()) {
-            return localStorage.getItem('usermail');
+            return this.auth()?.email;
         } else {
             return null;
         }
@@ -130,7 +151,7 @@ export class LoginService {
 
     public userPicture(): string {
         if (this.hasValidToken()) {
-            return localStorage.getItem('userpicture');
+            return this.auth()?.picture;
         } else {
             return null;
         }
