@@ -1,9 +1,0 @@
-raoa:
-  import:
-    media: /media
-  metadata-cache: /tmp/test/raoa/meta
-  repository: /tmp/test/raoa/repository
-spring:
-  cloud:
-    discovery:
-      enabled: false
