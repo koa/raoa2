@@ -7,7 +7,7 @@ import reactor.core.publisher.Mono;
 
 @Value
 public class Album {
-  private UUID id;
-  private QueryContext context;
-  private Mono<AlbumData> elAlbumData;
+  UUID id;
+  QueryContext context;
+  Mono<AlbumData> elAlbumData;
 }

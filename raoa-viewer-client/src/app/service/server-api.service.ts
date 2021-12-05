@@ -1,12 +1,15 @@
 import {Injectable} from '@angular/core';
-import {HttpLink} from 'apollo-angular/http';
+import {HttpLink, HttpLinkHandler} from 'apollo-angular/http';
 import {LoginService} from './login.service';
-import {ApolloLink, InMemoryCache} from '@apollo/client/core';
+import {ApolloLink, InMemoryCache, split} from '@apollo/client/core';
 import {setContext} from '@apollo/client/link/context';
 import {Maybe} from '../generated/graphql';
 import * as Apollo from 'apollo-angular';
 import {ToastController} from '@ionic/angular';
-
+import {Observable, of, throwError} from 'rxjs';
+import {switchMap} from 'rxjs/operators';
+import {getMainDefinition} from '@apollo/client/utilities';
+import {MyWebSocketLink} from './web-socket-link';
 
 @Injectable({
     providedIn: 'root'
@@ -40,21 +43,53 @@ export class ServerApiService {
         }
         if (this.login.hasValidToken()) {
             try {
-                const auth: ApolloLink = setContext(async (_, {headers}) => {
+                const auth: ApolloLink = setContext((_, {headers}) => {
                     // Grab token if there is one in storage or hasn't expired
-                    // const token = await this.login.idToken();
+
+                    const token = this.login.currentValidToken();
 
                     // Return the headers as usual
                     return {
-                        headers: {
-                            // Authorization: `Bearer ${token}`,
-                        },
+                        headers: {Token: token},
                     };
                 });
-                const http = ApolloLink.from([auth, this.httpLink.create({uri: '/graphql'})]);
-                // const http = httpLink.create({uri: '/graphql'});
+                const httpLink: HttpLinkHandler = this.httpLink.create({uri: '/graphql'});
+
+                const hostname = window.location.hostname;
+                const port = window.location.port;
+                const protocol = window.location.protocol;
+
+                const wsProtocol = protocol.replace('http', 'ws');
+
+                const wsUri = wsProtocol + '//' + hostname + ':' + port + '/graphqlws';
+
+
+                const wsLink = new MyWebSocketLink({
+                    url: wsUri,
+                    connectionParams: () => {
+                        const token = this.login.currentValidToken();
+                        if (token) {
+                            return {Token: token};
+                        } else {
+                            return {};
+                        }
+                    }
+                });
+                const ws = ApolloLink.from([auth, wsLink]);
+                const splitLink = split(
+                    ({query}) => {
+                        const definition = getMainDefinition(query);
+                        return (
+                            definition.kind === 'OperationDefinition' &&
+                            definition.operation === 'subscription'
+                        );
+                    },
+                    ws,
+                    httpLink,
+                );
+
                 this.apollo.create({
-                    link: http,
+                    link: splitLink,
                     cache: this.cache,
                 });
                 this.ready = true;
@@ -100,15 +135,17 @@ export class ServerApiService {
             return Promise.reject('Cannot init');
         }
         return new Promise<T>((resolve, reject) => {
-                return mutation.mutate(variables).subscribe(result => {
-                    if (result.data) {
-                        resolve(result.data);
-                    } else {
-                        reject(result.errors);
-                    }
-                }, error => {
-                    reject(error);
-                });
+                return this.apollo
+                    .mutate({mutation: mutation.document, variables})
+                    .subscribe(result => {
+                        if (result.data) {
+                            resolve(result.data);
+                        } else {
+                            reject(result.errors);
+                        }
+                    }, error => {
+                        reject(error);
+                    });
             }
         ).catch(error => {
             this.toastController.create({
@@ -120,6 +157,27 @@ export class ServerApiService {
         });
 
     }
+
+    public subscribe<T, V>(subscription: Apollo.Subscription<T, V>, variables: V): Observable<T> {
+        if (!this.tryComeReady()) {
+            return throwError('Cannot init');
+        }
+
+        return this.apollo
+            .subscribe({query: subscription.document, variables})
+            .pipe(switchMap(result => {
+                if (result.errors !== undefined) {
+                    this.toastController.create({
+                        message: 'Error from server "' + result.errors.join(', ') + '"',
+                        duration: 10000,
+                        color: 'danger'
+                    }).then(e => e.present());
+                    return throwError(result.errors);
+                }
+                return of(result.data);
+            }));
+    }
+
 
     clear(): Promise<void> {
         return this.cache.reset();

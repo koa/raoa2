@@ -1,0 +1,6 @@
+subscription SubscribeAlbumMutations{
+    albumModified{
+        id
+        type
+    }
+}

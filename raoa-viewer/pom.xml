@@ -64,6 +64,10 @@
             <version>17.0</version>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+        <dependency>
             <groupId>ch.bergturbenthal.raoa2</groupId>
             <artifactId>raoa-libs-elastic</artifactId>
             <version>0.0.12-SNAPSHOT</version>

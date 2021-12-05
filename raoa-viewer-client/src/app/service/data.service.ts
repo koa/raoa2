@@ -135,7 +135,7 @@ function sortKey(data: MutationData) {
     providedIn: 'root'
 })
 export class DataService {// implements OnDestroy {
-    private runningTimer: number | undefined = undefined;
+    private runningTimer: number = undefined;
     private syncRunning = false;
     private syncEnabled = true;
     private syncStateId = 0;
@@ -145,6 +145,7 @@ export class DataService {// implements OnDestroy {
                 private allAlbumVersionsGQL: AllAlbumVersionsGQL,
                 private getAlbumDetailsGQL: GetAlbumDetailsGQL,
                 private userPermissionsGQL: UserPermissionsGQL,
+                //private subscribeAlbumMutationsGQL: SubscribeAlbumMutationsGQL,
                 private router: Router,
                 private singleAlbumMutateGQL: SingleAlbumMutateGQL,
                 private storageService: StorageService,
@@ -157,6 +158,11 @@ export class DataService {// implements OnDestroy {
     }
 
     async updateAlbumData() {
+
+        /*this.serverApi
+            .subscribe(this.subscribeAlbumMutationsGQL, {})
+            .subscribe(album => console.log(album));
+*/
         const [albumVersionList, storedAlbumEnties] = await
             Promise.all([this.serverApi.query(this.allAlbumVersionsGQL, {}),
                 this.storageService.listAlbums()]);

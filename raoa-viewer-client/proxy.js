@@ -8,6 +8,17 @@ const proxyConfig = [
             headers: {host: 'photos.berg-turbenthal.ch'},
             //target: 'http://localhost:8080/',
             secure: false,
+
+        },
+        {
+            context: '/graphqlws',
+            // target: 'https://photos.lkw.teamkoenig.ch/',
+            // headers: {host: 'photos.lkw.teamkoenig.ch'},
+            target: 'wss://photos.berg-turbenthal.ch/',
+            headers: {host: 'photos.berg-turbenthal.ch'},
+            //target: 'http://localhost:8080/',
+            secure: false,
+            ws: true
         },
         {
             context: '/rest',

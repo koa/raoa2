@@ -1,5 +1,11 @@
 scalar DateTime
 
+schema {
+    query: Query
+    mutation: Mutation
+    subscription: Subscription
+}
+
 type Query {
     albumById(id: ID!): Album
     listAlbums: [Album!]!
@@ -29,6 +35,10 @@ type Mutation{
     createAlbum(path: [String!]!):Album
     createTemporaryPassword(duration: Int): TemporaryPassword
     mutate(updates: [MutationData!]!):MutationResult!
+}
+
+type Subscription{
+    albumModified: AlbumUpdatedEvent
 }
 
 input MutationData {
@@ -253,9 +263,18 @@ enum RequestAccessResultCode{
     OK, NOT_LOGGED_IN, ALREADY_ACCEPTED
 }
 
-
 type UserInfo{
     email: String
     name: String
     picture: String
+}
+
+type AlbumUpdatedEvent{
+    type: AlbumUpdateEventType
+    id: ID!
+    album: Album
+}
+
+enum AlbumUpdateEventType{
+    ADDED, REMOVED, MODIFIED
 }

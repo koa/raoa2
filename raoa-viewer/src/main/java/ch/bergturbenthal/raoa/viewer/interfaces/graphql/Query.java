@@ -1,6 +1,5 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
-import ch.bergturbenthal.raoa.elastic.model.AlbumData;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
@@ -88,17 +87,13 @@ public class Query {
             queryContext ->
                 dataViewService
                     .listAlbums()
-                    .map(AlbumData::getRepositoryId)
                     .filterWhen(
-                        id ->
+                        albumData ->
                             authorizationManager.canUserAccessToAlbum(
-                                queryContext.getSecurityContext(), id))
+                                queryContext.getSecurityContext(), albumData.getRepositoryId()))
                     .map(
-                        albumId ->
-                            new Album(
-                                albumId,
-                                queryContext,
-                                dataViewService.readAlbum(albumId).cache())));
+                        album ->
+                            new Album(album.getRepositoryId(), queryContext, Mono.just(album))));
   }
 
   @QueryMapping()

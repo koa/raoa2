@@ -34,6 +34,7 @@ public class QueryContextSupplier {
 
   public Mono<QueryContext> createContext() {
     final SecurityContext context = SecurityContextHolder.getContext();
+    log.info("Authentication: " + context.getAuthentication());
     final Optional<AuthenticationId> authenticationId =
         authorizationManager.currentAuthentication(context);
     final RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
