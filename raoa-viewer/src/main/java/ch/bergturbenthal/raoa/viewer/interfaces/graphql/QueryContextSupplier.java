@@ -4,7 +4,6 @@ import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AuthenticationState;
 import ch.bergturbenthal.raoa.viewer.model.graphql.QueryContext;
-import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,18 +22,13 @@ import reactor.core.publisher.Mono;
 @Component
 public class QueryContextSupplier {
   private final AuthorizationManager authorizationManager;
-  private ViewerProperties viewerProperties;
 
-  public QueryContextSupplier(
-      final AuthorizationManager authorizationManager, ViewerProperties viewerProperties) {
+  public QueryContextSupplier(final AuthorizationManager authorizationManager) {
     this.authorizationManager = authorizationManager;
-
-    this.viewerProperties = viewerProperties;
   }
 
   public Mono<QueryContext> createContext() {
     final SecurityContext context = SecurityContextHolder.getContext();
-    log.info("Authentication: " + context.getAuthentication());
     final Optional<AuthenticationId> authenticationId =
         authorizationManager.currentAuthentication(context);
     final RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();

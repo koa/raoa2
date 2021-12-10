@@ -327,7 +327,7 @@ public class ElasticSearchDataViewService implements DataViewService {
                           (currentVersion, currentName) ->
                               albumDataEntryRepository
                                   .findByAlbumId(album.getAlbumId())
-                                  .log("find album by id " + album.getAlbumId())
+                                  // .log("find album by id " + album.getAlbumId())
                                   .collectMap(AlbumEntryData::getEntryId, Function.identity())
                                   .onErrorResume(ex -> Mono.just(Collections.emptyMap()))
                                   .flatMap(
@@ -347,7 +347,7 @@ public class ElasticSearchDataViewService implements DataViewService {
                                                                               .getNameString()),
                                                                       meta)))
                                               .collectMap(Tuple2::getT1, Tuple2::getT2)
-                                              .log("xmp meta")
+                                              // .log("xmp meta")
                                               .flatMap(
                                                   xmpMetadata ->
                                                       access

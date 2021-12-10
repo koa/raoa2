@@ -113,7 +113,10 @@ public class UserQuery {
       return Mono.just(context.canUserEditData());
     }
     if (canShowUserDetails(user)) {
-      return dataViewService.findUserById(user.getId()).log("editor").map(User::isEditor);
+      return dataViewService
+          .findUserById(user.getId())
+          //                            .log("editor")
+          .map(User::isEditor);
     }
     return Mono.just(false);
   }

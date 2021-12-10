@@ -95,6 +95,7 @@ public class Subscription {
             })
         .filter(Optional::isPresent)
         .map(Optional::get)
-        .log("subscription");
+    // .log("subscription")
+    ;
   }
 }

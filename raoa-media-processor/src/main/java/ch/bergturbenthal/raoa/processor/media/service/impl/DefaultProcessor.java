@@ -640,7 +640,8 @@ public class DefaultProcessor implements Processor {
                                       }
                                     })
                                 .timeout(Duration.ofHours(1))
-                                .log("img " + scale));
+                        //            .log("img " + scale)
+                        );
               }
               final Mono<Tuple2<ExecuteResult, Boolean>> videoResult;
               if (videoTargetFile.exists()) videoResult = Mono.empty();
@@ -678,7 +679,8 @@ public class DefaultProcessor implements Processor {
                                       }
                                     })
                                 .timeout(Duration.ofHours(5))
-                                .log("vid " + scale));
+                        //            .log("vid " + scale)
+                        );
               }
 
               return Flux.concat(imgResult, videoResult).map(Tuple2::getT2).all(ok -> ok)
