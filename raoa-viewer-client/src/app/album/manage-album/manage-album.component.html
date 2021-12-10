@@ -30,17 +30,16 @@
             </ion-card-title>
         </ion-card>
     </ng-container>
-    <app-group-list-editor
-            *ngSwitchCase="'users'"
-            [selectedGroups]="selectedGroups"
-            (valueChanged)="groupChanged($event)">
-
-    </app-group-list-editor>
     <app-user-list-editor
-            *ngSwitchCase="'teams'"
+            *ngSwitchCase="'users'"
             [selectedUsers]="selectedUsers"
             (valueChanged)="usersChanged($event)">
     </app-user-list-editor>
+    <app-group-list-editor
+            *ngSwitchCase="'teams'"
+            [selectedGroups]="selectedGroups"
+            (valueChanged)="groupChanged($event)">
+    </app-group-list-editor>
 </ion-content>
 <ion-footer>
     <ion-button (click)="store()">Speichern</ion-button>
