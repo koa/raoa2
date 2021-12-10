@@ -16,6 +16,8 @@ import {AlbumData, AlbumEntryData, AlbumSettings, ImageBlob, KeywordState, Stora
 import {FNCH_COMPETITION_ID} from '../constants';
 import {HttpClient} from '@angular/common/http';
 import {LoginService} from './login.service';
+import {Observable, Subscriber} from 'rxjs';
+import {share} from 'rxjs/operators';
 
 export type QueryAlbumEntry =
     { __typename?: 'AlbumEntry' }
@@ -139,6 +141,8 @@ export class DataService {// implements OnDestroy {
     private syncRunning = false;
     private syncEnabled = true;
     private syncStateId = 0;
+    private albumMutations: Observable<string>;
+    private mutationSubscribe: Subscriber<string>;
 
     constructor(private serverApi: ServerApiService,
                 private albumContentGQL: AlbumContentGQL,
@@ -150,6 +154,9 @@ export class DataService {// implements OnDestroy {
                 private singleAlbumMutateGQL: SingleAlbumMutateGQL,
                 private storageService: StorageService,
                 private http: HttpClient, loginService: LoginService) {
+        this.albumMutations = new Observable<string>(subscribe => {
+            this.mutationSubscribe = subscribe;
+        }).pipe(share());
         if (navigator.onLine && loginService.hasValidToken()) {
             this.updateAlbumData().then();
         } else {
@@ -171,7 +178,7 @@ export class DataService {// implements OnDestroy {
         }
         const storeAlbumsVersions = new Map<string, string>();
         storedAlbumEnties.forEach(entry => storeAlbumsVersions.set(entry[0].id, entry[0].albumVersion));
-        const albumDataBatch: Promise<AlbumData>[] = [];
+        let albumDataBatch: Promise<AlbumData>[] = [];
         let lastStore: Promise<void> = Promise.resolve();
         const keepAlbums: string[] = [];
         for (const albumVersion of albumVersionList.listAlbums) {
@@ -182,14 +189,24 @@ export class DataService {// implements OnDestroy {
                 // already up to date
                 continue;
             }
-            if (albumDataBatch.length > 100) {
+            if (albumDataBatch.length > 20) {
                 await lastStore;
-                lastStore = Promise.all(albumDataBatch).then(fetchedAlbums => this.storageService.updateAlbums(fetchedAlbums));
+                lastStore = Promise.all(albumDataBatch).then(async fetchedAlbums => {
+                    await this.storageService.updateAlbums(fetchedAlbums);
+                    fetchedAlbums.forEach(album => this.mutationSubscribe.next(album.id));
+                });
+                albumDataBatch = [];
             }
             albumDataBatch.push(this.serverApi.query(this.getAlbumDetailsGQL, {albumId}).then(v => createStoreAlbum(v.albumById)));
         }
-        Promise.all(albumDataBatch).then(fetchedAlbums => this.storageService.updateAlbums(fetchedAlbums));
-        this.storageService.keepAlbums(keepAlbums).then();
+        await Promise.all(albumDataBatch).then(async fetchedAlbums => {
+            await this.storageService.updateAlbums(fetchedAlbums);
+            fetchedAlbums.forEach(album => this.mutationSubscribe.next(album.id));
+        });
+        const removedAlbums = await this.storageService.keepAlbums(keepAlbums);
+        if (removedAlbums.length > 0) {
+            removedAlbums.forEach(albumId => this.mutationSubscribe.next(albumId));
+        }
     }
 
 
@@ -199,6 +216,7 @@ export class DataService {// implements OnDestroy {
             this.doSync().then();
         }, 10 * 1000);
         const connection: NetworkInformation = navigator.connection;
+        const syncEnabledBefore = this.syncEnabled;
         if (connection) {
             const type = connection.type;
             this.syncEnabled = type === undefined || type === 'wifi' || type === 'ethernet';
@@ -209,6 +227,13 @@ export class DataService {// implements OnDestroy {
         } else {
             this.syncEnabled = true;
         }
+        if (!syncEnabledBefore && this.syncEnabled) {
+            this.updateAlbumData().then();
+        }
+    }
+
+    public albumModified(): Observable<string> {
+        return this.albumMutations;
     }
 
 
@@ -370,12 +395,12 @@ export class DataService {// implements OnDestroy {
 
     public async addKeyword(albumId: string, selectedEntries: string[], keyword: string[]) {
         await this.storageService.addKeyword(albumId, selectedEntries, keyword);
-
+        this.mutationSubscribe.next(albumId);
     }
 
     public async removeKeyword(albumId: string, selectedEntries: string[], keyword: string[]) {
         await this.storageService.removeKeyword(albumId, selectedEntries, keyword);
-
+        this.mutationSubscribe.next(albumId);
     }
 
     public async currentKeywordStates(albumId: string, entries: Set<string>): Promise<Map<string, KeywordState>> {
@@ -387,6 +412,7 @@ export class DataService {// implements OnDestroy {
             return;
         }
         const mutations: MutationData[] = [];
+        const touchedAlbums = new Set<string>();
         await Promise.all([
             this.storageService.pendingAddKeywords(albumId, pendingAddEntry => {
                 mutations.push({
@@ -396,6 +422,7 @@ export class DataService {// implements OnDestroy {
                         albumEntryId: pendingAddEntry.albumEntryId
                     }
                 });
+                touchedAlbums.add(pendingAddEntry.albumId);
             }),
             this.storageService.pendingRemoveKeywords(albumId, pendingRemoveEntry => {
                 mutations.push({
@@ -405,6 +432,7 @@ export class DataService {// implements OnDestroy {
                         albumEntryId: pendingRemoveEntry.albumEntryId
                     }
                 });
+                touchedAlbums.add(pendingRemoveEntry.albumId);
             })
         ]);
         mutations.sort((a, b) => {
@@ -412,6 +440,7 @@ export class DataService {// implements OnDestroy {
         });
         if (mutations.length > 0) {
             await this.modifyAlbum(mutations);
+            touchedAlbums.forEach(id => this.mutationSubscribe.next(id));
             this.syncStateId += 1;
         }
     }

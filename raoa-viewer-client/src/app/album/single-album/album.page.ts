@@ -1,4 +1,4 @@
-import {Component, ElementRef, NgZone, OnInit, ViewChild} from '@angular/core';
+import {Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, Router} from '@angular/router';
 import {ServerApiService} from '../../service/server-api.service';
 import {AlbumContentGQL, SingleAlbumMutateGQL} from '../../generated/graphql';
@@ -9,7 +9,7 @@ import {GestureController, IonContent, LoadingController, MenuController, Popove
 import {Title} from '@angular/platform-browser';
 import {AlbumEntryData} from '../../service/storage.service';
 import {createFilter, DataService, filterTimeResolution} from '../../service/data.service';
-import {defer, Observable} from 'rxjs';
+import {defer, Observable, Subscription} from 'rxjs';
 import {
     createFilterQueryParams,
     createMediaPath,
@@ -18,6 +18,7 @@ import {
     TimeRange,
     updateSearchParams
 } from '../show-single-media/show-single-media.component';
+import {filter} from 'rxjs/operators';
 import {SingleAlbumRightPopoverMenuComponent} from './single-album-right-popover-menu/single-album-right-popover-menu.component';
 
 
@@ -35,7 +36,31 @@ function calcTouchDist(t0: Touch, t1: Touch) {
     templateUrl: './album.page.html',
     styleUrls: ['./album.page.css'],
 })
-export class AlbumPage implements OnInit {
+export class AlbumPage implements OnInit, OnDestroy {
+
+    constructor(private activatedRoute: ActivatedRoute,
+                private serverApi: ServerApiService,
+                private albumContentGQL: AlbumContentGQL,
+                private singleAlbumMutateGQL: SingleAlbumMutateGQL,
+                private dataService: DataService,
+                private ngZone: NgZone,
+                private http: HttpClient,
+                private mediaResolver: MediaResolverService,
+                private location: Location,
+                private loadingController: LoadingController,
+                private menuController: MenuController,
+                private titleService: Title,
+                private router: Router,
+                private popoverController: PopoverController,
+                private gestureController: GestureController
+    ) {
+        this.filterId = 'filter-' + instanceCounter++;
+    }
+
+    @ViewChild('imageList')
+    set imageList(imageListElement: ElementRef<HTMLDivElement>) {
+        this.imageListElement = imageListElement;
+    }
 
     public allDateCounts = 0;
     public syncEnabled: boolean;
@@ -76,25 +101,9 @@ export class AlbumPage implements OnInit {
     private zoomStartDist = 1;
     private currentZoomState = 1;
     private zoomStartMaxWidth = 1;
-
-    constructor(private activatedRoute: ActivatedRoute,
-                private serverApi: ServerApiService,
-                private albumContentGQL: AlbumContentGQL,
-                private singleAlbumMutateGQL: SingleAlbumMutateGQL,
-                private dataService: DataService,
-                private ngZone: NgZone,
-                private http: HttpClient,
-                private mediaResolver: MediaResolverService,
-                private location: Location,
-                private loadingController: LoadingController,
-                private menuController: MenuController,
-                private titleService: Title,
-                private router: Router,
-                private popoverController: PopoverController,
-                private gestureController: GestureController
-    ) {
-        this.filterId = 'filter-' + instanceCounter++;
-    }
+    private queryMapSubscribe: Subscription;
+    private paramMapSubscribe: Subscription;
+    private albumModifiedSubscribe: Subscription;
 
     private static findIndizesOf(rows: Array<TableRow>, timestamp: number): [number, number, number] | undefined {
         for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
@@ -119,9 +128,10 @@ export class AlbumPage implements OnInit {
         return undefined;
     }
 
-    @ViewChild('imageList')
-    set imageList(imageListElement: ElementRef<HTMLDivElement>) {
-        this.imageListElement = imageListElement;
+    public ngOnDestroy(): void {
+        this.queryMapSubscribe?.unsubscribe();
+        this.paramMapSubscribe?.unsubscribe();
+        this.albumModifiedSubscribe?.unsubscribe();
     }
 
     public async resized() {
@@ -187,7 +197,7 @@ export class AlbumPage implements OnInit {
 
     async ngOnInit() {
         this.titleService.setTitle('Album laden');
-        this.activatedRoute.queryParamMap.subscribe(async params => {
+        this.queryMapSubscribe = this.activatedRoute.queryParamMap.subscribe(async params => {
 
             const [filteringKeywords, keywordCombine, filteringTimeRange, timeResolution] = parseFilterParams(params);
             let refreshNeeded = false;
@@ -224,7 +234,7 @@ export class AlbumPage implements OnInit {
             }
 
         });
-        this.activatedRoute.paramMap.subscribe(async params => {
+        this.paramMapSubscribe = this.activatedRoute.paramMap.subscribe(async params => {
             const id = params.get('id');
             if (this.albumId !== id) {
                 this.albumId = id;
@@ -233,6 +243,11 @@ export class AlbumPage implements OnInit {
                 await this.refresh();
             }
         });
+        this.albumModifiedSubscribe = this.dataService.albumModified()
+            .pipe(filter(albumId => this.albumId === albumId))
+            .subscribe(modifiedAlbum => {
+                this.refresh();
+            });
     }
 
     public scrollToTimestamp(timestamp: number) {

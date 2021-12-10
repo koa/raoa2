@@ -204,15 +204,21 @@ export class StorageService extends Dexie {
         });
     }
 
-    public keepAlbums(albumIds: string[]): Promise<void> {
+    public async keepAlbums(albumIds: string[]): Promise<string[]> {
         return this.transaction('rw',
             this.albumDataTable,
             this.albumSettingsTable,
-            async () =>
-                Promise.all([
+            async () => {
+                const albumsToRemove: string[] = [];
+                await this.albumDataTable.where('id').noneOf(albumIds).eachPrimaryKey(albumId => {
+                    albumsToRemove.push(albumId);
+                });
+                await Promise.all([
                     this.albumDataTable.where('id').noneOf(albumIds).delete(),
                     this.albumSettingsTable.where('id').noneOf(albumIds).delete()
-                ]).then());
+                ]);
+                return albumsToRemove;
+            });
     }
 
     private async adjustPendingKeywords(entry: AlbumEntryData) {

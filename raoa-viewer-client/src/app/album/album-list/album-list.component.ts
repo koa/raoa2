@@ -1,4 +1,4 @@
-import {Component, NgZone, OnInit} from '@angular/core';
+import {Component, NgZone, OnDestroy, OnInit} from '@angular/core';
 import {CommonServerApiService} from '../../service/common-server-api.service';
 import {Location} from '@angular/common';
 import {ServerApiService} from '../../service/server-api.service';
@@ -7,6 +7,8 @@ import {ActivatedRoute} from '@angular/router';
 import {DataService} from '../../service/data.service';
 import {AlbumData, AlbumSettings} from '../../service/storage.service';
 import {MenuController} from '@ionic/angular';
+import {bufferTime, filter} from 'rxjs/operators';
+import {Subscription} from 'rxjs';
 
 type MenuEntry = {
     sync: 'none' | 'ready' | 'loading';
@@ -18,10 +20,11 @@ type MenuEntry = {
     templateUrl: './album-list.component.html',
     styleUrls: ['./album-list.component.css'],
 })
-export class AlbumListComponent implements OnInit {
+export class AlbumListComponent implements OnInit, OnDestroy {
     private photoCollectionFilter: string;
     public foundAlbums: MenuEntry[];
     public canManageUsers = false;
+    private subscription: Subscription;
 
     constructor(private commonServerApi: CommonServerApiService,
                 private serverApi: ServerApiService,
@@ -41,6 +44,17 @@ export class AlbumListComponent implements OnInit {
         const permissions = await this.albumDataService.userPermission();
         this.canManageUsers = permissions.canManageUsers;
         await this.updatePhotoCollectionList();
+        this.subscription = this.albumDataService.albumModified().pipe(
+            bufferTime(1000),
+            filter(a => a.length > 0))
+            .subscribe(albums => {
+                this.updatePhotoCollectionList();
+            });
+    }
+
+    ngOnDestroy() {
+        console.log('unsubscribe');
+        this.subscription?.unsubscribe();
     }
 
     async updateSearch(event: CustomEvent) {
