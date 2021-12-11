@@ -1,6 +1,5 @@
 import {Injectable} from '@angular/core';
 import Dexie, {Table, WhereClause} from 'dexie';
-import Semaphore from 'semaphore-async-await';
 
 export interface AlbumData {
     id: string;
@@ -75,6 +74,7 @@ export interface DeviceData {
     providedIn: 'root'
 })
 export class StorageService extends Dexie {
+
     constructor() {
         super('RaoaDatabase');
         this.version(6)
@@ -125,7 +125,6 @@ export class StorageService extends Dexie {
     private readonly whereRemovePendingKeyword: WhereClause<PendingKeywordRemoveEntry, [string, string, string]>;
     private readonly albumEntryByEntryAndAlbum: WhereClause<AlbumEntryData, [string, string]>;
     private readonly lastAccessTime = new Map<string, number>();
-    private readonly cleanupSemaphore = new Semaphore(1);
 
     private screenSize = 3200;
     private maxSmallScreenSize = this.screenSize / 4;
@@ -546,24 +545,6 @@ export class StorageService extends Dexie {
     }
 
     public async storeImages(data: ImageBlob[]): Promise<void> {
-        await this.cleanupSemaphore.acquire();
-        try {
-            if (navigator.storage && navigator.storage.estimate) {
-                const estimation = await navigator.storage.estimate();
-                const quota = estimation.quota;
-                const usage = estimation.usage;
-                let totalSize = 0;
-                data.forEach(img => totalSize += img.data.size);
-                if (usage + totalSize * 1.5 > quota - 10 * 1000 * 1000) {
-                    // console.log('storage limit reached');
-                    // console.log(`Quota: ${quota}`);
-                    // console.log(`Usage: ${usage}`);
-                    await this.cleanupOldestAlbum();
-                }
-            }
-        } finally {
-            this.cleanupSemaphore.release();
-        }
         return this.transaction('rw', this.smallImagesTable, this.bigImagesTable, async () => {
             for (const image of data) {
                 if (image.mediaSize <= this.maxSmallScreenSize) {
@@ -681,18 +662,20 @@ export class StorageService extends Dexie {
         });
     }
 
-    public findAlbumsToSync(): Promise<AlbumSettings[]> {
+    public findAlbumsToSync(): Promise<[AlbumSettings, AlbumData][]> {
         return this.transaction('r',
             this.albumSettingsTable,
             this.albumDataTable,
             async () => {
-                const versions = new Map<string, string>();
-                await this.albumDataTable.each(album => versions.set(album.id, album.albumVersion));
-                return this.albumSettingsTable
+                const versions = new Map<string, AlbumData>();
+                await this.albumDataTable.each(album => versions.set(album.id, album));
+                const ret: [AlbumSettings, AlbumData][] = [];
+                await this.albumSettingsTable
                     .filter(album => album.syncOffline
-                        && versions.get(album.id) === album.albumEntryVersion
+                        && versions.get(album.id).albumVersion === album.albumEntryVersion
                         && album.albumEntryVersion !== album.offlineSyncedVersion)
-                    .toArray();
+                    .each(settings => ret.push([settings, versions.get(settings.id)]));
+                return ret;
             });
     }
 
@@ -742,6 +725,31 @@ export class StorageService extends Dexie {
                 this.albumSettingsTable.get(albumId)]);
         });
 
+    }
+
+    public clearCaches(): Promise<void> {
+        return this.transaction('rw',
+            this.smallImagesTable, this.bigImagesTable, this.albumEntryDataTable, this.albumSettingsTable,
+            async () => {
+                await this.smallImagesTable.clear();
+                await this.bigImagesTable.clear();
+                await this.albumEntryDataTable.clear();
+                const mutations: Promise<any>[] = [];
+                this.albumSettingsTable.each(settings => {
+                    if (settings.syncOffline) {
+                        mutations.push(this.albumSettingsTable.put({
+                            albumEntryVersion: '',
+                            id: settings.id,
+                            lastUpdated: 0,
+                            offlineSyncedVersion: '',
+                            syncOffline: true
+                        }));
+                    } else {
+                        mutations.push(this.albumSettingsTable.delete(settings.id));
+                    }
+                });
+                await Promise.all(mutations);
+            });
     }
 }
 

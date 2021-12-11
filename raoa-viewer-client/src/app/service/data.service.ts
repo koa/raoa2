@@ -28,6 +28,14 @@ export interface UserPermissions {
     canEdit: boolean;
 }
 
+export interface SyncProgress {
+    albumCount: number;
+    albumIndex: number;
+    albumEntryCount: number;
+    albumEntryIndex: number;
+    albumName: string;
+}
+
 function createStoreEntry(albumEntry: { __typename?: 'AlbumEntry' } &
                               Pick<AlbumEntry,
                                   'id' |
@@ -137,7 +145,6 @@ function sortKey(data: MutationData) {
     providedIn: 'root'
 })
 export class DataService {// implements OnDestroy {
-    private runningTimer: number = undefined;
     private syncRunning = false;
     private syncEnabled = true;
     private syncStateId = 0;
@@ -149,7 +156,7 @@ export class DataService {// implements OnDestroy {
                 private allAlbumVersionsGQL: AllAlbumVersionsGQL,
                 private getAlbumDetailsGQL: GetAlbumDetailsGQL,
                 private userPermissionsGQL: UserPermissionsGQL,
-                //private subscribeAlbumMutationsGQL: SubscribeAlbumMutationsGQL,
+                // private subscribeAlbumMutationsGQL: SubscribeAlbumMutationsGQL,
                 private router: Router,
                 private singleAlbumMutateGQL: SingleAlbumMutateGQL,
                 private storageService: StorageService,
@@ -159,9 +166,7 @@ export class DataService {// implements OnDestroy {
         }).pipe(share());
         if (navigator.onLine && loginService.hasValidToken()) {
             this.updateAlbumData().then();
-        } else {
         }
-        this.setTimer();
     }
 
     async updateAlbumData() {
@@ -193,7 +198,7 @@ export class DataService {// implements OnDestroy {
                 await lastStore;
                 lastStore = Promise.all(albumDataBatch).then(async fetchedAlbums => {
                     await this.storageService.updateAlbums(fetchedAlbums);
-                    fetchedAlbums.forEach(album => this.mutationSubscribe.next(album.id));
+                    fetchedAlbums.forEach(album => this.notifyAlbumUpdated(album.id));
                 });
                 albumDataBatch = [];
             }
@@ -201,111 +206,135 @@ export class DataService {// implements OnDestroy {
         }
         await Promise.all(albumDataBatch).then(async fetchedAlbums => {
             await this.storageService.updateAlbums(fetchedAlbums);
-            fetchedAlbums.forEach(album => this.mutationSubscribe.next(album.id));
+            fetchedAlbums.forEach(album => this.notifyAlbumUpdated(album.id));
         });
         const removedAlbums = await this.storageService.keepAlbums(keepAlbums);
         if (removedAlbums.length > 0) {
-            removedAlbums.forEach(albumId => this.mutationSubscribe.next(albumId));
+            removedAlbums.forEach(albumId => this.notifyAlbumUpdated(albumId));
         }
     }
 
-
-    private setTimer() {
-        this.stopRunningTimer();
-        this.runningTimer = setInterval(() => {
-            this.doSync().then();
-        }, 10 * 1000);
-        const connection: NetworkInformation = navigator.connection;
-        const syncEnabledBefore = this.syncEnabled;
-        if (connection) {
-            const type = connection.type;
-            this.syncEnabled = type === undefined || type === 'wifi' || type === 'ethernet';
-            connection.addEventListener('change', () => {
-                const c = navigator.connection;
-                this.syncEnabled = c.type === undefined || c.type === 'wifi' || c.type === 'ethernet';
-            });
-        } else {
-            this.syncEnabled = true;
-        }
-        if (!syncEnabledBefore && this.syncEnabled) {
-            this.updateAlbumData().then();
-        }
-    }
 
     public albumModified(): Observable<string> {
         return this.albumMutations;
     }
 
 
-    private stopRunningTimer() {
-        if (this.runningTimer !== undefined) {
-            clearInterval(this.runningTimer);
-            this.runningTimer = undefined;
-        }
-    }
-
     private isSyncEnabled(): boolean {
         return navigator.onLine && this.syncEnabled;
     }
 
-    public async doSync(): Promise<void> {
-        if (!this.isSyncEnabled()) {
-            return;
-        }
-        if (this.syncRunning) {
-            return;
-        }
-        this.syncRunning = true;
-        const startSyncState = this.syncStateId;
-        try {
-            const deviceData = await this.storageService.getDeviceData();
-            const screenSize = deviceData?.screenSize || 3200;
-            const albumsToUpdate = await this.storageService.findDeprecatedAlbums();
-            for (const album of albumsToUpdate) {
-                if (this.isSyncEnabled() && startSyncState === this.syncStateId) {
-                    await this.fetchAlbum(album);
+    public synchronizeData(): Observable<SyncProgress> {
+        return new Observable<SyncProgress>(subscriber => {
+            const runner = async () => {
+                if (this.syncRunning) {
+                    return;
                 }
-            }
-            if (!this.isSyncEnabled() || startSyncState !== this.syncStateId) {
-                return;
-            }
-            const albumsToSync = await this.storageService.findAlbumsToSync();
-            for (const album of albumsToSync) {
-                const minSize = album.syncOffline;
-                const missingEntries = await this.storageService.findMissingImagesOfAlbum(album.id);
-                let batch: Promise<ImageBlob>[] = [];
-                let pendingStore: Promise<void> = Promise.resolve();
-                for (const entry of missingEntries[0]) {
-                    if (!this.isSyncEnabled() || startSyncState !== this.syncStateId) {
+                try {
+                    this.syncRunning = true;
+                    await this.updateAlbumData();
+                    if (subscriber.closed) {
                         return;
                     }
-                    if (batch.length > 10) {
-                        await pendingStore;
-                        pendingStore = this.storageService.storeImages(await Promise.all(batch));
-                        batch = [];
+                    const deviceData = await this.storageService.getDeviceData();
+                    const screenSize = deviceData?.screenSize || 3200;
+                    const albumsToUpdate = await this.storageService.findDeprecatedAlbums();
+                    subscriber.next({
+                        albumCount: albumsToUpdate.length,
+                        albumEntryCount: 0,
+                        albumEntryIndex: 0,
+                        albumIndex: 0,
+                        albumName: ''
+                    });
+                    for (let i = 0; i < albumsToUpdate.length && !subscriber.closed; i++) {
+                        const album = albumsToUpdate[i];
+                        const fetchedAlbum = await this.fetchAlbum(album);
+                        subscriber.next({
+                            albumCount: albumsToUpdate.length,
+                            albumEntryCount: 0,
+                            albumEntryIndex: 0,
+                            albumIndex: i,
+                            albumName: fetchedAlbum[0].title
+                        });
+                        this.notifyAlbumUpdated(album);
                     }
-                    batch.push(this.fetchImage(album.id, entry, screenSize / 4));
-                }
-                for (const entry of missingEntries[1]) {
-                    if (!this.isSyncEnabled() || startSyncState !== this.syncStateId) {
+                    if (subscriber.closed) {
                         return;
                     }
-                    if (batch.length > 10) {
-                        await pendingStore;
-                        pendingStore = this.storageService.storeImages(await Promise.all(batch));
-                        batch = [];
+                    const albumsToSync = await this.storageService.findAlbumsToSync();
+                    if (subscriber.closed) {
+                        return;
                     }
-                    batch.push(this.fetchImage(album.id, entry, screenSize));
+                    for (let i = 0; i < albumsToSync.length && !subscriber.closed; i++) {
+                        const album = albumsToSync[i];
+                        const albumSettings = album[0];
+                        const albumData = album[1];
+                        subscriber.next({
+                            albumCount: albumsToSync.length,
+                            albumEntryCount: 0,
+                            albumEntryIndex: 0,
+                            albumIndex: i,
+                            albumName: albumData.title
+                        });
+                        const missingEntries = await this.storageService.findMissingImagesOfAlbum(albumSettings.id);
+                        let batch: Promise<ImageBlob>[] = [];
+                        let pendingStore: Promise<void> = Promise.resolve();
+                        const missingSmallEntries = missingEntries[0];
+                        const missingBigEntries = missingEntries[1];
+                        const totalEntryCount = missingSmallEntries.size + missingBigEntries.size * 4;
+                        let entryIndex = 0;
+                        for (const entry of missingSmallEntries) {
+                            if (subscriber.closed) {
+                                return;
+                            }
+                            subscriber.next({
+                                albumCount: albumsToSync.length,
+                                albumEntryCount: totalEntryCount,
+                                albumEntryIndex: entryIndex++,
+                                albumIndex: i,
+                                albumName: albumData.title
+                            });
+                            if (batch.length > 10) {
+                                await pendingStore;
+                                pendingStore = this.storageService.storeImages(await Promise.all(batch));
+                                batch = [];
+                            }
+                            batch.push(this.fetchImage(albumSettings.id, entry, screenSize / 4));
+                        }
+                        for (const entry of missingBigEntries) {
+                            if (subscriber.closed) {
+                                return;
+                            }
+                            subscriber.next({
+                                albumCount: albumsToSync.length,
+                                albumEntryCount: totalEntryCount,
+                                albumEntryIndex: entryIndex += 4,
+                                albumIndex: i,
+                                albumName: albumData.title
+                            });
+                            if (batch.length > 10) {
+                                await pendingStore;
+                                pendingStore = this.storageService.storeImages(await Promise.all(batch));
+                                batch = [];
+                            }
+                            batch.push(this.fetchImage(albumSettings.id, entry, screenSize));
+                        }
+                        await this.storageService.storeImages(await Promise.all(batch));
+                        await this.storageService.setOfflineSynced(albumSettings.id, albumSettings.albumEntryVersion);
+                    }
+                } finally {
+                    subscriber.complete();
+                    this.syncRunning = false;
                 }
-                await this.storageService.storeImages(await Promise.all(batch));
-                await this.storageService.setOfflineSynced(album.id, album.albumEntryVersion);
-            }
-        } catch (error) {
-            console.error(error);
-        } finally {
-            this.syncRunning = false;
-        }
+            };
+            runner().then();
+        });
     }
+
+    private notifyAlbumUpdated(album: string) {
+        this.mutationSubscribe?.next(album);
+    }
+
 
     public async setSync(albumId: string, enabled: boolean) {
         await this.storageService.setSync(albumId, enabled);
@@ -332,7 +361,7 @@ export class DataService {// implements OnDestroy {
         return [album, entries, albumSettings];
     }
 
-    private async fetchAlbum(albumId: string): Promise<void> {
+    private async fetchAlbum(albumId: string): Promise<[AlbumData, AlbumEntryData[]]> {
         const oldAlbumState = await this.storageService.getAlbum(albumId);
         const content = await this.serverApi.query(this.albumContentGQL, {albumId});
         const albumById = content.albumById;
@@ -345,8 +374,10 @@ export class DataService {// implements OnDestroy {
         albumById.entries.forEach(albumEntry => {
             newEntries.push(createStoreEntry(albumEntry, albumId));
         });
-        await this.storageService.updateAlbums([createStoreAlbum(albumById)]);
+        const albumData = createStoreAlbum(albumById);
+        await this.storageService.updateAlbums([albumData]);
         await this.storageService.updateAlbumEntries(newEntries, albumId, albumById.version);
+        return [albumData, newEntries];
     }
 
     public async modifyAlbum(updates: MutationData[]): Promise<void> {
@@ -395,12 +426,12 @@ export class DataService {// implements OnDestroy {
 
     public async addKeyword(albumId: string, selectedEntries: string[], keyword: string[]) {
         await this.storageService.addKeyword(albumId, selectedEntries, keyword);
-        this.mutationSubscribe.next(albumId);
+        this.notifyAlbumUpdated(albumId);
     }
 
     public async removeKeyword(albumId: string, selectedEntries: string[], keyword: string[]) {
         await this.storageService.removeKeyword(albumId, selectedEntries, keyword);
-        this.mutationSubscribe.next(albumId);
+        this.notifyAlbumUpdated(albumId);
     }
 
     public async currentKeywordStates(albumId: string, entries: Set<string>): Promise<Map<string, KeywordState>> {
@@ -440,7 +471,7 @@ export class DataService {// implements OnDestroy {
         });
         if (mutations.length > 0) {
             await this.modifyAlbum(mutations);
-            touchedAlbums.forEach(id => this.mutationSubscribe.next(id));
+            touchedAlbums.forEach(id => this.notifyAlbumUpdated(id));
             this.syncStateId += 1;
         }
     }
@@ -521,6 +552,10 @@ export class DataService {// implements OnDestroy {
         if (storedAlbum === undefined || storedSettings === undefined || storedAlbum.albumVersion !== storedSettings.albumEntryVersion) {
             await this.fetchAlbum(albumId);
         }
+    }
+
+    public clearCachedData(): Promise<void> {
+        return this.storageService.clearCaches();
     }
 }
 

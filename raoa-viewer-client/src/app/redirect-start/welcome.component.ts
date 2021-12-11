@@ -1,4 +1,4 @@
-import {Component, NgZone, OnInit, ViewChild} from '@angular/core';
+import {Component, NgZone, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {Router} from '@angular/router';
 import {IonInput, LoadingController, MenuController, ToastController} from '@ionic/angular';
 import {CommonServerApiService} from '../service/common-server-api.service';
@@ -19,7 +19,9 @@ import {ServerApiService} from '../service/server-api.service';
 import {LoginService} from '../service/login.service';
 import {HttpClient} from '@angular/common/http';
 import {FNCH_COMPETITION_ID, FNCH_COMPETITOR_ID} from '../constants';
-import {DataService} from '../service/data.service';
+import {DataService, SyncProgress} from '../service/data.service';
+import {bufferTime, filter, map} from 'rxjs/operators';
+import {Subscription} from 'rxjs';
 
 interface FnchEvent {
     pruefungen: FnchCompetition[];
@@ -40,7 +42,7 @@ interface FnchResultEntry {
     templateUrl: './welcome.component.html',
     styleUrls: ['./welcome.component.scss'],
 })
-export class WelcomeComponent implements OnInit {
+export class WelcomeComponent implements OnInit, OnDestroy {
 
     @ViewChild('message') private message: IonInput;
 
@@ -56,10 +58,14 @@ export class WelcomeComponent implements OnInit {
                 Pick<AuthenticationId, 'authority' | 'id'>>
         }>
     }>;
-    userName: string;
-    userMail: string;
-    userPicture: string;
-    offlinePhotoCount = 0;
+    public userName: string;
+    public userMail: string;
+    public userPicture: string;
+    public offlinePhotoCount = 0;
+    public syncProgress: SyncProgress | undefined;
+    private albumSubscriber: Subscription;
+    public syncOfflineSubscription: Subscription;
+    public estimation: StorageEstimate;
 
     constructor(private router: Router,
                 private menu: MenuController,
@@ -87,10 +93,44 @@ export class WelcomeComponent implements OnInit {
             console.log('parsed url', parsedUrl);
             await this.router.navigateByUrl(parsedUrl);
         }
+        await this.refreshQuota();
         this.refreshData();
+        this.albumSubscriber = this.dataService.albumModified()
+            .pipe(bufferTime(1000), filter(albums => albums.length > 0))
+            .subscribe(updates => {
+                this.adjustPhotoCounters();
+            });
+    }
+
+    public ngOnDestroy() {
+        this.albumSubscriber?.unsubscribe();
+        this.syncOfflineSubscription?.unsubscribe();
+    }
+
+    private async refreshQuota() {
+        if (navigator.storage && navigator.storage.estimate) {
+            const estimation: StorageEstimate = await navigator.storage.estimate();
+            this.ngZone.run(() => {
+                this.estimation = estimation;
+            });
+        }
     }
 
     private refreshData() {
+        this.adjustPhotoCounters();
+        if (navigator.onLine) {
+            this.serverApiService.query(this.getUserstateGQL, {}).then(userState => {
+                this.ngZone.run(() => {
+                    this.userName = this.loginService.userName();
+                    this.userMail = this.loginService.userMail();
+                    this.userPicture = this.loginService.userPicture();
+                    this.userState = userState;
+                });
+            });
+        }
+    }
+
+    private adjustPhotoCounters() {
         this.dataService.listAlbums().then(albums => {
             let totalPhotoCount = 0;
             let offlinePhotoCount = 0;
@@ -105,16 +145,6 @@ export class WelcomeComponent implements OnInit {
                 this.offlinePhotoCount = offlinePhotoCount;
             });
         });
-        if (navigator.onLine) {
-            this.serverApiService.query(this.getUserstateGQL, {}).then(userState => {
-                this.ngZone.run(() => {
-                    this.userName = this.loginService.userName();
-                    this.userMail = this.loginService.userMail();
-                    this.userPicture = this.loginService.userPicture();
-                    this.userState = userState;
-                });
-            });
-        }
     }
 
     async logout() {
@@ -213,5 +243,35 @@ export class WelcomeComponent implements OnInit {
 
     public openNavigationMenu(): Promise<void> {
         return this.menuController.open('navigation').then();
+    }
+
+    public async cleanupCache(): Promise<void> {
+        await this.dataService.clearCachedData();
+        await this.refreshQuota();
+        this.adjustPhotoCounters();
+    }
+
+    public syncOffline() {
+        this.syncOfflineSubscription = this.dataService.synchronizeData()
+            .pipe(bufferTime(500), filter(b => b.length > 0), map(b => b[b.length - 1]))
+            .subscribe(state => {
+                this.ngZone.run(() => {
+                    this.syncProgress = state;
+                });
+                this.refreshQuota();
+            }, error => {
+
+            }, () => {
+                console.log('done');
+                this.ngZone.run(() => {
+                    this.syncProgress = undefined;
+                });
+                this.refreshQuota();
+            });
+    }
+
+    cancelOfflineSync() {
+        this.syncOfflineSubscription.unsubscribe();
+        this.refreshQuota().then();
     }
 }

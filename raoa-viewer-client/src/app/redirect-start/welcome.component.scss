@@ -6,3 +6,16 @@ ion-card-header.person {
 ion-card-header.person > img {
   flex-grow: initial;
 }
+
+ion-card-content > dl {
+  display: grid;
+  justify-content: start;
+}
+
+ion-card-content > dl > dt {
+  grid-column: 1;
+}
+
+ion-card-content > dl > dd {
+  grid-column: 2;
+}

@@ -83,6 +83,35 @@
                 {{offlinePhotoCount | number}} offline verfügbar</p>
         </ion-card-content>
     </ion-card>
+    <ion-card *ngIf="userState && userState.currentUser">
+        <ion-card-header>
+            <ion-card-title>Lokale Daten</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+            <dl *ngIf="estimation">
+                <dt>Total verfügbar</dt>
+                <dd>{{estimation.quota | filesize}}</dd>
+                <dt>Aktuell belegt</dt>
+                <dd>{{estimation.usage | filesize}} ({{estimation.usage / estimation.quota | percent}})</dd>
+            </dl>
+            <ion-button (click)="cleanupCache()" color="danger">Daten löschen</ion-button>
+            <ion-button (click)="syncOffline()"
+                        *ngIf="!this.syncOfflineSubscription  || this.syncOfflineSubscription.closed">Offline
+                herunterladen
+            </ion-button>
+            <ion-button *ngIf="this.syncOfflineSubscription&&!this.syncOfflineSubscription.closed"
+                        (click)="cancelOfflineSync()" color="danger">Herunterladen
+                abbrechen
+            </ion-button>
+            <p *ngIf="this.syncOfflineSubscription&&!this.syncOfflineSubscription.closed">
+                <ion-label *ngIf="syncProgress?.albumName">Lade {{syncProgress.albumName}}</ion-label>
+                <ion-progress-bar *ngIf="syncProgress?.albumCount>0"
+                                  [value]="(syncProgress.albumIndex+1)/(syncProgress.albumCount+1)"></ion-progress-bar>
+                <ion-progress-bar *ngIf="syncProgress?.albumEntryCount>0"
+                                  [value]="(syncProgress.albumEntryIndex+1)/(syncProgress.albumEntryCount+1)"></ion-progress-bar>
+            </p>
+        </ion-card-content>
+    </ion-card>
     <ion-card *ngIf="userState?.currentUser?.canManageUsers" routerLink="/manage-users">
         <ion-card-header>
             <ion-card-title>Nutzer bearbeiten</ion-card-title>

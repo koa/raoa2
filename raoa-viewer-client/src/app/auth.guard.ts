@@ -18,7 +18,7 @@ export class AuthGuard implements CanActivate {
         next: ActivatedRouteSnapshot,
         state: RouterStateSnapshot): boolean | UrlTree {
         const validToken = this.loginService.hasValidToken();
-        if (!validToken) {
+        if (!validToken && navigator.onLine) {
             return this.router.createUrlTree(['/login'], {queryParams: {target: state.url}});
         }
         return true;

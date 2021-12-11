@@ -17,6 +17,7 @@ import {ServiceWorkerModule} from '@angular/service-worker';
 import {environment} from '../environments/environment';
 import {MainMenuComponentModule} from './main-menu/main-menu.module';
 import {OAuthModule} from 'angular-oauth2-oidc';
+import { FilesizePipe } from './filesize.pipe';
 
 registerLocaleData(localeDe, 'de');
 registerLocaleData(localeFr, 'fr');
@@ -24,7 +25,7 @@ registerLocaleData(localeEn, 'en');
 
 
 @NgModule({
-    declarations: [AppComponent, WelcomeComponent],
+    declarations: [AppComponent, WelcomeComponent, FilesizePipe],
     entryComponents: [],
     imports: [
         BrowserModule,
