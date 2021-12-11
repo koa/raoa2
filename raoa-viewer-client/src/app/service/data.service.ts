@@ -19,6 +19,8 @@ import {LoginService} from './login.service';
 import {Observable, Subscriber} from 'rxjs';
 import {share} from 'rxjs/operators';
 
+const CACHE_NAME = 'image-cache';
+
 export type QueryAlbumEntry =
     { __typename?: 'AlbumEntry' }
     & Pick<AlbumEntry, 'id' | 'name' | 'entryUri' | 'targetWidth' | 'targetHeight' | 'created' | 'keywords'>;
@@ -141,6 +143,11 @@ function sortKey(data: MutationData) {
     return '';
 }
 
+function imageUrl(albumId: string, albumEntryId: string, nextStepMaxLength: number) {
+    const src = '/rest/album/' + albumId + '/' + albumEntryId + '/thumbnail?maxLength=' + nextStepMaxLength;
+    return src;
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -150,6 +157,7 @@ export class DataService {// implements OnDestroy {
     private syncStateId = 0;
     private albumMutations: Observable<string>;
     private mutationSubscribe: Subscriber<string>;
+    private imageCache: Promise<Cache>;
 
     constructor(private serverApi: ServerApiService,
                 private albumContentGQL: AlbumContentGQL,
@@ -167,6 +175,14 @@ export class DataService {// implements OnDestroy {
         if (navigator.onLine && loginService.hasValidToken()) {
             this.updateAlbumData().then();
         }
+        this.initCache();
+    }
+
+    private initCache() {
+        this.imageCache = caches.open(CACHE_NAME).then(cache => {
+            this.imageCache = Promise.resolve(cache);
+            return cache;
+        });
     }
 
     async updateAlbumData() {
@@ -238,6 +254,7 @@ export class DataService {// implements OnDestroy {
                     }
                     const deviceData = await this.storageService.getDeviceData();
                     const screenSize = deviceData?.screenSize || 3200;
+                    const smallSize = Math.max(screenSize / 8, 25);
                     const albumsToUpdate = await this.storageService.findDeprecatedAlbums();
                     subscriber.next({
                         albumCount: albumsToUpdate.length,
@@ -276,14 +293,12 @@ export class DataService {// implements OnDestroy {
                             albumIndex: i,
                             albumName: albumData.title
                         });
-                        const missingEntries = await this.storageService.findMissingImagesOfAlbum(albumSettings.id);
+                        const [, entries,] = await this.storageService.listAlbum(albumSettings.id);
                         let batch: Promise<ImageBlob>[] = [];
-                        let pendingStore: Promise<void> = Promise.resolve();
-                        const missingSmallEntries = missingEntries[0];
-                        const missingBigEntries = missingEntries[1];
-                        const totalEntryCount = missingSmallEntries.size + missingBigEntries.size * 4;
+                        let pendingStore: Promise<ImageBlob[]> = Promise.resolve([]);
+                        const totalEntryCount = entries.length * 5;
                         let entryIndex = 0;
-                        for (const entry of missingSmallEntries) {
+                        for (const entry of entries) {
                             if (subscriber.closed) {
                                 return;
                             }
@@ -296,12 +311,12 @@ export class DataService {// implements OnDestroy {
                             });
                             if (batch.length > 10) {
                                 await pendingStore;
-                                pendingStore = this.storageService.storeImages(await Promise.all(batch));
+                                pendingStore = Promise.all(batch);
                                 batch = [];
                             }
-                            batch.push(this.fetchImage(albumSettings.id, entry, screenSize / 4));
+                            batch.push(this.fetchImage(albumSettings.id, entry.albumEntryId, smallSize, 1));
                         }
-                        for (const entry of missingBigEntries) {
+                        for (const entry of entries) {
                             if (subscriber.closed) {
                                 return;
                             }
@@ -314,12 +329,13 @@ export class DataService {// implements OnDestroy {
                             });
                             if (batch.length > 10) {
                                 await pendingStore;
-                                pendingStore = this.storageService.storeImages(await Promise.all(batch));
+                                pendingStore = Promise.all(batch);
                                 batch = [];
                             }
-                            batch.push(this.fetchImage(albumSettings.id, entry, screenSize));
+                            batch.push(this.fetchImage(albumSettings.id, entry.albumEntryId, screenSize, 1));
                         }
-                        await this.storageService.storeImages(await Promise.all(batch));
+                        await pendingStore;
+                        await Promise.all(batch);
                         await this.storageService.setOfflineSynced(albumSettings.id, albumSettings.albumEntryVersion);
                     }
                 } finally {
@@ -494,35 +510,54 @@ export class DataService {// implements OnDestroy {
     }
 
     public async getImage(albumId: string, albumEntryId: string, minSize: number): Promise<string> {
-        const storedImage = await this.storageService.readImage(albumId, albumEntryId, minSize, navigator.onLine);
-        if (storedImage !== undefined) {
-            return encodeDataUrl(storedImage);
+        const maxShift = navigator.onLine ? 3 : 10;
+        const fetchedImage = await this.fetchImage(albumId, albumEntryId, minSize, maxShift);
+        return encodeDataUrl(fetchedImage);
+    }
+
+    private async fetchImage(albumId: string, albumEntryId: string, minSize: number, maxShift: number): Promise<ImageBlob> {
+        // const startTime = Date.now();
+        const cache = await this.imageCache;
+        const nextStepMaxLength = findNextStep(minSize);
+        for (let shift = 0; shift < maxShift; shift++) {
+            // tslint:disable-next-line:no-bitwise
+            const length = nextStepMaxLength * (1 << shift);
+            if (length > 3200) {
+                continue;
+            }
+            const candidateSrc = imageUrl(albumId, albumEntryId, length);
+            const cacheEntry = await cache.match(candidateSrc);
+            if (cacheEntry) {
+                // console.log('cache lookup: ', shift, Date.now() - startTime);
+                return {
+                    albumId,
+                    albumEntryId,
+                    mediaSize: nextStepMaxLength,
+                    data: await cacheEntry.blob()
+                };
+            }
         }
         if (!navigator.onLine) {
             throw new Error('Offline');
         }
-        const fetchedImage = await this.fetchImage(albumId, albumEntryId, minSize);
-        await this.storageService.storeImage(fetchedImage);
-        return encodeDataUrl(fetchedImage);
-    }
+        // console.log('cache test: ', Date.now() - startTime);
+        const src = imageUrl(albumId, albumEntryId, nextStepMaxLength);
 
-    private async fetchImage(albumId: string, albumEntryId: string, minSize: number): Promise<ImageBlob> {
-        const nextStepMaxLength = findNextStep(minSize);
-        const src = '/rest/album/' + albumId + '/' + albumEntryId + '/thumbnail?maxLength=' + nextStepMaxLength;
         for (let i = 0; i < 10; i++) {
             try {
                 const imageBlob = await this.http.get(src, {responseType: 'blob'}).toPromise();
+                cache.put(src, new Response(imageBlob)).then();
                 if (!imageBlob.type.startsWith('image')) {
                     console.error(`wrong content type of ${albumEntryId}: ${imageBlob.type}`);
                     continue;
                 }
-                const data: ImageBlob = {
+
+                return {
                     albumId,
                     albumEntryId,
                     mediaSize: nextStepMaxLength,
                     data: imageBlob
                 };
-                return data;
             } catch (error) {
                 console.error(`Cannot load ${albumEntryId}, try ${i}`, error);
             }
@@ -554,8 +589,10 @@ export class DataService {// implements OnDestroy {
         }
     }
 
-    public clearCachedData(): Promise<void> {
-        return this.storageService.clearCaches();
+    public async clearCachedData(): Promise<void> {
+        await this.storageService.clearCaches();
+        await caches.delete(CACHE_NAME);
+        this.initCache();
     }
 }
 
