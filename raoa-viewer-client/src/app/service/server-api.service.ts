@@ -34,14 +34,14 @@ export class ServerApiService {
                 }
             }
         });
-        this.tryComeReady();
+        this.tryComeReady().then();
     }
 
-    private tryComeReady(): boolean {
+    private async tryComeReady(): Promise<boolean> {
         if (this.ready) {
             return true;
         }
-        if (this.login.hasValidToken()) {
+        if (await this.login.hasValidToken()) {
             try {
                 const auth: ApolloLink = setContext((_, {headers}) => {
                     // Grab token if there is one in storage or hasn't expired
@@ -104,7 +104,7 @@ export class ServerApiService {
     }
 
     public async query<T, V>(query: Apollo.Query<T, V>, variables: V): Promise<Maybe<T>> {
-        if (!this.tryComeReady()) {
+        if (!await this.tryComeReady()) {
             console.error('not ready');
             // return Promise.resolve(null);
             return Promise.reject('Cannot init');
@@ -131,7 +131,7 @@ export class ServerApiService {
     }
 
     public async update<T, V>(mutation: Apollo.Mutation<T, V>, variables: V): Promise<Maybe<T>> {
-        if (!this.tryComeReady()) {
+        if (!await this.tryComeReady()) {
             return Promise.reject('Cannot init');
         }
         return new Promise<T>((resolve, reject) => {

@@ -16,8 +16,8 @@ import {AlbumData, AlbumEntryData, AlbumSettings, ImageBlob, KeywordState, Stora
 import {FNCH_COMPETITION_ID} from '../constants';
 import {HttpClient} from '@angular/common/http';
 import {LoginService} from './login.service';
-import {Observable, Subscriber} from 'rxjs';
-import {share} from 'rxjs/operators';
+import {fromEventPattern, merge, Observable, Subscriber} from 'rxjs';
+import {map, share} from 'rxjs/operators';
 
 const CACHE_NAME = 'image-cache';
 
@@ -153,13 +153,14 @@ function imageUrl(albumId: string, albumEntryId: string, nextStepMaxLength: numb
 })
 export class DataService {// implements OnDestroy {
     private syncRunning = false;
-    private syncEnabled = true;
     private syncStateId = 0;
-    private albumMutations: Observable<string>;
+    public readonly albumModified: Observable<string>;
+    public readonly onlineState: Observable<boolean>;
     private mutationSubscribe: Subscriber<string>;
     private imageCache: Promise<Cache>;
 
     constructor(private serverApi: ServerApiService,
+                private loginService: LoginService,
                 private albumContentGQL: AlbumContentGQL,
                 private allAlbumVersionsGQL: AllAlbumVersionsGQL,
                 private getAlbumDetailsGQL: GetAlbumDetailsGQL,
@@ -168,13 +169,23 @@ export class DataService {// implements OnDestroy {
                 private router: Router,
                 private singleAlbumMutateGQL: SingleAlbumMutateGQL,
                 private storageService: StorageService,
-                private http: HttpClient, loginService: LoginService) {
-        this.albumMutations = new Observable<string>(subscribe => {
+                private http: HttpClient) {
+        this.albumModified = new Observable<string>(subscribe => {
             this.mutationSubscribe = subscribe;
         }).pipe(share());
-        if (navigator.onLine && loginService.hasValidToken()) {
+
+        const onlineObservable = fromEventPattern(
+            handler => window.addEventListener('online', handler),
+            handler => window.removeEventListener('online', handler))
+            .pipe(map(value => true));
+        const offlineObservable = fromEventPattern(
+            handler => window.addEventListener('offline', handler),
+            handler => window.removeEventListener('offline', handler))
+            .pipe(map(value => false));
+        this.onlineState = merge(onlineObservable, offlineObservable).pipe(share());
+        loginService.loginObservable.subscribe(loginData => {
             this.updateAlbumData().then();
-        }
+        });
         this.initCache();
     }
 
@@ -230,15 +241,6 @@ export class DataService {// implements OnDestroy {
         }
     }
 
-
-    public albumModified(): Observable<string> {
-        return this.albumMutations;
-    }
-
-
-    private isSyncEnabled(): boolean {
-        return navigator.onLine && this.syncEnabled;
-    }
 
     public synchronizeData(): Observable<SyncProgress> {
         return new Observable<SyncProgress>(subscriber => {
@@ -430,6 +432,9 @@ export class DataService {// implements OnDestroy {
         }
         if (!navigator.onLine) {
             throw new Error('Offline');
+        }
+        if (!await this.loginService.hasValidToken()) {
+            return undefined;
         }
         const data = await this.serverApi.query(this.userPermissionsGQL, {});
         const ret = {

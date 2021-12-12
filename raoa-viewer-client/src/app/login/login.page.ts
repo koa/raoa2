@@ -24,8 +24,10 @@ export class LoginPage implements OnInit, OnDestroy {
     }
 
     async ngOnInit() {
-        await this.loginService.initoAuth();
-        if (this.loginService.hasValidToken() || !navigator.onLine) {
+        const redirectTarget = await this.loginService.initoAuth();
+        if (redirectTarget) {
+            await this.router.navigate([redirectTarget]);
+        } else if (!navigator.onLine || await this.loginService.hasValidToken()) {
             await this.router.navigate([this.redirectTarget || '/album']);
         }
     }

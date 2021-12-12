@@ -4,6 +4,8 @@ import {Router} from '@angular/router';
 import {Location, LocationStrategy} from '@angular/common';
 import {AuthConfig, OAuthService} from 'angular-oauth2-oidc';
 import {JwksValidationHandler} from 'angular-oauth2-oidc-jwks';
+import {Observable, Subscriber} from 'rxjs';
+import {share} from 'rxjs/operators';
 
 
 interface CachedAuth {
@@ -42,6 +44,9 @@ interface JwtTokenContent {
 })
 export class LoginService {
 
+    public readonly loginObservable: Observable<JwtTokenContent>;
+    private loginSubscribe: Subscriber<JwtTokenContent>;
+
     constructor(private configService: AppConfigService,
                 private router: Router,
                 private location: Location,
@@ -49,19 +54,20 @@ export class LoginService {
                 private locationStrategy: LocationStrategy,
                 private oAuthService: OAuthService
     ) {
+        this.loginObservable = new Observable<JwtTokenContent>(subscribe => {
+            this.loginSubscribe = subscribe;
+        }).pipe(share());
 
         // this.oAuthService.events.subscribe(event => console.log(event));
     }
 
-
     public login(redirectTarget?: string) {
-        console.log('init login');
         this.oAuthService.initCodeFlow(redirectTarget);
-        //this.oAuthService.initLoginFlow(redirectTarget);
+        // this.oAuthService.initLoginFlow(redirectTarget);
     }
 
     public async initoAuth() {
-        console.log('init oAuth');
+        // console.log('init oAuth');
         const appConfigPromise = await this.configService.loadAppConfig();
         const clientId = appConfigPromise.googleClientId;
         const authCodeFlowConfig: AuthConfig = {
@@ -97,16 +103,20 @@ export class LoginService {
         this.oAuthService.configure(authCodeFlowConfig);
         this.oAuthService.tokenValidationHandler = new JwksValidationHandler();
 
-
-        const loginSuccessful = await this.oAuthService.loadDiscoveryDocumentAndTryLogin({
+        let state;
+        await this.oAuthService.loadDiscoveryDocumentAndTryLogin({
             onTokenReceived: context => {
-                console.debug('logged in');
-                console.debug(context);
+                const jwtContent = this.auth();
+                if (jwtContent && this.loginSubscribe) {
+                    this.loginSubscribe.next(jwtContent);
+                }
+                this.oAuthService.setupAutomaticSilentRefresh();
+                state = context.state;
+                // console.debug('logged in');
+                // console.debug(context);
             }
         });
-        if (loginSuccessful) {
-            this.oAuthService.setupAutomaticSilentRefresh();
-        }
+        return state;
     }
 
 
@@ -120,7 +130,13 @@ export class LoginService {
     }
 
 
-    public hasValidToken(): boolean {
+    public async hasValidToken(): Promise<boolean> {
+        if (this.oAuthService.hasValidAccessToken()) {
+            return true;
+        }
+        if (this.oAuthService.getAccessTokenExpiration() > Date.now()) {
+            await this.oAuthService.refreshToken();
+        }
         return this.oAuthService.hasValidIdToken() && this.oAuthService.getAccessTokenExpiration() > Date.now();
     }
 
@@ -133,24 +149,25 @@ export class LoginService {
         this.oAuthService.logOut();
     }
 
-    public userName(): string {
-        if (this.hasValidToken()) {
-            return this.auth()?.name;
+    public async userName(): Promise<string> {
+        if (await this.hasValidToken()) {
+            const jwtTokenContent: JwtTokenContent = this.auth();
+            return jwtTokenContent?.name;
         } else {
             return null;
         }
     }
 
-    public userMail(): string {
-        if (this.hasValidToken()) {
+    public async userMail(): Promise<string> {
+        if (await this.hasValidToken()) {
             return this.auth()?.email;
         } else {
             return null;
         }
     }
 
-    public userPicture(): string {
-        if (this.hasValidToken()) {
+    public async userPicture(): Promise<string> {
+        if (await this.hasValidToken()) {
             return this.auth()?.picture;
         } else {
             return null;

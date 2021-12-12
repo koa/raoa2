@@ -31,7 +31,6 @@ export class CommonServerApiService {
         if (online) {
             return filteredList;
         } else {
-            const offlineAvailable = await this.dataService.listOfflineAvailableVersions();
             return filteredList.filter(entry => entry[0].albumVersion === entry[1]?.offlineSyncedVersion);
         }
     }

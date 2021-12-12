@@ -37,6 +37,7 @@ interface FnchResultEntry {
     reiter_id: number;
 }
 
+
 @Component({
     selector: 'app-redirect-start',
     templateUrl: './welcome.component.html',
@@ -94,8 +95,8 @@ export class WelcomeComponent implements OnInit, OnDestroy {
             await this.router.navigateByUrl(parsedUrl);
         }
         await this.refreshQuota();
-        this.refreshData();
-        this.albumSubscriber = this.dataService.albumModified()
+        await this.refreshData();
+        this.albumSubscriber = this.dataService.albumModified
             .pipe(bufferTime(1000), filter(albums => albums.length > 0))
             .subscribe(updates => {
                 this.adjustPhotoCounters();
@@ -116,16 +117,18 @@ export class WelcomeComponent implements OnInit, OnDestroy {
         }
     }
 
-    private refreshData() {
+    private async refreshData() {
         this.adjustPhotoCounters();
         if (navigator.onLine) {
-            this.serverApiService.query(this.getUserstateGQL, {}).then(userState => {
-                this.ngZone.run(() => {
-                    this.userName = this.loginService.userName();
-                    this.userMail = this.loginService.userMail();
-                    this.userPicture = this.loginService.userPicture();
-                    this.userState = userState;
-                });
+            const userState = await this.serverApiService.query(this.getUserstateGQL, {});
+            const userName = await this.loginService.userName();
+            const userMail = await this.loginService.userMail();
+            const userPicture = await this.loginService.userPicture();
+            this.ngZone.run(() => {
+                this.userName = userName;
+                this.userMail = userMail;
+                this.userPicture = userPicture;
+                this.userState = userState;
             });
         }
     }

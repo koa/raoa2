@@ -243,7 +243,7 @@ export class AlbumPage implements OnInit, OnDestroy {
                 await this.refresh();
             }
         });
-        this.albumModifiedSubscribe = this.dataService.albumModified()
+        this.albumModifiedSubscribe = this.dataService.albumModified
             .pipe(filter(albumId => this.albumId === albumId))
             .subscribe(modifiedAlbum => {
                 this.refresh();

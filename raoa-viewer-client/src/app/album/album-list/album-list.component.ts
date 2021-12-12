@@ -7,8 +7,8 @@ import {ActivatedRoute} from '@angular/router';
 import {DataService} from '../../service/data.service';
 import {AlbumData, AlbumSettings} from '../../service/storage.service';
 import {MenuController} from '@ionic/angular';
-import {bufferTime, filter} from 'rxjs/operators';
-import {Subscription} from 'rxjs';
+import {bufferTime, filter, tap} from 'rxjs/operators';
+import {merge, Subscription} from 'rxjs';
 
 type MenuEntry = {
     sync: 'none' | 'ready' | 'loading';
@@ -44,16 +44,17 @@ export class AlbumListComponent implements OnInit, OnDestroy {
         const permissions = await this.albumDataService.userPermission();
         this.canManageUsers = permissions.canManageUsers;
         await this.updatePhotoCollectionList();
-        this.subscription = this.albumDataService.albumModified().pipe(
-            bufferTime(1000),
-            filter(a => a.length > 0))
+
+        this.subscription = merge(this.albumDataService.albumModified, this.albumDataService.onlineState)
+            .pipe(
+                bufferTime(1000),
+                filter(a => a.length > 0))
             .subscribe(albums => {
                 this.updatePhotoCollectionList();
             });
     }
 
     ngOnDestroy() {
-        console.log('unsubscribe');
         this.subscription?.unsubscribe();
     }
 

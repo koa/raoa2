@@ -573,9 +573,11 @@ export class StorageService extends Dexie {
     public listOfflineAvailableVersions(): Promise<Map<string, string>> {
         return this.transaction('r', this.albumSettingsTable, async () => {
             const ret = new Map<string, string>();
-            await this.albumSettingsTable
-                .where('offlineSyncedVersion')
-                .notEqual(undefined).each(settings => ret.set(settings.id, settings.offlineSyncedVersion));
+            await this.albumSettingsTable.each(settings => {
+                if (settings.offlineSyncedVersion !== undefined) {
+                    ret.set(settings.id, settings.offlineSyncedVersion);
+                }
+            });
             return ret;
         });
     }
