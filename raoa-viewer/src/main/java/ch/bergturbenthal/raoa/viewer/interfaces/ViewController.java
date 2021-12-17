@@ -27,7 +27,8 @@ public class ViewController {
     "/manage-teams/{id}",
     "/sync",
     "/import",
-    "/login"
+    "/login",
+    "/welcome"
   })
   public String index() {
     return "forward:/index.html";

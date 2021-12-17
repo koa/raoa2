@@ -114,6 +114,7 @@ export class LoginService {
                 state = context.state;
                 // console.debug('logged in');
                 // console.debug(context);
+                // console.debug(state);
             }
         });
         return state;

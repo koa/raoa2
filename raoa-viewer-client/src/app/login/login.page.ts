@@ -25,6 +25,7 @@ export class LoginPage implements OnInit, OnDestroy {
 
     async ngOnInit() {
         const redirectTarget = await this.loginService.initoAuth();
+        // console.log(redirectTarget);
         if (redirectTarget) {
             await this.router.navigate([redirectTarget]);
         } else if (!navigator.onLine || await this.loginService.hasValidToken()) {

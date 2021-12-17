@@ -152,6 +152,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
 
     async logout() {
         await this.loginService.logout();
+        await this.router.navigate(['/']);
     }
 
     async subscribe() {
