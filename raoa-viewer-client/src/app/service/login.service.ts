@@ -97,7 +97,7 @@ export class LoginService {
 
             strictDiscoveryDocumentValidation: false,
 
-            showDebugInformation: true,
+            showDebugInformation: false,
             sessionChecksEnabled: false
         };
         this.oAuthService.configure(authCodeFlowConfig);

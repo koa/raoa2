@@ -94,10 +94,11 @@ export class ServerApiService {
                 });
                 this.ready = true;
             } catch (error) {
-                console.log(error);
+                console.error(error);
                 this.ready = false;
             }
         } else {
+            // console.warn('no valid token');
             this.ready = false;
         }
         return this.ready;

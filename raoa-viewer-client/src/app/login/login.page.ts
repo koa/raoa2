@@ -2,6 +2,7 @@ import {Component, OnDestroy, OnInit} from '@angular/core';
 import {LoginService} from '../service/login.service';
 import {Subscription} from 'rxjs';
 import {ActivatedRoute, Router} from '@angular/router';
+import {MenuController} from '@ionic/angular';
 
 
 @Component({
@@ -10,20 +11,21 @@ import {ActivatedRoute, Router} from '@angular/router';
     styleUrls: ['./login.page.scss'],
 })
 export class LoginPage implements OnInit, OnDestroy {
-    message: string;
-    subscription: Subscription | undefined;
+    public message: string;
     private redirectTarget: string | undefined;
+    private routerSubscription: Subscription;
 
     constructor(private loginService: LoginService,
-                activatedRoute: ActivatedRoute,
-                private router: Router
+                private activatedRoute: ActivatedRoute,
+                private router: Router,
+                private menuController: MenuController
     ) {
-        activatedRoute.queryParamMap.subscribe(params => {
-            this.redirectTarget = params.get('target');
-        });
     }
 
-    async ngOnInit() {
+    async ngOnInit(): Promise<void> {
+        this.routerSubscription = this.activatedRoute.queryParamMap.subscribe(params => {
+            this.redirectTarget = params.get('target');
+        });
         const redirectTarget = await this.loginService.initoAuth();
         // console.log(redirectTarget);
         if (redirectTarget) {
@@ -33,14 +35,15 @@ export class LoginPage implements OnInit, OnDestroy {
         }
     }
 
-    ngOnDestroy() {
-        if (this.subscription !== undefined) {
-            this.subscription.unsubscribe();
-            this.subscription = undefined;
-        }
+    ngOnDestroy(): void {
+        this.routerSubscription?.unsubscribe();
     }
 
     async login() {
         await this.loginService.login(this.redirectTarget);
+    }
+
+    public openNavigationMenu(): Promise<void> {
+        return this.menuController.open('navigation').then();
     }
 }
