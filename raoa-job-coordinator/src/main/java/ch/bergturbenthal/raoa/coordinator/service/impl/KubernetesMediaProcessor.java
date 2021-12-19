@@ -5,14 +5,13 @@ import ch.bergturbenthal.raoa.coordinator.service.RemoteMediaProcessor;
 import com.drew.lang.Charsets;
 import io.fabric8.kubernetes.api.model.ListOptions;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
-import io.fabric8.kubernetes.api.model.batch.DoneableJob;
-import io.fabric8.kubernetes.api.model.batch.Job;
-import io.fabric8.kubernetes.api.model.batch.JobList;
-import io.fabric8.kubernetes.api.model.batch.JobStatus;
+import io.fabric8.kubernetes.api.model.batch.v1.Job;
+import io.fabric8.kubernetes.api.model.batch.v1.JobList;
+import io.fabric8.kubernetes.api.model.batch.v1.JobStatus;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.KubernetesClientException;
 import io.fabric8.kubernetes.client.Watch;
 import io.fabric8.kubernetes.client.Watcher;
+import io.fabric8.kubernetes.client.WatcherException;
 import io.fabric8.kubernetes.client.dsl.MixedOperation;
 import io.fabric8.kubernetes.client.dsl.ScalableResource;
 import java.io.ByteArrayInputStream;
@@ -38,7 +37,7 @@ import reactor.core.scheduler.Schedulers;
 @Service
 public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable {
 
-  private final MixedOperation<Job, JobList, DoneableJob, ScalableResource<Job, DoneableJob>> jobs;
+  private final MixedOperation<Job, JobList, ScalableResource<Job>> jobs;
   private final String mediaProcessorTemplate;
   private final AtomicLong idCounter = new AtomicLong();
   private final Map<Long, MonoSink<Boolean>> waitingForCompletion =
@@ -50,7 +49,7 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
       final KubernetesClient kubernetesClient,
       final CoordinatorProperties properties,
       ScheduledExecutorService executorService) {
-    jobs = kubernetesClient.batch().jobs();
+    jobs = kubernetesClient.batch().v1().jobs();
     mediaProcessorTemplate = properties.getMediaProcessorTemplate();
     jobs.delete(jobs.list(createListOptions()).getItems());
     scheduler = Schedulers.fromExecutor(executorService);
@@ -129,7 +128,7 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
               }
 
               @Override
-              public void onClose(final KubernetesClientException cause) {
+              public void onClose(final WatcherException cause) {
                 if (cause != null) log.warn("Closed watch", cause);
               }
             });
@@ -149,7 +148,7 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
                   mediaProcessorTemplate
                       .replace("$repoId$", album.toString())
                       .replace("$fileList$", fileList);
-              final ScalableResource<Job, DoneableJob> expandedJob =
+              final ScalableResource<Job> expandedJob =
                   jobs.load(
                       new ByteArrayInputStream(filledTemplate.getBytes(StandardCharsets.UTF_8)));
               final Job job = expandedJob.get();

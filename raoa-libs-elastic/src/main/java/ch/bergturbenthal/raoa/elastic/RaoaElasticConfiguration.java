@@ -12,11 +12,12 @@ import java.util.stream.Stream;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.eclipse.jgit.lib.ObjectId;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.springframework.boot.autoconfigure.data.elasticsearch.ReactiveElasticsearchRestClientProperties;
+import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.context.properties.PropertyMapper;
 import org.springframework.context.annotation.*;
 import org.springframework.core.convert.converter.Converter;
@@ -26,6 +27,7 @@ import org.springframework.data.convert.WritingConverter;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.client.RestClients;
 import org.springframework.data.elasticsearch.client.reactive.ReactiveElasticsearchClient;
+import org.springframework.data.elasticsearch.client.reactive.ReactiveRestClients;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
 import org.springframework.data.elasticsearch.core.ReactiveElasticsearchTemplate;
@@ -36,7 +38,6 @@ import org.springframework.data.elasticsearch.core.convert.MappingElasticsearchC
 import org.springframework.data.elasticsearch.core.mapping.SimpleElasticsearchMappingContext;
 import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
 import org.springframework.data.elasticsearch.repository.config.EnableReactiveElasticsearchRepositories;
-import org.springframework.http.HttpHeaders;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 
@@ -46,9 +47,14 @@ import org.springframework.web.reactive.function.client.ExchangeStrategies;
 @EnableElasticsearchRepositories(basePackageClasses = SyncAlbumDataEntryRepository.class)
 @Import({RaoaLibConfiguration.class})
 @ComponentScan(basePackageClasses = ElasticSearchDataViewService.class)
+@EnableConfigurationProperties({
+  ElasticsearchProperties.class,
+  ReactiveElasticsearchRestClientProperties.class
+})
 public class RaoaElasticConfiguration {
 
   static {
+    log.info("Init Class");
     try {
       SSLContext sslContext = SSLContext.getInstance("TLS");
       sslContext.init(null, new TrustManager[] {new DummyX509TrustManager()}, null);
@@ -59,57 +65,8 @@ public class RaoaElasticConfiguration {
     }
   }
 
-  @Bean
-  public ClientConfiguration clientConfiguration(
-      ReactiveElasticsearchRestClientProperties properties)
-      throws KeyManagementException, NoSuchAlgorithmException {
-    ClientConfiguration.MaybeSecureClientConfigurationBuilder builder =
-        ClientConfiguration.builder().connectedTo(properties.getEndpoints().toArray(new String[0]));
-    if (properties.isUseSsl()) {
-      SSLContext sslContext = SSLContext.getInstance("TLS");
-      sslContext.init(null, new TrustManager[] {new DummyX509TrustManager()}, null);
-      builder.usingSsl(sslContext, new NoopHostnameVerifier());
-    }
-    configureTimeouts(builder, properties);
-    configureExchangeStrategies(builder, properties);
-    return builder.build();
-  }
-
-  private void configureExchangeStrategies(
-      ClientConfiguration.TerminalClientConfigurationBuilder builder,
-      ReactiveElasticsearchRestClientProperties properties) {
-    PropertyMapper map = PropertyMapper.get();
-    builder.withWebClientConfigurer(
-        (webClient) -> {
-          ExchangeStrategies exchangeStrategies =
-              ExchangeStrategies.builder()
-                  .codecs(
-                      (configurer) ->
-                          map.from(properties.getMaxInMemorySize())
-                              .whenNonNull()
-                              .asInt(DataSize::toBytes)
-                              .to(
-                                  (maxInMemorySize) ->
-                                      configurer.defaultCodecs().maxInMemorySize(maxInMemorySize)))
-                  .build();
-          return webClient.mutate().exchangeStrategies(exchangeStrategies).build();
-        });
-  }
-
-  private void configureTimeouts(
-      ClientConfiguration.TerminalClientConfigurationBuilder builder,
-      ReactiveElasticsearchRestClientProperties properties) {
-    PropertyMapper map = PropertyMapper.get();
-    map.from(properties.getConnectionTimeout()).whenNonNull().to(builder::withConnectTimeout);
-    map.from(properties.getSocketTimeout()).whenNonNull().to(builder::withSocketTimeout);
-    map.from(properties.getUsername())
-        .whenHasText()
-        .to(
-            (username) -> {
-              HttpHeaders headers = new HttpHeaders();
-              headers.setBasicAuth(username, properties.getPassword());
-              builder.withDefaultHeaders(headers);
-            });
+  public RaoaElasticConfiguration() {
+    log.info("Init Instance");
   }
 
   @Bean
@@ -153,6 +110,46 @@ public class RaoaElasticConfiguration {
     template.setIndicesOptions(IndicesOptions.strictExpandOpenAndForbidClosed());
     template.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
     return template;
+  }
+
+  @Bean
+  public ClientConfiguration clientConfiguration(
+      ElasticsearchProperties properties,
+      ReactiveElasticsearchRestClientProperties restClientProperties) {
+    final String[] hostAndPorts = properties.getUris().toArray(new String[0]);
+    ClientConfiguration.MaybeSecureClientConfigurationBuilder builder =
+        ClientConfiguration.builder().connectedTo(hostAndPorts);
+
+    try {
+      builder.usingSsl(SSLContext.getDefault());
+    } catch (NoSuchAlgorithmException e) {
+      log.warn("Cannot init SSL", e);
+    }
+    PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
+
+    builder.withBasicAuth(properties.getUsername(), properties.getPassword());
+
+    map.from(properties.getConnectionTimeout()).to(builder::withConnectTimeout);
+    map.from(properties.getSocketTimeout()).to(builder::withSocketTimeout);
+    map.from(properties.getPathPrefix()).to(builder::withPathPrefix);
+
+    map.from(restClientProperties.getMaxInMemorySize())
+        .asInt(DataSize::toBytes)
+        .to(
+            (maxInMemorySize) -> {
+              builder.withClientConfigurer(
+                  ReactiveRestClients.WebClientConfigurationCallback.from(
+                      (webClient) -> {
+                        ExchangeStrategies exchangeStrategies =
+                            ExchangeStrategies.builder()
+                                .codecs(
+                                    (configurer) ->
+                                        configurer.defaultCodecs().maxInMemorySize(maxInMemorySize))
+                                .build();
+                        return webClient.mutate().exchangeStrategies(exchangeStrategies).build();
+                      }));
+            });
+    return builder.build();
   }
 
   @Bean

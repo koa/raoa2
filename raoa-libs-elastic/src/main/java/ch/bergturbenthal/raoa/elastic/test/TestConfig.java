@@ -6,7 +6,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientProperties;
+import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -54,9 +54,9 @@ public class TestConfig {
   @ConditionalOnMissingBean
   @Primary
   @Order(100)
-  public ElasticsearchRestClientProperties restClientProperties(ElasticsearchContainer container) {
+  public ElasticsearchProperties restClientProperties(ElasticsearchContainer container) {
 
-    final ElasticsearchRestClientProperties properties = new ElasticsearchRestClientProperties();
+    final ElasticsearchProperties properties = new ElasticsearchProperties();
 
     properties.setUris(Collections.singletonList("http://" + container.getHttpHostAddress()));
     return properties;

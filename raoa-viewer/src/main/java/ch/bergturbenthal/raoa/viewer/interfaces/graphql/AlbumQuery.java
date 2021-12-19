@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.graphql.data.method.annotation.Argument;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Controller;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+@Slf4j
 @Controller
 public class AlbumQuery {
   public static final Pattern PATH_SPLIT = Pattern.compile(Pattern.quote("/"));
@@ -62,7 +64,10 @@ public class AlbumQuery {
 
   @SchemaMapping(typeName = TYPE_NAME)
   public Flux<AlbumEntry> entries(Album album) {
-    return dataViewService.listEntries(album.getId()).map(e -> createAlbumEntry(album, e));
+    return dataViewService
+        .listEntries(album.getId())
+        .map(e -> createAlbumEntry(album, e))
+        .doOnError(ex -> log.warn("Cannot load entries", ex));
   }
 
   @SchemaMapping(typeName = TYPE_NAME)

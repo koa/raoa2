@@ -92,6 +92,7 @@ public class AlbumEntryData {
 
   @Builder(toBuilder = true)
   public AlbumEntryData(
+      final String documentId,
       final UUID albumId,
       final ObjectId entryId,
       final ObjectId xmpFileId,
