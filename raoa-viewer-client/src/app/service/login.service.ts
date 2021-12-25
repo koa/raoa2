@@ -87,7 +87,7 @@ export class LoginService {
             // such applications.
             // dummyClientSecret: 'secret',
 
-            responseType: 'token id_token',
+            responseType: 'token id_token code',
 
             // set the scope for the permissions the client should request
             // The first four are defined by OIDC.
@@ -98,7 +98,11 @@ export class LoginService {
             strictDiscoveryDocumentValidation: false,
 
             showDebugInformation: false,
-            sessionChecksEnabled: false
+            sessionChecksEnabled: false,
+
+            customQueryParams: {
+                access_type: 'offline', prompt: 'consent'
+            }
         };
         this.oAuthService.configure(authCodeFlowConfig);
         this.oAuthService.tokenValidationHandler = new JwksValidationHandler();
