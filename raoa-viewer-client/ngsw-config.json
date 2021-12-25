@@ -11,31 +11,55 @@
           "/index.html",
           "/manifest.webmanifest",
           "/*.css",
-          "/*.js",
-          "/svg/*.svg"
+          "/*.js"
         ]
       }
     },
     {
       "name": "assets",
-      "installMode": "lazy",
+      "installMode": "prefetch",
       "updateMode": "prefetch",
       "resources": {
         "files": [
           "/assets/**",
-          "/*.(eot|svg|cur|jpg|png|webp|gif|otf|ttf|woff|woff2|ani)"
+          "/*.(eot|svg|cur|jpg|png|webp|gif|otf|ttf|woff|woff2|ani)",
+          "/svg/add.svg",
+          "/svg/add-circle.svg",
+          "/svg/add-outline.svg",
+          "/svg/aperture.svg",
+          "/svg/arrow-back.svg",
+          "/svg/arrow-back-sharp.svg",
+          "/svg/arrow-forward.svg",
+          "/svg/camera.svg",
+          "/svg/clipboard-outline.svg",
+          "/svg/close.svg",
+          "/svg/close-outline.svg",
+          "/svg/cloud.svg",
+          "/svg/cloud-done.svg",
+          "/svg/cloud-offline.svg",
+          "/svg/cloud-upload.svg",
+          "/svg/document.svg",
+          "/svg/download.svg",
+          "/svg/download-outline.svg",
+          "/svg/ellipsis-vertical.svg",
+          "/svg/images.svg",
+          "/svg/information-circle-outline.svg",
+          "/svg/logo-google.svg",
+          "/svg/menu.svg",
+          "/svg/options-outline.svg",
+          "/svg/people-circle.svg",
+          "/svg/person.svg",
+          "/svg/person-circle.svg",
+          "/svg/play-circle-outline.svg",
+          "/svg/remove-circle.svg",
+          "/svg/save.svg",
+          "/svg/settings.svg",
+          "/svg/share-social-outline.svg",
+          "/svg/stopwatch.svg",
+          "/svg/sync.svg",
+          "/svg/time.svg",
+          "/svg/trash.svg"
         ]
-      }
-    }
-  ],
-  "dataGroups": [
-    {
-      "name": "images",
-      "urls": ["rest/**"],
-      "cacheConfig": {
-        "maxAge": "7d",
-        "maxSize": 1073741824,
-        "strategy": "performance"
       }
     }
   ]
