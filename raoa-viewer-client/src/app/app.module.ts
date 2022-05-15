@@ -26,7 +26,6 @@ registerLocaleData(localeEn, 'en');
 
 @NgModule({
     declarations: [AppComponent, WelcomeComponent, FilesizePipe],
-    entryComponents: [],
     imports: [
         BrowserModule,
         IonicModule.forRoot(),
@@ -47,9 +46,9 @@ registerLocaleData(localeEn, 'en');
         MainMenuComponentModule
     ],
     providers: [
-        {provide: LOCALE_ID, useValue: 'de-CH'},
-        {provide: RouteReuseStrategy, useClass: IonicRouteStrategy},
-        {provide: HTTP_INTERCEPTORS, useClass: AuthenticateInterceptor, multi: true}
+        { provide: LOCALE_ID, useValue: 'de-CH' },
+        { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
+        { provide: HTTP_INTERCEPTORS, useClass: AuthenticateInterceptor, multi: true }
     ],
     exports: [],
     bootstrap: [AppComponent]
