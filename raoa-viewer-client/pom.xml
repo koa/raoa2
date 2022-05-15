@@ -53,7 +53,7 @@
               <goal>npm</goal>
             </goals>
             <configuration>
-              <arguments>run-script build -- --prod --outputPath=target/classes/resources</arguments>
+              <arguments>run-script build -- --configuration production --outputPath=target/classes/resources</arguments>
             </configuration>
             <phase>compile</phase>
           </execution>
