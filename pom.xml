@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.6.1</version>
-        <relativePath /> <!-- lookup parent from repository -->
+        <version>2.6.8</version>
+        <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <packaging>pom</packaging>
 
@@ -22,7 +23,7 @@
     </modules>
     <properties>
         <jib.httpTimeout>30000</jib.httpTimeout>
-        <java.version>11</java.version>
+        <java.version>17</java.version>
         <maven.build.timestamp.format>yyyyMMddHHmmss</maven.build.timestamp.format>
         <local.version>${maven.build.timestamp}</local.version>
         <docker.host>docker-snapshot.berg-turbenthal.ch</docker.host>
@@ -32,14 +33,16 @@
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
-                <version>2021.0.0</version>
+                <version>2021.0.3</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>org.springframework.data</groupId>
-                <artifactId>spring-data-elasticsearch</artifactId>
-                <version>4.3.0</version>
+                <artifactId>spring-data-bom</artifactId>
+                <version>2021.1.4</version>
+                <scope>import</scope>
+                <type>pom</type>
             </dependency>
         </dependencies>
     </dependencyManagement>

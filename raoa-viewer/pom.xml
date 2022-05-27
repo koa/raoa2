@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>ch.bergturbenthal.raoa2</groupId>
@@ -53,14 +54,14 @@
             <artifactId>spring-cloud-starter-kubernetes-client-config</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework.experimental</groupId>
-            <artifactId>graphql-spring-boot-starter</artifactId>
-            <version>1.0.0-M4</version>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-graphql</artifactId>
+            <version>2.7.0</version>
         </dependency>
         <dependency>
             <groupId>com.graphql-java</groupId>
             <artifactId>graphql-java-extended-scalars</artifactId>
-            <version>17.0</version>
+            <version>18.1</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -74,7 +75,7 @@
         <dependency>
             <groupId>org.eclipse.jgit</groupId>
             <artifactId>org.eclipse.jgit</artifactId>
-            <version>5.12.0.202106070339-r</version>
+            <version>6.2.0.202205251150-m3</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -118,13 +119,13 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>elasticsearch</artifactId>
-            <version>1.16.0</version>
+            <version>1.17.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.eclipse.jgit</groupId>
             <artifactId>org.eclipse.jgit.http.server</artifactId>
-            <version>5.12.0.202106070339-r</version>
+            <version>6.2.0.202205251150-m3</version>
         </dependency>
     </dependencies>
 
@@ -162,7 +163,7 @@
             <plugin>
                 <groupId>com.google.cloud.tools</groupId>
                 <artifactId>jib-maven-plugin</artifactId>
-                <version>3.0.0</version>
+                <version>3.2.1</version>
                 <executions>
                     <execution>
                         <phase>deploy</phase>

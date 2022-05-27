@@ -15,7 +15,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.ResourceServerProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.graphql.web.WebSocketInterceptor;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -24,27 +23,21 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
 import org.springframework.security.oauth2.config.annotation.web.configuration.ResourceServerConfigurerAdapter;
 import org.springframework.security.oauth2.config.annotation.web.configurers.ResourceServerSecurityConfigurer;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.provider.token.DefaultAccessTokenConverter;
 import org.springframework.security.oauth2.provider.token.TokenStore;
 import org.springframework.security.oauth2.provider.token.UserAuthenticationConverter;
 import org.springframework.security.oauth2.provider.token.store.jwk.JwkTokenStore;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import reactor.core.publisher.Mono;
 
 @Slf4j
 @Configuration
@@ -181,27 +174,5 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
     corsConfiguration.setMaxAge(1800L);
     source.registerCorsConfiguration("/**", corsConfiguration); // you restrict your path here
     return source;
-  }
-
-  @Bean
-  public WebSocketInterceptor initInterceptor(JwtDecoder decoder, TokenStore tokenStore) {
-    return new WebSocketInterceptor() {
-      @Override
-      public Mono<Object> handleConnectionInitialization(final Map<String, Object> payload) {
-        final String authorization = (String) payload.get("Token");
-        log.info("Payload: " + authorization);
-        // final OAuth2Authentication oAuth2Authentication =
-        //    tokenStore.readAuthentication(authorization);
-
-        final Jwt decode = decoder.decode(authorization);
-        final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(decode);
-        // log.info("Auth : " + oAuth2Authentication);
-        log.info("Auth: " + jwtAuthenticationToken);
-        final SecurityContext context = SecurityContextHolder.getContext();
-        log.info("Auth bewfore: " + context.getAuthentication());
-        context.setAuthentication(jwtAuthenticationToken);
-        return Mono.empty();
-      }
-    };
   }
 }

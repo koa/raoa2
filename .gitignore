@@ -6,3 +6,4 @@ hs_err*.log
 /raoa/charts/*.tgz
 *.releaseBackup
 release.properties
+pom.xml.versionsBackup
