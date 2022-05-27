@@ -746,7 +746,8 @@ public class Mutation {
                       c ->
                           new Album(
                               albumId, queryContext, dataViewService.readAlbum(albumId).cache()));
-            });
+            })
+        .doOnError(ex -> log.warn("Cannot update " + update, ex));
   }
 
   @MutationMapping
