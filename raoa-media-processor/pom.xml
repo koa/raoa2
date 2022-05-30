@@ -82,7 +82,7 @@
                 </executions>
                 <configuration>
                     <from>
-                        <image>docker.berg-turbenthal.ch/distroless-java-dcraw:2</image>
+                        <image>docker.berg-turbenthal.ch/distroless-java-dcraw:4</image>
                     </from>
                     <to>
                         <image>${docker.host}/raoa-media-processor</image>
