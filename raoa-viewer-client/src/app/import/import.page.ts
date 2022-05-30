@@ -328,7 +328,7 @@ export class ImportPage implements OnInit {
         window.setTimeout(() => {
             if (statEntry.autoCommit && statEntry.scheduler === undefined) {
                 statEntry.scheduler = window.setInterval(async () => {
-                    while (await this.commit(statEntry, 512 * 1024 * 1024)) {
+                    while (await this.commit(statEntry, 128 * 1024 * 1024)) {
                     }
                 }, 60 * 1000);
             }
