@@ -8,6 +8,7 @@ import {ServerApiService} from '../../service/server-api.service';
 import {Title} from '@angular/platform-browser';
 import {createFilter, DataService, filterTimeResolution} from '../../service/data.service';
 import {AlbumEntryData} from '../../service/storage.service';
+import {combineLatest} from 'rxjs';
 
 
 export type KeywordCombine = 'and' | 'or';
@@ -172,37 +173,40 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     public async ngOnInit(): Promise<void> {
-        const snapshot = this.activatedRoute.snapshot;
-        const paramMap = snapshot.paramMap;
-        const queryParam = snapshot.queryParamMap;
-        this.albumId = paramMap.get('id');
-        const mediaId = paramMap.get('mediaId');
-        const [filteringKeywords, keywordCombine, filteringTimeRange, timeResolution] = parseFilterParams(queryParam);
+        combineLatest([this.activatedRoute.paramMap, this.activatedRoute.queryParamMap]).subscribe(async data => {
+            const paramMap = data[0];
+            const queryParam = data[1];
 
-        this.filteringKeywords = filteringKeywords;
-        this.keywordCombine = keywordCombine;
-        this.filteringTimeRange = filteringTimeRange;
-        this.timeResolution = timeResolution;
+            this.albumId = paramMap.get('id');
+            const mediaId = paramMap.get('mediaId');
+            const [filteringKeywords, keywordCombine, filteringTimeRange, timeResolution] = parseFilterParams(queryParam);
 
-        const permissions = await this.dataService.userPermission();
+            this.filteringKeywords = filteringKeywords;
+            this.keywordCombine = keywordCombine;
+            this.filteringTimeRange = filteringTimeRange;
+            this.timeResolution = timeResolution;
 
-        await this.showImage(mediaId);
-        await this.refreshSequence();
-        const mediaIdAsInt = BigInt('0x' + mediaId);
-        const previousMediaId = ShowSingleMediaComponent.bigint2objectId(this.prevIdMap.get(mediaIdAsInt));
-        const nextMediaId = ShowSingleMediaComponent.bigint2objectId(this.nextIdMap.get(mediaIdAsInt));
-        this.previousMediaContent = previousMediaId
-            ? this.dataService.getImage(this.albumId, previousMediaId, this.bigImageSize)
-            : undefined;
-        this.nextMediaContent = nextMediaId
-            ? this.dataService.getImage(this.albumId, nextMediaId, this.bigImageSize)
-            : undefined;
-        this.ngZone.run(() => {
-            this.nextMediaId = nextMediaId;
-            this.previousMediaId = previousMediaId;
-            this.canEdit = permissions.canEdit;
+            const permissions = await this.dataService.userPermission();
+
+            await this.showImage(mediaId);
+            await this.refreshSequence();
+            const mediaIdAsInt = BigInt('0x' + mediaId);
+            const previousMediaId = ShowSingleMediaComponent.bigint2objectId(this.prevIdMap.get(mediaIdAsInt));
+            const nextMediaId = ShowSingleMediaComponent.bigint2objectId(this.nextIdMap.get(mediaIdAsInt));
+            this.ngZone.run(() => {
+                this.previousMediaContent = previousMediaId
+                    ? this.dataService.getImage(this.albumId, previousMediaId, this.bigImageSize)
+                    : undefined;
+                this.nextMediaContent = nextMediaId
+                    ? this.dataService.getImage(this.albumId, nextMediaId, this.bigImageSize)
+                    : undefined;
+
+                this.nextMediaId = nextMediaId;
+                this.previousMediaId = previousMediaId;
+                this.canEdit = permissions.canEdit;
+            });
+            await this.refreshControls();
         });
-        await this.refreshControls();
     }
 
 
@@ -301,7 +305,8 @@ export class ShowSingleMediaComponent implements OnInit {
                 this.mediaId = mediaId;
                 this.metadata = albumEntry;
                 this.titleService.setTitle(albumEntry.name);
-                this.location.replaceState(this.mediaPath(mediaId).pathname);
+                const url = this.mediaPath(mediaId);
+                this.location.replaceState(url.pathname, url.searchParams.toString());
                 this.previousMediaId = previousMediaId;
                 this.nextMediaId = nextMediaId;
                 this.currentSelectedKeywords = new Set(keywords);
