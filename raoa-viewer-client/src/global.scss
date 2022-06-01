@@ -28,3 +28,16 @@
 ion-loading.transparent-spinner {
   --background: #f9f9f980;
 }
+
+
+tbody tr:nth-child(odd) {
+  background: #eee;
+}
+
+thead tr {
+  font-weight: bold;
+}
+
+td {
+  padding: 0.5ex;
+}

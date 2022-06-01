@@ -1,0 +1,18 @@
+<ion-header>
+    <ion-toolbar>
+        <ion-title>day</ion-title>
+    </ion-toolbar>
+</ion-header>
+
+<ion-content>
+    <table>
+        <tbody>
+        <tr *ngFor="let row of rows">
+            <td>{{row[1].startzeit}}</td>
+            <td>{{row[0].kategorie_text}}</td>
+            <td>{{row[1].reiter_name}}</td>
+            <td>{{row[1].weiteres}}</td>
+        </tr>
+        </tbody>
+    </table>
+</ion-content>

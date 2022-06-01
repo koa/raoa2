@@ -12,4 +12,10 @@
             FNCH Rangliste
         </ion-label>
     </ion-item>
+    <ion-item *ngIf="fnchCompetitionId !== undefined"
+              [routerLink]="'/svps/competition/'+fnchCompetitionId">
+        <ion-label>
+            FNCH Veranstaltung
+        </ion-label>
+    </ion-item>
 </ion-list>

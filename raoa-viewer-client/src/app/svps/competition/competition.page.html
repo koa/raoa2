@@ -1,0 +1,23 @@
+<ion-header>
+    <ion-toolbar>
+        <ion-title>{{mainData?.veranstaltung?.datum}} {{mainData?.veranstaltung?.ort}}</ion-title>
+    </ion-toolbar>
+</ion-header>
+
+<ion-content>
+    <ion-card *ngFor="let day of days">
+        <ion-card-header routerLink="day/{{day}}">
+            <ion-card-title>{{day | date}}</ion-card-title>
+        </ion-card-header>
+    </ion-card>
+    <ng-container *ngIf="mainData?.startlisten">
+        <ion-card *ngFor="let list of mainData?.startlisten"
+                  routerLink="startlist/{{list.id}}">
+            <ion-card-header>
+                <ion-card-subtitle>{{list.programm_name}}</ion-card-subtitle>
+                <ion-card-title>{{list.nummer}}</ion-card-title>
+                <ion-card-subtitle>{{list.kategorie_text}}</ion-card-subtitle>
+            </ion-card-header>
+        </ion-card>
+    </ng-container>
+</ion-content>

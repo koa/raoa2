@@ -531,8 +531,6 @@ export class DataService {// implements OnDestroy {
 
     private async fetchImage(albumId: string, albumEntryId: string, minSize: number, maxShift: number): Promise<ImageBlob> {
         // const startTime = Date.now();
-        const valid = await this.loginService.hasValidToken();
-        console.log('valid: ', valid);
         const cache = await this.imageCache;
         const nextStepMaxLength = findNextStep(minSize);
         for (let shift = 0; shift < maxShift; shift++) {
