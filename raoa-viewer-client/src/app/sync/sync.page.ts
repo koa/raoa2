@@ -1,6 +1,6 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 import {ServerApiService} from '../service/server-api.service';
-import {SyncQueryDataForSyncGQL} from '../generated/graphql';
+import {SyncQueryDataForSyncGQL, SyncQueryDataForSyncQuery, SyncQueryDataForSyncQueryVariables} from '../generated/graphql';
 import {CommonServerApiService} from '../service/common-server-api.service';
 import {SyncService} from '../service/sync.service';
 
@@ -22,7 +22,9 @@ export class SyncPage implements OnInit {
 
     async ngOnInit() {
         const password = await this.syncService.createTemporaryPassword();
-        const uResult = await this.serverApiService.query(this.queryDataForSyncGQL, {});
+        const uResult = await this.serverApiService.query<SyncQueryDataForSyncQuery, SyncQueryDataForSyncQueryVariables>(
+            this.queryDataForSyncGQL, {}
+        );
         this.ngZone.run(() => {
             const baseDir = this.syncService.createBaseDir(uResult.currentUser.id, password);
             this.template = this.syncService.errorCollectingPrefix() + '\n';

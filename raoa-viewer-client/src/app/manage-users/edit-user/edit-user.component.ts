@@ -1,8 +1,8 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {
-    EditUserDeleteGQL,
-    EditUserOverviewGQL,
+    EditUserDeleteGQL, EditUserDeleteMutation, EditUserDeleteMutationVariables,
+    EditUserOverviewGQL, EditUserOverviewQuery, EditUserOverviewQueryVariables,
     EditUserUpdateGQL,
     SingleGroupMembershipUpdate,
     SingleGroupVisibilityUpdate,
@@ -53,7 +53,9 @@ export class EditUserComponent implements OnInit {
     }
 
     private async refreshData() {
-        const data = await this.serverApiService.query(this.editUserOverviewGQL, {userid: this.userId});
+        const data = await this.serverApiService.query<EditUserOverviewQuery, EditUserOverviewQueryVariables>(
+            this.editUserOverviewGQL, {userid: this.userId}
+        );
         this.ngZone.run(() => {
             this.user = data.userById as User;
             this.showCurrentUser = data.userById.id === data.currentUser.id;
@@ -136,7 +138,9 @@ export class EditUserComponent implements OnInit {
     }
 
     async delete(): Promise<void> {
-        const result = await this.serverApiService.update(this.editUserDeleteGQL, {id: this.userId});
+        const result = await this.serverApiService.update<EditUserDeleteMutation, EditUserDeleteMutationVariables>(
+            this.editUserDeleteGQL, {id: this.userId}
+        );
         await this.serverApiService.clear();
         if (result.removeUser) {
             this.location.back();

@@ -1,7 +1,7 @@
-import {Injectable} from '@angular/core';
+import {Injectable, NgZone} from '@angular/core';
 import {HttpLink, HttpLinkHandler} from 'apollo-angular/http';
 import {LoginService} from './login.service';
-import {ApolloLink, InMemoryCache, split} from '@apollo/client/core';
+import {ApolloClientOptions, ApolloLink, InMemoryCache, split} from '@apollo/client/core';
 import {setContext} from '@apollo/client/link/context';
 import {Maybe} from '../generated/graphql';
 import * as Apollo from 'apollo-angular';
@@ -17,12 +17,13 @@ import {MyWebSocketLink} from './web-socket-link';
 export class ServerApiService {
     private readonly cache: InMemoryCache;
     private ready = false;
+    private apollo: Apollo.Apollo;
 
     constructor(
-        private apollo: Apollo.Apollo,
         private httpLink: HttpLink,
         private login: LoginService,
-        private toastController: ToastController
+        private toastController: ToastController,
+        private ngZone: NgZone
     ) {
         this.cache = new InMemoryCache({
             typePolicies: {
@@ -87,11 +88,11 @@ export class ServerApiService {
                     ws,
                     httpLink,
                 );
-
-                this.apollo.create({
-                    link: splitLink,
-                    cache: this.cache,
+                this.apollo = new Apollo.Apollo(this.ngZone, {
+                    link: httpLink,
+                    cache: this.cache
                 });
+
                 this.ready = true;
             } catch (error) {
                 console.error(error);

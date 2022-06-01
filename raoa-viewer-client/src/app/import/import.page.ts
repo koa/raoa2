@@ -3,11 +3,19 @@ import {
     Album,
     AlbumEntry,
     ImportCommitGQL,
+    ImportCommitMutation,
+    ImportCommitMutationVariables,
     ImportCreateAlbumGQL,
+    ImportCreateAlbumMutation,
+    ImportCreateAlbumMutationVariables,
     ImportedFile,
     ImportFile,
     ImportIdentifyFileGQL,
+    ImportIdentifyFileQuery,
+    ImportIdentifyFileQueryVariables,
     ImportListAlbumGQL,
+    ImportListAlbumQuery,
+    ImportListAlbumQueryVariables,
     ImportSetAutoaddGQL,
     Maybe
 } from '../generated/graphql';
@@ -93,7 +101,9 @@ export class ImportPage implements OnInit {
     }
 
     async ngOnInit() {
-        const albumData = await this.serverApiService.query(this.importListAlbumGQL, {});
+        const albumData = await this.serverApiService.query<ImportListAlbumQuery, ImportListAlbumQueryVariables>(
+            this.importListAlbumGQL, {}
+        );
         if (albumData?.listAlbums) {
             const parentPaths = new Set<string>();
             parentPaths.add('');
@@ -141,13 +151,14 @@ export class ImportPage implements OnInit {
                 const postProcess = async () => {
                     uploadedSize += data.size;
                     this.ngZone.run(() => this.uploadOverallProgress = uploadedSize / totalSize);
-                    const previewImport = (await this.serverApiService.query(this.importIdentifyFileGQL, {
-                        file: {
-                            fileId: result.fileId,
-                            size: data.size,
-                            filename: item[0].name
-                        }
-                    }))?.previewImport;
+                    const previewImport = (await this.serverApiService.query<ImportIdentifyFileQuery, ImportIdentifyFileQueryVariables>(
+                        this.importIdentifyFileGQL, {
+                            file: {
+                                fileId: result.fileId,
+                                size: data.size,
+                                filename: item[0].name
+                            }
+                        }))?.previewImport;
                     const albumId = previewImport?.id;
                     if (albumId) {
                         this.ngZone.run(() => {
@@ -227,7 +238,9 @@ export class ImportPage implements OnInit {
         if (path.length === 0) {
             return;
         }
-        const result = await this.serverApiService.update(this.importCreateAlbumGQL, {path});
+        const result = await this.serverApiService.update<ImportCreateAlbumMutation, ImportCreateAlbumMutationVariables>(
+            this.importCreateAlbumGQL, {path}
+        );
         const id = result.createAlbum.id;
         if (this.newAlbumTimestamp) {
             await this.serverApiService.update(this.importSetAutoaddGQL, {id, date: this.newAlbumTimestamp});
@@ -272,7 +285,9 @@ export class ImportPage implements OnInit {
             const wait = await this.loadingController.create({message: 'Commit', duration: 120000});
             await wait.present();
             try {
-                const commitResult = await this.serverApiService.update(this.importCommitGQL, {files});
+                const commitResult = await this.serverApiService.update<ImportCommitMutation, ImportCommitMutationVariables>(
+                    this.importCommitGQL, {files}
+                );
                 this.ngZone.run(() => {
                     for (const resultEntry of commitResult.commitImport) {
                         const fileId = resultEntry.fileId;

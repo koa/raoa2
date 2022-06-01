@@ -4,16 +4,16 @@ import {IonInput, LoadingController, MenuController, ToastController} from '@ion
 import {CommonServerApiService} from '../service/common-server-api.service';
 import {
     AuthenticationId,
-    GetUserstateGQL,
+    GetUserstateGQL, GetUserstateQuery, GetUserstateQueryVariables,
     Maybe,
     Query,
-    RequestAccessMutationGQL,
+    RequestAccessMutationGQL, RequestAccessMutationMutation, RequestAccessMutationMutationVariables,
     SingleGroupVisibilityUpdate,
     UpdateCredentitalsGQL,
     UpdateCredentitalsMutationVariables,
     User,
     UserInfo,
-    WelcomListFetchFnchDataGQL
+    WelcomListFetchFnchDataGQL, WelcomListFetchFnchDataQuery, WelcomListFetchFnchDataQueryVariables
 } from '../generated/graphql';
 import {ServerApiService} from '../service/server-api.service';
 import {LoginService} from '../service/login.service';
@@ -120,7 +120,9 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     private async refreshData() {
         this.adjustPhotoCounters();
         if (navigator.onLine) {
-            const userState = await this.serverApiService.query(this.getUserstateGQL, {});
+            const userState = await this.serverApiService.query<GetUserstateQuery, GetUserstateQueryVariables>(
+                this.getUserstateGQL, {}
+            );
             const userName = await this.loginService.userName();
             const userMail = await this.loginService.userMail();
             const userPicture = await this.loginService.userPicture();
@@ -158,7 +160,9 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     async subscribe() {
         const msg = await this.loadingController.create({message: 'Beantrage Zugang'});
         await msg.present();
-        const response = await this.serverApiService.update(this.requestAccessMutationGQL, {reason: this.message.value as string});
+        const response = await this.serverApiService.update<RequestAccessMutationMutation, RequestAccessMutationMutationVariables>(
+            this.requestAccessMutationGQL, {reason: this.message.value as string}
+        );
         const success = response.requestAccess.ok;
         const resultCode = response.requestAccess.result;
         console.log(success);
@@ -172,7 +176,9 @@ export class WelcomeComponent implements OnInit, OnDestroy {
         // http://info.fnch.ch/startlisten/50450.json
         const loading = await this.loadingController.create({message: 'Daten von info.fnch.ch laden'});
         await loading.present();
-        const metadata = await this.serverApiService.query(this.welcomListFetchFnchDataGQL, {});
+        const metadata = await this.serverApiService.query<WelcomListFetchFnchDataQuery, WelcomListFetchFnchDataQueryVariables>(
+            this.welcomListFetchFnchDataGQL, {}
+        );
         const events = new Map<number, string>();
         const eventNames = new Map<number, string>();
         metadata.listAlbums.forEach(albumData => {

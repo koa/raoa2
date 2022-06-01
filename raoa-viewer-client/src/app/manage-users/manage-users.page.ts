@@ -1,6 +1,6 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 import {ServerApiService} from '../service/server-api.service';
-import {ManageUsersOverviewGQL, User} from '../generated/graphql';
+import {ManageUsersOverviewGQL, ManageUsersOverviewQuery, ManageUsersOverviewQueryVariables, User} from '../generated/graphql';
 import {MenuController} from '@ionic/angular';
 
 @Component({
@@ -21,7 +21,9 @@ export class ManageUsersPage implements OnInit {
     }
 
     async ngOnInit() {
-        const usersList = await this.serverApi.query(this.manageUsersOverviewGQL, {});
+        const usersList = await this.serverApi.query<ManageUsersOverviewQuery, ManageUsersOverviewQueryVariables>(
+            this.manageUsersOverviewGQL, {}
+        );
         const sortedList = usersList.listUsers.slice().sort((u1, u2) => u1.info.name.localeCompare(u2.info.name));
         this.ngZone.run(() => {
             this.userlist = sortedList as Array<User>;

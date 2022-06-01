@@ -1,6 +1,14 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 import {ServerApiService} from '../service/server-api.service';
-import {Album, Group, Label, ManageGroupsCreateGroupGQL, ManageTeamsListAllGroupsGQL, User} from '../generated/graphql';
+import {
+    Album,
+    Group,
+    Label,
+    ManageGroupsCreateGroupGQL,
+    ManageTeamsListAllGroupsGQL,
+    ManageTeamsListAllGroupsQuery, ManageTeamsListAllGroupsQueryVariables,
+    User
+} from '../generated/graphql';
 import {IonInput, LoadingController, MenuController} from '@ionic/angular';
 import {FNCH_COMPETITOR_ID} from '../constants';
 
@@ -34,7 +42,9 @@ export class ManageTeamsPage implements OnInit {
     }
 
     private async refreshData() {
-        this.allGroups = (await this.serverApi.query(this.manageTeamsListAllGroupsGQL, {}))?.listGroups;
+        this.allGroups = (await this.serverApi.query<ManageTeamsListAllGroupsQuery, ManageTeamsListAllGroupsQueryVariables>(
+                this.manageTeamsListAllGroupsGQL, {})
+        )?.listGroups;
         this.sortGroups();
         this.refreshFilter();
     }

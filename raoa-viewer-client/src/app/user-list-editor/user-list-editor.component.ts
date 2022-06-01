@@ -1,5 +1,12 @@
 import {Component, EventEmitter, Input, NgZone, OnInit, Output} from '@angular/core';
-import {Maybe, User, UserEditorListAllUsersGQL, UserInfo} from '../generated/graphql';
+import {
+    Maybe,
+    User,
+    UserEditorListAllUsersGQL,
+    UserEditorListAllUsersQuery,
+    UserEditorListAllUsersQueryVariables,
+    UserInfo
+} from '../generated/graphql';
 import {ServerApiService} from '../service/server-api.service';
 
 
@@ -33,7 +40,9 @@ export class UserListEditorComponent implements OnInit {
     }
 
     private async refreshData() {
-        const data = await this.serverApi.query(this.userEditorListAllUsersGQL, {});
+        const data = await this.serverApi.query<UserEditorListAllUsersQuery, UserEditorListAllUsersQueryVariables>(
+            this.userEditorListAllUsersGQL, {}
+        );
         this.ngZone.run(() => {
             this.users = data.listUsers.slice().sort((u1, u2) => u1.info.name.localeCompare(u2.info.name));
             this.filterUser();

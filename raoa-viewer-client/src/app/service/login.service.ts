@@ -139,6 +139,7 @@ export class LoginService {
         if (this.oAuthService.hasValidAccessToken()) {
             return true;
         }
+        console.log(this.oAuthService.getAccessTokenExpiration(), Date.now());
         if (this.oAuthService.getAccessTokenExpiration() > Date.now()) {
             await this.oAuthService.refreshToken();
         }

@@ -2,7 +2,7 @@ import {Component, NgZone, OnInit} from '@angular/core';
 import {ServerApiService} from '../../service/server-api.service';
 import {
     Album,
-    EditGroupLoadGQL,
+    EditGroupLoadGQL, EditGroupLoadQuery, EditGroupLoadQueryVariables,
     EditGroupUpdateGroupGQL,
     EditGroupUpdateGroupMutationVariables,
     Group,
@@ -64,7 +64,9 @@ export class EditGroupComponent implements OnInit {
     }
 
     private async refreshData() {
-        const groupData = (await this.serverApiService.query(this.editGroupLoadGQL, {id: this.groupId}))?.groupById;
+        const groupData = (await this.serverApiService.query<EditGroupLoadQuery, EditGroupLoadQueryVariables>(
+                this.editGroupLoadGQL, {id: this.groupId})
+        )?.groupById;
         if (groupData) {
             this.ngZone.run(() => {
                 this.groupName = groupData.name;

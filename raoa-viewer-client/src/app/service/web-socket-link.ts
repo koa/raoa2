@@ -1,5 +1,5 @@
 // for Apollo Client v3:
-import {ApolloLink, FetchResult, Observable, Operation,} from '@apollo/client/core';
+import {ApolloLink, FetchResult, Observable, Operation} from '@apollo/client/core';
 // or for Apollo Client v2:
 // import { ApolloLink, Operation, FetchResult, Observable } from 'apollo-link'; // yarn add apollo-link
 import {print} from 'graphql';

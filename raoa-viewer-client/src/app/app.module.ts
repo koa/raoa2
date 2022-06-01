@@ -18,6 +18,7 @@ import {environment} from '../environments/environment';
 import {MainMenuComponentModule} from './main-menu/main-menu.module';
 import {OAuthModule} from 'angular-oauth2-oidc';
 import { FilesizePipe } from './filesize.pipe';
+import {GraphQLModule} from './graphql.module';
 
 registerLocaleData(localeDe, 'de');
 registerLocaleData(localeFr, 'fr');
@@ -43,7 +44,8 @@ registerLocaleData(localeEn, 'en');
             // or after 30 seconds (whichever comes first).
             registrationStrategy: 'registerWhenStable:30000'
         }),
-        MainMenuComponentModule
+        MainMenuComponentModule,
+        GraphQLModule
     ],
     providers: [
         { provide: LOCALE_ID, useValue: 'de-CH' },

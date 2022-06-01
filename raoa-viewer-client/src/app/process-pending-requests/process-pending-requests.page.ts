@@ -1,6 +1,12 @@
 import {Component, NgZone, OnInit} from '@angular/core';
 import {ServerApiService} from '../service/server-api.service';
-import {ListPendingRequestsGQL, ManageUsersAcceptRequestGQL, ManageUsersRemoveRequestGQL, RegistrationRequest} from '../generated/graphql';
+import {
+    ListPendingRequestsGQL,
+    ListPendingRequestsQuery, ListPendingRequestsQueryVariables,
+    ManageUsersAcceptRequestGQL, ManageUsersAcceptRequestMutation, ManageUsersAcceptRequestMutationVariables,
+    ManageUsersRemoveRequestGQL,
+    RegistrationRequest
+} from '../generated/graphql';
 import {LoadingController, ToastController} from '@ionic/angular';
 import {Location} from '@angular/common';
 import {Router} from '@angular/router';
@@ -31,14 +37,18 @@ export class ProcessPendingRequestsPage implements OnInit {
     }
 
     private async reload() {
-        const pendingRequests = await this.serverApiService.query(this.listPendingRequestsGQL, {});
+        const pendingRequests = await this.serverApiService.query<ListPendingRequestsQuery, ListPendingRequestsQueryVariables>(
+            this.listPendingRequestsGQL, {}
+        );
         this.ngZone.run(() => this.pendingRequests = pendingRequests.listPendingRequests);
     }
 
     async accept(request: RegistrationRequest) {
         const loading = await this.loadingController.create({message: 'Akzeptiere Request von ' + request.data.name});
         await loading.present();
-        const createdUser = await this.serverApiService.update(this.manageUsersAcceptRequestGQL, request.authenticationId);
+        const createdUser = await this.serverApiService.update<ManageUsersAcceptRequestMutation, ManageUsersAcceptRequestMutationVariables>(
+            this.manageUsersAcceptRequestGQL, request.authenticationId
+        );
         await loading.dismiss();
         await (await this.toastController.create({message: 'Request von ' + request.data.name + ' akzeptiert', duration: 10000}))
             .present();

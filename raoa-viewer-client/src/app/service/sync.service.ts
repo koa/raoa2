@@ -1,5 +1,5 @@
 import {Injectable} from '@angular/core';
-import {Album, SyncCreatePasswordGQL} from '../generated/graphql';
+import {Album, SyncCreatePasswordGQL, SyncCreatePasswordMutation, SyncCreatePasswordMutationVariables} from '../generated/graphql';
 import {quote} from 'shell-quote';
 import {ServerApiService} from './server-api.service';
 
@@ -15,7 +15,9 @@ export class SyncService {
     }
 
     public async createTemporaryPassword(): Promise<string> {
-        const pwResult = await this.serverApiService.update(this.syncCreatePasswordGQL, {});
+        const pwResult = await this.serverApiService.update<SyncCreatePasswordMutation, SyncCreatePasswordMutationVariables>(
+            this.syncCreatePasswordGQL, {}
+        );
         return pwResult.createTemporaryPassword.password;
     }
 

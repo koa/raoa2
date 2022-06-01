@@ -1,14 +1,18 @@
 import {Injectable} from '@angular/core';
 import {
     Album,
-    AlbumContentGQL,
+    AlbumContentGQL, AlbumContentQuery, AlbumContentQueryVariables,
     AlbumEntry,
     AllAlbumVersionsGQL,
+    AllAlbumVersionsQuery,
+    AllAlbumVersionsQueryVariables,
     GetAlbumDetailsGQL,
+    GetAlbumDetailsQuery,
+    GetAlbumDetailsQueryVariables,
     Label,
     MutationData,
-    SingleAlbumMutateGQL,
-    UserPermissionsGQL
+    SingleAlbumMutateGQL, SingleAlbumMutateMutation, SingleAlbumMutateMutationVariables,
+    UserPermissionsGQL, UserPermissionsQuery, UserPermissionsQueryVariables
 } from '../generated/graphql';
 import {ServerApiService} from './server-api.service';
 import {Router} from '@angular/router';
@@ -203,7 +207,9 @@ export class DataService {// implements OnDestroy {
             .subscribe(album => console.log(album));
 */
         const [albumVersionList, storedAlbumEnties] = await
-            Promise.all([this.serverApi.query(this.allAlbumVersionsGQL, {}),
+            Promise.all([this.serverApi.query<AllAlbumVersionsQuery, AllAlbumVersionsQueryVariables>(
+                this.allAlbumVersionsGQL, {}
+            ),
                 this.storageService.listAlbums()]);
         if (!albumVersionList) {
             return;
@@ -229,7 +235,9 @@ export class DataService {// implements OnDestroy {
                 });
                 albumDataBatch = [];
             }
-            albumDataBatch.push(this.serverApi.query(this.getAlbumDetailsGQL, {albumId}).then(v => createStoreAlbum(v.albumById)));
+            albumDataBatch.push(this.serverApi.query<GetAlbumDetailsQuery, GetAlbumDetailsQueryVariables>(
+                this.getAlbumDetailsGQL, {albumId}
+            ).then(v => createStoreAlbum(v.albumById)));
         }
         await Promise.all(albumDataBatch).then(async fetchedAlbums => {
             await this.storageService.updateAlbums(fetchedAlbums);
@@ -381,7 +389,7 @@ export class DataService {// implements OnDestroy {
 
     private async fetchAlbum(albumId: string): Promise<[AlbumData, AlbumEntryData[]]> {
         const oldAlbumState = await this.storageService.getAlbum(albumId);
-        const content = await this.serverApi.query(this.albumContentGQL, {albumId});
+        const content = await this.serverApi.query<AlbumContentQuery, AlbumContentQueryVariables>(this.albumContentGQL, {albumId});
         const albumById = content.albumById;
         if (!albumById) {
             // await this.router.navigate(['/']);
@@ -401,7 +409,8 @@ export class DataService {// implements OnDestroy {
     public async modifyAlbum(updates: MutationData[]): Promise<void> {
         const MUTATION_BATCH_SIZE = 50;
         for (let i = 0; i < updates.length; i += MUTATION_BATCH_SIZE) {
-            const result = await this.serverApi.update(this.singleAlbumMutateGQL,
+            const result = await this.serverApi.update<SingleAlbumMutateMutation, SingleAlbumMutateMutationVariables>(
+                this.singleAlbumMutateGQL,
                 {updates: updates.slice(i, Math.min(i + MUTATION_BATCH_SIZE, updates.length))});
             const mutate = result?.mutate;
             if (mutate) {
@@ -436,7 +445,7 @@ export class DataService {// implements OnDestroy {
         if (!await this.loginService.hasValidToken()) {
             return undefined;
         }
-        const data = await this.serverApi.query(this.userPermissionsGQL, {});
+        const data = await this.serverApi.query<UserPermissionsQuery, UserPermissionsQueryVariables>(this.userPermissionsGQL, {});
         const ret = {
             canEdit: data.currentUser.canEdit,
             canManageUsers: data.currentUser.canManageUsers
@@ -522,6 +531,8 @@ export class DataService {// implements OnDestroy {
 
     private async fetchImage(albumId: string, albumEntryId: string, minSize: number, maxShift: number): Promise<ImageBlob> {
         // const startTime = Date.now();
+        const valid = await this.loginService.hasValidToken();
+        console.log('valid: ', valid);
         const cache = await this.imageCache;
         const nextStepMaxLength = findNextStep(minSize);
         for (let shift = 0; shift < maxShift; shift++) {

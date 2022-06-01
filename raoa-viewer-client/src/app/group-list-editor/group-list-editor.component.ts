@@ -1,5 +1,12 @@
 import {Component, EventEmitter, Input, NgZone, OnInit, Output} from '@angular/core';
-import {CreateGroupGQL, Group, GroupEditorListAllGroupsGQL} from '../generated/graphql';
+import {
+    CreateGroupGQL,
+    CreateGroupMutation,
+    CreateGroupMutationVariables,
+    Group,
+    GroupEditorListAllGroupsGQL,
+    GroupEditorListAllGroupsQuery, GroupEditorListAllGroupsQueryVariables
+} from '../generated/graphql';
 import {ServerApiService} from '../service/server-api.service';
 import {LoadingController, ToastController} from '@ionic/angular';
 
@@ -54,7 +61,8 @@ export class GroupListEditorComponent implements OnInit {
         this.newGroupName = '';
         const loadingElement = await this.loadController.create({message: 'Erstelle Gruppe ' + groupName});
         await loadingElement.present();
-        const result = await this.serverApi.update(this.createGroupGQL, {name: groupName});
+        const result = await this.serverApi.update<CreateGroupMutation, CreateGroupMutationVariables>(this.createGroupGQL,
+            {name: groupName});
         if (result) {
             this.ngZone.run(() => {
                 this.groups.push(result.createGroup);
@@ -80,7 +88,9 @@ export class GroupListEditorComponent implements OnInit {
     }
 
     private async refreshData() {
-        const data = await this.serverApi.query(this.groupEditorListAllGroupsGQL, {});
+        const data = await this.serverApi.query<GroupEditorListAllGroupsQuery, GroupEditorListAllGroupsQueryVariables>(
+            this.groupEditorListAllGroupsGQL, {}
+        );
         this.ngZone.run(() => {
             this.groups = data.listGroups.slice();
             this.filterGroup();
