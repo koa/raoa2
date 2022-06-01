@@ -29,7 +29,8 @@ export class LoginPage implements OnInit, OnDestroy {
         const redirectTarget = await this.loginService.initoAuth();
         // console.log(redirectTarget);
         if (redirectTarget) {
-            await this.router.navigate([redirectTarget]);
+            const urlTree = this.router.parseUrl(redirectTarget);
+            await this.router.navigateByUrl(urlTree);
         } else if (!navigator.onLine || await this.loginService.hasValidToken()) {
             await this.router.navigate([this.redirectTarget || '/album']);
         }

@@ -114,7 +114,7 @@ export class LoginService {
                 if (jwtContent && this.loginSubscribe) {
                     this.loginSubscribe.next(jwtContent);
                 }
-                this.oAuthService.setupAutomaticSilentRefresh();
+                // this.oAuthService.setupAutomaticSilentRefresh();
                 state = context.state;
                 // console.debug('logged in');
                 // console.debug(context);
@@ -136,14 +136,15 @@ export class LoginService {
 
 
     public async hasValidToken(): Promise<boolean> {
+        const accessTokenExpiration = this.oAuthService.getAccessTokenExpiration();
+        if (accessTokenExpiration === null || accessTokenExpiration < Date.now()) {
+            return false;
+        }
         if (this.oAuthService.hasValidAccessToken()) {
             return true;
         }
-        console.log(this.oAuthService.getAccessTokenExpiration(), Date.now());
-        if (this.oAuthService.getAccessTokenExpiration() > Date.now()) {
-            await this.oAuthService.refreshToken();
-        }
-        return this.oAuthService.hasValidIdToken() && this.oAuthService.getAccessTokenExpiration() > Date.now();
+
+        return this.oAuthService.hasValidIdToken() && accessTokenExpiration > Date.now();
     }
 
     public currentValidToken(): string | null {
