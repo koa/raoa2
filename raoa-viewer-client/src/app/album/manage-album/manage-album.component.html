@@ -21,7 +21,9 @@
     <ng-container *ngSwitchCase="'details'">
         <ion-card>
             <ion-card-subtitle>Auto-Add</ion-card-subtitle>
-            <ion-datetime [(ngModel)]="autoAddTimestamp" displayFormat="D MMM YYYY HH:mm"></ion-datetime>
+            <ion-datetime #autoaddComponent [(ngModel)]="autoAddTimestamp" presentation="date-time"
+                          minute-values="0,15,30,45"></ion-datetime>
+            <ion-text>{{autoAddTimestamp}}</ion-text>
         </ion-card>
         <ion-card>
             <ion-card-subtitle>FNCH Veranstaltungs-ID</ion-card-subtitle>

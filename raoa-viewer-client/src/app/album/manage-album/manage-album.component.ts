@@ -1,4 +1,4 @@
-import {Component, NgZone, OnDestroy, OnInit} from '@angular/core';
+import {Component, NgZone, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {ServerApiService} from '../../service/server-api.service';
 import {
@@ -7,17 +7,26 @@ import {
     ManageAlbumUpdateGQL,
     ManageAlbumUpdateMutationVariables,
     QueryAlbumSettingsGQL,
+    QueryAlbumSettingsQuery,
+    QueryAlbumSettingsQueryVariables,
     SingleGroupVisibilityUpdate,
     SingleUserVisibilityUpdate,
     UpdateCredentitalsGQL,
     UpdateCredentitalsMutationVariables
 } from '../../generated/graphql';
-import {LoadingController, ToastController} from '@ionic/angular';
+import {IonDatetime, LoadingController, ToastController} from '@ionic/angular';
 import {Location} from '@angular/common';
 import {FNCH_COMPETITION_ID} from '../../constants';
 import {Subscription} from 'rxjs';
 
 type VisibleTab = 'details' | 'teams' | 'users';
+
+function pad(n: number): string {
+    if (n < 10) {
+        return '0' + n;
+    }
+    return String(n);
+}
 
 @Component({
     selector: 'app-manage-album',
@@ -32,10 +41,11 @@ export class ManageAlbumComponent implements OnInit, OnDestroy {
     public selectedUsers: Set<string> = new Set();
     private activeUsers: Set<string> = new Set();
     public fnchCompetitionId: string;
-    public autoAddTimestamp: string;
+    public autoAddTimestamp: string = new Date().toISOString();
     private unmodifiedAutoAddTimestamp: string;
     public visibleTab: VisibleTab = 'details';
     private routeSubscription: Subscription | undefined = undefined;
+    @ViewChild('autoaddComponent') private autoaddComponent: IonDatetime;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
@@ -75,7 +85,8 @@ export class ManageAlbumComponent implements OnInit, OnDestroy {
     private async refreshData() {
         const loadingElement = await this.loadController.create({message: 'Daten werden geladen'});
         await loadingElement.present();
-        const data = await this.serverApi.query(this.queryAlbumSettingsGQL, {albumId: this.albumId});
+        const data = await this.serverApi.query<QueryAlbumSettingsQuery, QueryAlbumSettingsQueryVariables>(this.queryAlbumSettingsGQL,
+            {albumId: this.albumId});
         if (!data) {
             await loadingElement.dismiss();
             return;
@@ -99,7 +110,14 @@ export class ManageAlbumComponent implements OnInit, OnDestroy {
             });
             const autoaddDates = data.albumById.autoaddDates;
             if (autoaddDates && autoaddDates.length > 0) {
-                this.autoAddTimestamp = autoaddDates[0];
+
+                const date = new Date(autoaddDates[0]);
+                const minutes = Math.round(date.getMinutes() / 15) * 15;
+                const hours = date.getHours();
+                const dateStr = date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) +
+                    'T' + pad(hours) + ':' + pad(minutes);
+                this.autoAddTimestamp = dateStr;
+                this.autoaddComponent.reset(dateStr);
             } else {
                 this.autoAddTimestamp = undefined;
             }
