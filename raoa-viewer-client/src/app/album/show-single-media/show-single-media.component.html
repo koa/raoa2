@@ -26,8 +26,7 @@
         </div>
         <ion-header>
             <ion-toolbar color="dark">
-                <ion-back-button [defaultHref]="'/album/'+albumId" slot="start">
-                </ion-back-button>
+                <ion-icon name="arrow-back-outline" (click)="back()" size="large" slot="start"></ion-icon>
                 <ion-title>
                     <span>{{title}}</span>
                 </ion-title>
