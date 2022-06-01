@@ -28,7 +28,7 @@ export class DayPage implements OnInit {
                 }
                 const liste = await this.dataService.fetchStartlist(competitionId, startliste.id);
                 for (const startlisteZeile of liste.zeilen) {
-                    if (startlisteZeile.typ !== 'starter') {
+                    if (startlisteZeile.typ !== 'starter' || startlisteZeile.kein_start) {
                         continue;
                     }
                     rows.push([startliste, startlisteZeile]);
