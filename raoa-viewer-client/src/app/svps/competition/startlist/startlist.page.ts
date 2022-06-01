@@ -14,7 +14,7 @@ export class StartlistPage implements OnInit {
     public competitionId: number = undefined;
     public listId: number = undefined;
     public data: Startliste = undefined;
-    private competitionData: Veranstaltung = undefined;
+    public competitionData: Veranstaltung = undefined;
 
     constructor(private route: ActivatedRoute, private ngZone: NgZone, private dataService: SvpsDataService) {
     }
