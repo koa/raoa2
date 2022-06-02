@@ -1,0 +1,8 @@
+query ListKnownCompetitors{
+    listGroups {
+        labels {
+            labelName
+            labelValue
+        }
+    }
+}
