@@ -28,7 +28,8 @@ public class ViewController {
     "/sync",
     "/import",
     "/login",
-    "/welcome"
+    "/welcome",
+    "/svps"
   })
   public String index() {
     return "forward:/index.html";

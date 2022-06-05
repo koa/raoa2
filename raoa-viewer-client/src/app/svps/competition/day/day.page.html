@@ -9,9 +9,9 @@
         <tbody>
         <tr *ngFor="let row of rows" [className]="row[2]?'known':''">
             <td>{{row[1].startzeit}}</td>
+            <td class="number">{{row[1].startnummer}}</td>
             <td>{{row[0].kategorie_text}}</td>
             <td>{{row[1].reiter_name}}</td>
-            <td>{{row[1].weiteres}}</td>
         </tr>
         </tbody>
     </table>
