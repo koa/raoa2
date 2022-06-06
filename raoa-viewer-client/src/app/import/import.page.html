@@ -13,6 +13,8 @@
             <ion-card-title>Daten importieren</ion-card-title>
         </ion-card-header>
         <ion-card-content>
+            <ion-button *ngIf="pendingHiddenUploads>0 || uploadedStatisticsList.length>0" (click)="cleanAllPendingUploads()">Uploads zurücksetzen
+            </ion-button>
             <ion-button *ngIf="uploadOverallProgress===0" (click)="selectDirectory()">Verzeichnis wählen</ion-button>
             <ion-label *ngIf="this.currentFileName.length>0">{{this.currentFileName}}</ion-label>
             <ion-progress-bar *ngIf="uploadFileProgress>0" [value]="uploadFileProgress"></ion-progress-bar>
@@ -20,20 +22,20 @@
             <ion-card *ngFor="let statEntry of uploadedStatisticsList">
                 <ion-card-header>
                     <ion-card-title>{{statEntry.albumName}}</ion-card-title>
-                    <ion-card-subtitle>Total {{statEntry.uploaded.length + statEntry.committed.length}} Dateien
+                    <ion-card-subtitle>Total {{statEntry.uploaded + statEntry.committed}} Dateien
                     </ion-card-subtitle>
                 </ion-card-header>
                 <ion-card-content>
-                    <ion-button *ngIf="statEntry.uploaded.length>0" [disabled]="statEntry.runningCommit"
-                                (click)="commit(statEntry,100*1024*1024*1024)">{{statEntry.uploaded.length}} Commit
+                    <ion-button *ngIf="statEntry.uploaded>0" [disabled]="stateOf(statEntry.albumId).runningCommit"
+                                (click)="commit(statEntry.albumId,100*1024*1024*1024)">{{statEntry.uploaded}} Commit
                     </ion-button>
-                    <ion-button *ngIf="statEntry.committed.length>0" [disabled]="statEntry.runningCommit"
-                                (click)="deleteCommited(statEntry)">{{statEntry.committed.length}} Löschen
+                    <ion-button *ngIf="statEntry.committed>0" [disabled]="stateOf(statEntry.albumId).runningCommit"
+                                (click)="deleteCommitted(statEntry.albumId)">{{statEntry.committed}} Löschen
                     </ion-button>
                     <ion-item>
                         <ion-label>Auto Commit</ion-label>
-                        <ion-toggle [(ngModel)]="statEntry.autoCommit"
-                                    (click)="updateAutoCommit(statEntry)"></ion-toggle>
+                        <ion-toggle [(ngModel)]="stateOf(statEntry.albumId).autoCommit"
+                                    (ionChange)="updateAutoCommit(statEntry.albumId)"></ion-toggle>
                     </ion-item>
                 </ion-card-content>
             </ion-card>

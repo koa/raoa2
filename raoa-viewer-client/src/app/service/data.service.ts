@@ -303,7 +303,7 @@ export class DataService {// implements OnDestroy {
                             albumIndex: i,
                             albumName: albumData.title
                         });
-                        const [, entries,] = await this.storageService.listAlbum(albumSettings.id);
+                        const [, entries, ] = await this.storageService.listAlbum(albumSettings.id);
                         let batch: Promise<ImageBlob>[] = [];
                         let pendingStore: Promise<ImageBlob[]> = Promise.resolve([]);
                         const totalEntryCount = entries.length * 5;
@@ -607,6 +607,15 @@ export class DataService {// implements OnDestroy {
         await this.storageService.clearCaches();
         await caches.delete(CACHE_NAME);
         this.initCache();
+    }
+
+    public async getAlbum(albumId: string): Promise<AlbumData> {
+        const storedAlbum = await this.storageService.getAlbum(albumId);
+        if (storedAlbum) {
+            return storedAlbum;
+        }
+        await this.fetchAlbumIfMissing(albumId);
+        return this.storageService.getAlbum(albumId);
     }
 }
 

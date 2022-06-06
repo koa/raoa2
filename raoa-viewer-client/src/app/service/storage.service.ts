@@ -69,11 +69,20 @@ export interface DeviceData {
     screenSize: number;
 }
 
+export interface UploadedFileEntry {
+    fileId: string;
+    sourceFile: FileSystemFileHandle;
+    sourceDirectory: FileSystemDirectoryHandle;
+    size: number;
+    committed: boolean;
+}
+
 
 @Injectable({
     providedIn: 'root'
 })
 export class StorageService extends Dexie {
+
 
     constructor() {
         super('RaoaDatabase');
@@ -85,7 +94,8 @@ export class StorageService extends Dexie {
                 pendingKeywordAddData: '[albumId+albumEntryId+keyword], [albumId+albumEntryId], albumId',
                 pendingKeywordRemoveData: '[albumId+albumEntryId+keyword], [albumId+albumEntryId], albumId',
                 userPermissions: '++id',
-                deviceData: '++id'
+                deviceData: '++id',
+                uploadedFiles: 'fileId'
             });
         this.albumDataTable = this.table('albumData');
         this.albumSettingsTable = this.table('albumSettings');
@@ -94,6 +104,8 @@ export class StorageService extends Dexie {
         this.pendingKeywordRemoveDataTable = this.table('pendingKeywordRemoveData');
         this.userPermissionsTable = this.table('userPermissions');
         this.deviceDataTable = this.table('deviceData');
+        this.uploadedFilesTable = this.table('uploadedFiles');
+
 
         this.whereAddPendingKeyword = this.pendingKeywordAddDataTable.where(['albumId', 'albumEntryId']);
         this.whereRemovePendingKeyword = this.pendingKeywordRemoveDataTable.where(['albumId', 'albumEntryId']);
@@ -114,6 +126,8 @@ export class StorageService extends Dexie {
     private readonly pendingKeywordAddDataTable: Table<PendingKeywordAddEntry, [string, string, string]>;
     private readonly pendingKeywordRemoveDataTable: Table<PendingKeywordRemoveEntry, [string, string, string]>;
     private readonly deviceDataTable: Table<DeviceData>;
+    private readonly uploadedFilesTable: Table<UploadedFileEntry, string>;
+
 
     private readonly whereAddPendingKeyword: WhereClause<PendingKeywordAddEntry, [string, string, string]>;
     private readonly whereRemovePendingKeyword: WhereClause<PendingKeywordRemoveEntry, [string, string, string]>;
@@ -587,8 +601,18 @@ export class StorageService extends Dexie {
             return Promise.all([this.albumDataTable.get(albumId),
                 this.albumSettingsTable.get(albumId)]);
         });
-
     }
+
+    public async storeUploadedFileEntry(entry: UploadedFileEntry[]): Promise<void> {
+        await this.transaction('rw', this.uploadedFilesTable, () => this.uploadedFilesTable.bulkPut(entry));
+    }
+
+    public processUploadedFiles(handler: (file: UploadedFileEntry) => void): Promise<void> {
+        return this.transaction('r', this.uploadedFilesTable, async () => {
+            await this.uploadedFilesTable.each(handler);
+        });
+    }
+
 
     public clearCaches(): Promise<void> {
         return this.transaction('rw',
@@ -611,6 +635,18 @@ export class StorageService extends Dexie {
                 });
                 await Promise.all(mutations);
             });
+    }
+
+    public async removeUploadedFiles(keys: string[]) {
+        return this.transaction('rw', this.uploadedFilesTable, async () => {
+            await this.uploadedFilesTable.bulkDelete(keys);
+        });
+    }
+
+    public async removeAllUploadedFiles() {
+        return this.transaction('rw', this.uploadedFilesTable, async () => {
+            await this.uploadedFilesTable.clear();
+        });
     }
 }
 
