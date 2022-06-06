@@ -1,6 +1,6 @@
-import {LOCALE_ID, NgModule} from '@angular/core';
+import {APP_INITIALIZER, ErrorHandler, LOCALE_ID, NgModule} from '@angular/core';
 import {BrowserModule} from '@angular/platform-browser';
-import {RouteReuseStrategy} from '@angular/router';
+import {Router, RouteReuseStrategy} from '@angular/router';
 
 import {IonicModule, IonicRouteStrategy} from '@ionic/angular';
 
@@ -17,8 +17,9 @@ import {ServiceWorkerModule} from '@angular/service-worker';
 import {environment} from '../environments/environment';
 import {MainMenuComponentModule} from './main-menu/main-menu.module';
 import {OAuthModule} from 'angular-oauth2-oidc';
-import { FilesizePipe } from './filesize.pipe';
+import {FilesizePipe} from './filesize.pipe';
 import {GraphQLModule} from './graphql.module';
+import * as Sentry from '@sentry/angular';
 
 registerLocaleData(localeDe, 'de');
 registerLocaleData(localeFr, 'fr');
@@ -48,9 +49,26 @@ registerLocaleData(localeEn, 'en');
         GraphQLModule
     ],
     providers: [
-        { provide: LOCALE_ID, useValue: 'de-CH' },
-        { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
-        { provide: HTTP_INTERCEPTORS, useClass: AuthenticateInterceptor, multi: true }
+        {provide: LOCALE_ID, useValue: 'de-CH'},
+        {provide: RouteReuseStrategy, useClass: IonicRouteStrategy},
+        {provide: HTTP_INTERCEPTORS, useClass: AuthenticateInterceptor, multi: true},
+        {
+            provide: ErrorHandler,
+            useValue: Sentry.createErrorHandler({
+                showDialog: true,
+            }),
+        },
+        {
+            provide: Sentry.TraceService,
+            deps: [Router],
+        },
+        {
+            provide: APP_INITIALIZER,
+            useFactory: () => () => {
+            },
+            deps: [Sentry.TraceService],
+            multi: true,
+        }
     ],
     exports: [],
     bootstrap: [AppComponent]

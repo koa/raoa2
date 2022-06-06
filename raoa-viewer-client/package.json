@@ -23,6 +23,8 @@
     "@angular/service-worker": "^13.3.8",
     "@apollo/client": "^3.5.5",
     "@ionic/angular": "^6.1.7",
+    "@sentry/angular": "^7.0.0",
+    "@sentry/tracing": "^7.0.0",
     "@types/node-forge": "^1.0.2",
     "@types/shell-quote": "^1.7.1",
     "@types/wicg-file-system-access": "^2020.9.5",
