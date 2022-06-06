@@ -86,7 +86,7 @@ export class StorageService extends Dexie {
 
     constructor() {
         super('RaoaDatabase');
-        this.version(6)
+        this.version(7)
             .stores({
                 albumData: 'id',
                 albumSettings: 'id, offlineSyncedVersion',
