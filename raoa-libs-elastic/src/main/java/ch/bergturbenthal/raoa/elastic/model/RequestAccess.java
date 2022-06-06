@@ -17,22 +17,22 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 public class RequestAccess {
   @Id
   @Field(index = false)
-  private String requestId;
+  String requestId;
 
   @Field(type = FieldType.Nested)
-  private PersonalUserData userData;
+  PersonalUserData userData;
 
   @Field(type = FieldType.Nested)
-  private AuthenticationId authenticationId;
+  AuthenticationId authenticationId;
 
   @Field(type = FieldType.Text)
-  private String comment;
+  String comment;
 
   @Field(type = FieldType.Double)
-  private Instant requestTime;
+  Instant requestTime;
 
   @Field(type = FieldType.Keyword)
-  private UUID requestedAlbum;
+  UUID requestedAlbum;
 
   @Builder
   public RequestAccess(
@@ -40,7 +40,8 @@ public class RequestAccess {
       final AuthenticationId authenticationId,
       final String comment,
       final Instant requestTime,
-      final UUID requestedAlbum) {
+      final UUID requestedAlbum,
+      final String requestId) {
     this.userData = userData;
     this.authenticationId = authenticationId;
     this.comment = comment;

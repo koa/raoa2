@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.logging.Level;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.Builder;
@@ -40,7 +39,6 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Controller;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.SignalType;
 import reactor.function.TupleUtils;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
@@ -164,6 +162,7 @@ public class Mutation {
                         baseRequest ->
                             userManager.createNewUser(
                                 baseRequest, createCommitContext(queryContext, "create user")))
+                    /*
                     .log(
                         "created",
                         Level.INFO,
@@ -171,27 +170,28 @@ public class Mutation {
                         SignalType.ON_COMPLETE,
                         SignalType.ON_NEXT,
                         SignalType.ON_ERROR)
+
+                     */
                     .flatMap(
                         user ->
                             Flux.merge(
-                                    dataViewService
-                                        .removePendingAccessRequest(authenticationId)
-                                        .log(
-                                            "remove pending",
-                                            Level.INFO,
-                                            SignalType.REQUEST,
-                                            SignalType.ON_COMPLETE,
-                                            SignalType.ON_NEXT,
-                                            SignalType.ON_ERROR),
-                                    dataViewService
-                                        .updateUserData()
-                                        .log(
-                                            "update users",
-                                            Level.INFO,
-                                            SignalType.REQUEST,
-                                            SignalType.ON_COMPLETE,
-                                            SignalType.ON_NEXT,
-                                            SignalType.ON_ERROR))
+                                    dataViewService.removePendingAccessRequest(authenticationId)
+                                    /*
+                                    .log(
+                                        "remove pending",
+                                        Level.INFO,
+                                        SignalType.REQUEST,
+                                        SignalType.ON_COMPLETE,
+                                        SignalType.ON_NEXT,
+                                        SignalType.ON_ERROR)*/ ,
+                                    dataViewService.updateUserData()
+                                    /*.log(
+                                    "update users",
+                                    Level.INFO,
+                                    SignalType.REQUEST,
+                                    SignalType.ON_COMPLETE,
+                                    SignalType.ON_NEXT,
+                                    SignalType.ON_ERROR)*/ )
                                 .then(Mono.just(user)))
                     .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)));
   }
