@@ -15,6 +15,8 @@ export class StartlistPage implements OnInit {
     public listId: number = undefined;
     public data: Startliste = undefined;
     public competitionData: Veranstaltung = undefined;
+    public showStartTime = false;
+    public knownCompetitors: Set<number>;
 
     constructor(private route: ActivatedRoute, private ngZone: NgZone, private dataService: SvpsDataService) {
     }
@@ -25,9 +27,12 @@ export class StartlistPage implements OnInit {
             this.listId = params.listId;
             const competitionData = await this.dataService.fetchVeranstaltung(this.competitionId);
             const listData = await this.dataService.fetchStartlist(this.competitionId, this.listId);
+            const knownCompetitors = await this.dataService.listKnownCompetitors();
+            this.showStartTime = listData.hat_startzeiten;
             this.ngZone.run(() => {
                 this.data = listData;
                 this.competitionData = competitionData;
+                this.knownCompetitors = knownCompetitors;
             });
         });
 

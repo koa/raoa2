@@ -9,6 +9,7 @@ import {
     ListKnownCompetitorsQuery,
     ListKnownCompetitorsQueryVariables
 } from '../../generated/graphql';
+import {Resultat, ResultatOverall, ResultatVeranstaltung} from '../interfaces/resultat';
 
 @Injectable({
     providedIn: 'root'
@@ -17,8 +18,12 @@ export class SvpsDataService {
 
     private veranstaltungen: Map<number, Veranstaltung> = new Map<number, Veranstaltung>();
     private startlisten: Map<[number, number], Startliste> = new Map<[number, number], Startliste>();
+    private veranstaltungResultate: Map<number, ResultatOverall> = new Map<number, ResultatOverall>();
+    private resultate: Map<[number, number], Resultat> = new Map<[number, number], Resultat>();
 
-    constructor(private httpClient: HttpClient, private serverApi: ServerApiService, private listKnownCompetitors: ListKnownCompetitorsGQL) {
+    constructor(private httpClient: HttpClient,
+                private serverApi: ServerApiService,
+                private listKnownCompetitorsQuery: ListKnownCompetitorsGQL) {
     }
 
     public async fetchVeranstaltung(id: number): Promise<Veranstaltung> {
@@ -40,13 +45,35 @@ export class SvpsDataService {
         return startliste;
     }
 
-    public async listKownCompetitors(): Promise<Set<number>> {
-        const groups = await this.serverApi.query<ListKnownCompetitorsQuery, ListKnownCompetitorsQueryVariables>(this.listKnownCompetitors, {});
-        let ret = new Set<number>();
+    public async fetchResultat(id: number): Promise<ResultatOverall> {
+        if (this.veranstaltungResultate.has(id)) {
+            return this.veranstaltungResultate.get(id);
+        }
+        const veranstaltung = await firstValueFrom(this.httpClient.get<ResultatOverall>(`https://info.fnch.ch/resultate/veranstaltungen/${id}.json`));
+        this.veranstaltungResultate.set(id, veranstaltung);
+        return veranstaltung;
+
+    }
+
+    public async fetchResultate(competitionId: number, listId: number): Promise<Resultat> {
+        const key: [number, number] = [competitionId, listId];
+        if (this.resultate.has(key)) {
+            return this.resultate.get(key);
+        }
+        const resultat = await firstValueFrom(this.httpClient.get<Resultat>(`https://info.fnch.ch/resultate/${competitionId}.json?pruefung_id=${listId}`));
+        this.resultate.set(key, resultat);
+        return resultat;
+    }
+
+    public async listKnownCompetitors(): Promise<Set<number>> {
+        const groups = await
+            this.serverApi.query<ListKnownCompetitorsQuery, ListKnownCompetitorsQueryVariables>
+            (this.listKnownCompetitorsQuery, {});
+        const ret = new Set<number>();
         groups.listGroups.forEach(group => {
             group.labels.forEach(label => {
                 if (label.labelName === 'fnch-competitor-id') {
-                    ret.add(Number.parseInt(label.labelValue));
+                    ret.add(Number.parseInt(label.labelValue, 10));
                 }
             });
         });

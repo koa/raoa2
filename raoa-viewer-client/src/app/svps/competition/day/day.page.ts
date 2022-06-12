@@ -11,6 +11,7 @@ import {Startliste, StartlisteZeile} from '../../interfaces/startliste';
 export class DayPage implements OnInit {
 
     public rows: [Startliste, StartlisteZeile, boolean][] = [];
+    public date: Date;
 
     constructor(private route: ActivatedRoute, private ngZone: NgZone, private dataService: SvpsDataService) {
     }
@@ -21,7 +22,7 @@ export class DayPage implements OnInit {
             const day: string = params.day;
             const veranstaltung = await this.dataService.fetchVeranstaltung(competitionId);
             const rows: [Startliste, StartlisteZeile, boolean][] = [];
-            const konwnComptetitors = await this.dataService.listKownCompetitors();
+            const knownCompetitors = await this.dataService.listKnownCompetitors();
             for (const startliste of veranstaltung.startlisten) {
                 if (startliste.datum !== day || !startliste.hat_startzeiten) {
                     continue;
@@ -31,7 +32,7 @@ export class DayPage implements OnInit {
                     if (startlisteZeile.typ !== 'starter' || startlisteZeile.kein_start) {
                         continue;
                     }
-                    rows.push([startliste, startlisteZeile, konwnComptetitors.has(startlisteZeile.reiter_id)]);
+                    rows.push([startliste, startlisteZeile, knownCompetitors.has(startlisteZeile.reiter_id)]);
                 }
             }
             rows.sort((r1, r2) => {
@@ -40,6 +41,12 @@ export class DayPage implements OnInit {
                 return t1.localeCompare(t2);
             });
             this.ngZone.run(() => {
+                const regexp = new RegExp('(\\d{4})-(\\d{2})-(\\d{2})');
+                const result = day.match(regexp);
+                const year = Number.parseInt(result[1], 10);
+                const month = Number.parseInt(result[2], 10) - 1;
+                const dayOfMonth = Number.parseInt(result[3], 10);
+                this.date = new Date(year, month, dayOfMonth);
                 this.rows = rows;
             });
         });

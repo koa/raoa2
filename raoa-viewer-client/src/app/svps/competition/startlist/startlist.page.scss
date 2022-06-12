@@ -1,0 +1,9 @@
+tbody tr.known:nth-child(odd) {
+  background: rgba(112, 187, 115,1);
+}
+tbody tr.known:nth-child(even) {
+  background: rgba(147, 239, 153, 1);
+}
+td.number{
+  text-align: end;
+}

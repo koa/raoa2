@@ -8,18 +8,18 @@
     <table *ngIf="data?.zeilen">
         <thead>
         <tr>
-            <td>Zeit</td>
+            <td *ngIf="showStartTime">Zeit</td>
             <td>Nummer</td>
             <td>Starter</td>
         </tr>
         </thead>
         <tbody>
-        <tr *ngFor="let row of data.zeilen">
+        <tr *ngFor="let row of data.zeilen"
+            [className]="row.typ == 'starter' && knownCompetitors.has(row.reiter_id)?'known':''">
             <ng-container *ngIf="row.typ == 'starter'">
-                <td>{{row.startzeit}}</td>
-                <td>{{row.startnummer}}</td>
+                <td *ngIf="showStartTime">{{row.startzeit}}</td>
+                <td class="number">{{row.startnummer}}</td>
                 <td>{{row.reiter_name}}</td>
-
             </ng-container>
             <td *ngIf="row.typ == 'text'" colspan="3">{{row.text}}</td>
         </tr>
