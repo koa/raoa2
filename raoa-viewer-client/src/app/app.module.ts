@@ -55,7 +55,7 @@ registerLocaleData(localeEn, 'en');
         {
             provide: ErrorHandler,
             useValue: Sentry.createErrorHandler({
-                showDialog: true,
+                showDialog: false,
             }),
         },
         {
