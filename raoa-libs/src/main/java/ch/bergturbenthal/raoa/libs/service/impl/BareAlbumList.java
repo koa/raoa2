@@ -182,6 +182,26 @@ public class BareAlbumList implements AlbumList {
           final Path file,
           final String originalFileName,
           Function<UUID, Mono<Boolean>> albumFilter) {
+        return doImportFile(
+            file, originalFileName, albumFilter, createTimestamp -> albumOf(createTimestamp));
+      }
+
+      @Override
+      public Mono<Tuple2<UUID, ObjectId>> importFileIntoRepository(
+          final Path file, final String originalFileName, final UUID selectedRepository) {
+        return doImportFile(
+            file,
+            originalFileName,
+            album -> Mono.just(true),
+            date -> Mono.just(selectedRepository));
+      }
+
+      @NotNull
+      private Mono<Tuple2<UUID, ObjectId>> doImportFile(
+          final Path file,
+          final String originalFileName,
+          final Function<UUID, Mono<Boolean>> albumFilter,
+          final Function<Instant, Mono<UUID>> repositorySelector) {
         return scanCache
             .get()
             .getRepositories()
@@ -195,18 +215,8 @@ public class BareAlbumList implements AlbumList {
                                   DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
                                       .format(createTimestamp.atZone(ZoneId.systemDefault()));
                               final String targetFilename = prefix + "-" + originalFileName;
-                              return albumOf(createTimestamp)
-                                  /*
-                                  .flatMap(
-                                      repositoryId ->
-                                          getAlbum(repositoryId)
-                                              .flatMap(GitAccess::getName)
-                                              .defaultIfEmpty("not found")
-                                              .doOnNext(
-                                                 name ->
-                                                     log.info("Import " + file + " to " + name))
-
-                                              .map(name -> repositoryId))*/
+                              return repositorySelector
+                                  .apply(createTimestamp)
                                   .filterWhen(albumFilter)
                                   .flatMap(
                                       repositoryId ->

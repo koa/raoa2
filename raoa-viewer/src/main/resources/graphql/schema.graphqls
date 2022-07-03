@@ -17,6 +17,7 @@ type Query {
     userById(id: ID!):User
     groupById(id: ID!):Group
     previewImport(file: ImportFile!):Album
+    pollCommitState(jobId: ID!): CommitJob
 }
 type Mutation{
     requestAccess(comment: String): RequestAccessResult
@@ -35,6 +36,31 @@ type Mutation{
     createAlbum(path: [String!]!):Album
     createTemporaryPassword(duration: Int): TemporaryPassword
     mutate(updates: [MutationData!]!):MutationResult!
+    enqueueCommit(data: CommitData!):CommitJob
+}
+
+type CommitJob {
+    commitJobId: ID!
+    album: Album
+    currentPhase: CommitPhase
+    totalStepCount: Int
+    currentStep: Int
+    files: [ImportingFile!]!
+}
+
+type ImportingFile {
+    fileId: ID!
+    filename: String!
+    size: Int!
+}
+
+enum CommitPhase {
+    READY,ADD_FILES,WRITE_TREE,DONE
+}
+
+input CommitData {
+    albumId: ID!
+    files: [ImportFile!]!
 }
 
 type Subscription{

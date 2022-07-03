@@ -4,18 +4,19 @@ import ch.bergturbenthal.raoa.coordinator.model.CoordinatorProperties;
 import ch.bergturbenthal.raoa.coordinator.service.RemoteMediaProcessor;
 import ch.bergturbenthal.raoa.elastic.model.AlbumData;
 import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
+import ch.bergturbenthal.raoa.elastic.model.CommitJob;
 import ch.bergturbenthal.raoa.elastic.repository.AlbumDataEntryRepository;
 import ch.bergturbenthal.raoa.elastic.repository.AlbumDataRepository;
+import ch.bergturbenthal.raoa.elastic.repository.CommitJobRepository;
 import ch.bergturbenthal.raoa.elastic.service.impl.AlbumStatisticsCollector;
 import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
-import ch.bergturbenthal.raoa.libs.service.AlbumList;
-import ch.bergturbenthal.raoa.libs.service.AsyncService;
-import ch.bergturbenthal.raoa.libs.service.GitAccess;
-import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
+import ch.bergturbenthal.raoa.libs.service.*;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.io.File;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -28,6 +29,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.function.TupleUtils;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 import reactor.util.retry.Retry;
@@ -45,8 +47,10 @@ public class Poller {
   private final AsyncService asyncService;
   private final CoordinatorProperties coordinatorProperties;
   private final MeterRegistry meterRegistry;
-  private Map<File, Mono<Set<File>>> existingFilesCache =
+  private final Map<File, Mono<Set<File>>> existingFilesCache =
       Collections.synchronizedMap(new LRUMap<>(50));
+  private final CommitJobRepository commitJobRepository;
+  private final UploadFilenameService uploadFilenameService;
 
   public Poller(
       final AlbumList albumList,
@@ -57,7 +61,9 @@ public class Poller {
       final AlbumDataRepository albumDataRepository,
       final AsyncService asyncService,
       final CoordinatorProperties coordinatorProperties,
-      final MeterRegistry meterRegistry) {
+      final MeterRegistry meterRegistry,
+      final CommitJobRepository commitJobRepository,
+      final UploadFilenameService uploadFilenameService) {
     this.albumList = albumList;
     this.elasticSearchDataViewService = elasticSearchDataViewService;
     this.thumbnailFilenameService = thumbnailFilenameService;
@@ -67,6 +73,9 @@ public class Poller {
     this.asyncService = asyncService;
     this.coordinatorProperties = coordinatorProperties;
     this.meterRegistry = meterRegistry;
+    this.commitJobRepository = commitJobRepository;
+    this.uploadFilenameService = uploadFilenameService;
+    resetJobStates = resetJobStates().cache();
   }
 
   private static Integer batchSizeByFilename(final String nameString) {
@@ -448,5 +457,152 @@ public class Poller {
         .readObject(gitFileEntry.getFileId())
         .flatMap(loader -> asyncService.asyncMono(loader::getSize))
         .map(s -> s > 0);
+  }
+
+  private final Mono<Void> resetJobStates;
+
+  @Scheduled(fixedDelay = 3600 * 1000, initialDelay = 120 * 1000)
+  public void cleanupDoneJobs() {
+    Instant deleteBefore = Instant.now().minus(1, ChronoUnit.DAYS);
+    Flux.concat(
+            commitJobRepository.findByCurrentPhase(CommitJob.State.DONE),
+            commitJobRepository.findByCurrentPhase(CommitJob.State.FAILED))
+        .filter(job -> job.getLastModified().isBefore(deleteBefore))
+        .doOnNext(job -> log.info("Delete job " + job))
+        .buffer(10)
+        .flatMap(commitJobRepository::deleteAll)
+        .blockLast();
+  }
+
+  @Scheduled(fixedDelay = 7 * 1000, initialDelay = 60 * 1000)
+  public void runCommits() {
+    resetJobStates
+        .thenMany(
+            commitJobRepository
+                .findByCurrentPhase(CommitJob.State.READY)
+                .flatMap(this::runCommit, 1))
+        .blockLast(Duration.ofMinutes(20));
+  }
+
+  private Mono<Void> resetJobStates() {
+    return Flux.defer(
+            () ->
+                Flux.merge(
+                    commitJobRepository.findByCurrentPhase(CommitJob.State.ADD_FILES),
+                    commitJobRepository.findByCurrentPhase(CommitJob.State.WRITE_TREE)))
+        .map(
+            inJob -> {
+              final CommitJob initJobState =
+                  inJob
+                      .toBuilder()
+                      .currentPhase(CommitJob.State.READY)
+                      .currentStep(0)
+                      .totalStepCount(0)
+                      .lastModified(Instant.now())
+                      .build();
+              if (initJobState.equals(inJob)) return Optional.<CommitJob>empty();
+              return Optional.of(initJobState);
+            })
+        .filter(Optional::isPresent)
+        .map(Optional::get)
+        .buffer(20)
+        .flatMap(entities -> Flux.defer(() -> commitJobRepository.saveAll(entities)))
+        .then();
+  }
+
+  private Mono<CommitJob> runCommit(CommitJob job) {
+    return executeCommit(job)
+        .buffer(Duration.ofSeconds(1))
+        .filter(b -> !b.isEmpty())
+        .map(buffer -> buffer.get(buffer.size() - 1))
+        .flatMap(commitJobRepository::save, 1)
+        .last();
+  }
+
+  private Flux<CommitJob> executeCommit(CommitJob job) {
+    return Flux.defer(
+        () -> {
+          final int fileCount = job.getFiles().size();
+          final FileImporter importer =
+              albumList.createImporter(
+                  Updater.CommitContext.builder()
+                      .username(job.getUsername())
+                      .email(job.getUsermail())
+                      .message("Import " + fileCount + " files")
+                      .build());
+
+          final CommitJob.CommitJobBuilder stateBuilder = job.toBuilder();
+          return Flux.concat(
+                  Flux.fromIterable(job.getFiles())
+                      .index()
+                      .flatMap(
+                          TupleUtils.function(
+                              (index, file) -> {
+                                final File tempUploadFile =
+                                    uploadFilenameService.createTempUploadFile(file.getFileId());
+                                if (!tempUploadFile.exists()) {
+                                  return Mono.error(
+                                      new RuntimeException(
+                                          "Missing uploaded file: "
+                                              + file.getFileId()
+                                              + " ("
+                                              + file.getFilename()
+                                              + ")"));
+                                }
+                                if (tempUploadFile.length() != file.getSize()) {
+                                  return Mono.error(
+                                      new RuntimeException(
+                                          "Wrong file size on "
+                                              + file.getFileId()
+                                              + " ("
+                                              + file.getFilename()
+                                              + "): expected "
+                                              + file.getSize()
+                                              + ", actual: "
+                                              + tempUploadFile.length()));
+                                }
+                                return importer
+                                    .importFileIntoRepository(
+                                        tempUploadFile.toPath(),
+                                        file.getFilename(),
+                                        job.getAlbumId())
+                                    .map(
+                                        ignoredResult ->
+                                            stateBuilder
+                                                .currentPhase(CommitJob.State.ADD_FILES)
+                                                .currentStep(index.intValue())
+                                                .totalStepCount(fileCount)
+                                                .lastModified(Instant.now())
+                                                .build());
+                              }),
+                          1),
+                  Flux.just(
+                      stateBuilder
+                          .currentPhase(CommitJob.State.WRITE_TREE)
+                          .totalStepCount(0)
+                          .currentStep(0)
+                          .lastModified(Instant.now())
+                          .build()),
+                  importer
+                      .commitAll()
+                      .map(
+                          ok ->
+                              stateBuilder
+                                  .currentPhase(ok ? CommitJob.State.DONE : CommitJob.State.FAILED)
+                                  .totalStepCount(0)
+                                  .currentStep(0)
+                                  .lastModified(Instant.now())
+                                  .build()))
+              .onErrorResume(
+                  ex -> {
+                    log.error("Cannot complete import " + job.getCommitJobId(), ex);
+                    return Mono.just(
+                        stateBuilder
+                            .currentPhase(CommitJob.State.FAILED)
+                            .lastModified(Instant.now())
+                            .build());
+                  })
+              .doFinally(signal -> importer.close());
+        });
   }
 }

@@ -1,12 +1,8 @@
-mutation importCommit($files: [ImportFile!]!){
-    commitImport(files: $files){
-        fileId
-        albumEntry{
-            id
-            album{
-                id
-                name
-            }
+mutation importCommit($data: CommitData!){
+    enqueueCommit(data: $data){
+        commitJobId
+        files {
+            fileId
         }
     }
 }

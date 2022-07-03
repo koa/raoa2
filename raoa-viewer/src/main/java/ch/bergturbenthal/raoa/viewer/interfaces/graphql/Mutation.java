@@ -1,6 +1,7 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
 import ch.bergturbenthal.raoa.elastic.model.*;
+import ch.bergturbenthal.raoa.elastic.repository.CommitJobRepository;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
@@ -16,7 +17,6 @@ import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import com.adobe.internal.xmp.XMPMeta;
 import com.adobe.internal.xmp.XMPMetaFactory;
 import java.io.File;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -61,6 +61,7 @@ public class Mutation {
   private final AlbumList albumList;
   private final UploadFilenameService uploadFilenameService;
   private final Random random = new Random();
+  private final CommitJobRepository commitJobRepository;
 
   public Mutation(
       final UserManager userManager,
@@ -68,14 +69,15 @@ public class Mutation {
       final QueryContextSupplier queryContextSupplier,
       final DataViewService dataViewService,
       final AlbumList albumList,
-      final UploadFilenameService uploadFilenameService)
-      throws NoSuchAlgorithmException {
+      final UploadFilenameService uploadFilenameService,
+      final CommitJobRepository commitJobRepository) {
     this.userManager = userManager;
     this.authorizationManager = authorizationManager;
     this.queryContextSupplier = queryContextSupplier;
     this.dataViewService = dataViewService;
     this.albumList = albumList;
     this.uploadFilenameService = uploadFilenameService;
+    this.commitJobRepository = commitJobRepository;
   }
 
   @NotNull
@@ -1220,6 +1222,51 @@ public class Mutation {
                       (result, mutation) -> {
                         result.getErrors().addAll(mutation.getErrors());
                         result.getModifiedEntries().addAll(mutation.getModifiedEntries());
+                      });
+            });
+  }
+
+  @MutationMapping
+  public Mono<CommitJob> enqueueCommit(@Argument CommitData data) {
+    return queryContextSupplier
+        .createContext()
+        .flatMap(
+            queryContext -> {
+              final SecurityContext securityContext = queryContext.getSecurityContext();
+              final UUID albumId = data.getAlbumId();
+              return authorizationManager
+                  .canUserModifyAlbum(securityContext, albumId)
+                  .filter(canCommit -> canCommit)
+                  .flatMap(
+                      canCommit -> {
+                        final PersonalUserData userData =
+                            queryContext
+                                .getCurrentUser()
+                                .map(User::getUserData)
+                                .orElseThrow(() -> new RuntimeException("No user data found"));
+                        final String name = userData.getName();
+                        final String email = userData.getEmail();
+
+                        final CommitJob commitJob =
+                            CommitJob.builder()
+                                .commitJobId(UUID.randomUUID())
+                                .username(name)
+                                .usermail(email)
+                                .currentPhase(CommitJob.State.READY)
+                                .currentStep(0)
+                                .totalStepCount(0)
+                                .files(
+                                    data.getFiles().stream()
+                                        .map(
+                                            file ->
+                                                new CommitJob.ImportFile(
+                                                    file.getFileId(),
+                                                    file.getFilename(),
+                                                    file.getSize()))
+                                        .collect(Collectors.toList()))
+                                .albumId(albumId)
+                                .build();
+                        return commitJobRepository.save(commitJob);
                       });
             });
   }

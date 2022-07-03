@@ -1,0 +1,13 @@
+query PollCommit($id: ID!){
+    pollCommitState(jobId: $id){
+        album {
+            id
+        }
+        currentPhase
+        currentStep
+        totalStepCount
+        files {
+            fileId
+        }
+    }
+}

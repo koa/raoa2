@@ -13,7 +13,8 @@
             <ion-card-title>Daten importieren</ion-card-title>
         </ion-card-header>
         <ion-card-content>
-            <ion-button *ngIf="pendingHiddenUploads>0 || uploadedStatisticsList.length>0" (click)="cleanAllPendingUploads()">Uploads zurücksetzen
+            <ion-button *ngIf="pendingHiddenUploads>0 || uploadedStatisticsList.length>0"
+                        (click)="cleanAllPendingUploads()">Uploads zurücksetzen
             </ion-button>
             <ion-button *ngIf="uploadOverallProgress===0" (click)="selectDirectory()">Verzeichnis wählen</ion-button>
             <ion-label *ngIf="this.currentFileName.length>0">{{this.currentFileName}}</ion-label>
@@ -26,17 +27,31 @@
                     </ion-card-subtitle>
                 </ion-card-header>
                 <ion-card-content>
-                    <ion-button *ngIf="statEntry.uploaded>0" [disabled]="stateOf(statEntry.albumId).runningCommit"
-                                (click)="commit(statEntry.albumId,100*1024*1024*1024)">{{statEntry.uploaded}} Commit
+                    <ion-button *ngIf="!uploading && statEntry.uploaded>0"
+                                (click)="commit(statEntry.albumId)">{{statEntry.uploaded}} Commit
                     </ion-button>
-                    <ion-button *ngIf="statEntry.committed>0" [disabled]="stateOf(statEntry.albumId).runningCommit"
+                    <ion-button *ngIf="statEntry.committed>0"
                                 (click)="deleteCommitted(statEntry.albumId)">{{statEntry.committed}} Löschen
                     </ion-button>
-                    <ion-item>
-                        <ion-label>Auto Commit</ion-label>
-                        <ion-toggle [(ngModel)]="stateOf(statEntry.albumId).autoCommit"
-                                    (ionChange)="updateAutoCommit(statEntry.albumId)"></ion-toggle>
+                    <ion-item *ngIf="uploading">
+                        <ion-label>Commit</ion-label>
+                        <ion-toggle [(ngModel)]="statEntry.commitAfterUpload"></ion-toggle>
                     </ion-item>
+                    <ion-card *ngFor="let commitEntry of commitState.get(statEntry.albumId)">
+                        <ion-card-header>
+                            <ion-card-title>Commit</ion-card-title>
+                            <ng-container [ngSwitch]="commitEntry.currentPhase">
+                                <ion-card-subtitle *ngSwitchCase="'READY'">Warte auf Server</ion-card-subtitle>
+                                <ion-card-subtitle *ngSwitchCase="'ADD_FILES'">Dateien hinzufügen</ion-card-subtitle>
+                                <ion-card-subtitle *ngSwitchCase="'WRITE_TREE'">Abschliessen</ion-card-subtitle>
+                                <ion-card-subtitle *ngSwitchCase="'DONE'">Fertig</ion-card-subtitle>
+                            </ng-container>
+                            <ion-card-content>
+                                <ion-progress-bar *ngIf="commitEntry.totalStepCount>0"
+                                                  [value]="commitEntry.currentStep/commitEntry.totalStepCount"></ion-progress-bar>
+                            </ion-card-content>
+                        </ion-card-header>
+                    </ion-card>
                 </ion-card-content>
             </ion-card>
             <!--<ion-button *ngIf="importedFiles.length>0" (click)="deleteImportedFiles()">Importierte Daten löschen

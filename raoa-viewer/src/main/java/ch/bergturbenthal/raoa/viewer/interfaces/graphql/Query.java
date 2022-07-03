@@ -1,5 +1,7 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
+import ch.bergturbenthal.raoa.elastic.model.CommitJob;
+import ch.bergturbenthal.raoa.elastic.repository.CommitJobRepository;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
@@ -16,6 +18,7 @@ import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
 
 @Slf4j
 @Controller
@@ -25,18 +28,31 @@ public class Query {
   private final AuthorizationManager authorizationManager;
   private final AlbumList albumList;
   private final UploadFilenameService uploadFilenameService;
+  private final CommitJobRepository commitJobRepository;
 
   public Query(
       final QueryContextSupplier queryContextSupplier,
       final DataViewService dataViewService,
       final AuthorizationManager authorizationManager,
       final AlbumList albumList,
-      final UploadFilenameService uploadFilenameService) {
+      final UploadFilenameService uploadFilenameService,
+      final CommitJobRepository commitJobRepository) {
     this.queryContextSupplier = queryContextSupplier;
     this.dataViewService = dataViewService;
     this.authorizationManager = authorizationManager;
     this.albumList = albumList;
     this.uploadFilenameService = uploadFilenameService;
+    this.commitJobRepository = commitJobRepository;
+  }
+
+  @QueryMapping
+  public Mono<CommitJob> pollCommitState(@Argument UUID jobId) {
+    return Mono.zip(queryContextSupplier.createContext(), commitJobRepository.findById(jobId))
+        .filterWhen(
+            t ->
+                authorizationManager.canUserAccessToAlbum(
+                    t.getT1().getSecurityContext(), t.getT2().getAlbumId()))
+        .map(Tuple2::getT2);
   }
 
   @QueryMapping

@@ -74,6 +74,7 @@ export interface UploadedFileEntry {
     sourceFile: FileSystemFileHandle;
     sourceDirectory: FileSystemDirectoryHandle;
     size: number;
+    commitEnqueued: string;
     committed: boolean;
 }
 

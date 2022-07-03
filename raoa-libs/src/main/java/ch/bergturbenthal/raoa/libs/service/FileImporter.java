@@ -24,4 +24,7 @@ public interface FileImporter extends Closeable {
   @NotNull
   Mono<Tuple2<UUID, ObjectId>> importFile(
       Path file, String originalFileName, Function<UUID, Mono<Boolean>> authorizer);
+
+  Mono<Tuple2<UUID, ObjectId>> importFileIntoRepository(
+      Path file, String originalFileName, UUID selectedRepository);
 }
