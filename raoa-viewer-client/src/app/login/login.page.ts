@@ -27,13 +27,15 @@ export class LoginPage implements OnInit, OnDestroy {
             this.redirectTarget = params.get('target');
         });
         const redirectTarget = await this.loginService.initoAuth();
-        // console.log(redirectTarget);
-        if (redirectTarget) {
-            const urlTree = this.router.parseUrl(redirectTarget);
-            await this.router.navigateByUrl(urlTree);
-        } else if (!navigator.onLine || await this.loginService.hasValidToken()) {
-            await this.router.navigate([this.redirectTarget || '/album']);
-        }
+        setTimeout(async () => {
+            if (redirectTarget) {
+                this.redirectTarget = redirectTarget;
+                const urlTree = this.router.parseUrl(redirectTarget);
+                await this.router.navigateByUrl(urlTree, {skipLocationChange: true, replaceUrl: true});
+            } else if (!navigator.onLine || await this.loginService.hasValidToken()) {
+                await this.router.navigate([this.redirectTarget || '/album']);
+            }
+        }, 500);
     }
 
     ngOnDestroy(): void {

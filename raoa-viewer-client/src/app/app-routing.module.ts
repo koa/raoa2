@@ -50,15 +50,20 @@ const routes: Routes = [
         path: 'login',
         loadChildren: () => import('./login/login.module').then(m => m.LoginPageModule)
     },
-  {
-    path: 'svps',
-    loadChildren: () => import('./svps/svps.module').then( m => m.SvpsPageModule)
-  }
+    {
+        path: 'svps',
+        loadChildren: () => import('./svps/svps.module').then(m => m.SvpsPageModule)
+    }
 ];
 
 @NgModule({
     imports: [
-        RouterModule.forRoot(routes, {preloadingStrategy: PreloadAllModules, relativeLinkResolution: 'legacy', useHash: false})
+        RouterModule.forRoot(routes, {
+            preloadingStrategy: PreloadAllModules,
+            relativeLinkResolution: 'legacy',
+            useHash: false,
+            enableTracing: false
+        })
     ],
     exports: [RouterModule]
 })
