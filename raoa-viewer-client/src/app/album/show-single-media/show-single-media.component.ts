@@ -9,6 +9,8 @@ import {Title} from '@angular/platform-browser';
 import {createFilter, DataService, filterTimeResolution} from '../../service/data.service';
 import {AlbumEntryData} from '../../service/storage.service';
 import {combineLatest} from 'rxjs';
+import {MultiWindowService} from 'ngx-multi-window';
+import {ShowMedia} from '../../interfaces/show-media';
 
 
 export type KeywordCombine = 'and' | 'or';
@@ -153,7 +155,8 @@ export class ShowSingleMediaComponent implements OnInit {
                 private http: HttpClient,
                 private serverApi: ServerApiService,
                 private loadingController: LoadingController,
-                private titleService: Title
+                private titleService: Title,
+                private multiWindowService: MultiWindowService
     ) {
         let hackNavi: any;
         hackNavi = window.navigator;
@@ -259,6 +262,14 @@ export class ShowSingleMediaComponent implements OnInit {
     async showImage(mediaId: string) {
         if (mediaId === undefined) {
             return;
+        }
+        const event: ShowMedia = {
+            albumId: this.albumId, mediaId: mediaId
+        };
+        const myId = this.multiWindowService.id;
+        for (let knownWindow of this.multiWindowService.getKnownWindows()) {
+            if (knownWindow.id === myId) continue;
+            this.multiWindowService.sendMessage(knownWindow.id, "showMedia", event);
         }
         let waitIndicator;
         const waitTimeoutHandler = window.setTimeout(() => {

@@ -53,7 +53,11 @@ const routes: Routes = [
     {
         path: 'svps',
         loadChildren: () => import('./svps/svps.module').then(m => m.SvpsPageModule)
-    }
+    },
+  {
+    path: 'presentation',
+    loadChildren: () => import('./presentation/presentation.module').then( m => m.PresentationPageModule)
+  }
 ];
 
 @NgModule({

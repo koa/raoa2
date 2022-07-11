@@ -20,6 +20,7 @@ import {OAuthModule} from 'angular-oauth2-oidc';
 import {FilesizePipe} from './filesize.pipe';
 import {GraphQLModule} from './graphql.module';
 import * as Sentry from '@sentry/angular';
+import {MultiWindowModule} from 'ngx-multi-window';
 
 registerLocaleData(localeDe, 'de');
 registerLocaleData(localeFr, 'fr');
@@ -46,7 +47,8 @@ registerLocaleData(localeEn, 'en');
             registrationStrategy: 'registerWhenStable:30000'
         }),
         MainMenuComponentModule,
-        GraphQLModule
+        GraphQLModule,
+        MultiWindowModule
     ],
     providers: [
         {provide: LOCALE_ID, useValue: 'de-CH'},

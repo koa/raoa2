@@ -1,0 +1,18 @@
+.image > img {
+    height: 100%;
+    width: 100%;
+    display: block;
+    object-fit: contain;
+}
+
+.image {
+    width: 100vw;
+    height: 100vh;
+    background-color: black;
+    color: white;
+    text-align: center;
+}
+
+.image > .error {
+    font-size: 10vw;
+}
