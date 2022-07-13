@@ -476,12 +476,21 @@ public class Poller {
 
   @Scheduled(fixedDelay = 7 * 1000, initialDelay = 60 * 1000)
   public void runCommits() {
-    resetJobStates
-        .thenMany(
-            commitJobRepository
-                .findByCurrentPhase(CommitJob.State.READY)
-                .flatMap(this::runCommit, 1))
-        .blockLast(Duration.ofMinutes(20));
+    try {
+      resetJobStates
+          .thenMany(
+              commitJobRepository
+                  .findByCurrentPhase(CommitJob.State.READY)
+                  .flatMap(this::runCommit, 1))
+          .blockLast(Duration.ofMinutes(20));
+    } catch (Exception ex) {
+      log.warn("Cannot commit", ex);
+      try {
+        resetJobStates().block();
+      } catch (Exception ex2) {
+        log.warn("Cannot reset failed jobs", ex2);
+      }
+    }
   }
 
   private Mono<Void> resetJobStates() {
