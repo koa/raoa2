@@ -1,4 +1,4 @@
-import {Injectable} from '@angular/core';
+import {Injectable, Predicate} from '@angular/core';
 import Dexie, {Table, WhereClause} from 'dexie';
 
 export interface AlbumData {
@@ -78,6 +78,11 @@ export interface UploadedFileEntry {
     committed: boolean;
 }
 
+export interface DiashowEntry {
+    albumId: string;
+    albumEntryId: string;
+}
+
 
 @Injectable({
     providedIn: 'root'
@@ -87,7 +92,7 @@ export class StorageService extends Dexie {
 
     constructor() {
         super('RaoaDatabase');
-        this.version(7)
+        this.version(8)
             .stores({
                 albumData: 'id',
                 albumSettings: 'id, offlineSyncedVersion',
@@ -96,7 +101,8 @@ export class StorageService extends Dexie {
                 pendingKeywordRemoveData: '[albumId+albumEntryId+keyword], [albumId+albumEntryId], albumId',
                 userPermissions: '++id',
                 deviceData: '++id',
-                uploadedFiles: 'fileId'
+                uploadedFiles: 'fileId',
+                diashow: '[albumId+albumEntryId]'
             });
         this.albumDataTable = this.table('albumData');
         this.albumSettingsTable = this.table('albumSettings');
@@ -106,6 +112,7 @@ export class StorageService extends Dexie {
         this.userPermissionsTable = this.table('userPermissions');
         this.deviceDataTable = this.table('deviceData');
         this.uploadedFilesTable = this.table('uploadedFiles');
+        this.diashow = this.table('diashow');
 
 
         this.whereAddPendingKeyword = this.pendingKeywordAddDataTable.where(['albumId', 'albumEntryId']);
@@ -128,6 +135,7 @@ export class StorageService extends Dexie {
     private readonly pendingKeywordRemoveDataTable: Table<PendingKeywordRemoveEntry, [string, string, string]>;
     private readonly deviceDataTable: Table<DeviceData>;
     private readonly uploadedFilesTable: Table<UploadedFileEntry, string>;
+    private readonly diashow: Table<DiashowEntry, [string, string]>;
 
 
     private readonly whereAddPendingKeyword: WhereClause<PendingKeywordAddEntry, [string, string, string]>;
@@ -647,6 +655,42 @@ export class StorageService extends Dexie {
     public async removeAllUploadedFiles() {
         return this.transaction('rw', this.uploadedFilesTable, async () => {
             await this.uploadedFilesTable.clear();
+        });
+    }
+
+    public async appendDiashow(entry: DiashowEntry): Promise<[string, string]> {
+        return this.transaction('rw', this.diashow, async () => this.diashow.put(entry));
+    }
+
+    public async removeDiashow(entry: DiashowEntry): Promise<void> {
+        return this.transaction('rw', this.diashow, async () => this.diashow.delete([entry.albumId, entry.albumEntryId]));
+    }
+
+    public async getRandomDiashowEntry(filter?: Predicate<DiashowEntry>): Promise<DiashowEntry | undefined> {
+        return this.transaction('r',
+            this.diashow,
+            async () => {
+                const count = await this.diashow.count();
+                if (count === 0)
+                    return undefined;
+                for (let number of [0, 1, 2, 3, 4]) {
+                    const index = Math.round(Math.random() * count);
+                    const candidate = await this.diashow.offset(index).first();
+                    if (candidate === undefined)
+                        continue;
+                    if (filter === undefined || filter(candidate)) {
+                        return candidate;
+                    }
+                }
+                return undefined;
+            });
+
+    }
+
+    public containsDiashow(entry: DiashowEntry) {
+        return this.transaction('r', this.diashow, async () => {
+            const existingEntry = await this.diashow.get([entry.albumId, entry.albumEntryId]);
+            return existingEntry !== undefined;
         });
     }
 }

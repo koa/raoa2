@@ -262,6 +262,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     }
 
     public syncOffline() {
+        this.serverApiService.clear().then();
         this.syncOfflineSubscription = this.dataService.synchronizeData()
             .pipe(bufferTime(500), filter(b => b.length > 0), map(b => b[b.length - 1]))
             .subscribe(state => {

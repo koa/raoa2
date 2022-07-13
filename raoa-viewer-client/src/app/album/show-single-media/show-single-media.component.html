@@ -30,6 +30,12 @@
                 <ion-title>
                     <span>{{title}}</span>
                 </ion-title>
+                <ion-button slot="end" color="dark" *ngIf="canPresent && isPresenting" (click)="presentCurrentMedia(false)">
+                    <ion-icon name="easel"></ion-icon>
+                </ion-button>
+                <ion-button slot="end" color="dark" *ngIf="canPresent && !isPresenting" (click)="presentCurrentMedia(true)">
+                    <ion-icon name="easel-outline"></ion-icon>
+                </ion-button>
                 <ion-button (click)="toggleMetadata()" slot="end" color="dark">
                     <ion-icon name="information-circle-outline"></ion-icon>
                 </ion-button>

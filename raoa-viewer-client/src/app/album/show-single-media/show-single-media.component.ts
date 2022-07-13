@@ -146,6 +146,8 @@ export class ShowSingleMediaComponent implements OnInit {
     private nextIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
     private prevIdMap: Map<BigInt, BigInt> = new Map<BigInt, BigInt>();
     private timeResolution = 0;
+    public canPresent = false;
+    public isPresenting = false;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
@@ -176,6 +178,14 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     public async ngOnInit(): Promise<void> {
+        this.multiWindowService.onWindows().subscribe(windows => {
+            let canPresent: boolean = false;
+            for (let window of windows) {
+                if (window.id !== this.multiWindowService.id)
+                    canPresent = true;
+            }
+            this.ngZone.run(() => this.canPresent = canPresent);
+        });
         combineLatest([this.activatedRoute.paramMap, this.activatedRoute.queryParamMap]).subscribe(async data => {
             const paramMap = data[0];
             const queryParam = data[1];
@@ -263,20 +273,13 @@ export class ShowSingleMediaComponent implements OnInit {
         if (mediaId === undefined) {
             return;
         }
-        const event: ShowMedia = {
-            albumId: this.albumId, mediaId: mediaId
-        };
-        const myId = this.multiWindowService.id;
-        for (let knownWindow of this.multiWindowService.getKnownWindows()) {
-            if (knownWindow.id === myId) continue;
-            this.multiWindowService.sendMessage(knownWindow.id, "showMedia", event);
-        }
         let waitIndicator;
         const waitTimeoutHandler = window.setTimeout(() => {
             this.loadingController.create({
                 cssClass: 'transparent-spinner',
                 message: 'Daten werden geladen...',
-                translucent: true
+                translucent: true,
+                showBackdrop: true
             }).then(ind => {
                 waitIndicator = ind;
                 ind.present();
@@ -286,9 +289,13 @@ export class ShowSingleMediaComponent implements OnInit {
             const mediaIdAsInt = BigInt('0x' + mediaId);
             const previousMediaId = ShowSingleMediaComponent.bigint2objectId(this.prevIdMap.get(mediaIdAsInt));
             const nextMediaId = ShowSingleMediaComponent.bigint2objectId(this.nextIdMap.get(mediaIdAsInt));
-            const [albumEntry, keywords] = await this.dataService.getAlbumEntry(this.albumId, mediaId);
+            const [[albumEntry, keywords], diashowEnabled] = await Promise.all(
+                [this.dataService.getAlbumEntry(this.albumId, mediaId),
+                    this.dataService.isDiashowEnabled(this.albumId, mediaId)
+                ]);
 
             this.ngZone.run(() => {
+                this.isPresenting = diashowEnabled;
                 if (mediaId === this.nextMediaId) {
                     // move fast forward
                     this.previousMediaContent = this.currentMediaContent;
@@ -338,6 +345,7 @@ export class ShowSingleMediaComponent implements OnInit {
         }
 
     }
+
 
     async slided() {
         const index = await this.imageSlider.getActiveIndex();
@@ -468,5 +476,24 @@ export class ShowSingleMediaComponent implements OnInit {
         } finally {
             await loadingOriginalIndicator.dismiss();
         }
+    }
+
+    public async presentCurrentMedia(enable: boolean) {
+        if (enable)
+            await this.dataService.appendDiashow(this.albumId, this.mediaId);
+        else
+            await this.dataService.removeDiashow(this.albumId, this.mediaId);
+        if (this.canPresent) {
+            const event: ShowMedia = {
+                albumId: this.albumId, mediaId: this.mediaId
+            };
+            const myId = this.multiWindowService.id;
+            for (let knownWindow of this.multiWindowService.getKnownWindows()) {
+                if (knownWindow.id === myId) continue;
+                this.multiWindowService.sendMessage(knownWindow.id, "showMedia", event);
+            }
+        }
+        const diashowEnabled = await this.dataService.isDiashowEnabled(this.albumId, this.mediaId);
+        this.ngZone.run(() => this.isPresenting = diashowEnabled);
     }
 }

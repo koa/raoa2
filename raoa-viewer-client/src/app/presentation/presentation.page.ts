@@ -1,39 +1,82 @@
-import {Component, NgZone, OnInit} from '@angular/core';
+import {Component, NgZone, OnDestroy, OnInit, Predicate} from '@angular/core';
 import {MultiWindowService} from 'ngx-multi-window';
 import {ShowMedia} from '../interfaces/show-media';
 import {DataService} from '../service/data.service';
+import {DiashowEntry} from '../service/storage.service';
 
 @Component({
     selector: 'app-presentation',
     templateUrl: './presentation.page.html',
     styleUrls: ['./presentation.page.css'],
 })
-export class PresentationPage implements OnInit {
+export class PresentationPage implements OnInit, OnDestroy {
     private bigImageSize = 800;
     public playVideo = false;
-    public currentMediaContent: Promise<string> = undefined;
+    public currentMediaContent: Promise<string> | undefined = undefined;
+    private visibleEntry: DiashowEntry | undefined;
+    private runningTimer: number | undefined;
 
     constructor(private multiWindowService: MultiWindowService,
                 private ngZone: NgZone,
-                private dataService: DataService,) {
+                private dataService: DataService) {
     }
 
-    ngOnInit() {
+    async ngOnInit() {
         this.multiWindowService.onMessage().subscribe(value => {
             let event: string = value.event;
             if (event == 'showMedia') {
                 const data: ShowMedia = value.data;
-                this.ngZone.run(() => {
-                    this.currentMediaContent = this.dataService.getImage(data.albumId, data.mediaId, this.bigImageSize);
-                });
-                console.log('Received a message from ', data.albumId, data.mediaId);
+                let visibleEntry: DiashowEntry = {albumId: data.albumId, albumEntryId: data.mediaId};
+                this.showEntry(visibleEntry);
+                this.visibleEntry = visibleEntry;
+                this.showVisibleEntry();
             }
-
         });
+        await this.displayAnyEntry();
+    }
+
+    private showVisibleEntry() {
+        this.ngZone.run(() => {
+            this.currentMediaContent = this.dataService.getImage(this.visibleEntry.albumId, this.visibleEntry.albumEntryId, this.bigImageSize);
+        });
+    }
+
+    startTimer() {
+        if (this.runningTimer !== undefined)
+            clearTimeout(this.runningTimer);
+        this.runningTimer = undefined;
+        this.runningTimer = setTimeout(() => this.displayAnyEntry(), 5 * 1000);
+    }
+
+    private async displayAnyEntry(): Promise<void> {
+        let filter: Predicate<DiashowEntry>;
+        const excludeEntry = this.visibleEntry;
+        if (excludeEntry !== undefined)
+            filter = candidate => {
+                return candidate.albumId !== excludeEntry.albumId
+                    || candidate.albumEntryId !== excludeEntry.albumEntryId;
+            };
+        const foundEntry = await this.dataService.fetchNextDiashowEntry(filter);
+        if (foundEntry) {
+            this.showEntry(foundEntry);
+        }
+    }
+
+    public ngOnDestroy() {
+        if (this.runningTimer !== undefined)
+            clearTimeout(this.runningTimer);
+        this.runningTimer = undefined;
     }
 
     public async resized() {
         this.bigImageSize = Math.max(window.screen.width, window.screen.height);
     }
 
+    private showEntry(foundEntry: DiashowEntry) {
+        this.visibleEntry = foundEntry;
+        this.ngZone.run(() => {
+            this.currentMediaContent = this.dataService.getImage(this.visibleEntry.albumId, this.visibleEntry.albumEntryId, this.bigImageSize);
+        });
+        this.startTimer();
+    }
 }

@@ -1,4 +1,4 @@
-import {Injectable} from '@angular/core';
+import {Injectable, Predicate} from '@angular/core';
 import {
     Album,
     AlbumContentGQL, AlbumContentQuery, AlbumContentQueryVariables,
@@ -16,12 +16,20 @@ import {
 } from '../generated/graphql';
 import {ServerApiService} from './server-api.service';
 import {Router} from '@angular/router';
-import {AlbumData, AlbumEntryData, AlbumSettings, ImageBlob, KeywordState, StorageService} from './storage.service';
+import {
+    AlbumData,
+    AlbumEntryData,
+    AlbumSettings,
+    DiashowEntry,
+    ImageBlob,
+    KeywordState,
+    StorageService
+} from './storage.service';
 import {FNCH_COMPETITION_ID} from '../constants';
 import {HttpClient} from '@angular/common/http';
 import {LoginService} from './login.service';
 import {fromEventPattern, merge, Observable, Subscriber} from 'rxjs';
-import {map, share} from 'rxjs/operators';
+import {filter, map, share} from 'rxjs/operators';
 
 const CACHE_NAME = 'image-cache';
 
@@ -303,7 +311,7 @@ export class DataService {// implements OnDestroy {
                             albumIndex: i,
                             albumName: albumData.title
                         });
-                        const [, entries, ] = await this.storageService.listAlbum(albumSettings.id);
+                        const [, entries,] = await this.storageService.listAlbum(albumSettings.id);
                         let batch: Promise<ImageBlob>[] = [];
                         let pendingStore: Promise<ImageBlob[]> = Promise.resolve([]);
                         const totalEntryCount = entries.length * 5;
@@ -616,6 +624,25 @@ export class DataService {// implements OnDestroy {
         }
         await this.fetchAlbumIfMissing(albumId);
         return this.storageService.getAlbum(albumId);
+    }
+
+    public appendDiashow(albumId: string, mediaId: string): Promise<void> {
+        return this.storageService.appendDiashow({albumId: albumId, albumEntryId: mediaId})
+            .then();
+
+    }
+
+    public fetchNextDiashowEntry(filter?: Predicate<DiashowEntry>): Promise<DiashowEntry> {
+        return this.storageService.getRandomDiashowEntry(filter);
+    }
+
+    public async removeDiashow(albumId: string, mediaId: string): Promise<void> {
+        return this.storageService.removeDiashow({albumId: albumId, albumEntryId: mediaId})
+            .then();
+    }
+
+    public async isDiashowEnabled(albumId: string, mediaId: string): Promise<boolean> {
+        return this.storageService.containsDiashow({albumId: albumId, albumEntryId: mediaId});
     }
 }
 
