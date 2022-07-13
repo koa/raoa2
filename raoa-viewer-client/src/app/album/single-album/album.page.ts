@@ -19,16 +19,18 @@ import {
     updateSearchParams
 } from '../show-single-media/show-single-media.component';
 import {filter} from 'rxjs/operators';
-import {SingleAlbumRightPopoverMenuComponent} from './single-album-right-popover-menu/single-album-right-popover-menu.component';
+import {
+    SingleAlbumRightPopoverMenuComponent
+} from './single-album-right-popover-menu/single-album-right-popover-menu.component';
+import {MultiWindowService} from 'ngx-multi-window';
 
 
 let instanceCounter = 0;
 
-function calcTouchDist(t0: Touch, t1: Touch) {
+function calcTouchDist(t0: Touch, t1: Touch): number {
     const xDist = t0.screenX - t1.screenX;
     const yDist = t0.screenY - t1.screenY;
-    const dist = Math.sqrt(yDist * yDist + xDist * xDist);
-    return dist;
+    return Math.sqrt(yDist * yDist + xDist * xDist);
 }
 
 @Component({
@@ -52,7 +54,8 @@ export class AlbumPage implements OnInit, OnDestroy {
                 private titleService: Title,
                 private router: Router,
                 private popoverController: PopoverController,
-                private gestureController: GestureController
+                private gestureController: GestureController,
+                private multiWindowService: MultiWindowService,
     ) {
         this.filterId = 'filter-' + instanceCounter++;
     }
@@ -104,6 +107,9 @@ export class AlbumPage implements OnInit, OnDestroy {
     private queryMapSubscribe: Subscription;
     private paramMapSubscribe: Subscription;
     private albumModifiedSubscribe: Subscription;
+    public canPresent = false;
+    public selectedInDiashow: string[] = [];
+    public selectedNotDiashow: string[] = [];
 
     private static findIndizesOf(rows: Array<TableRow>, timestamp: number): [number, number, number] | undefined {
         for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
@@ -248,6 +254,15 @@ export class AlbumPage implements OnInit, OnDestroy {
             .subscribe(modifiedAlbum => {
                 this.refresh();
             });
+        this.multiWindowService.onWindows().subscribe(windows => {
+            let canPresent: boolean = false;
+            for (let window of windows) {
+                if (window.id !== this.multiWindowService.id)
+                    canPresent = true;
+            }
+            this.ngZone.run(() => this.canPresent = canPresent);
+        });
+
     }
 
     public scrollToTimestamp(timestamp: number) {
@@ -544,7 +559,7 @@ export class AlbumPage implements OnInit, OnDestroy {
 
                 this.fnCompetitionId = album.fnchAlbumId;
                 this.enableSettings = userPermissions.canManageUsers;
-                this.canEdit = userPermissions.canEdit;
+                this.canEdit = userPermissions.canEdit || userPermissions.canManageUsers;
 
             });
             await this.calculateRows();
@@ -677,12 +692,35 @@ export class AlbumPage implements OnInit, OnDestroy {
     private async refreshPossibleKeywords() {
         const [newSortedKeywords, canAddKeywords, canRemoveKeywords] = await this.adjustKeywords(this.sortedKeywords);
         const hasPendingMutations = await this.dataService.countPendingMutations(this.albumId);
+        const checkKeys = new Set<[string, string]>();
+        for (let selectedId of this.selectedEntries) {
+            checkKeys.add([this.albumId, selectedId]);
+        }
+        const foundEntries: Set<[string, string]> = await this.dataService.filterInDiashow(checkKeys);
+        const foundIds = new Set<string>();
+        for (let foundEntry of foundEntries) {
+            if (foundEntry[0] === this.albumId) {
+                foundIds.add(foundEntry[1]);
+            }
+        }
+        const selectedInDiashow: string[] = [];
+        const selectedNotDiashow: string[] = [];
+        for (let selectedId of this.selectedEntries) {
+            if (foundIds.has(selectedId))
+                selectedInDiashow.push(selectedId);
+            else
+                selectedNotDiashow.push(selectedId);
+        }
+
         this.ngZone.run(() => {
             this.canAddKeyword = canAddKeywords;
             this.canRemoveKeywords = canRemoveKeywords;
             this.sortedKeywords = newSortedKeywords;
             this.pendingMutationCount = hasPendingMutations;
+            this.selectedInDiashow = selectedInDiashow;
+            this.selectedNotDiashow = selectedNotDiashow;
         });
+
     }
 
     private selectedEntriesAsArray() {
@@ -739,6 +777,19 @@ export class AlbumPage implements OnInit, OnDestroy {
         }
     }
 
+    public async appendSelectedToDiashow() {
+        for (let selectedId of this.selectedNotDiashow) {
+            await this.dataService.appendDiashow(this.albumId, selectedId);
+        }
+        await this.refreshPossibleKeywords();
+    }
+
+    public async removeSelectedFromDiashow() {
+        for (let selectedId of this.selectedInDiashow) {
+            await this.dataService.removeDiashow(this.albumId, selectedId);
+        }
+        await this.refreshPossibleKeywords();
+    }
 }
 
 interface Shape {

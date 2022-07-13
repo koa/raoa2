@@ -63,6 +63,7 @@ export interface KeywordState {
 export interface UserPermissions {
     canManageUsers: boolean;
     canEdit: boolean;
+    lastLoaded: number;
 }
 
 export interface DeviceData {
@@ -692,6 +693,15 @@ export class StorageService extends Dexie {
             const existingEntry = await this.diashow.get([entry.albumId, entry.albumEntryId]);
             return existingEntry !== undefined;
         });
+    }
+
+    public findDiashowHits(filterEntries: Set<DiashowEntry>): Promise<DiashowEntry[]> {
+        const keys: [string, string][] = [];
+        filterEntries.forEach(entry => {
+            keys.push([entry.albumId, entry.albumEntryId]);
+        });
+        return this.transaction('r', this.diashow, () => this.diashow.bulkGet(keys));
+
     }
 }
 

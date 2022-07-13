@@ -98,6 +98,15 @@
                     <ion-input (keydown.enter)="tagAdded($event)" [(ngModel)]="newTag" type="text"></ion-input>
                 </ion-item>
             </ion-item-group>
+            <ion-item-group *ngIf="canPresent && selectedEntries.size>0">
+                <ion-item-divider>Diashow</ion-item-divider>
+                <ion-button *ngIf="selectedNotDiashow.length>0" (click)="appendSelectedToDiashow()">
+                    <ion-icon name="easel"></ion-icon>
+                </ion-button>
+                <ion-button *ngIf="selectedInDiashow.length>0" (click)="removeSelectedFromDiashow()">
+                    <ion-icon name="easel-outline"></ion-icon>
+                </ion-button>
+            </ion-item-group>
             <ion-item-group *ngIf="pendingMutationCount>0 || selectedEntries.size>0">
                 <ion-item-divider>Aktionen</ion-item-divider>
                 <ion-button [disabled]="pendingMutationCount === 0" (click)="storeMutation()">Speichern

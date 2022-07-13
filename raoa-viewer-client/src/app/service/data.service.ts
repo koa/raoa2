@@ -445,7 +445,10 @@ export class DataService {// implements OnDestroy {
 
         const storedPermissions = await this.storageService.getUserPermissions();
         if (storedPermissions !== undefined) {
-            return storedPermissions;
+            if (!navigator.onLine)
+                return storedPermissions;
+            if (storedPermissions.lastLoaded !== undefined && storedPermissions.lastLoaded > Date.now() + 5 * 60 * 1000)
+                return storedPermissions;
         }
         if (!navigator.onLine) {
             throw new Error('Offline');
@@ -454,9 +457,11 @@ export class DataService {// implements OnDestroy {
             return undefined;
         }
         const data = await this.serverApi.query<UserPermissionsQuery, UserPermissionsQueryVariables>(this.userPermissionsGQL, {});
+        if (!data) return storedPermissions;
         const ret = {
             canEdit: data.currentUser.canEdit,
-            canManageUsers: data.currentUser.canManageUsers
+            canManageUsers: data.currentUser.canManageUsers,
+            lastLoaded: Date.now()
         };
         await this.storageService.setUserPermissions(ret);
         return ret;
@@ -643,6 +648,22 @@ export class DataService {// implements OnDestroy {
 
     public async isDiashowEnabled(albumId: string, mediaId: string): Promise<boolean> {
         return this.storageService.containsDiashow({albumId: albumId, albumEntryId: mediaId});
+    }
+
+    public async filterInDiashow(selectedEntries: Set<[string, string]>): Promise<Set<[string, string]>> {
+
+        const filterEntries = new Set<DiashowEntry>();
+        selectedEntries.forEach(([album, entry]) => {
+            filterEntries.add({albumId: album, albumEntryId: entry});
+        });
+        let foundHits: DiashowEntry[] = await this.storageService.findDiashowHits(filterEntries);
+        const ret = new Set<[string, string]>();
+        foundHits.forEach(entry => {
+            if (entry !== undefined)
+                ret.add([entry.albumId, entry.albumEntryId]);
+        });
+        return ret;
+
     }
 }
 
