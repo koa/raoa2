@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-namespace=raoa-dev
+#namespace=raoa-dev
 #namespace=raoa-prod
-#namespace=raoa-lkw
+namespace=raoa-lkw
 
 cd "$(dirname "$0")"
 version=$(date "+%Y%m%d%H%M%S")
