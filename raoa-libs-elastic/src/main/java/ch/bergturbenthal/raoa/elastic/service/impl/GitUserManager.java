@@ -139,8 +139,8 @@ public class GitUserManager implements UserManager {
                         u ->
                             u.importFile(srcData.toPath(), newFilename, replaceIfExists)
                                 .flatMap(t -> u.commit(context))
-                                .filter(t -> t)
-                                .doFinally(signal -> u.close())))
+                                .flatMap(ok -> u.close().thenReturn(ok))
+                                .filter(t -> t)))
         .retryWhen(Retry.backoff(5, Duration.ofMillis(500)))
         .doFinally(signal -> srcData.delete());
   }

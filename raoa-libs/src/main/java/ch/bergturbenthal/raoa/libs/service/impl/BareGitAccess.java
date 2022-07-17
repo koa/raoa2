@@ -115,8 +115,8 @@ public class BareGitAccess implements GitAccess {
                     return writeNewMetadata(
                             updatedMeta,
                             Updater.CommitContext.builder().message("set album id").build())
-                        .doOnNext(Updater::close)
-                        .map(updater -> updatedMeta);
+                        .flatMap(Updater::close)
+                        .thenReturn(updatedMeta);
                   } else {
                     return Mono.just(data);
                   }
@@ -138,8 +138,8 @@ public class BareGitAccess implements GitAccess {
                                           Updater.CommitContext.builder()
                                               .message("create metadata")
                                               .build())
-                                      .doOnNext(Updater::close)
-                                      .map(updater -> newMetadata);
+                                      .flatMap(Updater::close)
+                                      .thenReturn(newMetadata);
                                 })))
             .retryWhen(Retry.backoff(5, Duration.ofMillis(500)))
             .cache(Duration.ofMillis(100));
@@ -461,8 +461,16 @@ public class BareGitAccess implements GitAccess {
       private boolean modified = false;
 
       @Override
-      public void close() {
-        if (!isBareRepository) dirCache.unlock();
+      public Mono<Void> close() {
+        if (!isBareRepository)
+          return asyncService
+              .asyncMono(
+                  () -> {
+                    dirCache.unlock();
+                    return "";
+                  })
+              .then();
+        return Mono.empty();
       }
 
       @Override

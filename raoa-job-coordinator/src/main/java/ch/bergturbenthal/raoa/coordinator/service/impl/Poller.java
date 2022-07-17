@@ -29,6 +29,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 import reactor.function.TupleUtils;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
@@ -51,6 +53,8 @@ public class Poller {
       Collections.synchronizedMap(new LRUMap<>(50));
   private final CommitJobRepository commitJobRepository;
   private final UploadFilenameService uploadFilenameService;
+
+  private final Scheduler pollerScheduler = Schedulers.boundedElastic();
 
   public Poller(
       final AlbumList albumList,
@@ -478,15 +482,17 @@ public class Poller {
   public void runCommits() {
     try {
       resetJobStates
+          .timeout(Duration.ofMinutes(10))
           .thenMany(
               commitJobRepository
                   .findByCurrentPhase(CommitJob.State.READY)
                   .flatMap(this::runCommit, 1))
-          .blockLast(Duration.ofMinutes(20));
+          .timeout(Duration.ofMinutes(20))
+          .blockLast();
     } catch (Exception ex) {
       log.warn("Cannot commit", ex);
       try {
-        resetJobStates().block();
+        resetJobStates().log("reset after fail").block();
       } catch (Exception ex2) {
         log.warn("Cannot reset failed jobs", ex2);
       }
@@ -522,6 +528,7 @@ public class Poller {
   private Mono<CommitJob> runCommit(CommitJob job) {
     return executeCommit(job)
         .buffer(Duration.ofSeconds(1))
+        .publishOn(pollerScheduler)
         .filter(b -> !b.isEmpty())
         .map(buffer -> buffer.get(buffer.size() - 1))
         .flatMap(commitJobRepository::save, 1)
@@ -544,31 +551,34 @@ public class Poller {
           return Flux.concat(
                   Flux.fromIterable(job.getFiles())
                       .index()
+                      // .log("source file")
                       .flatMap(
                           TupleUtils.function(
                               (index, file) -> {
                                 final File tempUploadFile =
                                     uploadFilenameService.createTempUploadFile(file.getFileId());
                                 if (!tempUploadFile.exists()) {
-                                  return Mono.error(
-                                      new RuntimeException(
-                                          "Missing uploaded file: "
-                                              + file.getFileId()
-                                              + " ("
-                                              + file.getFilename()
-                                              + ")"));
+                                  final String message =
+                                      "Missing uploaded file: "
+                                          + file.getFileId()
+                                          + " ("
+                                          + file.getFilename()
+                                          + ")";
+                                  log.warn(message);
+                                  return Mono.error(new RuntimeException(message));
                                 }
                                 if (tempUploadFile.length() != file.getSize()) {
-                                  return Mono.error(
-                                      new RuntimeException(
-                                          "Wrong file size on "
-                                              + file.getFileId()
-                                              + " ("
-                                              + file.getFilename()
-                                              + "): expected "
-                                              + file.getSize()
-                                              + ", actual: "
-                                              + tempUploadFile.length()));
+                                  final String message =
+                                      "Wrong file size on "
+                                          + file.getFileId()
+                                          + " ("
+                                          + file.getFilename()
+                                          + "): expected "
+                                          + file.getSize()
+                                          + ", actual: "
+                                          + tempUploadFile.length();
+                                  log.warn(message);
+                                  return Mono.error(new RuntimeException(message));
                                 }
                                 return importer
                                     .importFileIntoRepository(
@@ -582,9 +592,14 @@ public class Poller {
                                                 .currentStep(index.intValue())
                                                 .totalStepCount(fileCount)
                                                 .lastModified(Instant.now())
-                                                .build());
+                                                .build())
+                                    .doOnError(
+                                        ex ->
+                                            log.warn(
+                                                "Cannot import file " + file.getFilename(), ex));
                               }),
-                          1),
+                          1)
+                      .doFinally(signal -> log.info("imported all files " + signal)),
                   Flux.just(
                       stateBuilder
                           .currentPhase(CommitJob.State.WRITE_TREE)
@@ -594,6 +609,7 @@ public class Poller {
                           .build()),
                   importer
                       .commitAll()
+                      // .log("commit all")
                       .map(
                           ok ->
                               stateBuilder
@@ -611,7 +627,12 @@ public class Poller {
                             .lastModified(Instant.now())
                             .build());
                   })
-              .doFinally(signal -> importer.close());
+              .publishOn(Schedulers.boundedElastic())
+              .doFinally(
+                  signal ->
+                      importer
+                          .close()
+                          .subscribe(never -> {}, ex -> log.warn("Cannot close importer")));
         });
   }
 }

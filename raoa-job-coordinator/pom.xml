@@ -9,7 +9,7 @@
         <version>0.0.19-SNAPSHOT</version>
     </parent>
     <dependencies>
-        <dependency>
+         <dependency>
             <groupId>ch.bergturbenthal.raoa2</groupId>
             <artifactId>raoa-libs-elastic</artifactId>
             <version>0.0.19-SNAPSHOT</version>

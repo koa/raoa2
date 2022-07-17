@@ -157,15 +157,13 @@ public class BareAlbumList implements AlbumList {
           Collections.synchronizedMap(new HashMap<>());
 
       @Override
-      public void close() {
-        for (Updater updater :
-            Flux.fromIterable(pendingUpdaters.keySet())
-                .map(k -> Optional.ofNullable(pendingUpdaters.remove(k)))
-                .filter(Optional::isPresent)
-                .flatMap(Optional::get, 3)
-                .toIterable()) {
-          updater.close();
-        }
+      public Mono<Void> close() {
+        return Flux.fromIterable(pendingUpdaters.keySet())
+            .map(k -> Optional.ofNullable(pendingUpdaters.remove(k)))
+            .filter(Optional::isPresent)
+            .flatMap(Optional::get, 3)
+            .flatMap(Updater::close)
+            .then();
       }
 
       public @NotNull Mono<Tuple2<UUID, ObjectId>> importFile(final Path file) {
