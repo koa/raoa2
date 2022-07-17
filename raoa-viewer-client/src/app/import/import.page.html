@@ -27,7 +27,7 @@
                     </ion-card-subtitle>
                 </ion-card-header>
                 <ion-card-content>
-                    <ion-button *ngIf="!uploading && statEntry.uploaded>0"
+                    <ion-button *ngIf="statEntry.uploaded>0"
                                 (click)="commit(statEntry.albumId)">{{statEntry.uploaded}} Commit
                     </ion-button>
                     <ion-button *ngIf="statEntry.committed>0"

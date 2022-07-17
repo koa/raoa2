@@ -195,7 +195,7 @@ export class ImportPage implements OnInit, OnDestroy {
                     this.startRefreshCommit();
                 }
             }
-        }, 500);
+        }, 5000);
     }
 
     async selectDirectory() {
@@ -295,18 +295,20 @@ export class ImportPage implements OnInit, OnDestroy {
             allUploadedFiles.push(statEntry);
         });
         const pendingIdentifies: Promise<[UploadedFileEntry, string]>[] = [];
+        const identifiedFiles: [UploadedFileEntry, string][] = [];
         for (const uploadedFile of allUploadedFiles) {
 
             if (this.identifiedAlbums.has(uploadedFile.fileId)) {
                 const albumId = this.identifiedAlbums.get(uploadedFile.fileId);
-                pendingIdentifies.push(Promise.resolve([uploadedFile, albumId]));
+                identifiedFiles.push([uploadedFile, albumId]);
             } else {
                 const currentState = await uploadedFile.sourceDirectory.queryPermission(READ_PERMISSION);
                 if (currentState !== 'granted') {
                     continue;
                 }
+                let sourceFile: FileSystemFileHandle = uploadedFile.sourceFile;
                 try {
-                    const file = await uploadedFile.sourceFile.getFile();
+                    const file = await sourceFile.getFile();
                     pendingIdentifies.push(this.serverApiService.query<ImportIdentifyFileQuery, ImportIdentifyFileQueryVariables>(
                         this.importIdentifyFileGQL, {
                             file: {
@@ -327,11 +329,21 @@ export class ImportPage implements OnInit, OnDestroy {
                         this.identifiedAlbums.set(uploadedFile.fileId, identifiedAlbumId);
                         return [uploadedFile, identifiedAlbumId];
                     }));
+                    if (pendingIdentifies.length > 10) {
+                        for (let identifyResult of await Promise.all(pendingIdentifies)) {
+                            identifiedFiles.push(identifyResult);
+                        }
+                        pendingIdentifies.length = 0;
+                    }
                 } catch (e) {
-                    console.log('Error on file', uploadedFile.sourceFile.name, e);
+                    console.error('Error on file', sourceFile.name, e);
                 }
             }
         }
+        for (let identifyResult of await Promise.all(pendingIdentifies)) {
+            identifiedFiles.push(identifyResult);
+        }
+        pendingIdentifies.length = 0;
         const autocommitAlbum = new Set<string>();
         for (const importStatisticsEntry of this.uploadedStatisticsList) {
             if (importStatisticsEntry.commitAfterUpload) {
@@ -339,7 +351,7 @@ export class ImportPage implements OnInit, OnDestroy {
             }
         }
         const statPerAlbum: Map<string, ImportStatisticsEntry> = new Map<string, ImportStatisticsEntry>();
-        for (const [uploadedFile, albumId] of await Promise.all(pendingIdentifies)) {
+        for (const [uploadedFile, albumId] of identifiedFiles) {
             if (albumId) {
                 let statOfAlbum: ImportStatisticsEntry;
                 if (statPerAlbum.has(albumId)) {
