@@ -527,7 +527,7 @@ public class Poller {
 
   private Mono<CommitJob> runCommit(CommitJob job) {
     return executeCommit(job)
-        .buffer(Duration.ofSeconds(1))
+        .buffer(Duration.ofSeconds(5))
         .publishOn(pollerScheduler)
         .filter(b -> !b.isEmpty())
         .map(buffer -> buffer.get(buffer.size() - 1))
