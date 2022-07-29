@@ -132,12 +132,12 @@
             <ion-card-title>Photos Importieren</ion-card-title>
         </ion-card-header>
     </ion-card>
-    <ion-card>
-        <ion-card-header *ngIf="userState?.currentUser?.canManageUsers" routerLink="/sync">
+    <ion-card *ngIf="userState?.currentUser?.canManageUsers">
+        <ion-card-header routerLink="/sync">
             <ion-card-title>Photos synchronisieren</ion-card-title>
         </ion-card-header>
     </ion-card>
-    <ion-card>
+    <ion-card *ngIf="userState?.authenticationState== 'AUTHORIZED'">
         <ion-card-header routerLink="/presentation">
             <ion-card-title>Präsentationsfenster</ion-card-title>
         </ion-card-header>
