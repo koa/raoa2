@@ -39,6 +39,7 @@ function calcTouchDist(t0: Touch, t1: Touch): number {
     styleUrls: ['./album.page.css'],
 })
 export class AlbumPage implements OnInit, OnDestroy {
+    private scrollToTimerHandler: number;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
@@ -138,6 +139,10 @@ export class AlbumPage implements OnInit, OnDestroy {
         this.queryMapSubscribe?.unsubscribe();
         this.paramMapSubscribe?.unsubscribe();
         this.albumModifiedSubscribe?.unsubscribe();
+        if (this.scrollToTimerHandler !== undefined) {
+            window.clearTimeout(this.scrollToTimerHandler);
+            this.scrollToTimerHandler = undefined;
+        }
     }
 
     public async resized() {
@@ -255,10 +260,11 @@ export class AlbumPage implements OnInit, OnDestroy {
                 this.refresh();
             });
         this.multiWindowService.onWindows().subscribe(windows => {
-            let canPresent: boolean = false;
-            for (let window of windows) {
-                if (window.id !== this.multiWindowService.id)
+            let canPresent = false;
+            for (const window of windows) {
+                if (window.id !== this.multiWindowService.id) {
                     canPresent = true;
+                }
             }
             this.ngZone.run(() => this.canPresent = canPresent);
         });
@@ -267,14 +273,21 @@ export class AlbumPage implements OnInit, OnDestroy {
 
     public scrollToTimestamp(timestamp: number) {
         this.timestamp = timestamp;
+        if (this.scrollToTimerHandler !== undefined) {
+            window.clearTimeout(this.scrollToTimerHandler);
+        }
         const foundIndices = AlbumPage.findIndizesOf(this.rows, timestamp);
         if (foundIndices !== undefined) {
             const rowIndex = foundIndices[0];
             const blockIndex = foundIndices[1];
             // console.log('scroll to ' + rowIndex + ', ' + blockIndex);
             // const shapeIndex = foundIndices[2];
-            window.setTimeout(() => {
-                const rowElement = document.getElementById('row-' + rowIndex);
+            this.scrollToTimerHandler = window.setTimeout(() => {
+                const rowElement: HTMLElement = document.getElementById('row-' + rowIndex);
+                if (rowElement === null) {
+                    console.log('row not found', timestamp, rowIndex);
+                    return;
+                }
                 const observer = new MutationObserver((mutations => {
                     const blockElement = document.getElementById('block-' + rowIndex + '-' + blockIndex);
                     if (blockElement) {
@@ -693,23 +706,24 @@ export class AlbumPage implements OnInit, OnDestroy {
         const [newSortedKeywords, canAddKeywords, canRemoveKeywords] = await this.adjustKeywords(this.sortedKeywords);
         const hasPendingMutations = await this.dataService.countPendingMutations(this.albumId);
         const checkKeys = new Set<[string, string]>();
-        for (let selectedId of this.selectedEntries) {
+        for (const selectedId of this.selectedEntries) {
             checkKeys.add([this.albumId, selectedId]);
         }
         const foundEntries: Set<[string, string]> = await this.dataService.filterInDiashow(checkKeys);
         const foundIds = new Set<string>();
-        for (let foundEntry of foundEntries) {
+        for (const foundEntry of foundEntries) {
             if (foundEntry[0] === this.albumId) {
                 foundIds.add(foundEntry[1]);
             }
         }
         const selectedInDiashow: string[] = [];
         const selectedNotDiashow: string[] = [];
-        for (let selectedId of this.selectedEntries) {
-            if (foundIds.has(selectedId))
+        for (const selectedId of this.selectedEntries) {
+            if (foundIds.has(selectedId)) {
                 selectedInDiashow.push(selectedId);
-            else
+            } else {
                 selectedNotDiashow.push(selectedId);
+            }
         }
 
         this.ngZone.run(() => {
@@ -778,14 +792,14 @@ export class AlbumPage implements OnInit, OnDestroy {
     }
 
     public async appendSelectedToDiashow() {
-        for (let selectedId of this.selectedNotDiashow) {
+        for (const selectedId of this.selectedNotDiashow) {
             await this.dataService.appendDiashow(this.albumId, selectedId);
         }
         await this.refreshPossibleKeywords();
     }
 
     public async removeSelectedFromDiashow() {
-        for (let selectedId of this.selectedInDiashow) {
+        for (const selectedId of this.selectedInDiashow) {
             await this.dataService.removeDiashow(this.albumId, selectedId);
         }
         await this.refreshPossibleKeywords();
