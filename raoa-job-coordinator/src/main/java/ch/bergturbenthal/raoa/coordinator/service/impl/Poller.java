@@ -487,7 +487,7 @@ public class Poller {
               commitJobRepository
                   .findByCurrentPhase(CommitJob.State.READY)
                   .flatMap(this::runCommit, 1))
-          .timeout(Duration.ofMinutes(20))
+          .timeout(Duration.ofHours(2))
           .blockLast();
     } catch (Exception ex) {
       log.warn("Cannot commit", ex);
