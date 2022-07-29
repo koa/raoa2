@@ -683,7 +683,10 @@ public class DefaultProcessor implements Processor {
                         );
               }
 
-              return Flux.concat(imgResult, videoResult).map(Tuple2::getT2).all(ok -> ok)
+              return Flux.concat(imgResult, videoResult)
+                  .map(Tuple2::getT2)
+                  .all(ok -> ok)
+                  .defaultIfEmpty(true)
               // .log("all :" + targetLength)
               ;
             },
