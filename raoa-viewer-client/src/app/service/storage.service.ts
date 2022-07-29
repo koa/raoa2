@@ -77,6 +77,7 @@ export interface UploadedFileEntry {
     size: number;
     commitEnqueued: string;
     committed: boolean;
+    filename: string;
 }
 
 export interface DiashowEntry {
@@ -93,7 +94,7 @@ export class StorageService extends Dexie {
 
     constructor() {
         super('RaoaDatabase');
-        this.version(8)
+        this.version(9)
             .stores({
                 albumData: 'id',
                 albumSettings: 'id, offlineSyncedVersion',

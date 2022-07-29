@@ -257,13 +257,15 @@ export class ImportPage implements OnInit, OnDestroy {
                     const postProcess = async () => {
                         uploadedSize += data.size;
                         this.ngZone.run(() => this.uploadOverallProgress = uploadedSize / totalSize);
+                        const filename = data.name;
                         const identifiedFile: UploadedFileEntry = {
                             fileId: result.fileId,
                             sourceDirectory: item[1],
                             sourceFile: item[0],
                             size: result.byteCount,
                             committed: false,
-                            commitEnqueued: undefined
+                            commitEnqueued: undefined,
+                            filename
                         };
                         await this.storageService.storeUploadedFileEntry([identifiedFile]);
                         await this.updateUploadStats();
@@ -469,9 +471,9 @@ export class ImportPage implements OnInit, OnDestroy {
             });
             const files: ImportFile[] = [];
             for (const uploadedFile of filesOfAlbum) {
-                const file = await uploadedFile.sourceFile.getFile();
-                const nextSize = takenSize + file.size;
-                files.push({fileId: uploadedFile.fileId, filename: uploadedFile.sourceFile.name, size: file.size});
+                const size = uploadedFile.size;
+                const nextSize = takenSize + size;
+                files.push({fileId: uploadedFile.fileId, filename: uploadedFile.filename, size});
                 takenSize = nextSize;
             }
             if (files.length === 0) {
