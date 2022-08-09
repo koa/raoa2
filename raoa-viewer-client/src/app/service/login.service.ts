@@ -6,6 +6,7 @@ import {AuthConfig, OAuthService} from 'angular-oauth2-oidc';
 import {JwksValidationHandler} from 'angular-oauth2-oidc-jwks';
 import {Observable, Subscriber} from 'rxjs';
 import {share} from 'rxjs/operators';
+import * as Sentry from "@sentry/browser";
 
 
 interface CachedAuth {
@@ -111,6 +112,7 @@ export class LoginService {
         await this.oAuthService.loadDiscoveryDocumentAndTryLogin({
             onTokenReceived: context => {
                 const jwtContent = this.auth();
+                Sentry.setUser({email: jwtContent.email, username: jwtContent.name});
                 if (jwtContent && this.loginSubscribe) {
                     this.loginSubscribe.next(jwtContent);
                 }
