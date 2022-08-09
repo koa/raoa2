@@ -112,6 +112,9 @@ export class AlbumPage implements OnInit, OnDestroy {
     public selectedInDiashow: string[] = [];
     public selectedNotDiashow: string[] = [];
 
+    private currentUpdateTimer: undefined | number = undefined;
+    private lastUpdateTime = Date.now();
+
     private static findIndizesOf(rows: Array<TableRow>, timestamp: number): [number, number, number] | undefined {
         for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
             const row = rows[rowIndex];
@@ -170,6 +173,20 @@ export class AlbumPage implements OnInit, OnDestroy {
         const foundTimestamp = this.findCurrentTimestamp();
         if (foundTimestamp !== undefined) {
             this.timestamp = foundTimestamp;
+            const nextPossibleUpdateTime = this.lastUpdateTime + 5000;
+            let now: number = Date.now();
+            if (now > nextPossibleUpdateTime) {
+                this.setParam('timestamp', this.timestamp.toString());
+                this.lastUpdateTime = now;
+            } else {
+                if (this.currentUpdateTimer === undefined) {
+                    this.currentUpdateTimer = setTimeout(() => {
+                        this.setParam('timestamp', this.timestamp.toString());
+                        this.currentUpdateTimer = undefined;
+                        this.lastUpdateTime = Date.now();
+                    }, nextPossibleUpdateTime - now);
+                }
+            }
         }
         this.lastScrollPos = detail.scrollTop;
     }
@@ -491,9 +508,7 @@ export class AlbumPage implements OnInit, OnDestroy {
             }
         }
         if (bestElement) {
-            const foundTimestamp = Number.parseInt(bestElement.getAttribute('timestamp'), 10);
-            this.setParam('timestamp', foundTimestamp.toString());
-            return foundTimestamp;
+            return Number.parseInt(bestElement.getAttribute('timestamp'), 10);
         }
         return undefined;
     }
