@@ -2,18 +2,11 @@
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
   "defaultProject": "app",
-  "newProjectRoot": "projects",
-  "projects": {
+  "newProjectRoot": "projects", "projects": {
     "app": {
-      "root": "",
-      "sourceRoot": "src",
-      "projectType": "application",
-      "prefix": "app",
-      "schematics": {},
-      "architect": {
+      "root": "", "sourceRoot": "src", "projectType": "application", "prefix": "app", "schematics": {}, "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:browser",
-          "options": {
+          "builder": "@angular-devkit/build-angular:browser", "options": {
             "outputPath": "www",
             "index": "src/index.html",
             "main": "src/main.ts",
@@ -21,22 +14,15 @@
             "tsConfig": "tsconfig.app.json",
             "assets": [
               {
-                "glob": "**/*",
-                "input": "src/assets",
-                "output": "assets"
-              },
-              {
-                "glob": "**/*.svg",
-                "input": "node_modules/ionicons/dist/ionicons/svg",
-                "output": "./svg"
-              },
-              "src/manifest.webmanifest"
+                "glob": "**/*", "input": "src/assets", "output": "assets"
+              }, {
+                "glob": "**/*.svg", "input": "node_modules/ionicons/dist/ionicons/svg", "output": "./svg"
+              }, "src/manifest.webmanifest"
             ],
             "styles": [
               {
                 "input": "src/theme/variables.scss"
-              },
-              {
+              }, {
                 "input": "src/global.scss"
               }
             ],
@@ -53,61 +39,47 @@
             "namedChunks": true,
             "serviceWorker": true,
             "ngswConfigPath": "ngsw-config.json"
-          },
-          "configurations": {
+          }, "configurations": {
             "production": {
               "fileReplacements": [
                 {
-                  "replace": "src/environments/environment.ts",
-                  "with": "src/environments/environment.prod.ts"
+                  "replace": "src/environments/environment.ts", "with": "src/environments/environment.prod.ts"
                 }
               ],
               "optimization": true,
               "outputHashing": "all",
-              "sourceMap": false,
+              "sourceMap": true,
               "namedChunks": false,
               "aot": true,
               "extractLicenses": true,
               "vendorChunk": false,
-              "buildOptimizer": true,
+              "buildOptimizer": false,
               "budgets": [
                 {
-                  "type": "initial",
-                  "maximumWarning": "2mb",
-                  "maximumError": "5mb"
+                  "type": "initial", "maximumWarning": "2mb", "maximumError": "5mb"
                 }
               ],
               "serviceWorker": true,
               "ngswConfigPath": "ngsw-config.json"
-            },
-            "ci": {
+            }, "ci": {
               "progress": false
             }
-          },
-          "defaultConfiguration": ""
-        },
-        "serve": {
-          "builder": "@angular-devkit/build-angular:dev-server",
-          "options": {
+          }, "defaultConfiguration": ""
+        }, "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server", "options": {
             "browserTarget": "app:build"
-          },
-          "configurations": {
+          }, "configurations": {
             "production": {
               "browserTarget": "app:build:production"
-            },
-            "ci": {
+            }, "ci": {
             }
           }
-        },
-        "extract-i18n": {
-          "builder": "@angular-devkit/build-angular:extract-i18n",
-          "options": {
+        }, "extract-i18n": {
+          "builder": "@angular-devkit/build-angular:extract-i18n", "options": {
             "browserTarget": "app:build"
           }
-        },
-        "test": {
-          "builder": "@angular-devkit/build-angular:karma",
-          "options": {
+        }, "test": {
+          "builder": "@angular-devkit/build-angular:karma", "options": {
             "main": "src/test.ts",
             "polyfills": "src/polyfills.ts",
             "tsConfig": "tsconfig.spec.json",
@@ -116,61 +88,40 @@
             "scripts": [],
             "assets": [
               {
-                "glob": "favicon.ico",
-                "input": "src/",
-                "output": "/"
-              },
-              {
-                "glob": "**/*",
-                "input": "src/assets",
-                "output": "/assets"
-              },
-              "src/manifest.webmanifest"
+                "glob": "favicon.ico", "input": "src/", "output": "/"
+              }, {
+                "glob": "**/*", "input": "src/assets", "output": "/assets"
+              }, "src/manifest.webmanifest"
             ]
-          },
-          "configurations": {
+          }, "configurations": {
             "ci": {
-              "progress": false,
-              "watch": false
+              "progress": false, "watch": false
             }
           }
-        },
-        "e2e": {
-          "builder": "@angular-devkit/build-angular:protractor",
-          "options": {
-            "protractorConfig": "e2e/protractor.conf.js",
-            "devServerTarget": "app:serve"
-          },
-          "configurations": {
+        }, "e2e": {
+          "builder": "@angular-devkit/build-angular:protractor", "options": {
+            "protractorConfig": "e2e/protractor.conf.js", "devServerTarget": "app:serve"
+          }, "configurations": {
             "production": {
               "devServerTarget": "app:serve:production"
-            },
-            "ci": {
+            }, "ci": {
               "devServerTarget": "app:serve:ci"
             }
           }
-        },
-        "ionic-cordova-build": {
-          "builder": "@ionic/angular-toolkit:cordova-build",
-          "options": {
+        }, "ionic-cordova-build": {
+          "builder": "@ionic/angular-toolkit:cordova-build", "options": {
             "browserTarget": "app:build"
-          },
-          "configurations": {
+          }, "configurations": {
             "production": {
               "browserTarget": "app:build:production"
             }
           }
-        },
-        "ionic-cordova-serve": {
-          "builder": "@ionic/angular-toolkit:cordova-serve",
-          "options": {
-            "cordovaBuildTarget": "app:ionic-cordova-build",
-            "devServerTarget": "app:serve"
-          },
-          "configurations": {
+        }, "ionic-cordova-serve": {
+          "builder": "@ionic/angular-toolkit:cordova-serve", "options": {
+            "cordovaBuildTarget": "app:ionic-cordova-build", "devServerTarget": "app:serve"
+          }, "configurations": {
             "production": {
-              "cordovaBuildTarget": "app:ionic-cordova-build:production",
-              "devServerTarget": "app:serve:production"
+              "cordovaBuildTarget": "app:ionic-cordova-build:production", "devServerTarget": "app:serve:production"
             }
           }
         }
@@ -178,14 +129,12 @@
     }
   },
   "cli": {
-    "defaultCollection": "@ionic/angular-toolkit",
-    "analytics": "7b4c20ed-a32a-45a1-8765-5948a5f1bab7"
+    "defaultCollection": "@ionic/angular-toolkit", "analytics": "7b4c20ed-a32a-45a1-8765-5948a5f1bab7"
   },
   "schematics": {
     "@ionic/angular-toolkit:component": {
       "styleext": "scss"
-    },
-    "@ionic/angular-toolkit:page": {
+    }, "@ionic/angular-toolkit:page": {
       "styleext": "scss"
     }
   }
