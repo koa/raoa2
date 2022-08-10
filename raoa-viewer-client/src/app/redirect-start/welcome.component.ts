@@ -22,6 +22,7 @@ import {FNCH_COMPETITION_ID, FNCH_COMPETITOR_ID} from '../constants';
 import {DataService, SyncProgress} from '../service/data.service';
 import {bufferTime, filter, map} from 'rxjs/operators';
 import {Subscription} from 'rxjs';
+import {environment} from '../../environments/environment';
 
 interface FnchEvent {
     pruefungen: FnchCompetition[];
@@ -67,6 +68,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     private albumSubscriber: Subscription;
     public syncOfflineSubscription: Subscription;
     public estimation: StorageEstimate;
+    public version = environment.version;
 
     constructor(private router: Router,
                 private menu: MenuController,
