@@ -1,6 +1,6 @@
 import {Component, NgZone, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {Router} from '@angular/router';
-import {IonInput, LoadingController, MenuController, ToastController} from '@ionic/angular';
+import {AlertController, IonInput, LoadingController, MenuController, ToastController} from '@ionic/angular';
 import {CommonServerApiService} from '../service/common-server-api.service';
 import {
     AuthenticationId,
@@ -23,6 +23,7 @@ import {DataService, SyncProgress} from '../service/data.service';
 import {bufferTime, filter, map} from 'rxjs/operators';
 import {Subscription} from 'rxjs';
 import {environment} from '../../environments/environment';
+import {SwUpdate} from '@angular/service-worker';
 
 interface FnchEvent {
     pruefungen: FnchCompetition[];
@@ -84,7 +85,9 @@ export class WelcomeComponent implements OnInit, OnDestroy {
                 private toastController: ToastController,
                 private httpClient: HttpClient,
                 private dataService: DataService,
-                private menuController: MenuController
+                private menuController: MenuController,
+                private updates: SwUpdate,
+                private alertController: AlertController
     ) {
     }
 
@@ -103,6 +106,19 @@ export class WelcomeComponent implements OnInit, OnDestroy {
             .subscribe(updates => {
                 this.adjustPhotoCounters();
             });
+        this.updates.available.subscribe(async event => {
+            const alert = await this.alertController.create({
+                header: 'Update',
+                subHeader: environment.version,
+                message: 'Eine neue Version liegt bereit',
+                buttons: [{
+                    text: 'Aktualisieren', role: 'confirm', handler: () => {
+                        this.updates.activateUpdate().then(() => document.location.reload());
+                    }
+                }, {text: "Ignorieren", role: "cancel"}],
+            });
+            await alert.present();
+        });
     }
 
     public ngOnDestroy() {
