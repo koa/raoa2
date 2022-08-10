@@ -459,8 +459,8 @@ export class DataService {// implements OnDestroy {
         const data = await this.serverApi.query<UserPermissionsQuery, UserPermissionsQueryVariables>(this.userPermissionsGQL, {});
         if (!data) return storedPermissions;
         const ret = {
-            canEdit: data.currentUser.canEdit,
-            canManageUsers: data.currentUser.canManageUsers,
+            canEdit: data.currentUser?.canEdit || false,
+            canManageUsers: data.currentUser?.canManageUsers || false,
             lastLoaded: Date.now()
         };
         await this.storageService.setUserPermissions(ret);

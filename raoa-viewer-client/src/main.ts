@@ -8,10 +8,12 @@ import {BrowserTracing} from '@sentry/tracing';
 
 Sentry.init({
     dsn: 'https://f4e4377bc9914840a7b747b98a127fdc@o1277317.ingest.sentry.io/6474750',
+    ignoreErrors: ['ResizeObserver loop limit exceeded'],
     integrations: [
         new BrowserTracing({
             tracingOrigins: ['localhost', 'https://photos.teamkoenig.ch/', 'https://photos.berg-turbenthal.ch/'],
             routingInstrumentation: Sentry.routingInstrumentation,
+
         }),
     ],
 
