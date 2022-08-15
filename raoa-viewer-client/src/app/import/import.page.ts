@@ -93,8 +93,7 @@ export class ImportPage implements OnInit, OnDestroy {
     public newAlbumParent = '';
     public newAlbumName = '';
     public newAlbumTimestamp = '';
-    public currentFileName = '';
-    public uploadFileProgress = 0;
+    public uploadFileProgress = new Map<string, number>();
     public importedFiles: ImportResult[] = [];
     public commitState: Map<string, ServerCommitState[]> = new Map<string, ServerCommitState[]>();
 
@@ -235,17 +234,22 @@ export class ImportPage implements OnInit, OnDestroy {
                     }
                 }
                 pendingSize += data.size;
-                this.ngZone.run(() => this.currentFileName = item[0].name);
+                this.ngZone.run(() => {
+                    this.uploadFileProgress.set(item[0].name, 0);
+                });
                 const promise = new Promise<UploadResult>((resolve, reject) => {
                     this.httpClient.post(`/rest/import/${item[0].name}`, data, {reportProgress: true, observe: 'events'}).pipe(retry(3))
                         .subscribe((event: HttpEvent<UploadResult>) => {
                             switch (event.type) {
                                 case HttpEventType.Response:
                                     resolve(event.body);
+                                    this.ngZone.run(() => {
+                                        this.uploadFileProgress.delete(item[0].name);
+                                    });
                                     break;
                                 case HttpEventType.UploadProgress:
                                     this.ngZone.run(() => {
-                                        this.uploadFileProgress = event.loaded / event.total;
+                                        this.uploadFileProgress.set(item[0].name, event.loaded / event.total);
                                         this.uploadOverallProgress = (event.loaded + uploadedSize) / totalSize;
                                     });
                                     break;
@@ -275,7 +279,7 @@ export class ImportPage implements OnInit, OnDestroy {
                         }
                         return Promise.resolve();
                     }));
-                if (results.length > 10 || pendingSize > 1024 * 1024 * 1024) {
+                if (results.length > 20 || pendingSize > 3 * 1024 * 1024 * 1024) {
                     await Promise.all(results);
                     results.length = 0;
                     pendingSize = 0;
@@ -285,9 +289,8 @@ export class ImportPage implements OnInit, OnDestroy {
             await Promise.all(results);
             await this.updateUploadStats();
             this.ngZone.run(() => {
-                this.currentFileName = '';
                 this.uploadOverallProgress = 0;
-                this.uploadFileProgress = 0;
+                this.uploadFileProgress.clear();
             });
             await this.updateUploadStats();
             for (const albumData of this.uploadedStatisticsList) {

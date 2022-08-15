@@ -17,9 +17,15 @@
                         (click)="cleanAllPendingUploads()">Uploads zurücksetzen
             </ion-button>
             <ion-button *ngIf="uploadOverallProgress===0" (click)="selectDirectory()">Verzeichnis wählen</ion-button>
-            <ion-label *ngIf="this.currentFileName.length>0">{{this.currentFileName}}</ion-label>
-            <ion-progress-bar *ngIf="uploadFileProgress>0" [value]="uploadFileProgress"></ion-progress-bar>
-            <ion-progress-bar *ngIf="uploadOverallProgress>0" [value]="uploadOverallProgress"></ion-progress-bar>
+            <div *ngIf="uploadOverallProgress>0" style="height: 60em">
+                <ion-label>Overall</ion-label>
+                <ion-progress-bar [value]="uploadOverallProgress"></ion-progress-bar>
+                <div *ngFor="let progress of uploadFileProgress | keyvalue">
+                    <ion-label>{{progress.key}}</ion-label>
+                    <ion-progress-bar
+                            [value]="progress.value"></ion-progress-bar>
+                </div>
+            </div>
             <ion-card *ngFor="let statEntry of uploadedStatisticsList">
                 <ion-card-header>
                     <ion-card-title>{{statEntry.albumName}}</ion-card-title>
