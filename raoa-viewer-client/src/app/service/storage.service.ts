@@ -78,6 +78,7 @@ export interface UploadedFileEntry {
     commitEnqueued: string;
     committed: boolean;
     filename: string;
+    suggestedAlbum: string;
 }
 
 export interface DiashowEntry {
@@ -94,7 +95,7 @@ export class StorageService extends Dexie {
 
     constructor() {
         super('RaoaDatabase');
-        this.version(9)
+        this.version(10)
             .stores({
                 albumData: 'id',
                 albumSettings: 'id, offlineSyncedVersion',
@@ -673,13 +674,15 @@ export class StorageService extends Dexie {
             this.diashow,
             async () => {
                 const count = await this.diashow.count();
-                if (count === 0)
+                if (count === 0) {
                     return undefined;
-                for (let number of [0, 1, 2, 3, 4]) {
+                }
+                for (const number of [0, 1, 2, 3, 4]) {
                     const index = Math.round(Math.random() * count);
                     const candidate = await this.diashow.offset(index).first();
-                    if (candidate === undefined)
+                    if (candidate === undefined) {
                         continue;
+                    }
                     if (filter === undefined || filter(candidate)) {
                         return candidate;
                     }

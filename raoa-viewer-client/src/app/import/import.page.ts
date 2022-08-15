@@ -11,9 +11,6 @@ import {
     ImportCreateAlbumMutationVariables,
     ImportedFile,
     ImportFile,
-    ImportIdentifyFileGQL,
-    ImportIdentifyFileQuery,
-    ImportIdentifyFileQueryVariables,
     ImportListAlbumGQL,
     ImportListAlbumQuery,
     ImportListAlbumQueryVariables,
@@ -27,10 +24,12 @@ import {LoadingController, MenuController, ToastController} from '@ionic/angular
 import {HttpClient, HttpEvent, HttpEventType} from '@angular/common/http';
 import {StorageService, UploadedFileEntry} from '../service/storage.service';
 import {DataService} from '../service/data.service';
+import {retry} from 'rxjs';
 
 interface UploadResult {
     byteCount: number;
     fileId: string;
+    suggestedAlbum: string;
 }
 
 interface ImportResult {
@@ -103,14 +102,12 @@ export class ImportPage implements OnInit, OnDestroy {
     public uploadedStatisticsList: ImportStatisticsEntry[] = [];
     public pendingHiddenUploads = 0;
     public uploading = false;
-    private identifiedAlbums: Map<string, string> = new Map<string, string>();
     private refreshCommitTimer: number;
     private running = true;
 
     constructor(private importListAlbumGQL: ImportListAlbumGQL,
                 private importCreateAlbumGQL: ImportCreateAlbumGQL,
                 private importSetAutoaddGQL: ImportSetAutoaddGQL,
-                private importIdentifyFileGQL: ImportIdentifyFileGQL,
                 private pollCommitGQL: PollCommitGQL,
                 private importCommitGQL: ImportCommitGQL,
                 private serverApiService: ServerApiService,
@@ -227,6 +224,7 @@ export class ImportPage implements OnInit, OnDestroy {
                 }
             }
             await wait.dismiss();
+            let pendingSize = 0;
             nextFile: for (const item of filesToUpload) {
                 const data = await item[0].getFile();
                 for (const identifiedFile of identifiedFiles) {
@@ -236,9 +234,10 @@ export class ImportPage implements OnInit, OnDestroy {
                         continue nextFile;
                     }
                 }
+                pendingSize += data.size;
                 this.ngZone.run(() => this.currentFileName = item[0].name);
-                const result = await new Promise<UploadResult>((resolve, reject) => {
-                    this.httpClient.post('/rest/import', data, {reportProgress: true, observe: 'events'})
+                const promise = new Promise<UploadResult>((resolve, reject) => {
+                    this.httpClient.post(`/rest/import/${item[0].name}`, data, {reportProgress: true, observe: 'events'}).pipe(retry(3))
                         .subscribe((event: HttpEvent<UploadResult>) => {
                             switch (event.type) {
                                 case HttpEventType.Response:
@@ -253,33 +252,44 @@ export class ImportPage implements OnInit, OnDestroy {
                             }
                         }, error => reject(error));
                 });
-                if (data.size === result.byteCount) {
-                    const postProcess = async () => {
-                        uploadedSize += data.size;
-                        this.ngZone.run(() => this.uploadOverallProgress = uploadedSize / totalSize);
-                        const filename = data.name;
-                        const identifiedFile: UploadedFileEntry = {
-                            fileId: result.fileId,
-                            sourceDirectory: item[1],
-                            sourceFile: item[0],
-                            size: result.byteCount,
-                            committed: false,
-                            commitEnqueued: undefined,
-                            filename
-                        };
-                        await this.storageService.storeUploadedFileEntry([identifiedFile]);
-                        await this.updateUploadStats();
-
-                    };
-                    results.push(postProcess());
+                results.push(
+                    promise.then(result => {
+                        if (data.size === result.byteCount) {
+                            const postProcess = async () => {
+                                uploadedSize += data.size;
+                                this.ngZone.run(() => this.uploadOverallProgress = uploadedSize / totalSize);
+                                const filename = data.name;
+                                const identifiedFile: UploadedFileEntry = {
+                                    fileId: result.fileId,
+                                    sourceDirectory: item[1],
+                                    sourceFile: item[0],
+                                    size: result.byteCount,
+                                    committed: false,
+                                    commitEnqueued: undefined,
+                                    filename,
+                                    suggestedAlbum: result.suggestedAlbum
+                                };
+                                await this.storageService.storeUploadedFileEntry([identifiedFile]);
+                            };
+                            return postProcess();
+                        }
+                        return Promise.resolve();
+                    }));
+                if (results.length > 10 || pendingSize > 1024 * 1024 * 1024) {
+                    await Promise.all(results);
+                    results.length = 0;
+                    pendingSize = 0;
+                    await this.updateUploadStats();
                 }
             }
             await Promise.all(results);
+            await this.updateUploadStats();
             this.ngZone.run(() => {
                 this.currentFileName = '';
                 this.uploadOverallProgress = 0;
                 this.uploadFileProgress = 0;
             });
+            await this.updateUploadStats();
             for (const albumData of this.uploadedStatisticsList) {
                 if (albumData.commitAfterUpload) {
                     await this.commit(albumData.albumId);
@@ -296,56 +306,6 @@ export class ImportPage implements OnInit, OnDestroy {
         await this.storageService.processUploadedFiles(async statEntry => {
             allUploadedFiles.push(statEntry);
         });
-        const pendingIdentifies: Promise<[UploadedFileEntry, string]>[] = [];
-        const identifiedFiles: [UploadedFileEntry, string][] = [];
-        for (const uploadedFile of allUploadedFiles) {
-
-            if (this.identifiedAlbums.has(uploadedFile.fileId)) {
-                const albumId = this.identifiedAlbums.get(uploadedFile.fileId);
-                identifiedFiles.push([uploadedFile, albumId]);
-            } else {
-                const currentState = await uploadedFile.sourceDirectory.queryPermission(READ_PERMISSION);
-                if (currentState !== 'granted') {
-                    continue;
-                }
-                let sourceFile: FileSystemFileHandle = uploadedFile.sourceFile;
-                try {
-                    const file = await sourceFile.getFile();
-                    pendingIdentifies.push(this.serverApiService.query<ImportIdentifyFileQuery, ImportIdentifyFileQueryVariables>(
-                        this.importIdentifyFileGQL, {
-                            file: {
-                                fileId: uploadedFile.fileId,
-                                size: uploadedFile.size,
-                                filename: file.name
-                            }
-                        }).then(async preview => {
-                        const identifiedAlbumId = preview?.previewImport.id;
-                        if (!identifiedAlbumId) {
-                            const errorMsg = await this.toastController.create({
-                                message: 'Error identify file ' + file.name,
-                                color: 'warning',
-                                duration: 10000
-                            });
-                            await errorMsg.present();
-                        }
-                        this.identifiedAlbums.set(uploadedFile.fileId, identifiedAlbumId);
-                        return [uploadedFile, identifiedAlbumId];
-                    }));
-                    if (pendingIdentifies.length > 10) {
-                        for (let identifyResult of await Promise.all(pendingIdentifies)) {
-                            identifiedFiles.push(identifyResult);
-                        }
-                        pendingIdentifies.length = 0;
-                    }
-                } catch (e) {
-                    console.error('Error on file', sourceFile.name, e);
-                }
-            }
-        }
-        for (let identifyResult of await Promise.all(pendingIdentifies)) {
-            identifiedFiles.push(identifyResult);
-        }
-        pendingIdentifies.length = 0;
         const autocommitAlbum = new Set<string>();
         for (const importStatisticsEntry of this.uploadedStatisticsList) {
             if (importStatisticsEntry.commitAfterUpload) {
@@ -353,7 +313,8 @@ export class ImportPage implements OnInit, OnDestroy {
             }
         }
         const statPerAlbum: Map<string, ImportStatisticsEntry> = new Map<string, ImportStatisticsEntry>();
-        for (const [uploadedFile, albumId] of identifiedFiles) {
+        for (const uploadedFile of allUploadedFiles) {
+            const albumId = uploadedFile.suggestedAlbum;
             if (albumId) {
                 let statOfAlbum: ImportStatisticsEntry;
                 if (statPerAlbum.has(albumId)) {
@@ -385,7 +346,6 @@ export class ImportPage implements OnInit, OnDestroy {
                     }
                 }
             }
-
         }
 
 
@@ -463,7 +423,7 @@ export class ImportPage implements OnInit, OnDestroy {
             let takenSize = 0;
             const filesOfAlbum: UploadedFileEntry[] = [];
             await this.storageService.processUploadedFiles(uploadedFile => {
-                if (this.identifiedAlbums.get(uploadedFile.fileId) === albumId &&
+                if (uploadedFile.suggestedAlbum === albumId &&
                     !uploadedFile.committed &&
                     uploadedFile.commitEnqueued === undefined) {
                     filesOfAlbum.push(uploadedFile);
@@ -510,7 +470,7 @@ export class ImportPage implements OnInit, OnDestroy {
     async deleteCommitted(albumId: string) {
         const committedFiles: UploadedFileEntry[] = [];
         await this.storageService.processUploadedFiles(async statEntry => {
-            if (albumId === this.identifiedAlbums.get(statEntry.fileId) && statEntry.committed === true) {
+            if (albumId === statEntry.suggestedAlbum && statEntry.committed === true) {
                 committedFiles.push(statEntry);
             }
         });
