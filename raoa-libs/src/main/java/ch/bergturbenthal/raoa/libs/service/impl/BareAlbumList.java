@@ -42,7 +42,7 @@ import reactor.util.function.Tuples;
 @Service
 public class BareAlbumList implements AlbumList {
   public static final Duration MAX_REPOSITORY_CACHE_TIME = Duration.ofMinutes(5);
-  public static final Duration MAX_AUTOINDEX_CACHE_TIME = Duration.ofMinutes(1);
+  public static final Duration MAX_AUTOINDEX_CACHE_TIME = Duration.ofMinutes(5);
   private static final Collection<String> IMPORTING_TYPES =
       new HashSet<>(Arrays.asList("image/jpeg", "image/tiff", "application/mp4", "video/mp4"));
   private final AtomicReference<CachedData> scanCache = new AtomicReference<>();
