@@ -1,0 +1,5 @@
+mutation RemoveToken($userId: ID!, $update: UserUpdate){
+    updateUser(userId: $userId, update: $update){
+        id
+    }
+}

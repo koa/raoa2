@@ -18,6 +18,8 @@ public interface AuthorizationManager {
 
   Flux<AlbumData> findVisibleAlbumsOfUser(User user);
 
+  Flux<AlbumData> findVisibleAlbums(SecurityContext context);
+
   Mono<Boolean> canUserAccessToAlbum(SecurityContext context, UUID album);
 
   Mono<Boolean> canUserModifyAlbum(SecurityContext context, UUID album);

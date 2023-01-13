@@ -1,4 +1,5 @@
 scalar DateTime
+scalar Long
 
 schema {
     query: Query
@@ -34,7 +35,7 @@ type Mutation{
     updateAlbumEntry(albumId: ID!, albumEntryId: ID!, update: AlbumEntryUpdate): AlbumEntry
     commitImport(files: [ImportFile!]!):[ImportedFile!]!
     createAlbum(path: [String!]!):Album
-    createTemporaryPassword(duration: Int): TemporaryPassword
+    createTemporaryPassword(duration: Long, title: String!): CreatedTemporaryPassword
     mutate(updates: [MutationData!]!):MutationResult!
     enqueueCommit(data: CommitData!):CommitJob
 }
@@ -95,8 +96,14 @@ input RemoveKeywordMutation {
 }
 
 
-type TemporaryPassword {
+type CreatedTemporaryPassword {
+    title: String!
     password: String!
+    validUntil: DateTime!
+}
+
+type TemporaryPassword {
+    title: String!
     validUntil: DateTime!
 }
 
@@ -170,6 +177,7 @@ input UserUpdate{
     visibilityUpdates: [UserVisibilityUpdate!]!
     canManageUsers: Boolean
     isEditor: Boolean
+    removeTemporaryPasswords: [String!]
 }
 
 input UserVisibilityUpdate{
@@ -203,6 +211,7 @@ type User{
     canManageUsers: Boolean
     canEdit: Boolean
     isEditor: Boolean
+    temporaryPasswords: [TemporaryPassword!]!
 }
 
 type GroupMembership {

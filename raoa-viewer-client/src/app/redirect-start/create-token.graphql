@@ -1,0 +1,5 @@
+mutation CreateToken($title: String!, $duration: Long){
+    createTemporaryPassword(title: $title,duration: $duration){
+        password
+    }
+}

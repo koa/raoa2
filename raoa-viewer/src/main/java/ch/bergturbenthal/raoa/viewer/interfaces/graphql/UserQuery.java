@@ -4,7 +4,12 @@ import ch.bergturbenthal.raoa.elastic.model.AlbumData;
 import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
-import ch.bergturbenthal.raoa.viewer.model.graphql.*;
+import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
+import ch.bergturbenthal.raoa.viewer.model.graphql.GroupMembershipReference;
+import ch.bergturbenthal.raoa.viewer.model.graphql.GroupReference;
+import ch.bergturbenthal.raoa.viewer.model.graphql.QueryContext;
+import ch.bergturbenthal.raoa.viewer.model.graphql.TemporaryPassword;
+import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import java.time.Instant;
 import java.util.Comparator;
@@ -153,6 +158,16 @@ public class UserQuery {
                 return new GroupMembershipReference(
                     membership.getFrom(), membership.getUntil(), groupReference);
               });
+    }
+    return Flux.empty();
+  }
+
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Flux<TemporaryPassword> temporaryPasswords(UserReference user) {
+    if (canShowUserDetails(user)) {
+      return dataViewService
+          .findTemporaryPasswordsByUser(user.getId())
+          .map(TemporaryPassword::from);
     }
     return Flux.empty();
   }

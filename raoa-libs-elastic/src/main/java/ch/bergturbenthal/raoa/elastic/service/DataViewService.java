@@ -1,6 +1,12 @@
 package ch.bergturbenthal.raoa.elastic.service;
 
-import ch.bergturbenthal.raoa.elastic.model.*;
+import ch.bergturbenthal.raoa.elastic.model.AlbumData;
+import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
+import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.Group;
+import ch.bergturbenthal.raoa.elastic.model.RequestAccess;
+import ch.bergturbenthal.raoa.elastic.model.TemporaryPassword;
+import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import com.adobe.internal.xmp.XMPMeta;
 import java.time.Instant;
@@ -44,7 +50,12 @@ public interface DataViewService {
 
   Mono<AlbumEntryData> updateKeyword(UUID albumId, ObjectId entryId, XMPMeta xmpMeta);
 
-  Mono<TemporaryPassword> createTemporaryPassword(UUID user, String password, Instant validUntil);
+  Mono<TemporaryPassword> createTemporaryPassword(
+      UUID user, final String title, String password, Instant validUntil);
 
   Mono<User> findAndValidateTemporaryPassword(UUID user, String password);
+
+  Flux<TemporaryPassword> findTemporaryPasswordsByUser(UUID user);
+
+  Mono<Void> deleteTemporaryPasswordsByUser(UUID userId, String title);
 }

@@ -9,11 +9,19 @@ import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
-@Document(indexName = "temp_password", createIndex = true)
+@Document(indexName = "temp_password_1", createIndex = true)
 @Value
 @Builder(toBuilder = true)
 public class TemporaryPassword {
-  @Id UUID userId;
+  @Id
+  @Field(type = FieldType.Keyword)
+  String id;
+
+  @Field(type = FieldType.Keyword)
+  UUID userId;
+
+  @Field(type = FieldType.Keyword)
+  String title;
 
   @Field(type = FieldType.Keyword)
   String password;

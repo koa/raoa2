@@ -1,7 +1,20 @@
 package ch.bergturbenthal.raoa.elastic.service.impl;
 
-import ch.bergturbenthal.raoa.elastic.model.*;
-import ch.bergturbenthal.raoa.elastic.repository.*;
+import ch.bergturbenthal.raoa.elastic.model.AlbumData;
+import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
+import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.Group;
+import ch.bergturbenthal.raoa.elastic.model.PersonalUserData;
+import ch.bergturbenthal.raoa.elastic.model.RequestAccess;
+import ch.bergturbenthal.raoa.elastic.model.TemporaryPassword;
+import ch.bergturbenthal.raoa.elastic.model.User;
+import ch.bergturbenthal.raoa.elastic.repository.AccessRequestRepository;
+import ch.bergturbenthal.raoa.elastic.repository.AlbumDataEntryRepository;
+import ch.bergturbenthal.raoa.elastic.repository.AlbumDataRepository;
+import ch.bergturbenthal.raoa.elastic.repository.GroupRepository;
+import ch.bergturbenthal.raoa.elastic.repository.SyncAlbumDataEntryRepository;
+import ch.bergturbenthal.raoa.elastic.repository.TemporaryPasswordRepository;
+import ch.bergturbenthal.raoa.elastic.repository.UserRepository;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
@@ -12,7 +25,17 @@ import com.adobe.internal.xmp.XMPMeta;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
@@ -21,11 +44,16 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
-import org.apache.tika.metadata.*;
+import org.apache.tika.metadata.HttpHeaders;
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.Property;
+import org.apache.tika.metadata.TIFF;
+import org.apache.tika.metadata.TikaCoreProperties;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
 import org.springframework.data.elasticsearch.core.IndexOperations;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
@@ -585,22 +613,41 @@ public class ElasticSearchDataViewService implements DataViewService {
 
   @Override
   public Mono<TemporaryPassword> createTemporaryPassword(
-      final UUID user, final String password, final Instant validUntil) {
+      final UUID user, final String title, final String password, final Instant validUntil) {
     return temporaryPasswordRepository.save(
-        TemporaryPassword.builder().userId(user).password(password).validUntil(validUntil).build());
+        TemporaryPassword.builder()
+            .id(createTemporaryPwKey(user, title))
+            .userId(user)
+            .title(title)
+            .password(password)
+            .validUntil(validUntil)
+            .build());
   }
 
   @Override
   public Mono<User> findAndValidateTemporaryPassword(final UUID user, final String password) {
     final Instant now = Instant.now();
-    Instant maxValid = now.plus(1, ChronoUnit.DAYS);
     return temporaryPasswordRepository
-        .findById(user)
+        .findByUserIdAndPassword(user, password)
         .filter(
             e ->
                 e.getValidUntil().isAfter(now)
-                    && e.getValidUntil().isBefore(maxValid)
-                    && Objects.equals(e.getPassword(), password))
+                    && e.getValidUntil().isBefore(now.plus(400, ChronoUnit.DAYS)))
         .flatMap(tempPw -> findUserById(user));
+  }
+
+  @Override
+  public Flux<TemporaryPassword> findTemporaryPasswordsByUser(final UUID user) {
+    return temporaryPasswordRepository.findByUserId(user);
+  }
+
+  @Override
+  public Mono<Void> deleteTemporaryPasswordsByUser(final UUID userId, final String title) {
+    return temporaryPasswordRepository.deleteById(createTemporaryPwKey(userId, title));
+  }
+
+  @NotNull
+  private static String createTemporaryPwKey(final UUID userId, final String title) {
+    return userId.toString() + "-" + title;
   }
 }

@@ -72,6 +72,7 @@ public class HttpRepositoryResolver
     final UUID albumId = reverseMap.get(db);
 
     final User user = extractUser(req);
+    log.info("User: " + user);
 
     if (user != null
         && authorizationManager

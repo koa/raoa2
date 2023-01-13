@@ -1,10 +1,6 @@
 package ch.bergturbenthal.raoa.viewer;
 
-import static org.springframework.web.servlet.function.RequestPredicates.accept;
-import static org.springframework.web.servlet.function.RequestPredicates.contentType;
-
 import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
-import ch.bergturbenthal.raoa.viewer.graphql.GraphQlHttpHandler;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -12,17 +8,21 @@ import com.nimbusds.jwt.JWTParser;
 import java.text.ParseException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import javax.servlet.http.Cookie;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.ResourceServerProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.graphql.web.WebGraphQlHandler;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -45,9 +45,6 @@ import org.springframework.security.web.authentication.www.BasicAuthenticationFi
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.servlet.function.RouterFunction;
-import org.springframework.web.servlet.function.RouterFunctions;
-import org.springframework.web.servlet.function.ServerResponse;
 
 @Slf4j
 @Configuration
@@ -129,11 +126,7 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
                   }
 
                   return authentication;
-                }))
-    /*.addFilterAt(new BasicAuthenticationFilter(authentication -> {
-      return authentication;
-    }), SecurityContextPersistenceFilter.class)*/
-    ;
+                }));
   }
 
   @Bean
@@ -186,6 +179,7 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
     return source;
   }
 
+  /*
   @Bean
   public GraphQlHttpHandler overriddenGraphQlHttpHandler(WebGraphQlHandler webGraphQlHandler) {
     return new GraphQlHttpHandler(webGraphQlHandler);
@@ -216,4 +210,6 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
 
     return builder.build();
   }
+
+   */
 }

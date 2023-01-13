@@ -8,6 +8,7 @@ import java.net.URI;
 import java.net.URL;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 
@@ -25,7 +26,7 @@ public class GitBlobRessource implements Resource {
   }
 
   @Override
-  public InputStream getInputStream() throws IOException {
+  public @NotNull InputStream getInputStream() throws IOException {
     return objectLoader.openStream();
   }
 
@@ -35,17 +36,17 @@ public class GitBlobRessource implements Resource {
   }
 
   @Override
-  public URL getURL() throws IOException {
+  public @NotNull URL getURL() throws IOException {
     throw new IOException("URL not defined");
   }
 
   @Override
-  public URI getURI() throws IOException {
+  public @NotNull URI getURI() throws IOException {
     throw new IOException("URL not defined");
   }
 
   @Override
-  public File getFile() throws IOException {
+  public @NotNull File getFile() throws IOException {
     throw new FileNotFoundException();
   }
 
@@ -60,7 +61,7 @@ public class GitBlobRessource implements Resource {
   }
 
   @Override
-  public Resource createRelative(final String relativePath) throws IOException {
+  public @NotNull Resource createRelative(final @NotNull String relativePath) throws IOException {
     throw new IOException();
   }
 
@@ -73,7 +74,7 @@ public class GitBlobRessource implements Resource {
   }
 
   @Override
-  public String getDescription() {
+  public @NotNull String getDescription() {
     return id.toString();
   }
 }

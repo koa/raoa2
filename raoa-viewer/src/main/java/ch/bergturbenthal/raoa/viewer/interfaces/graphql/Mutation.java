@@ -1,6 +1,11 @@
 package ch.bergturbenthal.raoa.viewer.interfaces.graphql;
 
-import ch.bergturbenthal.raoa.elastic.model.*;
+import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.CommitJob;
+import ch.bergturbenthal.raoa.elastic.model.GroupMembership;
+import ch.bergturbenthal.raoa.elastic.model.PersonalUserData;
+import ch.bergturbenthal.raoa.elastic.model.RequestAccess;
+import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.repository.CommitJobRepository;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
@@ -10,9 +15,33 @@ import ch.bergturbenthal.raoa.libs.service.FileImporter;
 import ch.bergturbenthal.raoa.libs.service.Updater;
 import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
 import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
-import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.*;
-import ch.bergturbenthal.raoa.viewer.model.graphql.*;
-import ch.bergturbenthal.raoa.viewer.model.graphql.TemporaryPassword;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.AddKeywordMutation;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.AlbumEntryUpdate;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.AlbumUpdate;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.CommitData;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.CredentialUpgrade;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.GroupUpdate;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.ImportFile;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.ImportedFile;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.MutationData;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.MutationError;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.MutationResult;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.RemoveKeywordMutation;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.SingleGroupMembershipUpdate;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.SingleGroupUpdate;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.SingleUserUpdate;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.UpdateResult;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.UserUpdate;
+import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.UserVisibilityUpdate;
+import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
+import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
+import ch.bergturbenthal.raoa.viewer.model.graphql.AuthenticationState;
+import ch.bergturbenthal.raoa.viewer.model.graphql.CreatedTemporaryPassword;
+import ch.bergturbenthal.raoa.viewer.model.graphql.GroupReference;
+import ch.bergturbenthal.raoa.viewer.model.graphql.QueryContext;
+import ch.bergturbenthal.raoa.viewer.model.graphql.RequestAccessResult;
+import ch.bergturbenthal.raoa.viewer.model.graphql.RequestAccessResultCode;
+import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import com.adobe.internal.xmp.XMPMeta;
 import com.adobe.internal.xmp.XMPMetaFactory;
@@ -20,7 +49,19 @@ import java.io.File;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -54,6 +95,8 @@ public class Mutation {
       (b1, b2) -> {
         if (b2.get()) b1.set(true);
       };
+  public static final Duration SUPERUSER_MAX_DURATION = Duration.ofDays(400);
+  public static final Duration USER_MAX_DURATION = Duration.ofHours(2);
   private final UserManager userManager;
   private final AuthorizationManager authorizationManager;
   private final QueryContextSupplier queryContextSupplier;
@@ -173,8 +216,7 @@ public class Mutation {
                         SignalType.ON_NEXT,
                         SignalType.ON_ERROR)
 
-                     */
-                    .flatMap(
+                     */ .flatMap(
                         user ->
                             Flux.merge(
                                     dataViewService.removePendingAccessRequest(authenticationId)
@@ -553,8 +595,6 @@ public class Mutation {
 
   @MutationMapping
   public Mono<UserReference> updateUser(@Argument UUID userId, @Argument UserUpdate update) {
-    log.info("update: " + update);
-
     return queryContextSupplier
         .createContext()
         .filter(QueryContext::canUserManageUsers)
@@ -590,7 +630,20 @@ public class Mutation {
                             queryContext.getCurrentUser().orElseThrow().getUserData().getName()
                                 + " updates "
                                 + userId))
-                    .flatMap(user -> dataViewService.updateUserData().thenReturn(user))
+                    .flatMap(
+                        user ->
+                            dataViewService
+                                .updateUserData()
+                                .then(
+                                    Optional.ofNullable(update.getRemoveTemporaryPasswords())
+                                        .map(Flux::fromIterable)
+                                        .orElse(Flux.empty())
+                                        .flatMap(
+                                            pwtitle ->
+                                                dataViewService.deleteTemporaryPasswordsByUser(
+                                                    userId, pwtitle))
+                                        .then())
+                                .thenReturn(user))
                     .map(u -> new UserReference(u.getId(), u.getUserData(), queryContext)));
   }
 
@@ -617,7 +670,7 @@ public class Mutation {
                                   Objects.requireNonNullElse(
                                       group.getLabels(), Collections.emptyMap()));
                           Optional.ofNullable(update.getRemoveLabels())
-                              .ifPresent(rem -> labels.keySet().removeAll(rem));
+                              .ifPresent(rem -> rem.forEach(labels.keySet()::remove));
                           Optional.ofNullable(update.getNewLabels()).stream()
                               .flatMap(Collection::stream)
                               .forEach(lv -> labels.put(lv.getLabelName(), lv.getLabelValue()));
@@ -855,14 +908,9 @@ public class Mutation {
   }
 
   @MutationMapping
-  public Mono<TemporaryPassword> createTemporaryPassword(@Argument Integer duration) {
+  public Mono<CreatedTemporaryPassword> createTemporaryPassword(
+      @Argument Long duration, @Argument String title) {
 
-    final Duration passwordTimeout =
-        Optional.ofNullable(duration)
-            .filter(d -> d > 0)
-            .filter(d -> d < 7200)
-            .map(Duration::ofSeconds)
-            .orElse(Duration.ofMinutes(5));
     return queryContextSupplier
         .createContext()
         .filter(c -> c.getCurrentUser().isPresent())
@@ -872,6 +920,16 @@ public class Mutation {
                     .getCurrentUser()
                     .map(
                         user -> {
+                          final Duration passwordTimeout =
+                              Optional.ofNullable(duration)
+                                  .filter(d -> d > 0)
+                                  .filter(
+                                      d ->
+                                          user.isSuperuser()
+                                              ? d < SUPERUSER_MAX_DURATION.toMillis()
+                                              : d < USER_MAX_DURATION.toMillis())
+                                  .map(Duration::ofMillis)
+                                  .orElse(Duration.ofMinutes(5));
                           final UUID userId = user.getId();
 
                           String password =
@@ -895,8 +953,8 @@ public class Mutation {
                                   .toString();
                           return dataViewService
                               .createTemporaryPassword(
-                                  userId, password, Instant.now().plus(passwordTimeout))
-                              .map(TemporaryPassword::from);
+                                  userId, title, password, Instant.now().plus(passwordTimeout))
+                              .map(CreatedTemporaryPassword::from);
                         })
                     .orElse(Mono.empty()));
   }

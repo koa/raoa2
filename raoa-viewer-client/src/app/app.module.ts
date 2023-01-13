@@ -21,6 +21,7 @@ import {FilesizePipe} from './filesize.pipe';
 import {GraphQLModule} from './graphql.module';
 import * as Sentry from '@sentry/angular';
 import {MultiWindowModule} from 'ngx-multi-window';
+import {FormsModule} from '@angular/forms';
 
 registerLocaleData(localeDe, 'de');
 registerLocaleData(localeFr, 'fr');
@@ -48,7 +49,8 @@ registerLocaleData(localeEn, 'en');
         }),
         MainMenuComponentModule,
         GraphQLModule,
-        MultiWindowModule
+        MultiWindowModule,
+        FormsModule
     ],
     providers: [
         {provide: LOCALE_ID, useValue: 'de-CH'},

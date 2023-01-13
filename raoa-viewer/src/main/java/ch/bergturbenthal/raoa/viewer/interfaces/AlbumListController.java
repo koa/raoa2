@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.viewer.interfaces;
 
+import ch.bergturbenthal.raoa.elastic.model.AlbumData;
 import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
@@ -12,6 +13,7 @@ import io.micrometer.core.instrument.Tags;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,11 +31,21 @@ import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
-import org.springframework.http.*;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
@@ -274,6 +286,27 @@ public class AlbumListController {
       zipOutputStream.putNextEntry(new ZipEntry(fileData.getT1().getNameString()));
       @Cleanup final FileInputStream fileInputStream = new FileInputStream(fileData.getT2());
       IOUtils.copy(fileInputStream, zipOutputStream);
+    }
+  }
+
+  @GetMapping("albums")
+  public void albums(HttpServletResponse response) throws IOException {
+    response.setContentType("text/plain; charset=utf-8");
+    final PrintWriter writer = response.getWriter();
+    final SecurityContext securityContext = SecurityContextHolder.getContext();
+
+    for (final Tuple2<UUID, String> album :
+        authorizationManager
+            .findVisibleAlbums(securityContext)
+            .map(AlbumData::getRepositoryId)
+            .flatMap(
+                id ->
+                    albumList
+                        .getAlbum(id)
+                        .flatMapMany(GitAccess::getFullPath)
+                        .map(path -> Tuples.of(id, path)))
+            .toIterable()) {
+      writer.println(album.getT1() + ":" + album.getT2());
     }
   }
 }

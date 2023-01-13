@@ -6,14 +6,18 @@ import java.util.UUID;
 import lombok.Value;
 
 @Value
-public class TemporaryPassword {
+public class CreatedTemporaryPassword {
   UUID userId;
   String title;
+  String password;
   OffsetDateTime validUntil;
 
-  public static TemporaryPassword from(
+  public static CreatedTemporaryPassword from(
       ch.bergturbenthal.raoa.elastic.model.TemporaryPassword model) {
-    return new TemporaryPassword(
-        model.getUserId(), model.getTitle(), model.getValidUntil().atOffset(ZoneOffset.UTC));
+    return new CreatedTemporaryPassword(
+        model.getUserId(),
+        model.getTitle(),
+        model.getPassword(),
+        model.getValidUntil().atOffset(ZoneOffset.UTC));
   }
 }

@@ -10,4 +10,5 @@ public class UserUpdate {
   List<UserVisibilityUpdate> visibilityUpdates;
   Set<String> removeLabels;
   Boolean isEditor;
+  Set<String> removeTemporaryPasswords;
 }

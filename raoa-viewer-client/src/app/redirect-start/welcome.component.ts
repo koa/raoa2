@@ -3,17 +3,25 @@ import {Router} from '@angular/router';
 import {AlertController, IonInput, LoadingController, MenuController, ToastController} from '@ionic/angular';
 import {CommonServerApiService} from '../service/common-server-api.service';
 import {
-    AuthenticationId,
-    GetUserstateGQL, GetUserstateQuery, GetUserstateQueryVariables,
+    CreateTokenGQL,
+    CreateTokenMutation,
+    CreateTokenMutationVariables,
+    GetUserstateGQL,
+    GetUserstateQuery,
+    GetUserstateQueryVariables,
     Maybe,
-    Query,
-    RequestAccessMutationGQL, RequestAccessMutationMutation, RequestAccessMutationMutationVariables,
+    RemoveTokenGQL,
+    RemoveTokenMutation,
+    RemoveTokenMutationVariables,
+    RequestAccessMutationGQL,
+    RequestAccessMutationMutation,
+    RequestAccessMutationMutationVariables,
     SingleGroupVisibilityUpdate,
     UpdateCredentitalsGQL,
     UpdateCredentitalsMutationVariables,
-    User,
-    UserInfo,
-    WelcomListFetchFnchDataGQL, WelcomListFetchFnchDataQuery, WelcomListFetchFnchDataQueryVariables
+    WelcomListFetchFnchDataGQL,
+    WelcomListFetchFnchDataQuery,
+    WelcomListFetchFnchDataQueryVariables
 } from '../generated/graphql';
 import {ServerApiService} from '../service/server-api.service';
 import {LoginService} from '../service/login.service';
@@ -52,15 +60,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
 
     public totalPhotoCount = 0;
 
-    public userState: Maybe<{ __typename?: 'Query' } &
-        Pick<Query, 'authenticationState'> & {
-        currentUser?: Maybe<{ __typename?: 'User' } &
-            Pick<User, 'canManageUsers'> & { info?: Maybe<{ __typename?: 'UserInfo' } & Pick<UserInfo, 'name' | 'email' | 'picture'>> }>;
-        listPendingRequests: Array<{ __typename?: 'RegistrationRequest' } & {
-            authenticationId?: Maybe<{ __typename?: 'AuthenticationId' } &
-                Pick<AuthenticationId, 'authority' | 'id'>>
-        }>
-    }>;
+    public userState: Maybe<GetUserstateQuery>;
     public userName: string;
     public userMail: string;
     public userPicture: string;
@@ -70,6 +70,8 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     public syncOfflineSubscription: Subscription;
     public estimation: StorageEstimate;
     public version = environment.version;
+    public secretName: string;
+    public secretDuration = 1;
 
     constructor(private router: Router,
                 private menu: MenuController,
@@ -81,6 +83,8 @@ export class WelcomeComponent implements OnInit, OnDestroy {
                 private requestAccessMutationGQL: RequestAccessMutationGQL,
                 private welcomListFetchFnchDataGQL: WelcomListFetchFnchDataGQL,
                 private updateCredentitalsGQL: UpdateCredentitalsGQL,
+                private createTokenGQL: CreateTokenGQL,
+                private removeTokenGQL: RemoveTokenGQL,
                 private loadingController: LoadingController,
                 private toastController: ToastController,
                 private httpClient: HttpClient,
@@ -92,6 +96,15 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     }
 
     async ngOnInit(): Promise<void> {
+        try {
+            const updated = await this.updates.activateUpdate();
+            if (updated) {
+                console.log('Updated client');
+                document.location.reload();
+            }
+        } catch (e) {
+            console.warn('Fehler beim Update vom Service Worker', e);
+        }
         const redirectRoute = sessionStorage.getItem('redirect_route');
         if (redirectRoute !== null) {
             sessionStorage.removeItem('redirect_route');
@@ -106,19 +119,6 @@ export class WelcomeComponent implements OnInit, OnDestroy {
             .subscribe(updates => {
                 this.adjustPhotoCounters();
             });
-        this.updates.available.subscribe(async event => {
-            const alert = await this.alertController.create({
-                header: 'Update',
-                subHeader: environment.version,
-                message: 'Eine neue Version liegt bereit',
-                buttons: [{
-                    text: 'Aktualisieren', role: 'confirm', handler: () => {
-                        this.updates.activateUpdate().then(() => document.location.reload());
-                    }
-                }, {text: "Ignorieren", role: "cancel"}],
-            });
-            await alert.present();
-        });
     }
 
     public ngOnDestroy() {
@@ -138,7 +138,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     private async refreshData() {
         this.adjustPhotoCounters();
         if (navigator.onLine) {
-            const userState = await this.serverApiService.query<GetUserstateQuery, GetUserstateQueryVariables>(
+            const userState: Maybe<GetUserstateQuery> = await this.serverApiService.query<GetUserstateQuery, GetUserstateQueryVariables>(
                 this.getUserstateGQL, {}
             );
             const userName = await this.loginService.userName();
@@ -150,6 +150,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
                 this.userPicture = userPicture;
                 this.userState = userState;
             });
+            console.log('user refreshed', userState);
         }
     }
 
@@ -287,7 +288,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
                 this.ngZone.run(() => {
                     this.syncProgress = state;
                 });
-                this.refreshQuota();
+                this.refreshQuota().then();
             }, error => {
 
             }, () => {
@@ -295,12 +296,43 @@ export class WelcomeComponent implements OnInit, OnDestroy {
                 this.ngZone.run(() => {
                     this.syncProgress = undefined;
                 });
-                this.refreshQuota();
+                this.refreshQuota().then();
             });
     }
 
     cancelOfflineSync() {
         this.syncOfflineSubscription.unsubscribe();
         this.refreshQuota().then();
+    }
+
+    async createToken(): Promise<void> {
+        const duration = this.secretDuration * 1000 * 3600 * 24;
+        const metadata = await this.serverApiService.update<CreateTokenMutation, CreateTokenMutationVariables>(
+            this.createTokenGQL, {duration, title: this.secretName}
+        );
+        const password = metadata?.createTemporaryPassword?.password;
+        if (password) {
+            await navigator.clipboard.writeText(password);
+            this.toastController.create({
+                message: 'Passwort in Zwischenablage kopiert',
+                duration: 5000,
+                color: 'primary'
+            }).then(elem => elem.present());
+        }
+        await this.serverApiService.clear();
+        await this.refreshData();
+    }
+
+    async removeSecret(title: string): Promise<void> {
+        const userid = this.userState.currentUser.id;
+        await this.serverApiService.update<RemoveTokenMutation, RemoveTokenMutationVariables>(this.removeTokenGQL, {
+            update: {
+                visibilityUpdates: [],
+                removeTemporaryPasswords: [title]
+            },
+            userId: userid
+        });
+        await this.serverApiService.clear();
+        await this.refreshData();
     }
 }

@@ -1,13 +1,22 @@
 package ch.bergturbenthal.raoa.viewer.service.impl;
 
-import ch.bergturbenthal.raoa.elastic.model.*;
+import ch.bergturbenthal.raoa.elastic.model.AlbumData;
+import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
+import ch.bergturbenthal.raoa.elastic.model.Group;
+import ch.bergturbenthal.raoa.elastic.model.GroupMembership;
+import ch.bergturbenthal.raoa.elastic.model.PersonalUserData;
+import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -154,6 +163,11 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
                   .flatMap(dataViewService::findGroupById)
                   .any(g -> g.getVisibleAlbums().contains(album.getRepositoryId()));
             });
+  }
+
+  @Override
+  public Flux<AlbumData> findVisibleAlbums(final SecurityContext context) {
+    return currentUser(context).flatMapMany(this::findVisibleAlbumsOfUser);
   }
 
   @Override
