@@ -928,7 +928,7 @@ public class Mutation {
                                           user.isSuperuser()
                                               ? d < SUPERUSER_MAX_DURATION.toMillis()
                                               : d < USER_MAX_DURATION.toMillis())
-                                  .map(Duration::ofMillis)
+                                  .map(Duration::ofSeconds)
                                   .orElse(Duration.ofMinutes(5));
                           final UUID userId = user.getId();
 

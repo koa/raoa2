@@ -5,10 +5,17 @@ import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
-import ch.bergturbenthal.raoa.viewer.model.graphql.*;
+import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
+import ch.bergturbenthal.raoa.viewer.model.graphql.AlbumEntry;
+import ch.bergturbenthal.raoa.viewer.model.graphql.GroupReference;
+import ch.bergturbenthal.raoa.viewer.model.graphql.KeywordCount;
+import ch.bergturbenthal.raoa.viewer.model.graphql.LabelValue;
+import ch.bergturbenthal.raoa.viewer.model.graphql.QueryContext;
+import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -149,6 +156,7 @@ public class AlbumQuery {
         .getAlbum(album.getId())
         .flatMap(GitAccess::getFullPath)
         .map(PATH_SPLIT::split)
-        .map(Arrays::asList);
+        .map(Arrays::asList)
+        .defaultIfEmpty(Collections.emptyList());
   }
 }
