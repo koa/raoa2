@@ -35,6 +35,7 @@
     "graphql": "^16.5.0",
     "ngx-multi-window": "^0.4.1",
     "node-forge": "^1.3.1",
+    "p-limit": "^4.0.0",
     "rxjs": "~7.5.5",
     "semaphore-async-await": "^1.5.1",
     "shell-quote": "^1.7.3",

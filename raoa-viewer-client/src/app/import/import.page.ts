@@ -25,6 +25,7 @@ import {HttpClient, HttpEvent, HttpEventType} from '@angular/common/http';
 import {StorageService, UploadedFileEntry} from '../service/storage.service';
 import {DataService} from '../service/data.service';
 import {retry} from 'rxjs';
+import pLimit from 'p-limit';
 
 interface UploadResult {
     byteCount: number;
@@ -224,6 +225,7 @@ export class ImportPage implements OnInit, OnDestroy {
             }
             await wait.dismiss();
             let pendingSize = 0;
+            const limit = pLimit(3);
             nextFile: for (const item of filesToUpload) {
                 const data = await item[0].getFile();
                 for (const identifiedFile of identifiedFiles) {
@@ -234,30 +236,34 @@ export class ImportPage implements OnInit, OnDestroy {
                     }
                 }
                 pendingSize += data.size;
-                this.ngZone.run(() => {
-                    this.uploadFileProgress.set(item[0].name, 0);
-                });
-                const promise = new Promise<UploadResult>((resolve, reject) => {
-                    this.httpClient.post(`/rest/import/${item[0].name}`, data, {reportProgress: true, observe: 'events'}).pipe(retry(3))
-                        .subscribe((event: HttpEvent<UploadResult>) => {
-                            switch (event.type) {
-                                case HttpEventType.Response:
-                                    resolve(event.body);
-                                    this.ngZone.run(() => {
-                                        this.uploadFileProgress.delete(item[0].name);
-                                    });
-                                    break;
-                                case HttpEventType.UploadProgress:
-                                    this.ngZone.run(() => {
-                                        this.uploadFileProgress.set(item[0].name, event.loaded / event.total);
-                                        this.uploadOverallProgress = (event.loaded + uploadedSize) / totalSize;
-                                    });
-                                    break;
-                            }
-                        }, error => reject(error));
-                });
+
                 results.push(
-                    promise.then(result => {
+                    limit(async () => {
+                        this.ngZone.run(() => {
+                            this.uploadFileProgress.set(item[0].name, 0);
+                        });
+                        const result = await new Promise<UploadResult>((resolve, reject) => {
+                            this.httpClient.post(`/rest/import/${item[0].name}`, data, {
+                                reportProgress: true,
+                                observe: 'events'
+                            }).pipe(retry(3))
+                                .subscribe((event: HttpEvent<UploadResult>) => {
+                                    switch (event.type) {
+                                        case HttpEventType.Response:
+                                            resolve(event.body);
+                                            this.ngZone.run(() => {
+                                                this.uploadFileProgress.delete(item[0].name);
+                                            });
+                                            break;
+                                        case HttpEventType.UploadProgress:
+                                            this.ngZone.run(() => {
+                                                this.uploadFileProgress.set(item[0].name, event.loaded / event.total);
+                                                this.uploadOverallProgress = (event.loaded + uploadedSize) / totalSize;
+                                            });
+                                            break;
+                                    }
+                                }, error => reject(error));
+                        });
                         if (data.size === result.byteCount) {
                             const postProcess = async () => {
                                 uploadedSize += data.size;
@@ -278,13 +284,8 @@ export class ImportPage implements OnInit, OnDestroy {
                             return postProcess();
                         }
                         return Promise.resolve();
+
                     }));
-                if (results.length > 20 || pendingSize > 3 * 1024 * 1024 * 1024) {
-                    await Promise.all(results);
-                    results.length = 0;
-                    pendingSize = 0;
-                    await this.updateUploadStats();
-                }
             }
             await Promise.all(results);
             await this.updateUploadStats();
