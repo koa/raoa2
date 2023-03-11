@@ -135,7 +135,7 @@ public class ReactiveLimiter implements Limiter {
                     }
                     tryDeqeue(false);
                   })
-              .subscriberContext(sink.currentContext().put(CONTEXT_KEY, subLimiter))
+              .contextWrite(context -> context.put(CONTEXT_KEY, subLimiter))
               .subscribe(sink::next, sink::error, sink::complete);
       // sink.onCancel(subscription);
       // sink.onDispose(subscription);

@@ -3,7 +3,13 @@ package ch.bergturbenthal.raoa.libs.service.impl;
 import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import java.time.Duration;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -11,11 +17,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 public class ExecutorAsyncService implements AsyncService {
   private final ExecutorService executor;
+  private final Scheduler processScheduler =
+      Schedulers.newBoundedElastic(
+          Schedulers.DEFAULT_BOUNDED_ELASTIC_SIZE,
+          Schedulers.DEFAULT_BOUNDED_ELASTIC_QUEUESIZE,
+          "async executor",
+          60,
+          true);
 
   public ExecutorAsyncService(final Properties properties) {
 
@@ -65,7 +79,7 @@ public class ExecutorAsyncService implements AsyncService {
                     started.set(false);
                   });
             })
-        .publishOn(Schedulers.elastic());
+        .publishOn(processScheduler);
   }
 
   @Override
@@ -115,6 +129,6 @@ public class ExecutorAsyncService implements AsyncService {
                     if (pendingFuture != null) pendingFuture.cancel(true);
                   });
             })
-        .publishOn(Schedulers.elastic());
+        .publishOn(processScheduler);
   }
 }

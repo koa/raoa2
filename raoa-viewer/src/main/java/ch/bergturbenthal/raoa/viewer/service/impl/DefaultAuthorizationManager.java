@@ -23,8 +23,8 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.provider.OAuth2Authentication;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -84,8 +84,8 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
     final Authentication authentication = context.getAuthentication();
     if (authentication == null) return Optional.empty();
     final Authentication userAuthentication;
-    if (authentication instanceof OAuth2Authentication) {
-      userAuthentication = ((OAuth2Authentication) authentication).getUserAuthentication();
+    if (authentication instanceof OAuth2AuthenticationToken) {
+      userAuthentication = authentication;
     } else userAuthentication = authentication;
     final Object principal = userAuthentication.getPrincipal();
     if (principal instanceof Jwt) {

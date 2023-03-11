@@ -11,7 +11,6 @@ import java.util.UUID;
 import lombok.Builder;
 import lombok.Value;
 import org.eclipse.jgit.lib.ObjectId;
-import org.elasticsearch.core.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
@@ -34,7 +33,6 @@ public class AlbumData {
   @Field(type = FieldType.Integer)
   int entryCount;
 
-  @Nullable
   @Field(type = FieldType.Double)
   Instant createTime;
 

@@ -74,7 +74,7 @@
         <dependency>
             <groupId>org.eclipse.jgit</groupId>
             <artifactId>org.eclipse.jgit</artifactId>
-            <version>6.2.0.202205251150-m3</version>
+            <version>6.5.0.202303070854-r</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -112,10 +112,6 @@
             <version>0.0.22-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>org.springframework.security.oauth.boot</groupId>
-            <artifactId>spring-security-oauth2-autoconfigure</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>elasticsearch</artifactId>
             <version>1.17.2</version>
@@ -124,7 +120,7 @@
         <dependency>
             <groupId>org.eclipse.jgit</groupId>
             <artifactId>org.eclipse.jgit.http.server</artifactId>
-            <version>6.2.0.202205251150-m3</version>
+            <version>6.5.0.202303070854-r</version>
         </dependency>
     </dependencies>
 
@@ -150,7 +146,8 @@
                 </executions>
                 <configuration>
                     <generateGitPropertiesFile>true</generateGitPropertiesFile>
-                    <generateGitPropertiesFilename>${project.build.outputDirectory}/git.properties</generateGitPropertiesFilename>
+                    <generateGitPropertiesFilename>${project.build.outputDirectory}/git.properties
+                    </generateGitPropertiesFilename>
                     <includeOnlyProperties>
                         <includeOnlyProperty>^git.commit.(time|version)$</includeOnlyProperty>
                     </includeOnlyProperties>

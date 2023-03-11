@@ -2,7 +2,11 @@ package ch.bergturbenthal.raoa.libs.service.impl;
 
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import ch.bergturbenthal.raoa.libs.properties.Properties;
-import ch.bergturbenthal.raoa.libs.service.*;
+import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.libs.service.AsyncService;
+import ch.bergturbenthal.raoa.libs.service.FileImporter;
+import ch.bergturbenthal.raoa.libs.service.GitAccess;
+import ch.bergturbenthal.raoa.libs.service.Updater;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.io.File;
 import java.io.IOException;
@@ -12,7 +16,18 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -67,8 +82,13 @@ public class BareAlbumList implements AlbumList {
       Properties properties, MeterRegistry meterRegistry, final AsyncService asyncService) {
     this.properties = properties;
     this.asyncService = asyncService;
-
-    processScheduler = Schedulers.newElastic("process");
+    processScheduler =
+        Schedulers.newBoundedElastic(
+            Schedulers.DEFAULT_BOUNDED_ELASTIC_SIZE,
+            Schedulers.DEFAULT_BOUNDED_ELASTIC_QUEUESIZE,
+            "process",
+            60,
+            true);
     repoRootPath = this.properties.getRepository().toPath();
     if (!Files.isDirectory(repoRootPath)) {
       try {

@@ -10,6 +10,7 @@ import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
 import ch.bergturbenthal.raoa.viewer.service.impl.GitBlobRessource;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -22,7 +23,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-import javax.servlet.http.HttpServletResponse;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
@@ -134,7 +134,7 @@ public class AlbumListController {
                   .doOnNext(
                       response -> {
                         final Tags tags =
-                            Tags.of("result", response.getStatusCode().name(), "user", email);
+                            Tags.of("result", response.getStatusCode().toString(), "user", email);
                         meterRegistry
                             .timer("raoa.download.thumbnail", tags)
                             .record(Duration.ofNanos(System.nanoTime() - startTime));
