@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
-import ch.bergturbenthal.raoa.libs.properties.Properties;
+import ch.bergturbenthal.raoa.libs.properties.RaoaLibsProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
@@ -26,11 +26,13 @@ public class ReactiveLimiter implements Limiter {
   private final SubLimiter rootLimiter;
   private final MeterRegistry meterRegistry;
 
-  public ReactiveLimiter(final Properties properties, final MeterRegistry meterRegistry) {
-    rootLimiter = new SubLimiter(properties.getMaxConcurrent());
+  public ReactiveLimiter(
+      final RaoaLibsProperties raoaLibsProperties, final MeterRegistry meterRegistry) {
+    rootLimiter = new SubLimiter(raoaLibsProperties.getMaxConcurrent());
     meterRegistry.gauge("reactive-limiter.queue-length", rootLimiter.queue, Deque::size);
     meterRegistry.gauge("reactive-limiter.running", rootLimiter, SubLimiter::currentRunningEntries);
-    meterRegistry.gauge("reactive-limiter.limit", properties, Properties::getMaxConcurrent);
+    meterRegistry.gauge(
+        "reactive-limiter.limit", raoaLibsProperties, RaoaLibsProperties::getMaxConcurrent);
     this.meterRegistry = meterRegistry;
   }
 

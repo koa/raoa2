@@ -4,7 +4,7 @@ import ch.bergturbenthal.raoa.elastic.model.AuthenticationId;
 import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
-import ch.bergturbenthal.raoa.libs.properties.Properties;
+import ch.bergturbenthal.raoa.libs.properties.RaoaLibsProperties;
 import ch.bergturbenthal.raoa.libs.service.Updater;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -19,15 +19,15 @@ import reactor.core.publisher.Mono;
 @Slf4j
 public class InitAdminUserIfMissing {
 
-  private final Properties viewerProperties;
+  private final RaoaLibsProperties viewerRaoaLibsProperties;
   private final DataViewService dataViewService;
   private final UserManager userManager;
 
   public InitAdminUserIfMissing(
-      final Properties viewerProperties,
+      final RaoaLibsProperties viewerRaoaLibsProperties,
       final DataViewService dataViewService,
       final UserManager userManager) {
-    this.viewerProperties = viewerProperties;
+    this.viewerRaoaLibsProperties = viewerRaoaLibsProperties;
     this.dataViewService = dataViewService;
     this.userManager = userManager;
   }
@@ -36,7 +36,7 @@ public class InitAdminUserIfMissing {
   // TODO: Inject Admin-User per API
   public void checkAndFixAdminUser() {
     try {
-      final String superuser = viewerProperties.getSuperuser();
+      final String superuser = viewerRaoaLibsProperties.getSuperuser();
       if (superuser == null) return;
       final AuthenticationId superUserId =
           AuthenticationId.builder().authority("accounts.google.com").id(superuser).build();

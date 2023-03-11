@@ -146,7 +146,7 @@
                 </executions>
                 <configuration>
                     <generateGitPropertiesFile>true</generateGitPropertiesFile>
-                    <generateGitPropertiesFilename>${project.build.outputDirectory}/git.properties
+                    <generateGitPropertiesFilename>${project.build.outputDirectory}/git.raoaLibsProperties
                     </generateGitPropertiesFilename>
                     <includeOnlyProperties>
                         <includeOnlyProperty>^git.commit.(time|version)$</includeOnlyProperty>

@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
-import ch.bergturbenthal.raoa.libs.properties.Properties;
+import ch.bergturbenthal.raoa.libs.properties.RaoaLibsProperties;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import java.time.Duration;
 import java.util.concurrent.Callable;
@@ -31,15 +31,15 @@ public class ExecutorAsyncService implements AsyncService {
           60,
           true);
 
-  public ExecutorAsyncService(final Properties properties) {
+  public ExecutorAsyncService(final RaoaLibsProperties raoaLibsProperties) {
 
     final CustomizableThreadFactory threadFactory = new CustomizableThreadFactory("async");
     threadFactory.setDaemon(true);
     final LinkedBlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>();
     final ThreadPoolExecutor executorService =
         new ThreadPoolExecutor(
-            properties.getAsyncThreadCount(),
-            properties.getAsyncThreadCount(),
+            raoaLibsProperties.getAsyncThreadCount(),
+            raoaLibsProperties.getAsyncThreadCount(),
             Duration.ofMinutes(1).toMillis(),
             TimeUnit.MILLISECONDS,
             workQueue,

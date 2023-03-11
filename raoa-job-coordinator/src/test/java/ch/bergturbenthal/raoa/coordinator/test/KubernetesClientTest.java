@@ -3,12 +3,13 @@ package ch.bergturbenthal.raoa.coordinator.test;
 import ch.bergturbenthal.raoa.coordinator.model.CoordinatorProperties;
 import ch.bergturbenthal.raoa.coordinator.service.RemoteMediaProcessor;
 import ch.bergturbenthal.raoa.coordinator.service.impl.KubernetesMediaProcessor;
-import ch.bergturbenthal.raoa.libs.properties.Properties;
+import ch.bergturbenthal.raoa.libs.properties.RaoaLibsProperties;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.impl.ExecutorAsyncService;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -35,7 +36,14 @@ public class KubernetesClientTest {
     final RemoteMediaProcessor processor =
         new KubernetesMediaProcessor(client, properties, executorService);
 
-    AsyncService asyncService = new ExecutorAsyncService(new Properties());
+    AsyncService asyncService =
+        new ExecutorAsyncService(
+            new RaoaLibsProperties(
+                File.createTempFile("album", ".dir"),
+                File.createTempFile("cache", ".dir"),
+                10,
+                10,
+                "dummy"));
 
     asyncService
         .<String>asyncFlux(

@@ -1,7 +1,7 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
-import ch.bergturbenthal.raoa.libs.properties.Properties;
+import ch.bergturbenthal.raoa.libs.properties.RaoaLibsProperties;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.FileImporter;
@@ -76,11 +76,14 @@ public class BareAlbumList implements AlbumList {
   private final MeterRegistry meterRegistry;
   private final Scheduler processScheduler;
   private final Path repoRootPath;
-  private final Properties properties;
+  private final RaoaLibsProperties raoaLibsProperties;
 
   public BareAlbumList(
-      Properties properties, MeterRegistry meterRegistry, final AsyncService asyncService) {
-    this.properties = properties;
+      RaoaLibsProperties raoaLibsProperties,
+      MeterRegistry meterRegistry,
+      final AsyncService asyncService) {
+    log.info("Properties: " + raoaLibsProperties);
+    this.raoaLibsProperties = raoaLibsProperties;
     this.asyncService = asyncService;
     processScheduler =
         Schedulers.newBoundedElastic(
@@ -89,7 +92,7 @@ public class BareAlbumList implements AlbumList {
             "process",
             60,
             true);
-    repoRootPath = this.properties.getRepository().toPath();
+    repoRootPath = this.raoaLibsProperties.getRepository().toPath();
     if (!Files.isDirectory(repoRootPath)) {
       try {
         Files.createDirectories(repoRootPath);
@@ -341,7 +344,7 @@ public class BareAlbumList implements AlbumList {
     return asyncService
         .asyncMono(
             () -> {
-              File dir = properties.getRepository();
+              File dir = raoaLibsProperties.getRepository();
               for (String name : albumPath) {
                 dir = new File(dir, name);
               }

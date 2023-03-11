@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
-import ch.bergturbenthal.raoa.libs.properties.Properties;
+import ch.bergturbenthal.raoa.libs.properties.RaoaLibsProperties;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
 import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
 import java.io.File;
@@ -16,10 +16,10 @@ import org.springframework.stereotype.Service;
 public class DefaultThumbnailFilenameService
     implements ThumbnailFilenameService, UploadFilenameService {
   public static int[] SCALES = {25, 50, 100, 200, 400, 800, 1600, 3200};
-  private final Properties properties;
+  private final RaoaLibsProperties raoaLibsProperties;
 
-  public DefaultThumbnailFilenameService(final Properties properties) {
-    this.properties = properties;
+  public DefaultThumbnailFilenameService(final RaoaLibsProperties raoaLibsProperties) {
+    this.raoaLibsProperties = raoaLibsProperties;
   }
 
   @Override
@@ -61,7 +61,7 @@ public class DefaultThumbnailFilenameService
     final String suffix = name.substring(2);
     final String targetFilename =
         album.toString() + "/" + size + "/" + prefix + "/" + suffix + ending;
-    return new File(properties.getThumbnailDir(), targetFilename);
+    return new File(raoaLibsProperties.getThumbnailDir(), targetFilename);
   }
 
   @Override
@@ -71,7 +71,7 @@ public class DefaultThumbnailFilenameService
 
   @NotNull
   private File getUploadDir() {
-    final File uploadDir = new File(properties.getThumbnailDir(), "upload");
+    final File uploadDir = new File(raoaLibsProperties.getThumbnailDir(), "upload");
     if (!uploadDir.exists()) uploadDir.mkdirs();
     return uploadDir;
   }

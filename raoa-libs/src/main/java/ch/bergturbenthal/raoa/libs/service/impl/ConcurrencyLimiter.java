@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
-import ch.bergturbenthal.raoa.libs.properties.Properties;
+import ch.bergturbenthal.raoa.libs.properties.RaoaLibsProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.Iterator;
 import java.util.Map;
@@ -27,17 +27,18 @@ import reactor.util.context.Context;
 @Slf4j
 public class ConcurrencyLimiter implements Limiter {
   private static final Object CONTEXT_KEY = new Object();
-  private final Properties properties;
+  private final RaoaLibsProperties raoaLibsProperties;
   private final MeterRegistry meterRegistry;
   private final AtomicLong requestIdGenerator = new AtomicLong();
   private final Map<Long, LimiterEntry> currentRunningRequests = new ConcurrentHashMap<>();
   private Queue<LimiterEntry> pendingLimiterEntries = new ConcurrentLinkedDeque<>();
 
-  public ConcurrencyLimiter(final Properties properties, final MeterRegistry meterRegistry) {
-    this.properties = properties;
+  public ConcurrencyLimiter(
+      final RaoaLibsProperties raoaLibsProperties, final MeterRegistry meterRegistry) {
+    this.raoaLibsProperties = raoaLibsProperties;
     this.meterRegistry = meterRegistry;
     meterRegistry.gauge("limiter.concurrency", this, ConcurrencyLimiter::currentRunningQueries);
-    meterRegistry.gauge("limiter.max", properties, Properties::getMaxConcurrent);
+    meterRegistry.gauge("limiter.max", raoaLibsProperties, RaoaLibsProperties::getMaxConcurrent);
     meterRegistry.gauge("limiter.queue", pendingLimiterEntries, Queue::size);
   }
 
@@ -94,7 +95,7 @@ public class ConcurrencyLimiter implements Limiter {
     // log.info("process: " + describeState());
     for (int i = 0;
         (i < pendingLimiterEntries.size())
-            && (currentRunningRequests.size() < properties.getMaxConcurrent());
+            && (currentRunningRequests.size() < raoaLibsProperties.getMaxConcurrent());
         i++) {
       final LimiterEntry foundEntry = pendingLimiterEntries.poll();
       if (foundEntry == null) break;
@@ -102,11 +103,11 @@ public class ConcurrencyLimiter implements Limiter {
       else pendingLimiterEntries.add(foundEntry);
     }
     final Iterator<LimiterEntry> iterator = currentRunningRequests.values().iterator();
-    while (currentRunningQueries() < properties.getMaxConcurrent() && iterator.hasNext()) {
+    while (currentRunningQueries() < raoaLibsProperties.getMaxConcurrent() && iterator.hasNext()) {
       log.info("Starting: " + describeState());
       iterator.next().getReleaseOneRunnable().run();
     }
-    if (currentRunningQueries() >= properties.getMaxConcurrent()) {
+    if (currentRunningQueries() >= raoaLibsProperties.getMaxConcurrent()) {
       log.info("Blocked " + describeState());
     }
   }
@@ -126,7 +127,7 @@ public class ConcurrencyLimiter implements Limiter {
     return "("
         + currentRunningQueries()
         + "/"
-        + properties.getMaxConcurrent()
+        + raoaLibsProperties.getMaxConcurrent()
         + "), queue: "
         + pendingLimiterEntries.size()
         + "; "
@@ -136,7 +137,7 @@ public class ConcurrencyLimiter implements Limiter {
   private boolean tryTakeToken() {
 
     final int currentCount = currentRunningQueries();
-    return currentCount < properties.getMaxConcurrent();
+    return currentCount < raoaLibsProperties.getMaxConcurrent();
   }
 
   private <T> CoreSubscriber<? super T> newCoreSubscriber(
