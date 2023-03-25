@@ -14,11 +14,11 @@ for album in $(curl https://$USER:$PASSWORD@$URL/rest/albums); do
 	[ -d "$parentdir" ] || mkdir -p "$parentdir"
 	if [ -d "${path}.git" ]; then
 	(
-		echo "Fetch $albumname"
+		echo -n -e "Fetch $albumname\\r"
 		cd "${path}.git"
 		git fetch https://$USER:$PASSWORD@$URL/git/$id master:master
 	)else(
-		echo "Initialize $albumname"
+		echo -n -e "Initialize $albumname\\r"
 		cd "$parentdir"
 		git clone --bare https://$USER:$PASSWORD@$URL/git/$id "${albumname}.git"
 	)
