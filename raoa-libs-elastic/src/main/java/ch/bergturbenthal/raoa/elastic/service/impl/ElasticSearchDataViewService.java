@@ -632,7 +632,7 @@ public class ElasticSearchDataViewService implements DataViewService {
         .filter(
             e ->
                 e.getValidUntil().isAfter(now)
-                    && e.getValidUntil().isBefore(now.plus(400, ChronoUnit.DAYS)))
+                    && e.getValidUntil().isBefore(now.plus(1000, ChronoUnit.DAYS)))
         .flatMap(tempPw -> findUserById(user));
   }
 
