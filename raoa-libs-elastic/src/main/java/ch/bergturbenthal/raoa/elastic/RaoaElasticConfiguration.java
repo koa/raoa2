@@ -4,13 +4,9 @@ import ch.bergturbenthal.raoa.elastic.repository.AlbumDataRepository;
 import ch.bergturbenthal.raoa.elastic.repository.SyncAlbumDataEntryRepository;
 import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.libs.RaoaLibConfiguration;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -53,21 +49,18 @@ import org.springframework.web.reactive.function.client.ExchangeStrategies;
 })
 public class RaoaElasticConfiguration {
 
-  static {
-    log.info("Init Class");
-    try {
-      SSLContext sslContext = SSLContext.getInstance("TLS");
-      sslContext.init(null, new TrustManager[] {new DummyX509TrustManager()}, null);
-      SSLContext.setDefault(sslContext);
-    } catch (NoSuchAlgorithmException | KeyManagementException e) {
-      log.error("Cannot override TLS settings");
-      e.printStackTrace();
+  /*
+    static {
+      try {
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, new TrustManager[] {new DummyX509TrustManager()}, null);
+        SSLContext.setDefault(sslContext);
+      } catch (NoSuchAlgorithmException | KeyManagementException e) {
+        log.error("Cannot override TLS settings");
+        e.printStackTrace();
+      }
     }
-  }
-
-  public RaoaElasticConfiguration() {
-    log.info("Init Instance");
-  }
+  */
 
   @Bean
   public ElasticsearchCustomConversions elasticsearchCustomConversions() {
@@ -120,11 +113,13 @@ public class RaoaElasticConfiguration {
     ClientConfiguration.MaybeSecureClientConfigurationBuilder builder =
         ClientConfiguration.builder().connectedTo(hostAndPorts);
 
+    /*
     try {
       builder.usingSsl(SSLContext.getDefault());
     } catch (NoSuchAlgorithmException e) {
       log.warn("Cannot init SSL", e);
     }
+     */
     PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
 
     builder.withBasicAuth(properties.getUsername(), properties.getPassword());
