@@ -1,7 +1,9 @@
 import {Injectable, Predicate} from '@angular/core';
 import {
     Album,
-    AlbumContentGQL, AlbumContentQuery, AlbumContentQueryVariables,
+    AlbumContentGQL,
+    AlbumContentQuery,
+    AlbumContentQueryVariables,
     AlbumEntry,
     AllAlbumVersionsGQL,
     AllAlbumVersionsQuery,
@@ -11,8 +13,12 @@ import {
     GetAlbumDetailsQueryVariables,
     Label,
     MutationData,
-    SingleAlbumMutateGQL, SingleAlbumMutateMutation, SingleAlbumMutateMutationVariables,
-    UserPermissionsGQL, UserPermissionsQuery, UserPermissionsQueryVariables
+    SingleAlbumMutateGQL,
+    SingleAlbumMutateMutation,
+    SingleAlbumMutateMutationVariables,
+    UserPermissionsGQL,
+    UserPermissionsQuery,
+    UserPermissionsQueryVariables
 } from '../generated/graphql';
 import {ServerApiService} from './server-api.service';
 import {Router} from '@angular/router';
@@ -29,9 +35,11 @@ import {FNCH_COMPETITION_ID} from '../constants';
 import {HttpClient} from '@angular/common/http';
 import {LoginService} from './login.service';
 import {fromEventPattern, merge, Observable, Subscriber} from 'rxjs';
-import {filter, map, share} from 'rxjs/operators';
+import {map, share} from 'rxjs/operators';
+import {DomSanitizer, SafeUrl} from "@angular/platform-browser";
 
-const CACHE_NAME = 'image-cache';
+const IMAGE_CACHE_NAME = 'image-cache';
+const VIDEO_CACHE_NAME = 'video-cache';
 
 export type QueryAlbumEntry =
     { __typename?: 'AlbumEntry' }
@@ -85,7 +93,9 @@ function createStoreEntry(albumEntry: { __typename?: 'AlbumEntry' } &
 }
 
 
-function createStoreAlbum(album: { __typename?: 'Album' } & Pick<Album, 'id' | 'name' | 'entryCount' | 'albumTime' | 'version'> &
+function createStoreAlbum(album: {
+    __typename?: 'Album'
+} & Pick<Album, 'id' | 'name' | 'entryCount' | 'albumTime' | 'version'> &
     { labels: Array<{ __typename?: 'Label' } & Pick<Label, 'labelName' | 'labelValue'>> }): AlbumData {
     return {
         albumTime: Date.parse(album.albumTime),
@@ -156,9 +166,13 @@ function sortKey(data: MutationData) {
 }
 
 function imageUrl(albumId: string, albumEntryId: string, nextStepMaxLength: number) {
-    const src = '/rest/album/' + albumId + '/' + albumEntryId + '/thumbnail?maxLength=' + nextStepMaxLength;
-    return src;
+    return '/rest/album/' + albumId + '/' + albumEntryId + '/thumbnail?maxLength=' + nextStepMaxLength;
 }
+
+function videoUrl(albumId: string, albumEntryId: string, nextStepMaxLength: number) {
+    return '/rest/album/' + albumId + '/' + albumEntryId + '/videothumbnail?maxLength=' + nextStepMaxLength;
+}
+
 
 @Injectable({
     providedIn: 'root'
@@ -170,6 +184,7 @@ export class DataService {// implements OnDestroy {
     public readonly onlineState: Observable<boolean>;
     private mutationSubscribe: Subscriber<string>;
     private imageCache: Promise<Cache>;
+    private videoCache: Promise<Cache>;
 
     constructor(private serverApi: ServerApiService,
                 private loginService: LoginService,
@@ -181,7 +196,7 @@ export class DataService {// implements OnDestroy {
                 private router: Router,
                 private singleAlbumMutateGQL: SingleAlbumMutateGQL,
                 private storageService: StorageService,
-                private http: HttpClient) {
+                private http: HttpClient, private sanitizer: DomSanitizer) {
         this.albumModified = new Observable<string>(subscribe => {
             this.mutationSubscribe = subscribe;
         }).pipe(share());
@@ -202,8 +217,12 @@ export class DataService {// implements OnDestroy {
     }
 
     private initCache() {
-        this.imageCache = caches.open(CACHE_NAME).then(cache => {
+        this.imageCache = caches.open(IMAGE_CACHE_NAME).then(cache => {
             this.imageCache = Promise.resolve(cache);
+            return cache;
+        });
+        this.videoCache = caches.open(VIDEO_CACHE_NAME).then(cache => {
+            this.videoCache = Promise.resolve(cache);
             return cache;
         });
     }
@@ -333,6 +352,9 @@ export class DataService {// implements OnDestroy {
                                 batch = [];
                             }
                             batch.push(this.fetchImage(albumSettings.id, entry.albumEntryId, smallSize, 1));
+                            if (entry.entryType === "video") {
+                                batch.push(this.fetchVideo(albumSettings.id, entry.albumEntryId, smallSize, 1));
+                            }
                         }
                         for (const entry of entries) {
                             if (subscriber.closed) {
@@ -351,6 +373,9 @@ export class DataService {// implements OnDestroy {
                                 batch = [];
                             }
                             batch.push(this.fetchImage(albumSettings.id, entry.albumEntryId, screenSize, 1));
+                            if (entry.entryType === "video") {
+                                batch.push(this.fetchVideo(albumSettings.id, entry.albumEntryId, screenSize, 1));
+                            }
                         }
                         await pendingStore;
                         await Promise.all(batch);
@@ -536,10 +561,11 @@ export class DataService {// implements OnDestroy {
         return this.storageService.clearPendingMutations(albumId);
     }
 
-    public async getImage(albumId: string, albumEntryId: string, minSize: number): Promise<string> {
+    public async getImage(albumId: string, albumEntryId: string, minSize: number): Promise<SafeUrl> {
         const maxShift = navigator.onLine ? 3 : 10;
         const fetchedImage = await this.fetchImage(albumId, albumEntryId, minSize, maxShift);
-        return encodeDataUrl(fetchedImage);
+        //return fetchedImage.data;
+        return this.encodeDataUrl(fetchedImage);
     }
 
     private async fetchImage(albumId: string, albumEntryId: string, minSize: number, maxShift: number): Promise<ImageBlob> {
@@ -592,6 +618,68 @@ export class DataService {// implements OnDestroy {
         throw new Error('Error fetching image');
     }
 
+    public async getVideo(albumId: string, albumEntryId: string, minSize: number): Promise<SafeUrl> {
+        const maxShift = navigator.onLine ? 3 : 10;
+        let fetchedImage = await this.fetchVideo(albumId, albumEntryId, minSize, maxShift);
+        return this.encodeDataUrl(fetchedImage);
+    }
+    public async getVideoBlob(albumId: string, albumEntryId: string, minSize: number): Promise<Blob> {
+        const maxShift = navigator.onLine ? 3 : 10;
+        let fetchedImage = await this.fetchVideo(albumId, albumEntryId, minSize, maxShift);
+        return fetchedImage.data;
+    }
+
+    private async fetchVideo(albumId: string, albumEntryId: string, minSize: number, maxShift: number): Promise<ImageBlob> {
+        // const startTime = Date.now();
+        const cache = await this.videoCache;
+        const nextStepMaxLength = findNextStep(minSize);
+        for (let shift = 0; shift < maxShift; shift++) {
+            // tslint:disable-next-line:no-bitwise
+            const length = nextStepMaxLength * (1 << shift);
+            if (length > 3200) {
+                continue;
+            }
+            const candidateSrc = videoUrl(albumId, albumEntryId, length);
+            const cacheEntry = await cache.match(candidateSrc);
+            if (cacheEntry) {
+                // console.log('cache lookup: ', shift, Date.now() - startTime);
+                return {
+                    albumId,
+                    albumEntryId,
+                    mediaSize: nextStepMaxLength,
+                    data: await cacheEntry.blob()
+                };
+            }
+        }
+        if (!navigator.onLine) {
+            throw new Error('Offline');
+        }
+        // console.log('cache test: ', Date.now() - startTime);
+        const src = videoUrl(albumId, albumEntryId, nextStepMaxLength);
+
+        for (let i = 0; i < 10; i++) {
+            try {
+                const imageBlob = await this.http.get(src, {responseType: 'blob'}).toPromise();
+                cache.put(src, new Response(imageBlob)).then();
+                if (!imageBlob.type.startsWith('video')) {
+                    console.error(`wrong content type of ${albumEntryId}: ${imageBlob.type}`);
+                    continue;
+                }
+
+                return {
+                    albumId,
+                    albumEntryId,
+                    mediaSize: nextStepMaxLength,
+                    data: imageBlob
+                };
+            } catch (error) {
+                console.error(`Cannot load ${albumEntryId}, try ${i}`, error);
+            }
+        }
+        throw new Error('Error fetching image');
+    }
+
+
     /*public ngOnDestroy(): void {
         this.stopRunningTimer();
     }*/
@@ -618,7 +706,7 @@ export class DataService {// implements OnDestroy {
 
     public async clearCachedData(): Promise<void> {
         await this.storageService.clearCaches();
-        await caches.delete(CACHE_NAME);
+        await caches.delete(IMAGE_CACHE_NAME);
         this.initCache();
     }
 
@@ -665,6 +753,11 @@ export class DataService {// implements OnDestroy {
         return ret;
 
     }
+
+    private encodeDataUrl(storedImage: ImageBlob): SafeUrl {
+        const imageBlob = storedImage.data;
+        return this.sanitizer.bypassSecurityTrustResourceUrl(URL.createObjectURL(imageBlob));
+    }
 }
 
 function findNextStep(maxLength: number): number {
@@ -689,11 +782,3 @@ function findNextStep(maxLength: number): number {
     return 50;
 }
 
-function encodeDataUrl(storedImage: ImageBlob): Promise<string> {
-    const imageBlob = storedImage.data;
-    const reader = new FileReader();
-    return new Promise((resolve, reject) => {
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(imageBlob);
-    });
-}

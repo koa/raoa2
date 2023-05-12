@@ -3,6 +3,7 @@ import {MultiWindowService} from 'ngx-multi-window';
 import {ShowMedia} from '../interfaces/show-media';
 import {DataService} from '../service/data.service';
 import {DiashowEntry} from '../service/storage.service';
+import {SafeUrl} from "@angular/platform-browser";
 
 @Component({
     selector: 'app-presentation',
@@ -12,7 +13,7 @@ import {DiashowEntry} from '../service/storage.service';
 export class PresentationPage implements OnInit, OnDestroy {
     private bigImageSize = 800;
     public playVideo = false;
-    public currentMediaContent: Promise<string> | undefined = undefined;
+    public currentMediaContent: SafeUrl = undefined;
     private visibleEntry: DiashowEntry | undefined;
     private runningTimer: number | undefined;
 
@@ -35,9 +36,10 @@ export class PresentationPage implements OnInit, OnDestroy {
         await this.displayAnyEntry();
     }
 
-    private showVisibleEntry() {
+    private async showVisibleEntry() {
+        const image = await this.dataService.getImage(this.visibleEntry.albumId, this.visibleEntry.albumEntryId, this.bigImageSize);
         this.ngZone.run(() => {
-            this.currentMediaContent = this.dataService.getImage(this.visibleEntry.albumId, this.visibleEntry.albumEntryId, this.bigImageSize);
+            this.currentMediaContent = image;
         });
     }
 
@@ -72,10 +74,11 @@ export class PresentationPage implements OnInit, OnDestroy {
         this.bigImageSize = Math.max(window.screen.width, window.screen.height);
     }
 
-    private showEntry(foundEntry: DiashowEntry) {
+    private async showEntry(foundEntry: DiashowEntry) {
         this.visibleEntry = foundEntry;
+        const image = await this.dataService.getImage(this.visibleEntry.albumId, this.visibleEntry.albumEntryId, this.bigImageSize);
         this.ngZone.run(() => {
-            this.currentMediaContent = this.dataService.getImage(this.visibleEntry.albumId, this.visibleEntry.albumEntryId, this.bigImageSize);
+            this.currentMediaContent = image;
         });
         this.startTimer();
     }

@@ -6,7 +6,7 @@ import {HttpClient} from '@angular/common/http';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
 import {GestureController, IonContent, LoadingController, MenuController, PopoverController} from '@ionic/angular';
-import {Title} from '@angular/platform-browser';
+import {DomSanitizer, SafeUrl, Title} from '@angular/platform-browser';
 import {AlbumEntryData} from '../../service/storage.service';
 import {createFilter, DataService, filterTimeResolution} from '../../service/data.service';
 import {defer, Observable, Subscription} from 'rxjs';
@@ -57,6 +57,7 @@ export class AlbumPage implements OnInit, OnDestroy {
                 private popoverController: PopoverController,
                 private gestureController: GestureController,
                 private multiWindowService: MultiWindowService,
+                private sanitizer: DomSanitizer,
     ) {
         this.filterId = 'filter-' + instanceCounter++;
     }
@@ -618,13 +619,14 @@ export class AlbumPage implements OnInit, OnDestroy {
                     const beginTimestamp = currentRow[0].entry.created;
                     const endTimestamp = currentRow[currentRow.length - 1].timestamp;
                     const width = currentRowWidth;
-                    const scaledImages: Observable<string>[] = [];
+                    const scaledImages: Observable<SafeUrl>[] = [];
                     currentRow.forEach(shape => {
                         scaledImages.push(defer(() => {
                             const imageHeight = this.elementWidth / width;
                             const imageWidth = imageHeight * shape.width;
                             const maxLength = Math.max(imageHeight, imageWidth);
-                            return this.dataService.getImage(this.albumId, shape.entry.albumEntryId, maxLength);
+                            return this.dataService.getImage(this.albumId, shape.entry.albumEntryId, maxLength)
+                                ;
                         }));
                     });
                     currentBlock.push({
@@ -831,7 +833,7 @@ interface Shape {
 
 interface ImageBlock {
     shapes: Shape[];
-    scaledImages: Observable<string>[];
+    scaledImages: Observable<SafeUrl>[];
     width: number;
     beginTimestamp: number;
     endTimestamp: number;

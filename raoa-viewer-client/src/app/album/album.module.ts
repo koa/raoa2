@@ -18,6 +18,7 @@ import {MainMenuComponentModule} from '../main-menu/main-menu.module';
 import {GroupListEditorModule} from '../group-list-editor/group-list-editor.module';
 import {UserListEditorModule} from '../user-list-editor/user-list-editor.module';
 import {SingleAlbumRightPopoverMenuComponent} from './single-album/single-album-right-popover-menu/single-album-right-popover-menu.component';
+import { SafeResourceUrlPipe } from './pipe/safe-resource-url.pipe';
 
 @NgModule({
     imports: [
@@ -36,7 +37,7 @@ import {SingleAlbumRightPopoverMenuComponent} from './single-album/single-album-
         InViewportDirective,
         ShowSingleMediaComponent,
         AlbumListComponent,
-        ManageAlbumComponent, SingleAlbumRightPopoverMenuComponent
+        ManageAlbumComponent, SingleAlbumRightPopoverMenuComponent, SafeResourceUrlPipe
     ],
     exports: [
         AuthImagePipe

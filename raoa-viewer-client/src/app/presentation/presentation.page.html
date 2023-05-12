@@ -1,6 +1,6 @@
 <ion-content>
     <div class="image" #videoRoot (resized)="resized()">
-        <img [src]="currentMediaContent | async" *ngIf="!playVideo && currentMediaContent">
+        <img [src]="currentMediaContent" *ngIf="!playVideo && currentMediaContent">
         <div class="error" *ngIf="!currentMediaContent">Kein Bild ausgewählt</div>
     </div>
 </ion-content>

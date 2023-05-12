@@ -292,7 +292,6 @@ export class WelcomeComponent implements OnInit, OnDestroy {
             }, error => {
 
             }, () => {
-                console.log('done');
                 this.ngZone.run(() => {
                     this.syncProgress = undefined;
                 });

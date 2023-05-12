@@ -5,12 +5,13 @@ import {Location} from '@angular/common';
 import {IonSlides, LoadingController} from '@ionic/angular';
 import {HttpClient} from '@angular/common/http';
 import {ServerApiService} from '../../service/server-api.service';
-import {Title} from '@angular/platform-browser';
+import {SafeUrl, Title} from '@angular/platform-browser';
 import {createFilter, DataService, filterTimeResolution} from '../../service/data.service';
 import {AlbumEntryData} from '../../service/storage.service';
-import {combineLatest} from 'rxjs';
+import {combineLatest, from, lastValueFrom, race} from 'rxjs';
 import {MultiWindowService} from 'ngx-multi-window';
 import {ShowMedia} from '../../interfaces/show-media';
+import {map} from "rxjs/operators";
 
 
 export type KeywordCombine = 'and' | 'or';
@@ -122,9 +123,9 @@ export class ShowSingleMediaComponent implements OnInit {
     public mediaId: string;
     public previousMediaId: string;
     public nextMediaId: string;
-    public currentMediaContent: Promise<string> = undefined;
-    public previousMediaContent: Promise<string> = undefined;
-    public nextMediaContent: Promise<string> = undefined;
+    public currentMediaContent: Promise<SafeUrl> = undefined;
+    public previousMediaContent: Promise<SafeUrl> = undefined;
+    public nextMediaContent: Promise<SafeUrl> = undefined;
     public supportShare: boolean;
     public metadata: AlbumEntryData;
     public showDetails: 'Metadata' | 'Keyword' | null = null;
@@ -148,6 +149,8 @@ export class ShowSingleMediaComponent implements OnInit {
     private timeResolution = 0;
     public canPresent = false;
     public isPresenting = false;
+    isDownloadPopoverOpen = false;
+    isSharePopoverOpen = false;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
@@ -357,30 +360,75 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     async downloadCurrentFile(entryId: string, metadata: AlbumEntryData) {
-        const imageBlob = await this.loadOriginal(entryId);
+        if (this.currentIsVideo) {
+            this.isDownloadPopoverOpen = true;
+        } else {
+            const imageBlob = await this.loadOriginal(entryId);
+            const a = document.createElement('a');
+            const objectUrl = URL.createObjectURL(imageBlob);
+            a.href = objectUrl;
+            a.download = metadata.name || 'original.jpg';
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(objectUrl);
+        }
+    }
+
+    async downloadVideo(entryId: string, metadata: AlbumEntryData, resolution: number) {
+        const objectUrl = URL.createObjectURL(await this.dataService.getVideoBlob(this.albumId, entryId, resolution));
         const a = document.createElement('a');
-        const objectUrl = URL.createObjectURL(imageBlob);
         a.href = objectUrl;
-        a.download = metadata.name || 'original.jpg';
+        if (metadata.name) {
+            const filename = metadata.name;
+            if (filename.toLowerCase().endsWith(".mp4")) {
+                a.download = filename;
+            } else {
+                a.download = filename + ".mp4";
+            }
+        } else {
+            a.download = "video.mp4";
+        }
         a.click();
         a.remove();
         URL.revokeObjectURL(objectUrl);
+
     }
 
     async shareCurrentFile(entryId: string, metadata: AlbumEntryData) {
-        const contentType = metadata.contentType || 'image/jpeg';
-        const filename = metadata.name || 'original.jpg';
-        const imageBlob = await this.loadOriginal(entryId);
+        if (this.currentIsVideo) {
+            this.isSharePopoverOpen = true;
+        } else {
+            const contentType = metadata.contentType || 'image/jpeg';
+            const filename = metadata.name || 'original.jpg';
+            const imageBlob = await this.loadOriginal(entryId);
+            // console.log('image loaded');
+            const lastModified = metadata.created;
+            const file = new File([imageBlob], filename, {type: contentType, lastModified});
+            const data = {
+                title: filename,
+                files: [file],
+                url: this.mediaPath(this.mediaId).toString()
+            };
+            await navigator.share(data).catch(error => {
+                console.log('Share error');
+                console.log(error.class);
+                console.log(error);
+            });
+        }
+    }
+
+    async shareVideo(entryId: string, metadata: AlbumEntryData, resolution: number) {
+        const contentType = "video/mp4";
+        const filename = metadata.name || 'video.mp4';
+        const videoBlob = (await this.dataService.getVideoBlob(this.albumId, entryId, resolution));
         // console.log('image loaded');
         const lastModified = metadata.created;
-        const file = new File([imageBlob], filename, {type: contentType, lastModified});
+        const file = new File([videoBlob], filename, {type: contentType, lastModified});
         const data = {
             title: filename,
             files: [file],
             url: this.mediaPath(this.mediaId).toString()
         };
-        // console.log('Data: ');
-        // console.log(data);
         await navigator.share(data).catch(error => {
             console.log('Share error');
             console.log(error.class);
@@ -475,6 +523,29 @@ export class ShowSingleMediaComponent implements OnInit {
             return await this.http.get(src, {responseType: 'blob'}).toPromise();
         } finally {
             await loadingOriginalIndicator.dismiss();
+        }
+    }
+
+    private async loadVideoBlob(entryId: string, maxLength: number): Promise<Blob | undefined> {
+        const loadingVideoIndicator = await this.loadingController.create({
+            message: 'Video wird geladen...',
+            showBackdrop: true,
+            backdropDismiss: true
+        });
+        const src = this.mediaResolver.lookupVideo(this.albumId, entryId, maxLength);
+        await loadingVideoIndicator.present();
+
+        try {
+            const cancelled = from(loadingVideoIndicator.onDidDismiss())
+            const loaded = this.http.get(src, {responseType: 'blob'});
+            const result = await lastValueFrom(race(cancelled.pipe(map(() => 'none')), loaded));
+            if (typeof result === "object") {
+                return result as Blob;
+            } else {
+                return undefined;
+            }
+        } finally {
+            await loadingVideoIndicator.dismiss();
         }
     }
 
