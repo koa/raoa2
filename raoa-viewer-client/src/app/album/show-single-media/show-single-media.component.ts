@@ -2,7 +2,7 @@ import {Component, ElementRef, HostListener, NgZone, OnInit, ViewChild} from '@a
 import {ActivatedRoute, ParamMap} from '@angular/router';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
-import {IonSlides, LoadingController} from '@ionic/angular';
+import {LoadingController} from '@ionic/angular';
 import {HttpClient} from '@angular/common/http';
 import {ServerApiService} from '../../service/server-api.service';
 import {SafeUrl, Title} from '@angular/platform-browser';
@@ -11,7 +11,7 @@ import {AlbumEntryData} from '../../service/storage.service';
 import {combineLatest, from, lastValueFrom, race} from 'rxjs';
 import {MultiWindowService} from 'ngx-multi-window';
 import {ShowMedia} from '../../interfaces/show-media';
-import {map} from "rxjs/operators";
+import {map} from 'rxjs/operators';
 
 
 export type KeywordCombine = 'and' | 'or';
@@ -139,7 +139,7 @@ export class ShowSingleMediaComponent implements OnInit {
     public title = '';
     public inputKeyword = '';
     @ViewChild('imageSlider', {static: true})
-    private imageSlider: IonSlides;
+    private imageSlider: ElementRef | undefined;
     @ViewChild('videoRoot') private element: ElementRef<HTMLDivElement>;
     private filteringKeywords: string[];
     private keywordCombine: KeywordCombine = 'and';
@@ -182,10 +182,11 @@ export class ShowSingleMediaComponent implements OnInit {
 
     public async ngOnInit(): Promise<void> {
         this.multiWindowService.onWindows().subscribe(windows => {
-            let canPresent: boolean = false;
-            for (let window of windows) {
-                if (window.id !== this.multiWindowService.id)
+            let canPresent = false;
+            for (const window of windows) {
+                if (window.id !== this.multiWindowService.id) {
                     canPresent = true;
+                }
             }
             this.ngZone.run(() => this.canPresent = canPresent);
         });
@@ -351,11 +352,20 @@ export class ShowSingleMediaComponent implements OnInit {
 
 
     async slided() {
-        const index = await this.imageSlider.getActiveIndex();
-        if (index === 2 && this.nextMediaId !== undefined) {
-            await this.showImage(this.nextMediaId);
-        } else if (index === 0 && this.previousMediaId !== undefined) {
-            await this.showImage(this.previousMediaId);
+        const swiper = this.imageSlider?.nativeElement.swiper;
+        const index = swiper?.activeIndex;
+        if (index === 2) {
+            if (this.nextMediaId !== undefined) {
+                await this.showImage(this.nextMediaId);
+            } else {
+                swiper.slidePrev(500, false);
+            }
+        } else if (index === 0) {
+            if (this.previousMediaId !== undefined) {
+                await this.showImage(this.previousMediaId);
+            } else {
+                swiper.slideNext(500, false);
+            }
         }
     }
 
@@ -380,13 +390,13 @@ export class ShowSingleMediaComponent implements OnInit {
         a.href = objectUrl;
         if (metadata.name) {
             const filename = metadata.name;
-            if (filename.toLowerCase().endsWith(".mp4")) {
+            if (filename.toLowerCase().endsWith('.mp4')) {
                 a.download = filename;
             } else {
-                a.download = filename + ".mp4";
+                a.download = filename + '.mp4';
             }
         } else {
-            a.download = "video.mp4";
+            a.download = 'video.mp4';
         }
         a.click();
         a.remove();
@@ -418,7 +428,7 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     async shareVideo(entryId: string, metadata: AlbumEntryData, resolution: number) {
-        const contentType = "video/mp4";
+        const contentType = 'video/mp4';
         const filename = metadata.name || 'video.mp4';
         const videoBlob = (await this.dataService.getVideoBlob(this.albumId, entryId, resolution));
         // console.log('image loaded');
@@ -498,11 +508,14 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     private async refreshControls() {
-        await this.imageSlider.lockSwipeToNext(false);
-        await this.imageSlider.lockSwipeToPrev(false);
-        await this.imageSlider.slideTo(1, 0, false);
-        await this.imageSlider.lockSwipeToNext(this.nextMediaId === undefined);
-        await this.imageSlider.lockSwipeToPrev(this.previousMediaId === undefined);
+        const swiper = this.imageSlider?.nativeElement.swiper;
+        if (!swiper) {
+            return;
+        }
+        swiper.allowSlidePrev = this.previousMediaId !== undefined;
+        swiper.allowSlideNext = this.nextMediaId !== undefined;
+        swiper.activeIndex = 1;
+        swiper.update();
     }
 
     private mediaPath(mediaId: string): URL {
@@ -536,10 +549,10 @@ export class ShowSingleMediaComponent implements OnInit {
         await loadingVideoIndicator.present();
 
         try {
-            const cancelled = from(loadingVideoIndicator.onDidDismiss())
+            const cancelled = from(loadingVideoIndicator.onDidDismiss());
             const loaded = this.http.get(src, {responseType: 'blob'});
             const result = await lastValueFrom(race(cancelled.pipe(map(() => 'none')), loaded));
-            if (typeof result === "object") {
+            if (typeof result === 'object') {
                 return result as Blob;
             } else {
                 return undefined;
@@ -550,18 +563,21 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     public async presentCurrentMedia(enable: boolean) {
-        if (enable)
+        if (enable) {
             await this.dataService.appendDiashow(this.albumId, this.mediaId);
-        else
+        } else {
             await this.dataService.removeDiashow(this.albumId, this.mediaId);
+        }
         if (this.canPresent) {
             const event: ShowMedia = {
                 albumId: this.albumId, mediaId: this.mediaId
             };
             const myId = this.multiWindowService.id;
-            for (let knownWindow of this.multiWindowService.getKnownWindows()) {
-                if (knownWindow.id === myId) continue;
-                this.multiWindowService.sendMessage(knownWindow.id, "showMedia", event);
+            for (const knownWindow of this.multiWindowService.getKnownWindows()) {
+                if (knownWindow.id === myId) {
+                    continue;
+                }
+                this.multiWindowService.sendMessage(knownWindow.id, 'showMedia', event);
             }
         }
         const diashowEnabled = await this.dataService.isDiashowEnabled(this.albumId, this.mediaId);

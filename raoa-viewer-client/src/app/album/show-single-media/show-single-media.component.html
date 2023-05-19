@@ -1,19 +1,19 @@
 <div class="image" (keyup.arrowLeft)="showImage(previousMediaId)" (keyup.arrowRight)="showImage(nextMediaId)" #videoRoot
      (resized)="resized()">
-    <ion-slides (ionSlideTransitionEnd)="slided()" #imageSlider>
-        <ion-slide>
+    <swiper-container (transitionend)="slided()" #imageSlider>
+        <swiper-slide>
             <img [src]="previousMediaContent | async" *ngIf="previousMediaId">
-        </ion-slide>
-        <ion-slide>
+        </swiper-slide>
+        <swiper-slide>
             <img [src]="currentMediaContent | async" *ngIf="!playVideo">
             <video [src]="loadVideo(this.mediaId) | authImage | async" *ngIf="playVideo" controls>
                 <img [src]="currentMediaContent | async">
             </video>
-        </ion-slide>
-        <ion-slide>
+        </swiper-slide>
+        <swiper-slide>
             <img [src]="nextMediaContent | async" *ngIf="nextMediaId">
-        </ion-slide>
-    </ion-slides>
+        </swiper-slide>
+    </swiper-container>
     <div class="overlay" *ngIf="!playVideo">
         <div *ngIf="previousMediaId" class="left-button">
             <ion-icon class="button" name="arrow-back" (click)="showImage(previousMediaId)"></ion-icon>
