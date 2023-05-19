@@ -3,7 +3,7 @@ import {MultiWindowService} from 'ngx-multi-window';
 import {ShowMedia} from '../interfaces/show-media';
 import {DataService} from '../service/data.service';
 import {DiashowEntry} from '../service/storage.service';
-import {SafeUrl} from "@angular/platform-browser";
+import {SafeUrl} from '@angular/platform-browser';
 
 @Component({
     selector: 'app-presentation',
@@ -15,7 +15,7 @@ export class PresentationPage implements OnInit, OnDestroy {
     public playVideo = false;
     public currentMediaContent: SafeUrl = undefined;
     private visibleEntry: DiashowEntry | undefined;
-    private runningTimer: number | undefined;
+    private runningTimer: NodeJS.Timeout | undefined;
 
     constructor(private multiWindowService: MultiWindowService,
                 private ngZone: NgZone,
@@ -25,7 +25,7 @@ export class PresentationPage implements OnInit, OnDestroy {
     async ngOnInit() {
         this.multiWindowService.onMessage().subscribe(value => {
             let event: string = value.event;
-            if (event == 'showMedia') {
+            if (event === 'showMedia') {
                 const data: ShowMedia = value.data;
                 let visibleEntry: DiashowEntry = {albumId: data.albumId, albumEntryId: data.mediaId};
                 this.showEntry(visibleEntry);
@@ -44,8 +44,9 @@ export class PresentationPage implements OnInit, OnDestroy {
     }
 
     startTimer() {
-        if (this.runningTimer !== undefined)
+        if (this.runningTimer !== undefined) {
             clearTimeout(this.runningTimer);
+        }
         this.runningTimer = undefined;
         this.runningTimer = setTimeout(() => this.displayAnyEntry(), 5 * 1000);
     }
@@ -53,11 +54,12 @@ export class PresentationPage implements OnInit, OnDestroy {
     private async displayAnyEntry(): Promise<void> {
         let filter: Predicate<DiashowEntry>;
         const excludeEntry = this.visibleEntry;
-        if (excludeEntry !== undefined)
+        if (excludeEntry !== undefined) {
             filter = candidate => {
                 return candidate.albumId !== excludeEntry.albumId
                     || candidate.albumEntryId !== excludeEntry.albumEntryId;
             };
+        }
         const foundEntry = await this.dataService.fetchNextDiashowEntry(filter);
         if (foundEntry) {
             this.showEntry(foundEntry);
@@ -65,8 +67,9 @@ export class PresentationPage implements OnInit, OnDestroy {
     }
 
     public ngOnDestroy() {
-        if (this.runningTimer !== undefined)
+        if (this.runningTimer !== undefined) {
             clearTimeout(this.runningTimer);
+        }
         this.runningTimer = undefined;
     }
 

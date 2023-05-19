@@ -113,7 +113,7 @@ export class AlbumPage implements OnInit, OnDestroy {
     public selectedInDiashow: string[] = [];
     public selectedNotDiashow: string[] = [];
 
-    private currentUpdateTimer: undefined | number = undefined;
+    private currentUpdateTimer: undefined | NodeJS.Timeout = undefined;
     private lastUpdateTime = Date.now();
 
     private static findIndizesOf(rows: Array<TableRow>, timestamp: number): [number, number, number] | undefined {
