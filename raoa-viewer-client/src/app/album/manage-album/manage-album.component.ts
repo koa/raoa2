@@ -117,7 +117,7 @@ export class ManageAlbumComponent implements OnInit, OnDestroy {
                 const dateStr = date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) +
                     'T' + pad(hours) + ':' + pad(minutes);
                 this.autoAddTimestamp = dateStr;
-                this.autoaddComponent.reset(dateStr);
+                this.autoaddComponent?.reset(dateStr);
             } else {
                 this.autoAddTimestamp = undefined;
             }
