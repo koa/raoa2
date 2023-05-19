@@ -53,7 +53,7 @@
                             <goal>npm</goal>
                         </goals>
                         <configuration>
-                            <arguments>run-script build -- --configuration production --outputPath=target/classes/resources</arguments>
+                            <arguments>run-script build -- --configuration production --output-path=target/classes/resources</arguments>
                             <environmentVariables>
                                 <APP_VERSION>${project.version}</APP_VERSION>
                             </environmentVariables>
