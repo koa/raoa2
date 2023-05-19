@@ -1,6 +1,7 @@
 ion-card-header.person {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
 }
 
 ion-card-header.person > img {
