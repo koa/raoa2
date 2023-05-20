@@ -5,7 +5,9 @@
             <img [src]="previousMediaContent | async" *ngIf="previousMediaId">
         </swiper-slide>
         <swiper-slide>
-            <img [src]="currentMediaContent | async" *ngIf="!playVideo">
+            <div *ngIf="!playVideo" class="swiper-zoom-container">
+                <img [src]="currentMediaContent | async">
+            </div>
             <video [src]="currentVideoUrl" *ngIf="playVideo && currentVideoUrl" controls
                    (play)="videoPlay($event)"
                    (pause)="videoStop($event)"

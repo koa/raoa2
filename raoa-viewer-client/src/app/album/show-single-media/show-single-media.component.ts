@@ -554,6 +554,7 @@ export class ShowSingleMediaComponent implements OnInit {
         swiper.allowSlidePrev = this.previousMediaId !== undefined;
         swiper.allowSlideNext = this.nextMediaId !== undefined;
         swiper.activeIndex = 1;
+        swiper.zoom.enable();
         swiper.update();
     }
 
