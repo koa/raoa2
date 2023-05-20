@@ -42,6 +42,24 @@ export interface ImageBlob {
     data: Blob;
 }
 
+export interface ImageUrl {
+    albumId: string;
+    albumEntryId: string;
+    mediaSize: number;
+    fileSize: number;
+    url: string;
+}
+
+export function createUrlFromBlob(blob: ImageBlob): ImageUrl {
+    return {
+        albumEntryId: blob.albumEntryId,
+        albumId: blob.albumId,
+        fileSize: blob.data.size,
+        mediaSize: blob.mediaSize,
+        url: URL.createObjectURL(blob.data)
+    };
+}
+
 interface PendingKeywordAddEntry {
     albumId: string;
     albumEntryId: string;

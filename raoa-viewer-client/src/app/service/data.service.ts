@@ -22,13 +22,24 @@ import {
 } from '../generated/graphql';
 import {ServerApiService} from './server-api.service';
 import {Router} from '@angular/router';
-import {AlbumData, AlbumEntryData, AlbumSettings, DiashowEntry, ImageBlob, KeywordState, StorageService} from './storage.service';
+import {
+    AlbumData,
+    AlbumEntryData,
+    AlbumSettings,
+    createUrlFromBlob,
+    DiashowEntry,
+    ImageBlob,
+    ImageUrl,
+    KeywordState,
+    StorageService
+} from './storage.service';
 import {FNCH_COMPETITION_ID} from '../constants';
 import {HttpClient} from '@angular/common/http';
 import {LoginService} from './login.service';
 import {fromEventPattern, merge, Observable, Subscriber} from 'rxjs';
 import {map, share} from 'rxjs/operators';
 import {DomSanitizer, SafeUrl} from '@angular/platform-browser';
+import {LRUCache} from 'lru-cache';
 
 const IMAGE_CACHE_NAME = 'image-cache';
 const VIDEO_CACHE_NAME = 'video-cache';
@@ -177,6 +188,10 @@ function videoUrl(albumId: string, albumEntryId: string, nextStepMaxLength: numb
 }
 
 
+function createMapKey(albumId: string, albumEntryId: string, length: number): string {
+    return `${albumId}-${albumEntryId}-${length}`;
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -188,6 +203,12 @@ export class DataService {// implements OnDestroy {
     private mutationSubscribe: Subscriber<string>;
     private imageCache: Promise<Cache>;
     private videoCache: Promise<Cache>;
+    private loadedBlobs: LRUCache<string, ImageUrl> = new LRUCache({
+        max: 2000,
+        maxSize: 100 * 1024 * 1024,
+        sizeCalculation: (value, key) => value.fileSize,
+        dispose: (value, key) => URL.revokeObjectURL(value.url)
+    });
 
     constructor(private serverApi: ServerApiService,
                 private loginService: LoginService,
@@ -570,9 +591,15 @@ export class DataService {// implements OnDestroy {
 
     public async getImage(albumId: string, albumEntryId: string, minSize: number): Promise<SafeUrl> {
         const maxShift = navigator.onLine ? 3 : 10;
+        const existingBlob = this.findLoadedBlob(albumId, albumEntryId, minSize, maxShift);
+        if (existingBlob) {
+            return this.sanitizer.bypassSecurityTrustResourceUrl(existingBlob.url);
+        }
         const fetchedImage = await this.fetchImage(albumId, albumEntryId, minSize, maxShift);
-        //return fetchedImage.data;
-        return this.encodeDataUrl(fetchedImage);
+        const foundLength = fetchedImage.mediaSize;
+        const createdUrl = createUrlFromBlob(fetchedImage);
+        this.loadedBlobs.set(createMapKey(albumId, albumEntryId, foundLength), createdUrl);
+        return this.sanitizer.bypassSecurityTrustResourceUrl(createdUrl.url);
     }
 
     private async fetchImage(albumId: string, albumEntryId: string, minSize: number, maxShift: number): Promise<ImageBlob> {
@@ -627,14 +654,13 @@ export class DataService {// implements OnDestroy {
 
     public async getVideo(albumId: string, albumEntryId: string, minSize: number): Promise<SafeUrl> {
         const maxShift = navigator.onLine ? 3 : 10;
-        let fetchedImage = await this.fetchVideo(albumId, albumEntryId, minSize, maxShift);
-        return this.encodeDataUrl(fetchedImage);
+        const fetchedImage = await this.fetchVideo(albumId, albumEntryId, minSize, maxShift);
+        return fetchedImage.data;
     }
 
-    public async getVideoBlob(albumId: string, albumEntryId: string, minSize: number): Promise<Blob> {
+    public async getVideoBlob(albumId: string, albumEntryId: string, minSize: number): Promise<ImageBlob> {
         const maxShift = navigator.onLine ? 3 : 10;
-        let fetchedImage = await this.fetchVideo(albumId, albumEntryId, minSize, maxShift);
-        return fetchedImage.data;
+        return await this.fetchVideo(albumId, albumEntryId, minSize, maxShift);
     }
 
     private async fetchVideo(albumId: string, albumEntryId: string, minSize: number, maxShift: number): Promise<ImageBlob> {
@@ -728,7 +754,7 @@ export class DataService {// implements OnDestroy {
     }
 
     public appendDiashow(albumId: string, mediaId: string): Promise<void> {
-        return this.storageService.appendDiashow({albumId: albumId, albumEntryId: mediaId})
+        return this.storageService.appendDiashow({albumId, albumEntryId: mediaId})
             .then();
 
     }
@@ -738,12 +764,12 @@ export class DataService {// implements OnDestroy {
     }
 
     public async removeDiashow(albumId: string, mediaId: string): Promise<void> {
-        return this.storageService.removeDiashow({albumId: albumId, albumEntryId: mediaId})
+        return this.storageService.removeDiashow({albumId, albumEntryId: mediaId})
             .then();
     }
 
     public async isDiashowEnabled(albumId: string, mediaId: string): Promise<boolean> {
-        return this.storageService.containsDiashow({albumId: albumId, albumEntryId: mediaId});
+        return this.storageService.containsDiashow({albumId, albumEntryId: mediaId});
     }
 
     public async filterInDiashow(selectedEntries: Set<[string, string]>): Promise<Set<[string, string]>> {
@@ -752,7 +778,7 @@ export class DataService {// implements OnDestroy {
         selectedEntries.forEach(([album, entry]) => {
             filterEntries.add({albumId: album, albumEntryId: entry});
         });
-        let foundHits: DiashowEntry[] = await this.storageService.findDiashowHits(filterEntries);
+        const foundHits: DiashowEntry[] = await this.storageService.findDiashowHits(filterEntries);
         const ret = new Set<[string, string]>();
         foundHits.forEach(entry => {
             if (entry !== undefined) {
@@ -764,8 +790,21 @@ export class DataService {// implements OnDestroy {
     }
 
     private encodeDataUrl(storedImage: ImageBlob): SafeUrl {
-        const imageBlob = storedImage.data;
-        return this.sanitizer.bypassSecurityTrustResourceUrl(URL.createObjectURL(imageBlob));
+        return storedImage.data;
+    }
+
+    private findLoadedBlob(albumId: string, albumEntryId: string, minSize: number, maxShift: number): ImageUrl | undefined {
+        const nextStepMaxLength = findNextStep(minSize);
+        for (let shift = 0; shift < maxShift; shift++) {
+            // tslint:disable-next-line:no-bitwise
+            const length = nextStepMaxLength * (1 << shift);
+            const cachedBlob = this.loadedBlobs.get(
+                createMapKey(albumId, albumEntryId, length));
+            if (cachedBlob) {
+                return cachedBlob;
+            }
+        }
+        return undefined;
     }
 }
 

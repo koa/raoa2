@@ -1,11 +1,11 @@
-import {Component, ElementRef, HostListener, NgZone, OnInit, ViewChild} from '@angular/core';
+import {Component, ElementRef, HostListener, NgZone, OnInit, SecurityContext, ViewChild} from '@angular/core';
 import {ActivatedRoute, ParamMap} from '@angular/router';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
 import {LoadingController} from '@ionic/angular';
 import {HttpClient} from '@angular/common/http';
 import {ServerApiService} from '../../service/server-api.service';
-import {SafeUrl, Title} from '@angular/platform-browser';
+import {DomSanitizer, SafeUrl, Title} from '@angular/platform-browser';
 import {createFilter, DataService, filterTimeResolution} from '../../service/data.service';
 import {AlbumEntryData} from '../../service/storage.service';
 import {combineLatest, from, lastValueFrom, race} from 'rxjs';
@@ -180,7 +180,8 @@ export class ShowSingleMediaComponent implements OnInit {
                 private serverApi: ServerApiService,
                 private loadingController: LoadingController,
                 private titleService: Title,
-                private multiWindowService: MultiWindowService
+                private multiWindowService: MultiWindowService,
+                private sanitizer: DomSanitizer,
     ) {
         let hackNavi: any;
         hackNavi = window.navigator;
@@ -413,9 +414,9 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     async downloadVideo(entryId: string, metadata: AlbumEntryData, resolution: number) {
-        const objectUrl = URL.createObjectURL(await this.dataService.getVideoBlob(this.albumId, entryId, resolution));
+        const objectUrl = await this.dataService.getVideoBlob(this.albumId, entryId, resolution);
         const a = document.createElement('a');
-        a.href = objectUrl;
+        a.href = this.sanitizer.sanitize(SecurityContext.RESOURCE_URL, objectUrl);
         if (metadata.name) {
             const filename = metadata.name;
             if (filename.toLowerCase().endsWith('.mp4')) {
@@ -428,8 +429,6 @@ export class ShowSingleMediaComponent implements OnInit {
         }
         a.click();
         a.remove();
-        URL.revokeObjectURL(objectUrl);
-
     }
 
     async shareCurrentFile(entryId: string, metadata: AlbumEntryData) {
@@ -458,11 +457,11 @@ export class ShowSingleMediaComponent implements OnInit {
     async shareVideo(entryId: string, metadata: AlbumEntryData, resolution: number) {
         const contentType = 'video/mp4';
         const filename = metadata.name || 'video.mp4';
-        const videoBlob = (await this.dataService.getVideoBlob(this.albumId, entryId, resolution));
+        const videoBlob = (await this.dataService.getVideoBlob(this.albumId, entryId, resolution)).data;
         // console.log('image loaded');
         const lastModified = metadata.created;
         const file = new File([videoBlob], filename, {type: contentType, lastModified});
-        const data = {
+        const data: ShareData = {
             title: filename,
             files: [file],
             url: this.mediaPath(this.mediaId).toString()
