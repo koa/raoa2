@@ -386,6 +386,13 @@ export class ShowSingleMediaComponent implements OnInit {
     async slided() {
         const swiper = this.imageSlider?.nativeElement.swiper;
         const index = swiper?.activeIndex;
+        if (this.playVideo) {
+            this.plaingVideo = false;
+            this.playVideo = false;
+            if (this.videoPlayer) {
+                await this.videoPlayer.nativeElement.pause();
+            }
+        }
         if (index === 2) {
             if (this.nextMediaId !== undefined) {
                 await this.showImage(this.nextMediaId);
