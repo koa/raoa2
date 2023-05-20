@@ -150,7 +150,7 @@
                     <div *ngFor="let blockPart of row.blocks; index as blockNr"
                          [ngStyle]="{'height.px':(elementWidth/blockPart.width), 'width.%':100}"
                          [id]="'block-'+rowNr+'-'+blockNr">
-                        <div *appInViewport="8" class="image-row" [attr.timestamp]="blockPart.beginTimestamp">
+                        <div *appInViewport class="image-row" [attr.timestamp]="blockPart.beginTimestamp">
                             <div *ngFor="let shape of blockPart.shapes; index as shapeNr"
                                  [ngStyle]="{'height.px':(elementWidth/blockPart.width),'width.px':elementWidth/blockPart.width*shape.width}"
                                  class="image-thumbnail-box">
