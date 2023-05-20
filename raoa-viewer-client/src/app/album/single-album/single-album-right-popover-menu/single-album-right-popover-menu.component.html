@@ -1,10 +1,7 @@
 <ion-list>
     <ion-item>
-        <ion-checkbox slot="end" [checked]="selectMode" (click)="toggleSelectMode()">
-        </ion-checkbox>
-        <ion-label>
-            Auswählen
-        </ion-label>
+        <ion-label>Auswählen</ion-label>
+        <ion-checkbox slot="end" [checked]="selectMode" (ionChange)="toggleSelectMode()"></ion-checkbox>
     </ion-item>
     <ion-item *ngIf="fnchCompetitionId !== undefined"
               [href]="'https://info.fnch.ch/#/resultate/veranstaltungen/'+fnchCompetitionId" (click)="onShowRanking()">
