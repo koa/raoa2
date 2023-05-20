@@ -76,7 +76,7 @@
             </ion-select>
             <ion-input placeholder="Name" [(ngModel)]="newAlbumName"></ion-input>
             <ion-label>Datum</ion-label>
-            <ion-datetime minute-values="0,15,30,45" displayFormat="DDD DD MMM , YYYY HH:mm"
+            <ion-datetime minute-values="0,15,30,45" presentation="date-time"
                           [(ngModel)]="newAlbumTimestamp"></ion-datetime>
             <ion-button (click)="createAlbum()">Album Erstellen</ion-button>
         </ion-card-content>

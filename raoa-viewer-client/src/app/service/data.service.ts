@@ -638,7 +638,7 @@ export class DataService {// implements OnDestroy {
         for (let i = 0; i < 10; i++) {
             try {
                 const imageBlob = await this.http.get(src, {responseType: 'blob'}).toPromise();
-                cache.put(src, new Response(imageBlob)).then();
+                await cache.put(src, new Response(imageBlob));
                 if (!imageBlob.type.startsWith('image')) {
                     console.error(`wrong content type of ${albumEntryId}: ${imageBlob.type}`);
                     continue;
@@ -816,7 +816,6 @@ export class DataService {// implements OnDestroy {
         return ret;
 
     }
-
 
 
     private findLoadedBlob(albumId: string, albumEntryId: string, minSize: number, maxShift: number, video: boolean): ImageUrl | undefined {

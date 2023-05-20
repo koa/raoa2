@@ -18,6 +18,7 @@ import {IonDatetime, LoadingController, ToastController} from '@ionic/angular';
 import {Location} from '@angular/common';
 import {FNCH_COMPETITION_ID} from '../../constants';
 import {Subscription} from 'rxjs';
+import {formatISO, parseISO} from 'date-fns';
 
 type VisibleTab = 'details' | 'teams' | 'users';
 
@@ -174,7 +175,9 @@ export class ManageAlbumComponent implements OnInit, OnDestroy {
         } else {
             removeLabels.push(FNCH_COMPETITION_ID);
         }
-        const autoadd = this.unmodifiedAutoAddTimestamp === this.autoAddTimestamp ? undefined : [this.autoAddTimestamp];
+        const autoadd = this.unmodifiedAutoAddTimestamp === this.autoAddTimestamp ?
+            undefined
+            : [formatISO(parseISO(this.autoAddTimestamp))];
         const albumUpdate: ManageAlbumUpdateMutationVariables = {
             id: this.albumId,
             update: {

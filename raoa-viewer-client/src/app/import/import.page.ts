@@ -26,6 +26,7 @@ import {StorageService, UploadedFileEntry} from '../service/storage.service';
 import {DataService} from '../service/data.service';
 import {retry} from 'rxjs';
 import pLimit from 'p-limit';
+import {formatISO, parseISO} from 'date-fns';
 
 interface UploadResult {
     byteCount: number;
@@ -93,7 +94,7 @@ export class ImportPage implements OnInit, OnDestroy {
     public parentCandidates: string[] = [];
     public newAlbumParent = '';
     public newAlbumName = '';
-    public newAlbumTimestamp = '';
+    public newAlbumTimestamp = formatISO(new Date());
     public uploadFileProgress = new Map<string, number>();
     public importedFiles: ImportResult[] = [];
     public commitState: Map<string, ServerCommitState[]> = new Map<string, ServerCommitState[]>();
@@ -403,7 +404,7 @@ export class ImportPage implements OnInit, OnDestroy {
         );
         const id = result.createAlbum.id;
         if (this.newAlbumTimestamp) {
-            await this.serverApiService.update(this.importSetAutoaddGQL, {id, date: this.newAlbumTimestamp});
+            await this.serverApiService.update(this.importSetAutoaddGQL, {id, date: formatISO(parseISO(this.newAlbumTimestamp))});
         }
         const toastElement = await this.toastController.create({message: 'Album ' + id + ' erstellt', duration: 10});
         await toastElement.present();
