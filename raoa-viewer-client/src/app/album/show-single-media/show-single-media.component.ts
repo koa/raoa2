@@ -1,4 +1,4 @@
-import {ChangeDetectorRef, Component, ElementRef, HostListener, OnInit, SecurityContext, ViewChild} from '@angular/core';
+import {ChangeDetectorRef, Component, ElementRef, HostListener, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, ParamMap} from '@angular/router';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
@@ -417,9 +417,10 @@ export class ShowSingleMediaComponent implements OnInit {
     }
 
     async downloadVideo(entryId: string, metadata: AlbumEntryData, resolution: number) {
-        const objectUrl = await this.dataService.getVideoBlob(this.albumId, entryId, resolution);
+        const imageBlob = await this.dataService.getVideoBlob(this.albumId, entryId, resolution);
+        const objectUrl = URL.createObjectURL(imageBlob.data);
         const a = document.createElement('a');
-        a.href = this.sanitizer.sanitize(SecurityContext.RESOURCE_URL, objectUrl);
+        a.href = objectUrl;
         if (metadata.name) {
             const filename = metadata.name;
             if (filename.toLowerCase().endsWith('.mp4')) {
@@ -432,6 +433,7 @@ export class ShowSingleMediaComponent implements OnInit {
         }
         a.click();
         a.remove();
+        URL.revokeObjectURL(objectUrl);
     }
 
     async shareCurrentFile(entryId: string, metadata: AlbumEntryData) {
