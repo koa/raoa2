@@ -4,7 +4,10 @@
             <ion-icon name="menu"></ion-icon>
         </ion-button>
         <ion-title>
-            <ion-searchbar placeholder="Album Suchen" (ionChange)="updateSearch($event)"></ion-searchbar>
+            <ion-searchbar
+                    placeholder="Album Suchen"
+                    (ionInput)="updateSearch($event)"
+                    [debounce]="500"></ion-searchbar>
         </ion-title>
     </ion-toolbar>
 </ion-header>

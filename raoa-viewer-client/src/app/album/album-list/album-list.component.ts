@@ -1,4 +1,4 @@
-import {Component, NgZone, OnDestroy, OnInit} from '@angular/core';
+import {ChangeDetectorRef, Component, OnDestroy, OnInit} from '@angular/core';
 import {CommonServerApiService} from '../../service/common-server-api.service';
 import {Location} from '@angular/common';
 import {ServerApiService} from '../../service/server-api.service';
@@ -7,7 +7,7 @@ import {ActivatedRoute} from '@angular/router';
 import {DataService} from '../../service/data.service';
 import {AlbumData, AlbumSettings} from '../../service/storage.service';
 import {MenuController} from '@ionic/angular';
-import {bufferTime, filter, tap} from 'rxjs/operators';
+import {bufferTime, filter} from 'rxjs/operators';
 import {merge, Subscription} from 'rxjs';
 
 type MenuEntry = {
@@ -28,12 +28,12 @@ export class AlbumListComponent implements OnInit, OnDestroy {
 
     constructor(private commonServerApi: CommonServerApiService,
                 private serverApi: ServerApiService,
-                private ngZone: NgZone,
                 private location: Location,
                 private titleService: Title,
                 private activatedRoute: ActivatedRoute,
                 private albumDataService: DataService,
-                private menuController: MenuController
+                private menuController: MenuController,
+                private changeDetectorRef: ChangeDetectorRef
     ) {
     }
 
@@ -64,7 +64,7 @@ export class AlbumListComponent implements OnInit, OnDestroy {
     }
 
     private async updatePhotoCollectionList() {
-        const entries = (await this.commonServerApi.listCollections(navigator.onLine, this.photoCollectionFilter))
+        this.foundAlbums = (await this.commonServerApi.listCollections(navigator.onLine, this.photoCollectionFilter))
             .map((entry: [AlbumData, AlbumSettings | undefined]) => {
                 const newVar: MenuEntry = {
                     sync: entry[1]?.syncOffline ? (entry[0].albumVersion === entry[1]?.offlineSyncedVersion ? 'ready' : 'loading') : 'none',
@@ -73,7 +73,7 @@ export class AlbumListComponent implements OnInit, OnDestroy {
                 };
                 return newVar;
             });
-        this.ngZone.run(() => this.foundAlbums = entries);
+        this.changeDetectorRef.detectChanges();
     }
 
     back() {
