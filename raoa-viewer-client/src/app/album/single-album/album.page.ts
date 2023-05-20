@@ -19,9 +19,7 @@ import {
     updateSearchParams
 } from '../show-single-media/show-single-media.component';
 import {filter} from 'rxjs/operators';
-import {
-    SingleAlbumRightPopoverMenuComponent
-} from './single-album-right-popover-menu/single-album-right-popover-menu.component';
+import {SingleAlbumRightPopoverMenuComponent} from './single-album-right-popover-menu/single-album-right-popover-menu.component';
 import {MultiWindowService} from 'ngx-multi-window';
 
 
@@ -33,6 +31,8 @@ function calcTouchDist(t0: Touch, t1: Touch): number {
     return Math.sqrt(yDist * yDist + xDist * xDist);
 }
 
+type SelectedMediaType = 'showAll' | 'onlyPhotos' | 'onlyVideos';
+
 @Component({
     selector: 'app-album',
     templateUrl: './album.page.html',
@@ -40,6 +40,7 @@ function calcTouchDist(t0: Touch, t1: Touch): number {
 })
 export class AlbumPage implements OnInit, OnDestroy {
     private scrollToTimerHandler: number;
+    canSwitchMediaType = false;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private serverApi: ServerApiService,
@@ -115,6 +116,7 @@ export class AlbumPage implements OnInit, OnDestroy {
 
     private currentUpdateTimer: undefined | NodeJS.Timeout = undefined;
     private lastUpdateTime = Date.now();
+    selectedMediaType: SelectedMediaType = 'showAll';
 
     private static findIndizesOf(rows: Array<TableRow>, timestamp: number): [number, number, number] | undefined {
         for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
@@ -175,7 +177,7 @@ export class AlbumPage implements OnInit, OnDestroy {
         if (foundTimestamp !== undefined) {
             this.timestamp = foundTimestamp;
             const nextPossibleUpdateTime = this.lastUpdateTime + 5000;
-            let now: number = Date.now();
+            const now: number = Date.now();
             if (now > nextPossibleUpdateTime) {
                 this.setParam('timestamp', this.timestamp.toString());
                 this.lastUpdateTime = now;
@@ -228,7 +230,14 @@ export class AlbumPage implements OnInit, OnDestroy {
         this.titleService.setTitle('Album laden');
         this.queryMapSubscribe = this.activatedRoute.queryParamMap.subscribe(async params => {
 
-            const [filteringKeywords, keywordCombine, filteringTimeRange, timeResolution] = parseFilterParams(params);
+            const [
+                filteringKeywords,
+                keywordCombine,
+                filteringTimeRange,
+                timeResolution,
+                showPhotos,
+                showVideos
+            ] = parseFilterParams(params);
             let refreshNeeded = false;
             const keywordSet = new Set<string>(filteringKeywords);
             if (this.filteringKeywords !== keywordSet) {
@@ -256,6 +265,18 @@ export class AlbumPage implements OnInit, OnDestroy {
             const timestamp = params.get('timestamp');
             if (timestamp !== undefined) {
                 this.timestamp = Number.parseInt(timestamp, 10);
+                refreshNeeded = true;
+            }
+            let shouldMediaType: SelectedMediaType = 'showAll';
+            if (!showPhotos) {
+                shouldMediaType = 'onlyVideos';
+            } else {
+                if (!showVideos) {
+                    shouldMediaType = 'onlyPhotos';
+                }
+            }
+            if (shouldMediaType !== this.selectedMediaType) {
+                this.selectedMediaType = shouldMediaType;
                 refreshNeeded = true;
             }
             if (refreshNeeded) {
@@ -342,6 +363,8 @@ export class AlbumPage implements OnInit, OnDestroy {
             shape.entry.albumEntryId,
             filteringKeywords,
             'and',
+            this.isShowingPhotos(),
+            this.isShowingVideos(),
             this.filteringTimeRange,
             this.filterTimeStep).toString();
     }
@@ -476,8 +499,19 @@ export class AlbumPage implements OnInit, OnDestroy {
         for (const param of ['keyword', 'c']) {
             url.searchParams.delete(param);
         }
-        updateSearchParams(kwlist, this.keywordCombinator, this.filteringTimeRange, this.filterTimeStep, url.searchParams);
+        updateSearchParams(kwlist, this.keywordCombinator, this.filteringTimeRange, this.filterTimeStep, url.searchParams,
+            this.isShowingPhotos(),
+            this.isShowingVideos(),
+        );
         this.location.replaceState(url.pathname, url.searchParams.toString());
+    }
+
+    private isShowingVideos() {
+        return this.selectedMediaType === 'showAll' || this.selectedMediaType === 'onlyVideos';
+    }
+
+    private isShowingPhotos() {
+        return this.selectedMediaType === 'showAll' || this.selectedMediaType === 'onlyPhotos';
     }
 
     private async goToAlbumEntry(shape: Shape) {
@@ -490,6 +524,8 @@ export class AlbumPage implements OnInit, OnDestroy {
         const urlTree = this.router.createUrlTree(path, {
             queryParams: createFilterQueryParams(filteringKeywords,
                 this.keywordCombinator,
+                this.isShowingPhotos(),
+                this.isShowingVideos(),
                 this.filteringTimeRange,
                 this.filterTimeStep)
         });
@@ -530,14 +566,25 @@ export class AlbumPage implements OnInit, OnDestroy {
             const userPermissions = await this.dataService.userPermission();
             const keywords: string[] = [];
             this.filteringKeywords.forEach(kw => keywords.push(kw));
-            const keywordFilter = createFilter(keywords, 'and', undefined);
+            const keywordFilter = createFilter(keywords, 'and', undefined,
+                this.isShowingPhotos(),
+                this.isShowingVideos(),
+            );
             const rowCountBefore = this.sortedEntries.length;
             const knownKeywords = new Map<string, number>();
             const foundDates = new Map<number, number>();
-            const timeFilter = createFilter([], 'and', this.filteringTimeRange);
+            const timeFilter = createFilter([], 'and', this.filteringTimeRange, true, true);
+            let hasVideos = false;
+            let hasPhotos = false;
             // const keywordTimeFilter = createFilter(keywords, 'and', this.filteringTimeRange);
             let allDateCounts = 0;
             const [album, entries, albumSettings] = await this.dataService.listAlbum(this.albumId, entry => {
+                if (entry.entryType === 'image') {
+                    hasPhotos = true;
+                }
+                if (entry.entryType === 'video') {
+                    hasVideos = true;
+                }
                 const keywordFiltered = keywordFilter(entry);
                 if (!keywordFiltered) {
                     entry.keywords.forEach(kw => {
@@ -589,6 +636,7 @@ export class AlbumPage implements OnInit, OnDestroy {
                 this.fnCompetitionId = album.fnchAlbumId;
                 this.enableSettings = userPermissions.canManageUsers;
                 this.canEdit = userPermissions.canEdit || userPermissions.canManageUsers;
+                this.canSwitchMediaType = hasPhotos && hasVideos;
 
             });
             await this.calculateRows();

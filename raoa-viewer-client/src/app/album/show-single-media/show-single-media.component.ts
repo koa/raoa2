@@ -23,11 +23,14 @@ export interface FilterQueryParams {
     tf: number | undefined;
     tu: number | undefined;
     tr: number | undefined;
+    t: string | undefined;
 }
 
 export function createFilterQueryParams(
     keywords: string[],
     keywordCombine: KeywordCombine,
+    showPhotos: boolean,
+    showVideos: boolean,
     filteringTimeRange: TimeRange,
     timeResolution: number): FilterQueryParams {
     const [keyword, c] = (keywords !== undefined && keywords.length > 0)
@@ -37,10 +40,12 @@ export function createFilterQueryParams(
         ? filteringTimeRange
         : [undefined, undefined];
     const tr = timeResolution > 0 ? timeResolution : undefined;
+    const t = !showPhotos ? 'v' : !showVideos ? 'p' : undefined;
     return {
         keyword, c,
         tf, tu,
-        tr
+        tr,
+        t
     };
 
 }
@@ -50,7 +55,7 @@ export function updateSearchParams(
     keywordCombine: KeywordCombine,
     filteringTimeRange: TimeRange | undefined,
     timeResolution: number,
-    params: URLSearchParams) {
+    params: URLSearchParams, showPhotos: boolean, showVideos: boolean) {
     if (keywords !== undefined && keywords.length > 0) {
         params.set('keyword', keywords.map(kw => encodeURI(kw)).join(','));
         params.set('c', keywordCombine === 'and' ? 'a' : 'o');
@@ -70,16 +75,23 @@ export function updateSearchParams(
     } else {
         params.delete('tr');
     }
+    if (!showVideos) {
+        params.set('t', 'p');
+    } else if (!showPhotos) {
+        params.set('t', 'v');
+    } else {
+        params.delete('t');
+    }
 }
 
 export function collectFilterParams(
     keywords: string[],
     keywordCombine: KeywordCombine,
     filteringTimeRange: TimeRange,
-    timeResolution: number):
+    timeResolution: number, showPhotos: boolean, showVideos: boolean):
     URLSearchParams {
     const params = new URLSearchParams();
-    updateSearchParams(keywords, keywordCombine, filteringTimeRange, timeResolution, params);
+    updateSearchParams(keywords, keywordCombine, filteringTimeRange, timeResolution, params, showPhotos, showVideos);
     return params;
 }
 
@@ -89,26 +101,31 @@ export function createMediaPath(
     mediaId: string,
     keywords: string[],
     keywordCombine: KeywordCombine,
+    showPhotos: boolean,
+    showVideos: boolean,
     filteringTimeRange: TimeRange,
     timeResolution: number): URL {
     const path = new URL(window.location.href);
     path.pathname = '/album/' + albumId + '/media/' + mediaId;
-    updateSearchParams(keywords, keywordCombine, filteringTimeRange, timeResolution, path.searchParams);
+    updateSearchParams(keywords, keywordCombine, filteringTimeRange, timeResolution, path.searchParams, showPhotos, showVideos);
     return path;
 }
 
 
-export function parseFilterParams(queryParam: ParamMap): [string[], KeywordCombine, TimeRange, number] {
+export function parseFilterParams(queryParam: ParamMap): [string[], KeywordCombine, TimeRange, number, boolean, boolean] {
     const filteringKeyword = queryParam.get('keyword') || undefined;
     const combination = queryParam.get('c');
     const tf = queryParam.get('tf');
     const tu = queryParam.get('tu');
     const tr = queryParam.get('tr');
+    const t = queryParam.get('t');
+    const showPhotos = t === null || t === 'p';
+    const showVideos = t === null || t === 'v';
     return [
         filteringKeyword?.split(',').map(e => decodeURI(e)) ?? [],
         combination ? combination === 'a' ? 'and' : 'or' : 'and',
         tf && tu ? [Number.parseInt(tf, 10), Number.parseInt(tu, 10)] : undefined,
-        tr ? Number.parseInt(tr, 10) : 0
+        tr ? Number.parseInt(tr, 10) : 0, showPhotos, showVideos
     ];
 }
 
@@ -151,6 +168,8 @@ export class ShowSingleMediaComponent implements OnInit {
     public isPresenting = false;
     isDownloadPopoverOpen = false;
     isSharePopoverOpen = false;
+    private showPhotos = true;
+    private showVideos = true;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
@@ -196,12 +215,21 @@ export class ShowSingleMediaComponent implements OnInit {
 
             this.albumId = paramMap.get('id');
             const mediaId = paramMap.get('mediaId');
-            const [filteringKeywords, keywordCombine, filteringTimeRange, timeResolution] = parseFilterParams(queryParam);
+            const [
+                filteringKeywords,
+                keywordCombine,
+                filteringTimeRange,
+                timeResolution,
+                showPhotos,
+                showVideos
+            ] = parseFilterParams(queryParam);
 
             this.filteringKeywords = filteringKeywords;
             this.keywordCombine = keywordCombine;
             this.filteringTimeRange = filteringTimeRange;
             this.timeResolution = timeResolution;
+            this.showPhotos = showPhotos;
+            this.showVideos = showVideos;
 
             const permissions = await this.dataService.userPermission();
 
@@ -249,7 +277,7 @@ export class ShowSingleMediaComponent implements OnInit {
         const filteringKeywords: string[] = this.filteringKeywords;
         const filteringTimeRange: [number, number] = this.filteringTimeRange;
         const keywordCombine: KeywordCombine = this.keywordCombine;
-        const filter = createFilter(filteringKeywords, keywordCombine, filteringTimeRange);
+        const filter = createFilter(filteringKeywords, keywordCombine, filteringTimeRange, this.showPhotos, this.showVideos);
         const knownKeywords = new Set<string>();
         const [albumData, albumEntries] = await this.dataService.listAlbum(this.albumId, entryCandidate => {
             entryCandidate.keywords.forEach(kw => knownKeywords.add(kw));
@@ -524,6 +552,7 @@ export class ShowSingleMediaComponent implements OnInit {
             mediaId,
             this.filteringKeywords,
             this.keywordCombine,
+            this.showPhotos, this.showVideos,
             this.filteringTimeRange,
             this.timeResolution);
     }

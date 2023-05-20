@@ -39,6 +39,19 @@
                 <ion-label>Manage</ion-label>
                 <ion-icon name="settings" slot="start"></ion-icon>
             </ion-item>
+            <ion-item *ngIf="canSwitchMediaType">
+                <ion-segment [(ngModel)]="selectedMediaType" (ionChange)="refreshFilters()">
+                    <ion-segment-button value="showAll">
+                        <ion-label>Alle</ion-label>
+                    </ion-segment-button>
+                    <ion-segment-button value="onlyPhotos">
+                        <ion-label>Nur Photos</ion-label>
+                    </ion-segment-button>
+                    <ion-segment-button value="onlyVideos">
+                        <ion-label>Nur Videos</ion-label>
+                    </ion-segment-button>
+                </ion-segment>
+            </ion-item>
             <ion-radio-group *ngIf="days.length>0" [(ngModel)]="selectedDay" (ionChange)="refreshFilters()">
                 <ion-list-header>Datum</ion-list-header>
                 <ion-item>

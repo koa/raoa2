@@ -22,21 +22,13 @@ import {
 } from '../generated/graphql';
 import {ServerApiService} from './server-api.service';
 import {Router} from '@angular/router';
-import {
-    AlbumData,
-    AlbumEntryData,
-    AlbumSettings,
-    DiashowEntry,
-    ImageBlob,
-    KeywordState,
-    StorageService
-} from './storage.service';
+import {AlbumData, AlbumEntryData, AlbumSettings, DiashowEntry, ImageBlob, KeywordState, StorageService} from './storage.service';
 import {FNCH_COMPETITION_ID} from '../constants';
 import {HttpClient} from '@angular/common/http';
 import {LoginService} from './login.service';
 import {fromEventPattern, merge, Observable, Subscriber} from 'rxjs';
 import {map, share} from 'rxjs/operators';
-import {DomSanitizer, SafeUrl} from "@angular/platform-browser";
+import {DomSanitizer, SafeUrl} from '@angular/platform-browser';
 
 const IMAGE_CACHE_NAME = 'image-cache';
 const VIDEO_CACHE_NAME = 'video-cache';
@@ -107,7 +99,12 @@ function createStoreAlbum(album: {
     };
 }
 
-export function createFilter(filteringKeywords: string[], keywordCombine: 'and' | 'or', filteringTimeRange: [number, number]):
+export function createFilter(
+    filteringKeywords: string[],
+    keywordCombine: 'and' | 'or',
+    filteringTimeRange: [number, number],
+    showPhotos: boolean,
+    showVideos: boolean):
     (AlbumEntryData) => boolean {
     const filters: ((entry: AlbumEntryData) => boolean)[] = [];
     if (filteringKeywords.length > 0) {
@@ -126,6 +123,12 @@ export function createFilter(filteringKeywords: string[], keywordCombine: 'and' 
         const filterFrom = filteringTimeRange[0];
         const filterUntil = filteringTimeRange[1];
         filters.push((entry: AlbumEntryData) => entry.created >= filterFrom && entry.created < filterUntil);
+    }
+    if (!showPhotos) {
+        filters.push((entry: AlbumEntryData) => entry.entryType !== 'image');
+    }
+    if (!showVideos) {
+        filters.push((entry: AlbumEntryData) => entry.entryType !== 'video');
     }
     if (filters.length === 0) {
         return () => true;
@@ -352,7 +355,7 @@ export class DataService {// implements OnDestroy {
                                 batch = [];
                             }
                             batch.push(this.fetchImage(albumSettings.id, entry.albumEntryId, smallSize, 1));
-                            if (entry.entryType === "video") {
+                            if (entry.entryType === 'video') {
                                 batch.push(this.fetchVideo(albumSettings.id, entry.albumEntryId, smallSize, 1));
                             }
                         }
@@ -373,7 +376,7 @@ export class DataService {// implements OnDestroy {
                                 batch = [];
                             }
                             batch.push(this.fetchImage(albumSettings.id, entry.albumEntryId, screenSize, 1));
-                            if (entry.entryType === "video") {
+                            if (entry.entryType === 'video') {
                                 batch.push(this.fetchVideo(albumSettings.id, entry.albumEntryId, screenSize, 1));
                             }
                         }
@@ -470,10 +473,12 @@ export class DataService {// implements OnDestroy {
 
         const storedPermissions = await this.storageService.getUserPermissions();
         if (storedPermissions !== undefined) {
-            if (!navigator.onLine)
+            if (!navigator.onLine) {
                 return storedPermissions;
-            if (storedPermissions.lastLoaded !== undefined && storedPermissions.lastLoaded > Date.now() + 5 * 60 * 1000)
+            }
+            if (storedPermissions.lastLoaded !== undefined && storedPermissions.lastLoaded > Date.now() + 5 * 60 * 1000) {
                 return storedPermissions;
+            }
         }
         if (!navigator.onLine) {
             throw new Error('Offline');
@@ -482,7 +487,9 @@ export class DataService {// implements OnDestroy {
             return undefined;
         }
         const data = await this.serverApi.query<UserPermissionsQuery, UserPermissionsQueryVariables>(this.userPermissionsGQL, {});
-        if (!data) return storedPermissions;
+        if (!data) {
+            return storedPermissions;
+        }
         const ret = {
             canEdit: data.currentUser?.canEdit || false,
             canManageUsers: data.currentUser?.canManageUsers || false,
@@ -623,6 +630,7 @@ export class DataService {// implements OnDestroy {
         let fetchedImage = await this.fetchVideo(albumId, albumEntryId, minSize, maxShift);
         return this.encodeDataUrl(fetchedImage);
     }
+
     public async getVideoBlob(albumId: string, albumEntryId: string, minSize: number): Promise<Blob> {
         const maxShift = navigator.onLine ? 3 : 10;
         let fetchedImage = await this.fetchVideo(albumId, albumEntryId, minSize, maxShift);
@@ -747,8 +755,9 @@ export class DataService {// implements OnDestroy {
         let foundHits: DiashowEntry[] = await this.storageService.findDiashowHits(filterEntries);
         const ret = new Set<[string, string]>();
         foundHits.forEach(entry => {
-            if (entry !== undefined)
+            if (entry !== undefined) {
                 ret.add([entry.albumId, entry.albumEntryId]);
+            }
         });
         return ret;
 
