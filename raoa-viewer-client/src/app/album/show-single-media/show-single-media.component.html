@@ -6,7 +6,10 @@
         </swiper-slide>
         <swiper-slide>
             <img [src]="currentMediaContent | async" *ngIf="!playVideo">
-            <video [src]="loadVideo(this.mediaId) | authImage | async" *ngIf="playVideo" controls>
+            <video [src]="currentVideoUrl" *ngIf="playVideo && currentVideoUrl" controls
+                   (play)="videoPlay($event)"
+                   (pause)="videoStop($event)"
+                   (ended)="videoStop($event)" #videoPlayer>
                 <img [src]="currentMediaContent | async">
             </video>
         </swiper-slide>
@@ -14,7 +17,7 @@
             <img [src]="nextMediaContent | async" *ngIf="nextMediaId">
         </swiper-slide>
     </swiper-container>
-    <div class="overlay" *ngIf="!playVideo">
+    <div class="overlay" *ngIf="!plaingVideo">
         <div *ngIf="previousMediaId" class="left-button">
             <ion-icon class="button" name="arrow-back" (click)="showImage(previousMediaId)"></ion-icon>
         </div>
@@ -22,7 +25,7 @@
             <ion-icon class="button" name="arrow-forward" (click)="showImage(nextMediaId)"></ion-icon>
         </div>
         <div class="play-button" *ngIf="currentIsVideo">
-            <ion-icon class="button" name="play-circle-outline" (click)="playVideo=true"></ion-icon>
+            <ion-icon class="button" name="play-circle-outline" (click)="startPlayVideo()"></ion-icon>
         </div>
         <ion-header>
             <ion-toolbar color="dark">

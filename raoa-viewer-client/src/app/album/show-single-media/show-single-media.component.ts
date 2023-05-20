@@ -1,4 +1,4 @@
-import {Component, ElementRef, HostListener, NgZone, OnInit, SecurityContext, ViewChild} from '@angular/core';
+import {ChangeDetectorRef, Component, ElementRef, HostListener, OnInit, SecurityContext, ViewChild} from '@angular/core';
 import {ActivatedRoute, ParamMap} from '@angular/router';
 import {MediaResolverService} from '../service/media-resolver.service';
 import {Location} from '@angular/common';
@@ -157,6 +157,8 @@ export class ShowSingleMediaComponent implements OnInit {
     public inputKeyword = '';
     @ViewChild('imageSlider', {static: true})
     private imageSlider: ElementRef | undefined;
+    @ViewChild('videoPlayer')
+    private videoPlayer: ElementRef<HTMLVideoElement> | undefined;
     @ViewChild('videoRoot') private element: ElementRef<HTMLDivElement>;
     private filteringKeywords: string[];
     private keywordCombine: KeywordCombine = 'and';
@@ -170,11 +172,13 @@ export class ShowSingleMediaComponent implements OnInit {
     isSharePopoverOpen = false;
     private showPhotos = true;
     private showVideos = true;
+    currentVideoUrl: SafeUrl = undefined;
+    plaingVideo = false;
 
     constructor(private activatedRoute: ActivatedRoute,
                 private mediaResolver: MediaResolverService,
                 private dataService: DataService,
-                private ngZone: NgZone,
+                private changeDetectorRef: ChangeDetectorRef,
                 private location: Location,
                 private http: HttpClient,
                 private serverApi: ServerApiService,
@@ -208,7 +212,8 @@ export class ShowSingleMediaComponent implements OnInit {
                     canPresent = true;
                 }
             }
-            this.ngZone.run(() => this.canPresent = canPresent);
+            this.canPresent = canPresent;
+            this.changeDetectorRef.detectChanges();
         });
         combineLatest([this.activatedRoute.paramMap, this.activatedRoute.queryParamMap]).subscribe(async data => {
             const paramMap = data[0];
@@ -239,28 +244,27 @@ export class ShowSingleMediaComponent implements OnInit {
             const mediaIdAsInt = BigInt('0x' + mediaId);
             const previousMediaId = ShowSingleMediaComponent.bigint2objectId(this.prevIdMap.get(mediaIdAsInt));
             const nextMediaId = ShowSingleMediaComponent.bigint2objectId(this.nextIdMap.get(mediaIdAsInt));
-            this.ngZone.run(() => {
-                this.previousMediaContent = previousMediaId
-                    ? this.dataService.getImage(this.albumId, previousMediaId, this.bigImageSize)
-                    : undefined;
-                this.nextMediaContent = nextMediaId
-                    ? this.dataService.getImage(this.albumId, nextMediaId, this.bigImageSize)
-                    : undefined;
+            this.previousMediaContent = previousMediaId
+                ? this.dataService.getImage(this.albumId, previousMediaId, this.bigImageSize)
+                : undefined;
+            this.nextMediaContent = nextMediaId
+                ? this.dataService.getImage(this.albumId, nextMediaId, this.bigImageSize)
+                : undefined;
 
-                this.nextMediaId = nextMediaId;
-                this.previousMediaId = previousMediaId;
-                this.canEdit = permissions.canEdit;
-            });
+            this.nextMediaId = nextMediaId;
+            this.previousMediaId = previousMediaId;
+            this.canEdit = permissions.canEdit;
+            this.changeDetectorRef.detectChanges();
             await this.refreshControls();
         });
     }
 
 
-    loadVideo(mediaId: string): string {
+    async loadVideo(mediaId: string): Promise<SafeUrl> {
         if (mediaId === undefined) {
             return undefined;
         }
-        return this.mediaResolver.lookupVideo(this.albumId, mediaId, this.bigImageSize);
+        return this.dataService.getVideo(this.albumId, mediaId, this.bigImageSize);
     }
 
 
@@ -295,10 +299,9 @@ export class ShowSingleMediaComponent implements OnInit {
             }
             lastAlbumId = myId;
         }
-        this.ngZone.run(() => {
-            this.title = albumData.title;
-            this.allKnownAlbumKeywords = knownKeywords;
-        });
+        this.title = albumData.title;
+        this.allKnownAlbumKeywords = knownKeywords;
+        this.changeDetectorRef.detectChanges();
     }
 
 
@@ -327,49 +330,49 @@ export class ShowSingleMediaComponent implements OnInit {
                     this.dataService.isDiashowEnabled(this.albumId, mediaId)
                 ]);
 
-            this.ngZone.run(() => {
-                this.isPresenting = diashowEnabled;
-                if (mediaId === this.nextMediaId) {
-                    // move fast forward
-                    this.previousMediaContent = this.currentMediaContent;
-                    this.currentMediaContent = this.nextMediaContent;
-                    this.nextMediaContent = nextMediaId
-                        ? this.dataService.getImage(this.albumId, nextMediaId, this.bigImageSize)
-                        : undefined;
-                } else if (mediaId === this.previousMediaId) {
-                    // move fast backward
-                    this.nextMediaContent = this.currentMediaContent;
-                    this.currentMediaContent = this.previousMediaContent;
-                    this.previousMediaContent = previousMediaId
-                        ? this.dataService.getImage(this.albumId, previousMediaId, this.bigImageSize)
-                        : undefined;
-                } else if (this.mediaId !== mediaId) {
-                    // move anywhere else
-                    this.currentMediaContent = this.dataService.getImage(this.albumId, mediaId, this.bigImageSize);
-                    this.previousMediaContent = previousMediaId
-                        ? this.dataService.getImage(this.albumId, previousMediaId, this.bigImageSize)
-                        : undefined;
-                    this.nextMediaContent = nextMediaId
-                        ? this.dataService.getImage(this.albumId, nextMediaId, this.bigImageSize)
-                        : undefined;
-                }
-                this.mediaId = mediaId;
-                this.metadata = albumEntry;
-                this.titleService.setTitle(albumEntry.name);
-                const url = this.mediaPath(mediaId);
-                this.location.replaceState(url.pathname, url.searchParams.toString());
-                this.previousMediaId = previousMediaId;
-                this.nextMediaId = nextMediaId;
-                this.currentSelectedKeywords = new Set(keywords);
-                const allKeywords = new Set(this.allKnownAlbumKeywords);
-                this.currentSelectedKeywords.forEach(keyword => allKeywords.add(keyword));
-                this.currentIsVideo = albumEntry.entryType === 'video';
-                this.playVideo = false;
-                this.albumKeywords = [];
-                allKeywords.forEach(keyword => this.albumKeywords.push(keyword));
-                this.albumKeywords.sort((k1, k2) => k1.localeCompare(k2));
-            });
+            this.isPresenting = diashowEnabled;
+            if (mediaId === this.nextMediaId) {
+                // move fast forward
+                this.previousMediaContent = this.currentMediaContent;
+                this.currentMediaContent = this.nextMediaContent;
+                this.nextMediaContent = nextMediaId
+                    ? this.dataService.getImage(this.albumId, nextMediaId, this.bigImageSize)
+                    : undefined;
+            } else if (mediaId === this.previousMediaId) {
+                // move fast backward
+                this.nextMediaContent = this.currentMediaContent;
+                this.currentMediaContent = this.previousMediaContent;
+                this.previousMediaContent = previousMediaId
+                    ? this.dataService.getImage(this.albumId, previousMediaId, this.bigImageSize)
+                    : undefined;
+            } else if (this.mediaId !== mediaId) {
+                // move anywhere else
+                this.currentMediaContent = this.dataService.getImage(this.albumId, mediaId, this.bigImageSize);
+                this.previousMediaContent = previousMediaId
+                    ? this.dataService.getImage(this.albumId, previousMediaId, this.bigImageSize)
+                    : undefined;
+                this.nextMediaContent = nextMediaId
+                    ? this.dataService.getImage(this.albumId, nextMediaId, this.bigImageSize)
+                    : undefined;
+            }
+            this.mediaId = mediaId;
+            this.metadata = albumEntry;
+            this.titleService.setTitle(albumEntry.name);
+            const url = this.mediaPath(mediaId);
+            this.location.replaceState(url.pathname, url.searchParams.toString());
+            this.previousMediaId = previousMediaId;
+            this.nextMediaId = nextMediaId;
+            this.currentSelectedKeywords = new Set(keywords);
+            const allKeywords = new Set(this.allKnownAlbumKeywords);
+            this.currentSelectedKeywords.forEach(keyword => allKeywords.add(keyword));
+            this.currentIsVideo = albumEntry.entryType === 'video';
+            this.playVideo = false;
+            this.albumKeywords = [];
+            allKeywords.forEach(keyword => this.albumKeywords.push(keyword));
+            this.albumKeywords.sort((k1, k2) => k1.localeCompare(k2));
+            this.currentVideoUrl = undefined;
             await this.refreshControls();
+            this.changeDetectorRef.detectChanges();
         } finally {
             window.clearTimeout(waitTimeoutHandler);
             if (waitIndicator !== undefined) {
@@ -609,6 +612,36 @@ export class ShowSingleMediaComponent implements OnInit {
             }
         }
         const diashowEnabled = await this.dataService.isDiashowEnabled(this.albumId, this.mediaId);
-        this.ngZone.run(() => this.isPresenting = diashowEnabled);
+        this.isPresenting = diashowEnabled;
+        this.changeDetectorRef.detectChanges();
+    }
+
+    videoPlay($event: Event) {
+        this.plaingVideo = true;
+    }
+
+    async startPlayVideo() {
+        if (!this.playVideo) {
+            const loadingVideoIndicator = await this.loadingController.create({
+                message: 'Video wird geladen...',
+                showBackdrop: true,
+                backdropDismiss: true
+            });
+            await loadingVideoIndicator.present();
+            try {
+                this.playVideo = true;
+                this.currentVideoUrl = await this.loadVideo(this.mediaId);
+            } finally {
+                await loadingVideoIndicator.dismiss();
+            }
+            this.changeDetectorRef.detectChanges();
+        }
+        if (this.videoPlayer) {
+            await this.videoPlayer.nativeElement.play();
+        }
+    }
+
+    videoStop($event: Event) {
+        this.plaingVideo = false;
     }
 }

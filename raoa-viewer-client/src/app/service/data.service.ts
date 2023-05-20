@@ -38,7 +38,7 @@ import {HttpClient} from '@angular/common/http';
 import {LoginService} from './login.service';
 import {fromEventPattern, merge, Observable, Subscriber} from 'rxjs';
 import {map, share} from 'rxjs/operators';
-import {DomSanitizer, SafeUrl} from '@angular/platform-browser';
+import {DomSanitizer, SafeResourceUrl, SafeUrl} from '@angular/platform-browser';
 import {LRUCache} from 'lru-cache';
 
 const IMAGE_CACHE_NAME = 'image-cache';
@@ -188,8 +188,12 @@ function videoUrl(albumId: string, albumEntryId: string, nextStepMaxLength: numb
 }
 
 
-function createMapKey(albumId: string, albumEntryId: string, length: number): string {
-    return `${albumId}-${albumEntryId}-${length}`;
+function createMapKey(albumId: string, albumEntryId: string, length: number, video: boolean): string {
+    if (video) {
+        return `${albumId}-${albumEntryId}-${length}-v`;
+    } else {
+        return `${albumId}-${albumEntryId}-${length}`;
+    }
 }
 
 @Injectable({
@@ -209,6 +213,7 @@ export class DataService {// implements OnDestroy {
         sizeCalculation: (value, key) => value.fileSize,
         dispose: (value, key) => URL.revokeObjectURL(value.url)
     });
+    private pendingBlobLoad = new Map<string, Promise<SafeResourceUrl>>();
 
     constructor(private serverApi: ServerApiService,
                 private loginService: LoginService,
@@ -591,14 +596,14 @@ export class DataService {// implements OnDestroy {
 
     public async getImage(albumId: string, albumEntryId: string, minSize: number): Promise<SafeUrl> {
         const maxShift = navigator.onLine ? 3 : 10;
-        const existingBlob = this.findLoadedBlob(albumId, albumEntryId, minSize, maxShift);
+        const existingBlob = this.findLoadedBlob(albumId, albumEntryId, minSize, maxShift, false);
         if (existingBlob) {
             return this.sanitizer.bypassSecurityTrustResourceUrl(existingBlob.url);
         }
         const fetchedImage = await this.fetchImage(albumId, albumEntryId, minSize, maxShift);
         const foundLength = fetchedImage.mediaSize;
         const createdUrl = createUrlFromBlob(fetchedImage);
-        this.loadedBlobs.set(createMapKey(albumId, albumEntryId, foundLength), createdUrl);
+        this.loadedBlobs.set(createMapKey(albumId, albumEntryId, foundLength, false), createdUrl);
         return this.sanitizer.bypassSecurityTrustResourceUrl(createdUrl.url);
     }
 
@@ -652,10 +657,33 @@ export class DataService {// implements OnDestroy {
         throw new Error('Error fetching image');
     }
 
-    public async getVideo(albumId: string, albumEntryId: string, minSize: number): Promise<SafeUrl> {
+    public async getVideo(albumId: string, albumEntryId: string, minSize: number): Promise<SafeResourceUrl> {
+        const pendingQueryKey = createMapKey(albumId, albumEntryId, minSize, true);
+        const alreadyLoading = this.pendingBlobLoad.get(pendingQueryKey);
+        if (alreadyLoading) {
+            return alreadyLoading;
+        }
+        const promise = this.doGetVideo(albumId, albumEntryId, minSize);
+        this.pendingBlobLoad.set(pendingQueryKey, promise);
+        try {
+            const safeResourceUrl = await promise;
+            return safeResourceUrl;
+        } finally {
+            this.pendingBlobLoad.delete(pendingQueryKey);
+        }
+    }
+
+    private async doGetVideo(albumId: string, albumEntryId: string, minSize: number) {
         const maxShift = navigator.onLine ? 3 : 10;
-        const fetchedImage = await this.fetchVideo(albumId, albumEntryId, minSize, maxShift);
-        return fetchedImage.data;
+        const existingBlob = this.findLoadedBlob(albumId, albumEntryId, minSize, maxShift, true);
+        if (existingBlob) {
+            return this.sanitizer.bypassSecurityTrustResourceUrl(existingBlob.url);
+        }
+        const fetchedVideo = await this.fetchVideo(albumId, albumEntryId, minSize, maxShift);
+        const foundLength = fetchedVideo.mediaSize;
+        const createdUrl = createUrlFromBlob(fetchedVideo);
+        this.loadedBlobs.set(createMapKey(albumId, albumEntryId, foundLength, true), createdUrl);
+        return this.sanitizer.bypassSecurityTrustResourceUrl(createdUrl.url);
     }
 
     public async getVideoBlob(albumId: string, albumEntryId: string, minSize: number): Promise<ImageBlob> {
@@ -789,17 +817,15 @@ export class DataService {// implements OnDestroy {
 
     }
 
-    private encodeDataUrl(storedImage: ImageBlob): SafeUrl {
-        return storedImage.data;
-    }
 
-    private findLoadedBlob(albumId: string, albumEntryId: string, minSize: number, maxShift: number): ImageUrl | undefined {
+
+    private findLoadedBlob(albumId: string, albumEntryId: string, minSize: number, maxShift: number, video: boolean): ImageUrl | undefined {
         const nextStepMaxLength = findNextStep(minSize);
         for (let shift = 0; shift < maxShift; shift++) {
             // tslint:disable-next-line:no-bitwise
             const length = nextStepMaxLength * (1 << shift);
             const cachedBlob = this.loadedBlobs.get(
-                createMapKey(albumId, albumEntryId, length));
+                createMapKey(albumId, albumEntryId, length, video));
             if (cachedBlob) {
                 return cachedBlob;
             }
