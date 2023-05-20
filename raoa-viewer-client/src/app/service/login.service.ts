@@ -6,8 +6,7 @@ import {AuthConfig, OAuthService} from 'angular-oauth2-oidc';
 import {JwksValidationHandler} from 'angular-oauth2-oidc-jwks';
 import {Observable, Subscriber} from 'rxjs';
 import {share} from 'rxjs/operators';
-import * as Sentry from "@sentry/browser";
-
+import * as Sentry from '@sentry/angular-ivy';
 
 interface CachedAuth {
     auth: any;

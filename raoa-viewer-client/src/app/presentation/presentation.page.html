@@ -1,5 +1,5 @@
 <ion-content>
-    <div class="image" #videoRoot (resized)="resized()">
+    <div class="image" #videoRoot (ngxResize)="resized()">
         <img [src]="currentMediaContent" *ngIf="!playVideo && currentMediaContent">
         <div class="error" *ngIf="!currentMediaContent">Kein Bild ausgewählt</div>
     </div>

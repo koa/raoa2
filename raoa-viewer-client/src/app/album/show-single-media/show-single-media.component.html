@@ -1,5 +1,5 @@
 <div class="image" (keyup.arrowLeft)="showImage(previousMediaId)" (keyup.arrowRight)="showImage(nextMediaId)" #videoRoot
-     (resized)="resized()">
+     (ngxResize)="resized()">
     <swiper-container (transitionend)="slided()" #imageSlider>
         <swiper-slide>
             <img [src]="previousMediaContent | async" *ngIf="previousMediaId">

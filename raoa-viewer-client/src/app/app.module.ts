@@ -19,7 +19,7 @@ import {MainMenuComponentModule} from './main-menu/main-menu.module';
 import {OAuthModule} from 'angular-oauth2-oidc';
 import {FilesizePipe} from './filesize.pipe';
 import {GraphQLModule} from './graphql.module';
-import * as Sentry from '@sentry/angular';
+import * as Sentry from '@sentry/angular-ivy';
 import {MultiWindowModule} from 'ngx-multi-window';
 import {FormsModule} from '@angular/forms';
 

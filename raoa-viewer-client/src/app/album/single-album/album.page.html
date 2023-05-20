@@ -126,7 +126,7 @@
              id="content-list"
              (touchstart)="onTouchStart($event)"
              (touchmove)="onTouchMove($event)">
-    <div class="image-list" #imageList (resized)="resized()">
+    <div class="image-list" #imageList (ngxResize)="resized()">
         <ng-container *ngFor="let row of rows; index as rowNr" class="row">
             <h1 *ngIf="row.kind=='timestamp'" [id]="'day-'+row.id">
                 {{row.time | date:'fullDate' }}

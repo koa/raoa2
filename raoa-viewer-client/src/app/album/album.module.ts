@@ -8,7 +8,6 @@ import {AlbumPageRoutingModule} from './album-routing.module';
 
 import {AlbumPage} from './single-album/album.page';
 import {AuthImagePipe} from './pipe/auth-image.pipe';
-import {AngularResizeEventModule} from 'angular-resize-event';
 import {InViewportDirective} from './in-viewport.directive';
 import {ShowSingleMediaComponent} from './show-single-media/show-single-media.component';
 import {AlbumListComponent} from './album-list/album-list.component';
@@ -20,6 +19,7 @@ import {UserListEditorModule} from '../user-list-editor/user-list-editor.module'
 import {
     SingleAlbumRightPopoverMenuComponent
 } from './single-album/single-album-right-popover-menu/single-album-right-popover-menu.component';
+import {NgxResize} from 'ngx-resize';
 
 @NgModule({
     imports: [
@@ -27,11 +27,11 @@ import {
         FormsModule,
         IonicModule,
         AlbumPageRoutingModule,
-        AngularResizeEventModule,
         ManageUsersPageModule,
         MainMenuComponentModule,
         GroupListEditorModule,
-        UserListEditorModule
+        UserListEditorModule,
+        NgxResize
     ],
     declarations: [AlbumPage,
         AuthImagePipe,

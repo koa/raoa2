@@ -7,7 +7,7 @@ import {IonicModule} from '@ionic/angular';
 import {PresentationPageRoutingModule} from './presentation-routing.module';
 
 import {PresentationPage} from './presentation.page';
-import {AngularResizeEventModule} from 'angular-resize-event';
+import {NgxResize} from 'ngx-resize';
 
 @NgModule({
     imports: [
@@ -15,7 +15,7 @@ import {AngularResizeEventModule} from 'angular-resize-event';
         FormsModule,
         IonicModule,
         PresentationPageRoutingModule,
-        AngularResizeEventModule
+        NgxResize,
     ],
     declarations: [PresentationPage]
 })
