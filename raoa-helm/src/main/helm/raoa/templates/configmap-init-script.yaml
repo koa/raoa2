@@ -9,3 +9,5 @@ data:
     cd /data
     test -d .meta.git || git init --bare .meta.git
     chown -R $TARGET_USER:$TARGET:GROUP .
+    cd /cache
+    chown -R $TARGET_USER:$TARGET:GROUP .
