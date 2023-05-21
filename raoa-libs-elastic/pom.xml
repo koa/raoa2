@@ -4,17 +4,17 @@
     <parent>
         <groupId>ch.bergturbenthal.raoa2</groupId>
         <artifactId>parent</artifactId>
-        <version>0.0.26</version>
+        <version>0.0.27-SNAPSHOT</version>
     </parent>
 
     <artifactId>raoa-libs-elastic</artifactId>
-    <version>0.0.26</version>
+    <version>0.0.27-SNAPSHOT</version>
 
     <dependencies>
         <dependency>
             <groupId>ch.bergturbenthal.raoa2</groupId>
             <artifactId>raoa-libs</artifactId>
-            <version>0.0.26</version>
+            <version>0.0.27-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
