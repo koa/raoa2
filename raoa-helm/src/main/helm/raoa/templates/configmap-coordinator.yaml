@@ -35,7 +35,7 @@ data:
               {{- toYaml .Values.podSecurityContext | nindent 14 }}
             containers:
               - name: media-processor
-                image: "{{ .Values.image.mediaProcessorRepository }}:{{ .Values.image.version }}"
+                image: "{{ .Values.image.mediaProcessorRepository }}:{{ .Values.image.version | default .Chart.AppVersion}}"
                 securityContext:
                   {{- toYaml .Values.securityContext | nindent 18 }}
                 imagePullPolicy: IfNotPresent

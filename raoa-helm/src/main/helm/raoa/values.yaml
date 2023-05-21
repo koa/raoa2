@@ -11,7 +11,6 @@ image:
   mediaProcessorRepository: docker.berg-turbenthal.ch/raoa-media-processor
   importerRepository: docker.berg-turbenthal.ch/raoa-importer
   pullPolicy: IfNotPresent
-  version: 20200301-185904
 
 priorityClass:
   {}
