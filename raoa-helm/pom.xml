@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>raoa-helm</artifactId>
+    <version>0.0.26-SNAPSHOT</version>
+    <parent>
+        <groupId>ch.bergturbenthal.raoa2</groupId>
+        <artifactId>parent</artifactId>
+        <version>0.0.26-SNAPSHOT</version>
+    </parent>
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>helm-maven-plugin</artifactId>
+                <configuration>
+                    <appVersion>${unique.version}</appVersion>
+                    <chartDirectory>${project.basedir}/src/main/helm</chartDirectory>
+                    <chartVersion>${unique.chart.version}</chartVersion>
+                    <helmVersion>3.11.2</helmVersion>
+                    <uploadRepoSnapshot>
+                        <name>helm-snapshots</name>
+                        <type>NEXUS</type>
+                        <url>https://nexus.berg-turbenthal.ch/repository/helm-snapshot/</url>
+                    </uploadRepoSnapshot>
+                    <uploadRepoStable>
+                        <name>helm-releases</name>
+                        <type>NEXUS</type>
+                        <url>https://nexus.berg-turbenthal.ch/repository/helm/</url>
+                    </uploadRepoStable>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>init</goal>
+                            <goal>lint</goal>
+                            <goal>dependency-build</goal>
+                            <goal>package</goal>
+                            <goal>upload</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <groupId>io.kokuwa.maven</groupId>
+                <version>6.6.1</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -1,0 +1,15 @@
+{{- if .Values.data.repository.override -}}
+{{- else -}}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ include "raoa.name" .}}-repository
+  labels:
+    {{- include "raoa.labels" . | nindent 4 }}
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+{{- end -}}

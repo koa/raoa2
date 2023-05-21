@@ -176,6 +176,7 @@
                         <tags>
                             <tag>${project.version}</tag>
                             <tag>${local.version}</tag>
+                            <tag>${unique.version}</tag>
                         </tags>
                     </to>
                     <container>

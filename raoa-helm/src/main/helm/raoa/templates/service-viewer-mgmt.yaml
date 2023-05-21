@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "raoa.fullname" . }}-viewer-mgmt
+  labels:
+    {{- include "raoa.labels" . | nindent 4 }}
+    role: mgmt
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.managementPort }}
+      targetPort: management
+      protocol: TCP
+      name: mgmt
+  selector:
+    {{- include "raoa.viewerSelectorLabels" . | nindent 4 }}

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "raoa.fullname" . }}-viewer
+  labels:
+    {{- include "raoa.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.containerPort }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "raoa.viewerSelectorLabels" . | nindent 4 }}

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "raoa.fullname" . }}-test-connection"
+  labels:
+  {{- include "raoa.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args:  ['{{ .Values.ingress.host }}']
+  restartPolicy: Never

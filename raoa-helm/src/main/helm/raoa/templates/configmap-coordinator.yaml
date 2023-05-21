@@ -1,0 +1,142 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ include "raoa.fullname" . }}-coordinator
+  labels:
+    {{- include "raoa.labels" . | nindent 4 }}
+data:
+  {{ include "raoa.common.config" . | nindent 2}}
+  {{ toYaml .Values.coordinatorSettings | nindent 2 }}
+  raoa.coordinator.mediaProcessorTemplate: |-
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: processor-job
+      labels:
+        {{- include "raoa.labels" . | nindent 8 }}
+    spec:
+        template:
+          metadata:
+            name: media-processor-1
+            labels:
+              group: media-processor
+              {{- include "raoa.labels" . | nindent 14 }}
+          spec:
+            restartPolicy: OnFailure
+            {{- with .Values.imagePullSecrets }}
+            imagePullSecrets:
+            {{- toYaml . | nindent 14 }}
+            {{- end }}
+            {{- if .Values.priorityClass.mediaProcessor }}
+            priorityClassName: {{ .Values.priorityClass.mediaProcessor }}
+            {{- end }}
+            serviceAccountName: {{ include "raoa.serviceAccountName" . }}
+            securityContext:
+              {{- toYaml .Values.podSecurityContext | nindent 14 }}
+            containers:
+              - name: media-processor
+                image: "{{ .Values.image.mediaProcessorRepository }}:{{ .Values.image.version }}"
+                securityContext:
+                  {{- toYaml .Values.securityContext | nindent 18 }}
+                imagePullPolicy: IfNotPresent
+                ports:
+                - name: management
+                  containerPort: {{ .Values.managementPort}}
+                  {{ if .Values.debug.enabled}}
+                - name: debug
+                  containerPort: {{ .Values.debug.port}}
+                  {{ end}}
+                livenessProbe:
+                  httpGet:
+                    port: {{ .Values.managementPort }}
+                    path: /actuator/health
+                  initialDelaySeconds: 90
+                  failureThreshold: 20
+                  periodSeconds: 5
+                  timeoutSeconds: 5
+                env:
+                  - name: XDG_CONFIG_HOME
+                    value: /dumps
+                   {{ if .Values.debug.enabled}}
+                  - name: JAVA_TOOL_OPTIONS
+                    value: {{ printf "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=localhost:%i" .Values.debug.port | quote}}
+                   {{ end}}
+                  - name: SPRING_DATA_ELASTICSEARCH_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: {{ include "raoa.fullname" . }}-es-elastic-user
+                        key: elastic
+                  - name: SPRING_ELASTICSEARCH_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: {{ include "raoa.fullname" . }}-es-elastic-user
+                        key: elastic
+                  - name: SPRING_DATA_ELASTICSEARCH_CLIENT_REACTIVE_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: {{ include "raoa.fullname" . }}-es-elastic-user
+                        key: elastic
+                  - name: SPRING_ELASTICSEARCH_REST_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: {{ include "raoa.fullname" . }}-es-elastic-user
+                        key: elastic
+                  - name: SPRING_APPLICATION_NAME
+                    value: {{ include "raoa.fullname" . }}-media-processor
+                  - name: SPRING_DATA_ELASTICSEARCH_CLIENT_REACTIVE_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        key: elastic
+                        name: {{ include "raoa.fullname" . }}-es-elastic-user
+                  - name: RAOA_JOB_REPOSITORY
+                    value: $repoId$
+                  - name: RAOA_JOB_FILES
+                    value: $fileList$
+                volumeMounts:
+                  - mountPath: /cache
+                    name: shared-cache
+                  - mountPath: /data
+                    name: data
+                  - mountPath: /dumps
+                    name: dumps
+                  - mountPath: /opt/java/openjdk/lib/security
+                    name: security
+                resources:
+                  {{- toYaml .Values.processorResources | nindent 18 }}
+            initContainers:
+            - name: import-ca-certs
+              image: eclipse-temurin:17-jre
+              volumeMounts:
+                - mountPath: /ca
+                  name: ca
+                - mountPath: /security
+                  name: security
+              command:
+                - bash
+                - -c
+                - 'cp /opt/java/openjdk/lib/security/* /security && keytool -import -trustcacerts -keystore /security/cacerts -storepass changeit -noprompt -alias el-ca -file /ca/ca.crt'
+            {{ with .Values.affinity }}
+            affinity:
+            {{- toYaml . | nindent 14 }}
+            {{ end }}
+            {{ with .Values.nodeSelector }}
+            nodeSelector:
+            {{- toYaml . | nindent 14 }}
+            {{ end }}
+            {{ with .Values.tolerations }}
+            tolerations:
+            {{- toYaml . | nindent 14 }}
+            {{ end }}
+            volumes:
+              - name: data
+                {{- include "raoa.dataVolume" . | nindent 16 }}
+              - name: shared-cache
+                {{- include "raoa.cacheVolume" . | nindent 16 }}
+              - emptyDir: { }
+                name: dumps
+              - name: ca
+                secret:
+                  secretName: {{ include "raoa.fullname" . }}-es-remote-ca
+              - name: security
+                emptyDir: {}
+

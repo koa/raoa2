@@ -1,0 +1,39 @@
+{{ if .Values.repack.enabled}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "raoa.fullname" . }}-repack
+  labels:
+  {{- include "raoa.labels" . | nindent 4 }}
+spec:
+  concurrencyPolicy: Forbid
+  schedule: "{{.Values.repack.schedule}}"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: {{ include "raoa.serviceAccountName" . }}
+          containers:
+            - name: {{ .Chart.Name }}-repack
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
+              image: "{{ .Values.repack.image }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - /bin/sh
+                - /script/repack
+              volumeMounts:
+              - mountPath: /data
+                name: data
+              - mountPath: /script
+                name: script
+              resources:
+                {{- toYaml .Values.repack.resources | nindent 16 }}
+          volumes:
+            - name: data
+              {{- include "raoa.dataVolume" . | nindent 14 }}
+            - name: script
+              configMap:
+                name: {{ include "raoa.fullname" . }}-repack-script
+          restartPolicy: OnFailure
+{{ end }}

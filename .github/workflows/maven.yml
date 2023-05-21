@@ -35,6 +35,14 @@ jobs:
                 "username":"${{ secrets.NEXUS_USER }}",
                 "password":"${{ secrets.NEXUS_PASSWORD }}"
             },{
+                "id": "helm-releases",
+                "username":"${{ secrets.NEXUS_USER }}",
+                "password":"${{ secrets.NEXUS_PASSWORD }}"
+            },{
+                "id": "helm-snapshots",
+                "username":"${{ secrets.NEXUS_USER }}",
+                "password":"${{ secrets.NEXUS_PASSWORD }}"
+            },{
                 "id": "docker.berg-turbenthal.ch",
                 "username":"${{ secrets.NEXUS_USER }}",
                 "password":"${{ secrets.NEXUS_PASSWORD }}"

@@ -1,0 +1,24 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ include "raoa.fullname" . }}-repack-script
+  labels:
+  {{- include "raoa.labels" . | nindent 4 }}
+data:
+  repack: |
+    function findGit {
+        local dir="$1"
+        for file in "$dir"/* "$dir"/.meta.git; do
+        [[ -d "$file" ]] &&
+        case "$file" in
+          *.git) echo "$file";;
+          *) findGit "$file";;
+        esac
+        done
+    }
+    IFS=$'\n'
+    for repodir in $(findGit "/data"); do
+        cd "$repodir";
+        basename $(pwd)
+        git repack || exit
+    done

@@ -1,0 +1,16 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ include "raoa.fullname" . }}-viewer
+  labels:
+    {{- include "raoa.labels" . | nindent 4 }}
+data:
+  {{ include "raoa.common.config" . | nindent 2}}
+  raoa.viewer.cache-size.thumbnails: 10GB
+  raoa.viewer.cache-dir: /cache
+  spring.security.oauth2.client.registration.google.client-id: {{.Values.security.googleClientId}}
+  spring.security.oauth2.client.registration.google.client-secret: {{.Values.security.googleClientSecret}}
+  raoa.viewer.client-properties.google-client-id: {{.Values.security.googleClientId}}
+  security.oauth2.resource.jwk.key-set-uri: https://www.googleapis.com/oauth2/v3/certs
+  spring.security.oauth2.resourceserver.jwt.jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+  #security.oauth2.resource.token-info-uri: https://www.googleapis.com/oauth2/v3/tokeninfo
