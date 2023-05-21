@@ -8,6 +8,6 @@ data:
   init: |
     cd /data
     test -d .meta.git || git init --bare .meta.git
-    chown -R $TARGET_USER:TARGET_GROUP .
+    chown -R $TARGET_USER:$TARGET_GROUP .
     cd /cache
-    chown -R $TARGET_USER:TARGET_GROUP .
+    chown -R $TARGET_USER:$TARGET_GROUP .
