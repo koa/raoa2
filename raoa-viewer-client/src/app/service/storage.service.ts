@@ -81,6 +81,7 @@ export interface KeywordState {
 export interface UserPermissions {
     canManageUsers: boolean;
     canEdit: boolean;
+    isRegistered: boolean;
     lastLoaded: number;
 }
 

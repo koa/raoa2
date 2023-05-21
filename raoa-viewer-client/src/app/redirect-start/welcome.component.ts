@@ -150,7 +150,6 @@ export class WelcomeComponent implements OnInit, OnDestroy {
                 this.userPicture = userPicture;
                 this.userState = userState;
             });
-            console.log('user refreshed', userState);
         }
     }
 

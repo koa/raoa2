@@ -51,6 +51,7 @@ export type QueryAlbumEntry =
 export interface UserPermissions {
     canManageUsers: boolean;
     canEdit: boolean;
+    isRegistered: boolean;
 }
 
 export interface SyncProgress {
@@ -519,6 +520,7 @@ export class DataService {// implements OnDestroy {
         const ret = {
             canEdit: data.currentUser?.canEdit || false,
             canManageUsers: data.currentUser?.canManageUsers || false,
+            isRegistered: Boolean(data.currentUser),
             lastLoaded: Date.now()
         };
         await this.storageService.setUserPermissions(ret);
