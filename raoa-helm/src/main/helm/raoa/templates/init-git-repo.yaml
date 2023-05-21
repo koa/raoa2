@@ -14,9 +14,9 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: TARGET_USER
-              value: {{.Values.securityContext.runAsUser}}
+              value: {{.Values.securityContext.runAsUser | quote}}
             - name: TARGET_GROUP
-              value: {{.Values.securityContext.runAsGroup}}
+              value: {{.Values.securityContext.runAsGroup | quote}}
           command:
             - /bin/sh
             - /script/init
