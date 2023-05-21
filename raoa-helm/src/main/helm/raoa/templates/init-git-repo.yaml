@@ -10,10 +10,13 @@ spec:
       serviceAccountName: {{ include "raoa.serviceAccountName" . }}
       containers:
         - name: {{ .Chart.Name }}-repack
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.repack.image }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: TARGET_USER
+              value: {{.Values.securityContext.runAsUser}}
+            - name: TARGET_GROUP
+              value: {{.Values.securityContext.runAsGroup}}
           command:
             - /bin/sh
             - /script/init

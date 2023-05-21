@@ -8,7 +8,6 @@ import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.Updater;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +31,7 @@ public class InitAdminUserIfMissing {
     this.userManager = userManager;
   }
 
-  @Scheduled(fixedDelay = 1000 * 60)
+  @Scheduled(fixedDelay = 1000 * 60, initialDelay = 200)
   // TODO: Inject Admin-User per API
   public void checkAndFixAdminUser() {
     try {
@@ -46,7 +45,6 @@ public class InitAdminUserIfMissing {
           Updater.CommitContext.builder().message("set superuser by config").build();
       final Optional<User> createdUser =
           existingSuperusers
-              .onErrorReturn(Collections.emptyList())
               .flatMap(
                   maybeUser -> {
                     if (maybeUser.size() > 0) {

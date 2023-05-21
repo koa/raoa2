@@ -183,11 +183,9 @@ export class WelcomeComponent implements OnInit, OnDestroy {
         );
         const success = response.requestAccess.ok;
         const resultCode = response.requestAccess.result;
-        console.log(success);
-        console.log(resultCode);
         await msg.dismiss();
         await this.serverApiService.clear();
-        this.refreshData();
+        await this.refreshData();
     }
 
     async updateFnchGroups() {

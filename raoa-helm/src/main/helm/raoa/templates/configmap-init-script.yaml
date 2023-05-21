@@ -8,3 +8,4 @@ data:
   init: |
     cd /data
     test -d .meta.git || git init --bare .meta.git
+    chown -R $TARGET_USER:$TARGET:GROUP .
