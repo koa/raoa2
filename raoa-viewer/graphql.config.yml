@@ -1,0 +1,18 @@
+schema: src/main/resources/graphql/schema.graphqls
+extensions:
+  endpoints:
+    Prod:
+      url: https://photos.teamkoenig.ch/graphql
+      headers:
+        user-agent: JS GraphQL
+      introspect: false
+    LKW:
+      url: https://photos.lkw.teamkoenig.ch/graphql
+      headers:
+        user-agent: JS GraphQL
+      introspect: false
+    Dev:
+      url: https://photos.berg-turbenthal.ch/graphql
+      headers:
+        user-agent: JS GraphQL
+      introspect: false
