@@ -1,0 +1,16 @@
+schema: raoa-viewer/src/main/resources/schema.graphqls
+extensions:
+  endpoints:
+    Default GraphQL Endpoint:
+      url: http://localhost:4200/graphql
+      headers:
+        user-agent: JS GraphQL
+      introspect: false
+    Dev:
+      url: https://photos.berg-turbenthal.ch/graphql
+      headers:
+        user-agent: JS GraphQL
+        Authorization: |-
+          Basic YTEyMzhhZDItMjJhYy00NmY5LTgwNTQtNmU1ZjhlNTBhNWJhOnpiTlJDdkJVY09sYlp6OWFqVkt1
+          aE5Da0ducFo4VW1GWWJEaWdZaFk=
+      introspect: false

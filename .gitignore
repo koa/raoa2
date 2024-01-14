@@ -7,3 +7,8 @@ hs_err*.log
 *.releaseBackup
 release.properties
 pom.xml.versionsBackup
+/*/src/main/rust/*/target/
+/raoa-viewer-client-rust/src/main/rust/client/node/node_modules/
+/raoa-viewer-client-rust/src/main/rust/client/graphql/schema.graphql
+/raoa-viewer-client-rust/src/main/rust/client/dist/
+/target/

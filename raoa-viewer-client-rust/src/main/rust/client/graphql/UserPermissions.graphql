@@ -1,0 +1,7 @@
+query UserPermissions{
+    currentUser{
+        id
+        canManageUsers
+        canEdit
+    }
+}

@@ -1,0 +1,25 @@
+[serve]
+port = 4200
+[[proxy]]
+backend = "https://photos.teamkoenig.ch/graphql"
+[[proxy]]
+backend = "https://photos.teamkoenig.ch/config"
+
+[[hooks]]
+stage = "pre_build"
+command = "sh"
+command_arguments = ["-c", "sleep 4"]
+
+[[hooks]]
+stage = "pre_build"
+command = "sh"
+command_arguments = ["-c", "clear"]
+
+[[hooks]]
+stage = "pre_build"
+command = "sh"
+command_arguments = ["-c", "cd node && npm install"]
+
+
+[watch]
+watch = ["src"]

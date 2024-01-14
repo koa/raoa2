@@ -20,6 +20,7 @@
         <module>raoa-viewer</module>
         <module>raoa-viewer-client</module>
         <module>raoa-media-processor</module>
+        <module>raoa-viewer-client-rust</module>
     </modules>
     <properties>
         <jib.httpTimeout>30000</jib.httpTimeout>

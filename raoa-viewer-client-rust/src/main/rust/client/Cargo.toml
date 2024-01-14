@@ -1,0 +1,28 @@
+[package]
+name = "raoa-viewer-client"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+lazy_static = "1.4.0"
+yew = { version = "0.21.0", features = ["csr"] }
+yew-nested-router = "0.6.1"
+patternfly-yew = "0.5.6"
+graphql_client = { version = "0.13.0", features = ["reqwest-rustls"] }
+jwt = "0.16.0"
+google-signin-client = "0.1.2"
+gloo = "0.11.0"
+log = "0.4.20"
+wasm-logger = "0.2.0"
+reqwest = { version = "0.11.13", features = ["rustls-tls", "json"] }
+thiserror = "1.0.56"
+wasm-bindgen = "0.2.87"
+web-sys = { version = "0.3.64", features = ["Window", "DocumentFragment"] }
+serde = { version = "1.0.130", features = ["derive"] }
+serde_json = "1.0.68"
+tokio = { version = "1.33.0", features = ["sync"] }
+wasm-timer = "0.2.5"
+
+[build-dependencies]
+anyhow = "1.0.75"

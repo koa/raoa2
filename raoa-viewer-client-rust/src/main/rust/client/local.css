@@ -1,0 +1,26 @@
+div.pf-c-page {
+    grid-template-columns: max-content 1fr;
+    grid-template-areas:
+        "header header"
+        "nav main";
+}
+
+dl {
+    display: grid;
+    grid-template-columns: auto;
+    justify-content: start;
+    color: #585858;
+}
+
+dt {
+    grid-column: 1;
+}
+
+dd {
+    grid-column: 2;
+    margin-inline-start: 1em;
+    color: black;
+}
+li.pf-v5-c-nav__item {
+    list-style-type: none;
+}

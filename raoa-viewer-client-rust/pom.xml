@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>ch.bergturbenthal.raoa2</groupId>
+        <artifactId>parent</artifactId>
+        <version>0.0.27-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>raoa-viewer-client-rust</artifactId>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.questdb</groupId>
+                <artifactId>rust-maven-plugin</artifactId>
+                <version>1.1.1</version>
+                <executions>
+                    <execution>
+                        <id>rust-build-id</id>
+                        <goals>
+                            <goal>build</goal>
+                        </goals>
+                        <configuration>
+                            <path>src/main/rust/client</path>
+                            <copyTo>${project.build.directory}/wasm</copyTo>
+                            <copyWithPlatformDir>true</copyWithPlatformDir>
+                            <extraArgs>
+                                <extraArg>--target</extraArg>
+                                <extraArg>wasm32-unknown-unknown</extraArg>
+                            </extraArgs>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.1</version>
+                <executions>
+                    <execution>
+                        <id>add-target</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <phase>initialize</phase>
+                        <configuration>
+                            <executable>rustup</executable>
+                            <workingDirectory>${project.basedir}/src/main/rust/client</workingDirectory>
+                            <arguments>
+                                <argument>target</argument>
+                                <argument>add</argument>
+                                <argument>wasm32-unknown-unknown</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>install-trunk</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <phase>initialize</phase>
+                        <configuration>
+                            <workingDirectory>${project.basedir}/src/main/rust/client</workingDirectory>
+                            <executable>cargo</executable>
+                            <arguments>
+                                <argument>install</argument>
+                                <argument>trunk</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+
+
+                    <execution>
+                        <id>compile</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <phase>compile</phase>
+                        <configuration>
+                            <executable>trunk</executable>
+                            <workingDirectory>${project.basedir}/src/main/rust/client</workingDirectory>
+                            <arguments>
+                                <argument>build</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
