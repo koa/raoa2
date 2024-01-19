@@ -1,0 +1,13 @@
+query GetAlbumDetails ($albumId: ID!){
+    albumById(id: $albumId){
+        id,
+        name,
+        entryCount,
+        albumTime,
+        version,
+        labels{
+            labelName
+            labelValue
+        }
+    }
+}

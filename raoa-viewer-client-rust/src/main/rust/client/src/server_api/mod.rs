@@ -4,7 +4,7 @@ use crate::error::FrontendError;
 use crate::model::ClientProperties;
 use crate::utils::host;
 
-mod graphql;
+pub mod graphql;
 lazy_static! {
     static ref CONFIG_URL: String = format!("{}/config", host());
 }

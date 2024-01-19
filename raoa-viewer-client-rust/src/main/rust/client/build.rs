@@ -1,10 +1,6 @@
 use std::{
     env,
-    fs::{
-        copy,
-        File,
-        read_dir,
-    },
+    fs::{copy, read_dir, File},
     io::Write,
     path::Path,
 };
@@ -50,7 +46,7 @@ fn generate_graphql_package() -> Result<()> {
     schema_path = \"./graphql/schema.graphql\",
     query_path = \"./graphql/{filename}.graphql\",
     response_derives = \"Debug, PartialEq, Clone\",
-    extern_enums(\"UnifiedDeviceType\",\"FiberDeviceType\")
+    extern_enums()
 )]
 pub struct {filename};"
         )?;

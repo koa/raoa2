@@ -4,15 +4,21 @@ use google_signin_client::{
     IdConfiguration, NotDisplayedReason, PromptResult,
 };
 use log::warn;
-use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};
+use patternfly_yew::prelude::{Alert, AlertGroup, AlertType, BackdropViewer, Page, ToastViewer};
 use web_sys::HtmlElement;
-use yew::platform::spawn_local;
-use yew::{html, Context, Html, NodeRef};
+use yew::{
+    function_component, html, platform::spawn_local, Context, ContextProvider, Html, NodeRef,
+};
+use yew_nested_router::prelude::Switch as RouterSwitch;
+use yew_nested_router::Router;
 
-use crate::data::UserSessionData;
-use crate::error::FrontendError;
-use crate::model::ClientProperties;
-use crate::server_api::fetch_settings;
+use crate::pages::app::routing::AppRoute;
+use crate::{
+    data::UserSessionData, error::FrontendError, model::ClientProperties,
+    server_api::fetch_settings,
+};
+
+pub mod routing;
 
 #[derive(Debug, Default)]
 pub struct App {
@@ -92,7 +98,16 @@ impl yew::Component for App {
                 });
             }
         }
-        if let Some(error) = &self.error_state {
+        let context = user_session.clone();
+        if context.is_token_valid() {
+            html! {
+            <ContextProvider<UserSessionData> {context}>
+                <Router<AppRoute> default={AppRoute::default()}>
+                    <MainPage/>
+                </Router<AppRoute>>
+            </ContextProvider<UserSessionData>>
+            }
+        } else if let Some(error) = &self.error_state {
             let error_message = match error {
                 ErrorState::FrontendError(FrontendError::JS(js_error)) => {
                     html! {
@@ -151,6 +166,16 @@ impl yew::Component for App {
                         </AlertGroup>
                     }
                 }
+                ErrorState::FrontendError(FrontendError::DomError(dom_error)) => html! {
+                    <AlertGroup>
+                        <Alert inline=true title="Error from indexdb" r#type={AlertType::Danger}>{dom_error.to_string()}</Alert>
+                    </AlertGroup>
+                },
+                ErrorState::FrontendError(FrontendError::SerdeWasmBindgen(error)) => html! {
+                    <AlertGroup>
+                        <Alert inline=true title="Error deserializing from indexdb" r#type={AlertType::Danger}>{error.to_string()}</Alert>
+                    </AlertGroup>
+                },
                 ErrorState::PromptResult(PromptResult::NotDisplayed(
                     NotDisplayedReason::SuppressedByUser,
                 )) => {
@@ -178,6 +203,13 @@ impl yew::Component for App {
                     html! {
                         <AlertGroup>
                             <Alert inline=true title="Not Displayed" r#type={AlertType::Danger}>{format!("{reason:?}")}</Alert>
+                        </AlertGroup>
+                    }
+                }
+                ErrorState::FrontendError(FrontendError::NotLoggedIn) => {
+                    html! {
+                        <AlertGroup>
+                            <Alert inline=true title="Session timeout" r#type={AlertType::Danger}>{"Login abgelaufen, bitte neu einloggen"}</Alert>
                         </AlertGroup>
                     }
                 }
@@ -222,5 +254,20 @@ impl yew::Component for App {
                 }
             })
         }
+    }
+}
+
+#[function_component(MainPage)]
+fn main_page() -> Html {
+    html! {
+        <BackdropViewer>
+            <ToastViewer>
+                    <Page>
+                        <RouterSwitch<AppRoute>
+                            render = { AppRoute::switch_main}
+                        />
+                    </Page>
+            </ToastViewer>
+        </BackdropViewer>
     }
 }

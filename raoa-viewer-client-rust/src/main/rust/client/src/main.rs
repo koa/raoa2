@@ -4,7 +4,9 @@ mod data;
 mod error;
 mod model;
 mod pages;
+mod serde;
 mod server_api;
+mod storage;
 mod utils;
 
 #[cfg(not(debug_assertions))]
