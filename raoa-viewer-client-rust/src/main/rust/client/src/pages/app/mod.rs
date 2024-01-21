@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use gloo::timers::callback::Timeout;
 use google_signin_client::{
     initialize, prompt_async, render_button, ButtonType, DismissedReason, GsiButtonConfiguration,
@@ -9,13 +11,14 @@ use web_sys::HtmlElement;
 use yew::{
     function_component, html, platform::spawn_local, Context, ContextProvider, Html, NodeRef,
 };
-use yew_nested_router::prelude::Switch as RouterSwitch;
-use yew_nested_router::Router;
+use yew_nested_router::{prelude::Switch as RouterSwitch, Router};
 
-use crate::pages::app::routing::AppRoute;
+use crate::data::{DataAccess, DataAccessError};
 use crate::{
-    data::UserSessionData, error::FrontendError, model::ClientProperties,
-    server_api::fetch_settings,
+    data::{server_api::fetch_settings, session::UserSessionData},
+    error::FrontendError,
+    model::ClientProperties,
+    pages::app::routing::AppRoute,
 };
 
 pub mod routing;
@@ -23,7 +26,8 @@ pub mod routing;
 #[derive(Debug, Default)]
 pub struct App {
     client_id: Option<Box<str>>,
-    user_session: UserSessionData,
+    data: Option<Rc<DataAccess>>,
+    //user_session: UserSessionData,
     error_state: Option<ErrorState>,
     login_button_ref: NodeRef,
     running_timeout: Option<Timeout>,
@@ -32,15 +36,18 @@ pub struct App {
 #[derive(Debug)]
 enum ErrorState {
     FrontendError(FrontendError),
+    DataAccessError(DataAccessError),
     PromptResult(PromptResult),
 }
 
 #[derive(Debug)]
 pub enum AppMessage {
+    DataAccessInitialized(Rc<DataAccess>),
     ClientIdReceived(Box<str>),
     TokenReceived(Box<str>),
     ClientError(FrontendError),
     LoginFailed(PromptResult),
+    DataAccessError(DataAccessError),
     CheckSession,
 }
 
@@ -54,10 +61,19 @@ impl yew::Component for App {
 
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
+            AppMessage::DataAccessInitialized(data) => {
+                self.data = Some(data);
+                true
+            }
+
             AppMessage::TokenReceived(token) => {
-                self.user_session = UserSessionData::from_token(token);
-                self.error_state = None;
-                self.user_session.is_token_valid()
+                if let Some(mut session) = self.data.as_deref().map(DataAccess::login_data_mut) {
+                    session.update_token(token);
+                    self.error_state = None;
+                    session.is_token_valid()
+                } else {
+                    false
+                }
             }
             AppMessage::ClientIdReceived(client_id) => {
                 self.client_id = Some(client_id);
@@ -72,13 +88,24 @@ impl yew::Component for App {
                 self.error_state = Some(ErrorState::PromptResult(prompt));
                 true
             }
-            AppMessage::CheckSession => self.user_session.is_token_valid(),
+            AppMessage::CheckSession => self
+                .data
+                .as_deref()
+                .map(DataAccess::login_data)
+                .as_ref()
+                .map(|v| UserSessionData::is_token_valid(v))
+                .unwrap_or(true),
+            AppMessage::DataAccessError(error) => {
+                self.error_state = Some(ErrorState::DataAccessError(error));
+                true
+            }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let user_session = &self.user_session;
-        if let (Some(client_id), false) = (&self.client_id, user_session.is_token_valid()) {
+        let login_data = self.data.as_deref().map(DataAccess::login_data);
+        let login_valid = login_data.map(|t| t.is_token_valid()).unwrap_or(false);
+        if let (Some(client_id), false) = (&self.client_id, login_valid) {
             if self.error_state.is_none() {
                 let mut configuration = IdConfiguration::new(client_id.clone().into_string());
                 //configuration.set_auto_select(true);
@@ -98,84 +125,16 @@ impl yew::Component for App {
                 });
             }
         }
-        let context = user_session.clone();
-        if context.is_token_valid() {
+        if let Some(context) = self.data.clone() {
             html! {
-            <ContextProvider<UserSessionData> {context}>
+            <ContextProvider<Rc<DataAccess>> {context}>
                 <Router<AppRoute> default={AppRoute::default()}>
                     <MainPage/>
                 </Router<AppRoute>>
-            </ContextProvider<UserSessionData>>
+            </ContextProvider<Rc<DataAccess>>>
             }
         } else if let Some(error) = &self.error_state {
             let error_message = match error {
-                ErrorState::FrontendError(FrontendError::JS(js_error)) => {
-                    html! {
-                        <AlertGroup>
-                            <Alert inline=true title="Javascript Error" r#type={AlertType::Danger}>{js_error.to_string()}</Alert>
-                        </AlertGroup>
-                    }
-                }
-                ErrorState::FrontendError(FrontendError::Serde(serde_error)) => {
-                    html! {
-                        <AlertGroup>
-                            <Alert inline=true title="Serialization Error" r#type={AlertType::Danger}>{serde_error.to_string()}</Alert>
-                        </AlertGroup>
-                    }
-                }
-                ErrorState::FrontendError(FrontendError::Graphql { type_name, errors }) => {
-                    let graphql_error = errors.clone();
-                    html! {
-                        <AlertGroup>
-                            <Alert inline=true title="Error from Server on " r#type={AlertType::Danger}>
-                                <ul>
-                            {
-                              graphql_error.iter().map(|error| {
-                                    let message=&error.message;
-                                    if let Some(path) = error
-                                        .path.as_ref()
-                                        .map(|p|
-                                            p.iter()
-                                                .map(|path| path.to_string())
-                                                .collect::<Vec<String>>()
-                                                .join("/")
-                                        )
-                                    {
-                                        html!{<li>{message}{" at "}{path}</li>}
-                                    }else{
-                                        html!{<li>{message}</li>}
-                                    }
-                                }).collect::<Html>()
-                            }
-                                </ul>
-                            </Alert>
-                        </AlertGroup>
-                    }
-                }
-                ErrorState::FrontendError(FrontendError::Reqwest(reqwest_error)) => {
-                    html! {
-                        <AlertGroup>
-                            <Alert inline=true title="Cannot call Server" r#type={AlertType::Danger}>{reqwest_error.to_string()}</Alert>
-                        </AlertGroup>
-                    }
-                }
-                ErrorState::FrontendError(FrontendError::InvalidHeader(header_error)) => {
-                    html! {
-                        <AlertGroup>
-                            <Alert inline=true title="Header Error" r#type={AlertType::Danger}>{header_error.to_string()}</Alert>
-                        </AlertGroup>
-                    }
-                }
-                ErrorState::FrontendError(FrontendError::DomError(dom_error)) => html! {
-                    <AlertGroup>
-                        <Alert inline=true title="Error from indexdb" r#type={AlertType::Danger}>{dom_error.to_string()}</Alert>
-                    </AlertGroup>
-                },
-                ErrorState::FrontendError(FrontendError::SerdeWasmBindgen(error)) => html! {
-                    <AlertGroup>
-                        <Alert inline=true title="Error deserializing from indexdb" r#type={AlertType::Danger}>{error.to_string()}</Alert>
-                    </AlertGroup>
-                },
                 ErrorState::PromptResult(PromptResult::NotDisplayed(
                     NotDisplayedReason::SuppressedByUser,
                 )) => {
@@ -206,13 +165,8 @@ impl yew::Component for App {
                         </AlertGroup>
                     }
                 }
-                ErrorState::FrontendError(FrontendError::NotLoggedIn) => {
-                    html! {
-                        <AlertGroup>
-                            <Alert inline=true title="Session timeout" r#type={AlertType::Danger}>{"Login abgelaufen, bitte neu einloggen"}</Alert>
-                        </AlertGroup>
-                    }
-                }
+                ErrorState::FrontendError(fe) => fe.render_error_message(),
+                ErrorState::DataAccessError(de) => de.render_error_message(),
             };
             html! {
                 <>
@@ -226,7 +180,7 @@ impl yew::Component for App {
                 <p>{"yew works"}</p>
                 <p>{ format!("Client id: {:?}",self.client_id)}</p>
                 <p>{ format!("Error: {:?}",self.error_state)}</p>
-                <p>{ format!("User Session: {:?}",self.user_session)}</p>
+                <p>{ format!("User Session: {:?}",self.data)}</p>
                 </>
             }
         }
@@ -243,6 +197,15 @@ impl yew::Component for App {
         if first_render {
             let scope = ctx.link().clone();
             spawn_local(async move {
+                match DataAccess::new().await {
+                    Ok(data) => {
+                        scope.send_message(AppMessage::DataAccessInitialized(data));
+                    }
+                    Err(err) => {
+                        warn!("Error from server: {err}");
+                        scope.send_message(AppMessage::DataAccessError(err));
+                    }
+                }
                 match fetch_settings().await {
                     Ok(ClientProperties { google_client_id }) => {
                         scope.send_message(AppMessage::ClientIdReceived(google_client_id));
@@ -252,7 +215,7 @@ impl yew::Component for App {
                         scope.send_message(AppMessage::ClientError(err));
                     }
                 }
-            })
+            });
         }
     }
 }

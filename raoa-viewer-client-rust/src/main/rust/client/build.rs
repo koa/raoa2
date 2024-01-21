@@ -46,6 +46,7 @@ fn generate_graphql_package() -> Result<()> {
     schema_path = \"./graphql/schema.graphql\",
     query_path = \"./graphql/{filename}.graphql\",
     response_derives = \"Debug, PartialEq, Clone\",
+    variables_derives = \"Debug, PartialEq, Clone\",
     extern_enums()
 )]
 pub struct {filename};"

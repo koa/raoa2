@@ -1691,6 +1691,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+ "tokio-stream",
  "wasm-bindgen",
  "wasm-logger",
  "wasm-timer",
@@ -2157,6 +2158,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

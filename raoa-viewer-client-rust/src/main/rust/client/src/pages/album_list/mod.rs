@@ -1,25 +1,32 @@
-use std::collections::HashMap;
+use std::rc::Rc;
 
-use log::error;
-use patternfly_yew::prelude::Spinner;
-use yew::html::Scope;
-use yew::platform::spawn_local;
-use yew::{html, Component, Context, Html};
+use log::{error, info};
+use patternfly_yew::prelude::{Card, Gallery, Level, Progress, Spinner, Title};
+use tokio_stream::StreamExt;
+use yew::{html, html::Scope, platform::spawn_local, Component, Context, Html};
 
+use crate::data::storage::AlbumDetails;
+use crate::data::{DataAccess, DataFetchMessage};
 use crate::error::FrontendError;
-use crate::server_api::graphql::model::all_album_versions::AllAlbumVersionsListAlbums;
-use crate::server_api::graphql::model::get_album_details::GetAlbumDetailsAlbumByIdLabels;
-use crate::server_api::graphql::model::AllAlbumVersions;
-use crate::server_api::graphql::model::{all_album_versions, get_album_details, GetAlbumDetails};
-use crate::server_api::graphql::query;
-use crate::storage::{list_albums, store_album, AlbumDetails};
 
 #[derive(Debug, Default)]
 pub struct AlbumList {
-    albums: Option<Box<[AlbumDetails]>>,
+    albums: Box<[AlbumDetails]>,
+    processing: ProcessingState,
 }
 pub enum AlbumListMessage {
     AlbumList(Box<[AlbumDetails]>),
+    UpdateProgress(f64),
+    StartProgress,
+    FinishProgress,
+}
+
+#[derive(Debug, Default)]
+pub enum ProcessingState {
+    #[default]
+    None,
+    FetchingInfinite,
+    Progress(f64),
 }
 
 impl Component for AlbumList {
@@ -32,19 +39,55 @@ impl Component for AlbumList {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            AlbumListMessage::AlbumList(response) => {
-                self.albums = Some(response);
+            AlbumListMessage::AlbumList(mut response) => {
+                response.sort_by(|a, b| a.timestamp().cmp(&b.timestamp()).reverse());
+                self.albums = response;
+                true
+            }
+            AlbumListMessage::UpdateProgress(v) => {
+                self.processing = ProcessingState::Progress(v);
+                true
+            }
+            AlbumListMessage::StartProgress => {
+                self.processing = ProcessingState::FetchingInfinite;
+                true
+            }
+            AlbumListMessage::FinishProgress => {
+                self.processing = ProcessingState::None;
                 true
             }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        match &self.albums {
-            None => html! {<Spinner/>},
-            Some(albums) => {
-                html! {format!( "Album list: {}", albums.len())}
+        let indicator = match self.processing {
+            ProcessingState::None => html! {},
+            ProcessingState::FetchingInfinite => html! {<Spinner/>},
+            ProcessingState::Progress(value) => {
+                html! {<Progress description="Lade Album Daten" {value}/>}
             }
+        };
+        let album_cards: Vec<_> = self
+            .albums
+            .iter()
+            .map(|album| {
+                let timestamp = album
+                    .timestamp()
+                    .map(|t| t.as_ref().format("%c").to_string())
+                    .map(|date| html! {<Title level={Level::H4}>{date}</Title>});
+                let title = html! {<>{timestamp}<Title>{html!(album.name())}</Title></>};
+                //
+                html! {<Card {title} full_height=true></Card>}
+            })
+            .collect();
+
+        html! {
+            <>
+            <Gallery gutter=true style="margin: 0.5em">
+                {for album_cards.into_iter()}
+            </Gallery>
+            {indicator}
+            </>
         }
     }
 
@@ -52,63 +95,33 @@ impl Component for AlbumList {
         if first_render {
             let scope = ctx.link().clone();
             spawn_local(async move {
-                let r = fetch_albums(&scope).await;
-                match r {
-                    Ok(message) => scope.send_message(message),
-                    Err(e) => {
-                        error!("Cannot get album list: {e}");
-                    }
+                scope.send_message(AlbumListMessage::StartProgress);
+                if let Err(e) = fetch_albums(&scope).await {
+                    error!("Cannot get album list: {e}");
                 }
+                scope.send_message(AlbumListMessage::FinishProgress);
             });
         }
     }
 }
-async fn fetch_albums(scope: &Scope<AlbumList>) -> Result<AlbumListMessage, FrontendError> {
-    let mut idx = list_albums()
-        .await?
-        .iter()
-        .map(|e| (e.id().clone(), e.clone()))
-        .collect::<HashMap<_, _>>();
-    let responses = query::<AllAlbumVersions, _>(scope, all_album_versions::Variables {}).await?;
-    let mut all_albums = Vec::with_capacity(responses.list_albums.len());
-    for album in responses.list_albums.iter() {
-        if let Some(found_entry) = idx
-            .remove(album.id.as_str())
-            .filter(|entry| entry.version().as_ref() == album.version.as_str())
-        {
-            all_albums.push(found_entry);
-        } else {
-            let details = query::<GetAlbumDetails, _>(
-                &scope.clone(),
-                get_album_details::Variables {
-                    album_id: album.id.clone(),
-                },
-            )
-            .await?;
-            if let Some(album_data) = details.album_by_id {
-                let mut fnch_album_id = None;
-                for GetAlbumDetailsAlbumByIdLabels {
-                    label_name,
-                    label_value,
-                } in album_data.labels
-                {
-                    if label_name.as_str() == "fnch-competition_id" {
-                        fnch_album_id = Some(label_value.into_boxed_str())
-                    }
-                }
-                let d = AlbumDetails::new(
-                    album_data.id.into_boxed_str(),
-                    album_data.name.unwrap_or_default().into_boxed_str(),
-                    album_data.version.into_boxed_str(),
-                    album_data.album_time,
-                    album_data.entry_count.map(|i| i as u32).unwrap_or(0),
-                    fnch_album_id,
-                );
-                store_album(d.clone()).await?;
-                all_albums.push(d);
+async fn fetch_albums(scope: &Scope<AlbumList>) -> Result<(), FrontendError> {
+    let (access, _) = scope
+        .context::<Rc<DataAccess>>(Default::default())
+        .expect("Context missing");
+    let mut album_stream = access.fetch_albums_interactive();
+    while let Some(msg) = album_stream.next().await {
+        match msg {
+            DataFetchMessage::PreliminaryData(data) => {
+                scope.send_message(AlbumListMessage::AlbumList(data));
             }
+            DataFetchMessage::Progress(p) => {
+                scope.send_message(AlbumListMessage::UpdateProgress(p))
+            }
+            DataFetchMessage::FinalData(data) => {
+                scope.send_message(AlbumListMessage::AlbumList(data))
+            }
+            DataFetchMessage::Error(_) => {}
         }
     }
-
-    Ok(AlbumListMessage::AlbumList(all_albums.into_boxed_slice()))
+    Ok(())
 }
