@@ -1,0 +1,28 @@
+query AlbumContent($albumId: ID!) {
+    albumById(id: $albumId){
+        id,
+        name,
+        entryCount,
+        albumTime,
+        version,
+        labels{
+            labelName
+            labelValue
+        }
+        entries{
+            id,
+            name,
+            entryUri,
+            targetWidth,
+            targetHeight,
+            created,
+            contentType,
+            keywords,
+            cameraModel,
+            exposureTime,
+            fNumber,
+            focalLength35,
+            isoSpeedRatings,
+        }
+    }
+}

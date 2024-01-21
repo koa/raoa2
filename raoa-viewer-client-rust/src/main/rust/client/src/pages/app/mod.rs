@@ -2,10 +2,9 @@ use std::rc::Rc;
 
 use gloo::timers::callback::Timeout;
 use google_signin_client::{
-    initialize, prompt_async, render_button, ButtonType, DismissedReason, GsiButtonConfiguration,
-    IdConfiguration, NotDisplayedReason, PromptResult,
+    initialize, prompt_async, DismissedReason, IdConfiguration, NotDisplayedReason, PromptResult,
 };
-use log::{info, warn};
+use log::warn;
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType, BackdropViewer, Page, ToastViewer};
 use web_sys::HtmlElement;
 use yew::{
@@ -28,7 +27,6 @@ pub mod routing;
 pub struct App {
     client_id: Option<Box<str>>,
     data: Option<Rc<DataAccess>>,
-    //user_session: UserSessionData,
     error_state: Option<ErrorState>,
     login_button_ref: NodeRef,
     running_timeout: Option<Timeout>,
@@ -116,14 +114,14 @@ impl yew::Component for App {
                         response.credential().to_string().into_boxed_str(),
                     ));
                 }));
-                let link = ctx.link().clone();
+                //let link = ctx.link().clone();
                 initialize(configuration);
-                spawn_local(async move {
+                /*spawn_local(async move {
                     let result = prompt_async().await;
                     if result != PromptResult::Dismissed(DismissedReason::CredentialReturned) {
                         link.send_message(AppMessage::LoginFailed(result))
                     }
-                });
+                });*/
             }
         }
         if let Some(context) = self.data.clone() {
@@ -190,10 +188,7 @@ impl yew::Component for App {
 
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if let Some(login_button_ref) = self.login_button_ref.cast::<HtmlElement>() {
-            render_button(
-                login_button_ref,
-                GsiButtonConfiguration::new(ButtonType::Standard),
-            );
+            login_button_ref.set_hidden(true);
         }
 
         if first_render {
@@ -234,10 +229,10 @@ fn main_page(props: &MainProps) -> Html {
         <BackdropViewer>
             <ToastViewer>
                 <Page>
+                    {props.login_button.clone()}
                     <RouterSwitch<AppRoute>
                         render = { AppRoute::switch_main}
                     />
-                    {props.login_button.clone()}
                 </Page>
             </ToastViewer>
         </BackdropViewer>

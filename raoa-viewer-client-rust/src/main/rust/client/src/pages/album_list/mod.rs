@@ -1,13 +1,16 @@
 use std::rc::Rc;
 
-use log::error;
+use log::{error, info};
 use patternfly_yew::prelude::{Card, Gallery, Level, Progress, Spinner, Title};
 use tokio_stream::StreamExt;
 use yew::{html, html::Scope, platform::spawn_local, Component, Context, Html};
+use yew_nested_router::components::Link;
 
-use crate::data::storage::AlbumDetails;
-use crate::data::{DataAccess, DataAccessError, DataFetchMessage};
-use crate::error::FrontendError;
+use crate::{
+    data::{storage::AlbumDetails, DataAccess, DataAccessError, DataFetchMessage},
+    error::FrontendError,
+    pages::app::routing::AppRoute,
+};
 
 #[derive(Debug, Default)]
 pub struct AlbumList {
@@ -83,17 +86,20 @@ impl Component for AlbumList {
                     .map(|t| t.as_ref().format("%c").to_string())
                     .map(|date| html! {<Title level={Level::H4}>{date}</Title>});
                 let title = html! {<>{timestamp}<Title>{html!(album.name())}</Title></>};
+                let target = AppRoute::Album {
+                    id: album.id().to_string(),
+                };
                 //
-                html! {<Card {title} full_height=true></Card>}
+                html! {<Link<AppRoute> {target}><Card {title} full_height=true></Card></Link<AppRoute>>}
             })
             .collect();
 
         html! {
             <>
+            {indicator}
             <Gallery gutter=true style="margin: 0.5em">
                 {for album_cards.into_iter()}
             </Gallery>
-            {indicator}
             </>
         }
     }

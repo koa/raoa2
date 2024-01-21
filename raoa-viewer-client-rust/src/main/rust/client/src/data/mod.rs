@@ -3,11 +3,13 @@ use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::rc::Rc;
+use std::time::Duration;
 
 use google_signin_client::{
     prompt_async, render_button, ButtonType, DismissedReason, GsiButtonConfiguration, PromptResult,
 };
-use log::error;
+use log::{error, info};
+use ordered_float::OrderedFloat;
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -20,11 +22,12 @@ use yew::{html, Html, NodeRef};
 
 use crate::data::server_api::graphql::model::get_album_details::GetAlbumDetailsAlbumByIdLabels;
 use crate::data::server_api::graphql::model::{
-    all_album_versions, get_album_details, AllAlbumVersions, GetAlbumDetails,
+    album_content, all_album_versions, get_album_details, AlbumContent, AllAlbumVersions,
+    GetAlbumDetails,
 };
 use crate::data::server_api::graphql::{query, GraphqlAccessError};
 use crate::data::session::UserSessionData;
-use crate::data::storage::{AlbumDetails, StorageAccess, StorageError};
+use crate::data::storage::{AlbumDetails, AlbumEntry, StorageAccess, StorageError};
 
 pub mod server_api;
 pub mod session;
@@ -89,6 +92,11 @@ impl DataAccess {
         });
         ReceiverStream::new(rx)
     }
+    async fn valid_token_str(&self) -> Option<String> {
+        self.valid_user_session()
+            .await
+            .and_then(|s| s.jwt().map(|s| s.to_string()))
+    }
 
     async fn do_fetch_albums_interactive(
         &self,
@@ -98,15 +106,10 @@ impl DataAccess {
             .storage()
             .list_albums()
             .await
-            .map_err(DataAccessError::FetchAlbum)?
-            .clone();
+            .map_err(DataAccessError::FetchAlbum)?;
         tx.send(DataFetchMessage::Data(stored_albums.clone()))
             .await?;
-        if let Some(token) = self
-            .valid_user_session()
-            .await
-            .and_then(|s| s.jwt().map(|s| s.to_string()))
-        {
+        if let Some(token) = self.valid_token_str().await {
             let mut existing_albums = stored_albums
                 .iter()
                 .map(|e| (e.id(), e))
@@ -160,6 +163,12 @@ impl DataAccess {
             }
             tx.send(DataFetchMessage::Data(all_albums.into_boxed_slice()))
                 .await?;
+            for id in existing_albums.keys() {
+                self.storage_mut()
+                    .remove_album(&id)
+                    .await
+                    .map_err(DataAccessError::FetchAlbum)?;
+            }
         }
         Ok(())
     }
@@ -210,6 +219,114 @@ impl DataAccess {
         }
         None
     }
+    pub fn fetch_album_content_interactive(
+        self: &Rc<Self>,
+        id: &str,
+    ) -> impl Stream<Item = DataFetchMessage<Box<[AlbumEntry]>>> {
+        let (tx, rx) = mpsc::channel(10);
+        let s_clone = self.clone();
+        let id = id.to_string();
+
+        spawn_local(async move {
+            match s_clone
+                .do_fetch_album_entries_interactive(tx.clone(), id)
+                .await
+            {
+                Err(DoFetchError::ExternalError(e)) => {
+                    tx.send(DataFetchMessage::Error(e))
+                        .await
+                        .expect("Cannot send message");
+                }
+                Err(DoFetchError::StreamError(e)) => {
+                    error!("Cannot send message: {e}");
+                }
+                Ok(()) => {}
+            };
+        });
+        ReceiverStream::new(rx)
+    }
+    async fn do_fetch_album_entries_interactive(
+        &self,
+        tx: Sender<DataFetchMessage<Box<[AlbumEntry]>>>,
+        id: String,
+    ) -> Result<(), DoFetchError<Box<[AlbumEntry]>>> {
+        let result = self.storage().list_album_entries(&id).await;
+        info!("Result: {result:?}");
+        let stored_entries = result.map_err(DataAccessError::FetchAlbum)?.clone();
+        tx.send(DataFetchMessage::Data(stored_entries.clone()))
+            .await?;
+        if let Some(token) = self.valid_token_str().await {
+            let mut existing_entries = stored_entries
+                .into_iter()
+                .map(|e| (e.entry_id(), e))
+                .collect::<HashMap<_, _>>();
+            let responses = query::<AlbumContent>(
+                &token,
+                album_content::Variables {
+                    album_id: id.clone(),
+                },
+            )
+            .await
+            .map_err(DataAccessError::GraphqlAlbumContent)?;
+            let entries = responses
+                .album_by_id
+                .as_ref()
+                .map(|a| a.entries.as_slice())
+                .unwrap_or_default();
+            let entry_count = entries.len();
+            let mut found_entries = Vec::with_capacity(entry_count);
+            let mut modified_entries = Vec::with_capacity(entry_count);
+            let step_size = 1.max(entry_count / 100);
+            for (idx, entry) in entries.iter().enumerate() {
+                if idx % step_size == 0 {
+                    tx.send(DataFetchMessage::Progress(idx as f64 / entry_count as f64))
+                        .await?;
+                }
+                let entry_id = entry.id.clone().into_boxed_str();
+                let existing_entry = existing_entries.remove(entry_id.as_ref());
+                let entry = AlbumEntry {
+                    album_id: id.clone().into_boxed_str(),
+                    entry_id: entry_id,
+                    name: entry.name.clone().unwrap_or_default().into_boxed_str(),
+                    target_width: entry.target_width.map(|i| i as u32).unwrap_or_default(),
+                    target_height: entry.target_height.map(|i| i as u32).unwrap_or_default(),
+                    created: entry.created.clone(),
+                    keywords: entry
+                        .keywords
+                        .iter()
+                        .map(|kw| kw.clone().into_boxed_str())
+                        .collect(),
+                    camera_model: entry.camera_model.clone().map(|s| s.into_boxed_str()),
+                    exposure_time: entry
+                        .exposure_time
+                        .map(|v| Duration::from_secs_f32(v as f32)),
+                    f_number: entry.f_number.map(|v| OrderedFloat(v as f32)),
+                    focal_length_35: entry.focal_length35.map(|v| OrderedFloat(v as f32)),
+                    iso_speed_ratings: entry.iso_speed_ratings.map(|v| OrderedFloat(v as f32)),
+                };
+                if Some(&entry) != existing_entry {
+                    modified_entries.push(entry.clone());
+                }
+                found_entries.push(entry);
+            }
+            tx.send(DataFetchMessage::Data(found_entries.into_boxed_slice()))
+                .await?;
+
+            if !modified_entries.is_empty() {
+                self.storage()
+                    .store_album_entries(modified_entries)
+                    .await
+                    .map_err(DataAccessError::FetchAlbum)?;
+            }
+            if !existing_entries.is_empty() {
+                self.storage()
+                    .remove_album_entries(existing_entries.values().copied())
+                    .await
+                    .map_err(DataAccessError::FetchAlbum)?;
+            }
+        }
+        Ok(())
+    }
 }
 #[derive(Debug, Error)]
 enum DoFetchError<D> {
@@ -239,6 +356,8 @@ pub enum DataAccessError {
     GraphqlAllAlbumVersions(GraphqlAccessError<AllAlbumVersions>),
     #[error("Error fetch album details: {0}")]
     GraphqlGetAlbumDetails(GraphqlAccessError<GetAlbumDetails>),
+    #[error("Error fetch album enries: {0}")]
+    GraphqlAlbumContent(GraphqlAccessError<AlbumContent>),
 }
 
 impl DataAccessError {
@@ -257,6 +376,10 @@ impl DataAccessError {
                 error.to_string().into(),
             ),
             DataAccessError::GraphqlGetAlbumDetails(error) => (
+                "Fehler beim Laden der Daten vom Server".into(),
+                error.to_string().into(),
+            ),
+            DataAccessError::GraphqlAlbumContent(error) => (
                 "Fehler beim Laden der Daten vom Server".into(),
                 error.to_string().into(),
             ),
