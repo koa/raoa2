@@ -3,7 +3,6 @@ name = "raoa-viewer-client"
 version = "0.1.0"
 edition = "2021"
 
-
 [dependencies]
 lazy_static = "1.4.0"
 yew = { version = "0.21.0", features = ["csr"] }

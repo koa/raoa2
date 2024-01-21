@@ -89,7 +89,6 @@ impl DataAccess {
             .list_albums()
             .await
             .map_err(DataAccessError::FetchAlbum)?;
-        //scope.send_message(AlbumListMessage::AlbumList(stored_albums.clone()));
         if let Some(token) = self.login_data().jwt() {
             tx.send(DataFetchMessage::PreliminaryData(stored_albums.clone()))
                 .await?;
@@ -110,7 +109,6 @@ impl DataAccess {
                 } else {
                     tx.send(DataFetchMessage::Progress(idx as f64 / album_count as f64))
                         .await?;
-                    //scope.send_message(AlbumListMessage::UpdateProgress(                        idx as f64 / album_count as f64,                    ));
                     let details = query::<GetAlbumDetails>(
                         token,
                         get_album_details::Variables {
@@ -149,7 +147,6 @@ impl DataAccess {
                 all_albums.into_boxed_slice(),
             ))
             .await?;
-            //scope.send_message(AlbumListMessage::AlbumList(all_albums.into_boxed_slice()));
         } else {
             tx.send(DataFetchMessage::PreliminaryData(stored_albums))
                 .await?;

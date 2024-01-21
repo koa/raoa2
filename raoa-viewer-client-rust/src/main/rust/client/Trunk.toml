@@ -20,6 +20,11 @@ stage = "pre_build"
 command = "sh"
 command_arguments = ["-c", "cd node && npm install"]
 
-
 [watch]
 watch = ["src"]
+
+[build]
+target = "index.html"
+dist = "dist"
+filehash = false
+public_url = "/"

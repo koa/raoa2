@@ -7,8 +7,22 @@
     <link data-trunk rel="scss" href="node/node_modules/@patternfly/patternfly/patternfly-addons.scss">
     <link data-trunk rel="copy-dir" href="node/node_modules/@patternfly/patternfly/assets">
     <link data-trunk rel="css" href="local.css">
+    <link data-trunk rel="copy-dir" href="assets/img">
+    <link data-trunk rel="copy-file" href="assets/favicon.ico">
+    <link data-trunk rel="copy-file" href="assets/js/sw.js">
+    <link data-trunk rel="copy-file" href="assets/js/manifest.json">
+    <link rel="manifest" href="manifest.json">
     <script src="https://accounts.google.com/gsi/client"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register(
+                '/sw.js'
+            );
+        }
+
+        var viewport = document.querySelector("meta[name=viewport]");
+        viewport.setAttribute("content", viewport.content + ", height=" + window.innerHeight), viewport.setAttribute("content", viewport.content + ", width=" + window.innerWidth);
+    </script>
 </head>
-<body>
-</body>
+<body id="main"></body>
 </html>
