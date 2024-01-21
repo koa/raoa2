@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
-use log::{error, info};
+use log::error;
 use patternfly_yew::prelude::{Card, Gallery, Level, Progress, Spinner, Title};
 use tokio_stream::StreamExt;
 use yew::{html, html::Scope, platform::spawn_local, Component, Context, Html};
 
 use crate::data::storage::AlbumDetails;
-use crate::data::{DataAccess, DataFetchMessage};
+use crate::data::{DataAccess, DataAccessError, DataFetchMessage};
 use crate::error::FrontendError;
 
 #[derive(Debug, Default)]
@@ -19,6 +19,7 @@ pub enum AlbumListMessage {
     UpdateProgress(f64),
     StartProgress,
     FinishProgress,
+    DataError(DataAccessError),
 }
 
 #[derive(Debug, Default)]
@@ -27,6 +28,7 @@ pub enum ProcessingState {
     None,
     FetchingInfinite,
     Progress(f64),
+    Error(DataAccessError),
 }
 
 impl Component for AlbumList {
@@ -56,16 +58,21 @@ impl Component for AlbumList {
                 self.processing = ProcessingState::None;
                 true
             }
+            AlbumListMessage::DataError(error) => {
+                self.processing = ProcessingState::Error(error);
+                true
+            }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let indicator = match self.processing {
+        let indicator = match &self.processing {
             ProcessingState::None => html! {},
             ProcessingState::FetchingInfinite => html! {<Spinner/>},
             ProcessingState::Progress(value) => {
                 html! {<Progress description="Lade Album Daten" {value}/>}
             }
+            ProcessingState::Error(error) => error.render_error_message(),
         };
         let album_cards: Vec<_> = self
             .albums
@@ -111,16 +118,15 @@ async fn fetch_albums(scope: &Scope<AlbumList>) -> Result<(), FrontendError> {
     let mut album_stream = access.fetch_albums_interactive();
     while let Some(msg) = album_stream.next().await {
         match msg {
-            DataFetchMessage::PreliminaryData(data) => {
+            DataFetchMessage::Data(data) => {
                 scope.send_message(AlbumListMessage::AlbumList(data));
             }
             DataFetchMessage::Progress(p) => {
                 scope.send_message(AlbumListMessage::UpdateProgress(p))
             }
-            DataFetchMessage::FinalData(data) => {
-                scope.send_message(AlbumListMessage::AlbumList(data))
+            DataFetchMessage::Error(error) => {
+                scope.send_message(AlbumListMessage::DataError(error));
             }
-            DataFetchMessage::Error(_) => {}
         }
     }
     Ok(())

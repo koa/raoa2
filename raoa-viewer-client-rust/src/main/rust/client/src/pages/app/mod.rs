@@ -5,11 +5,12 @@ use google_signin_client::{
     initialize, prompt_async, render_button, ButtonType, DismissedReason, GsiButtonConfiguration,
     IdConfiguration, NotDisplayedReason, PromptResult,
 };
-use log::warn;
+use log::{info, warn};
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType, BackdropViewer, Page, ToastViewer};
 use web_sys::HtmlElement;
 use yew::{
     function_component, html, platform::spawn_local, Context, ContextProvider, Html, NodeRef,
+    Properties,
 };
 use yew_nested_router::{prelude::Switch as RouterSwitch, Router};
 
@@ -126,10 +127,11 @@ impl yew::Component for App {
             }
         }
         if let Some(context) = self.data.clone() {
+            let login_button = html!(<div ref={self.login_button_ref.clone()}></div>);
             html! {
             <ContextProvider<Rc<DataAccess>> {context}>
                 <Router<AppRoute> default={AppRoute::default()}>
-                    <MainPage/>
+                    <MainPage {login_button}/>
                 </Router<AppRoute>>
             </ContextProvider<Rc<DataAccess>>>
             }
@@ -196,8 +198,9 @@ impl yew::Component for App {
 
         if first_render {
             let scope = ctx.link().clone();
+            let login_ref = self.login_button_ref.clone();
             spawn_local(async move {
-                match DataAccess::new().await {
+                match DataAccess::new(login_ref).await {
                     Ok(data) => {
                         scope.send_message(AppMessage::DataAccessInitialized(data));
                     }
@@ -220,16 +223,22 @@ impl yew::Component for App {
     }
 }
 
+#[derive(PartialEq, Properties)]
+struct MainProps {
+    login_button: Html,
+}
+
 #[function_component(MainPage)]
-fn main_page() -> Html {
+fn main_page(props: &MainProps) -> Html {
     html! {
         <BackdropViewer>
             <ToastViewer>
-                    <Page>
-                        <RouterSwitch<AppRoute>
-                            render = { AppRoute::switch_main}
-                        />
-                    </Page>
+                <Page>
+                    <RouterSwitch<AppRoute>
+                        render = { AppRoute::switch_main}
+                    />
+                    {props.login_button.clone()}
+                </Page>
             </ToastViewer>
         </BackdropViewer>
     }

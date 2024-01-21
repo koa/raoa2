@@ -1,9 +1,20 @@
 use jwt::{claims::SecondsSinceEpoch, Claims, Header, Token, Unverified};
+use log::warn;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::Receiver;
+use yew::platform::spawn_local;
 
-#[derive(Debug, PartialEq, Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct UserSessionData {
     jwt: Option<Box<str>>,
     valid_until: Option<SecondsSinceEpoch>,
+    pending_notifications: Vec<mpsc::Sender<()>>,
+}
+
+impl PartialEq for UserSessionData {
+    fn eq(&self, other: &Self) -> bool {
+        self.jwt == other.jwt && self.valid_until == other.valid_until
+    }
 }
 
 impl UserSessionData {
@@ -14,6 +25,13 @@ impl UserSessionData {
         if let Some(exp) = option {
             self.jwt = Some(token);
             self.valid_until = Some(exp);
+            while let Some(tx) = self.pending_notifications.pop() {
+                spawn_local(async move {
+                    if let Err(e) = tx.send(()).await {
+                        warn!("Cannot notify: {e}");
+                    }
+                });
+            }
         } else {
             self.jwt = None;
             self.valid_until = None;
@@ -28,6 +46,14 @@ impl UserSessionData {
         } else {
             false
         }
+    }
+    pub fn wait_for_token(&mut self) -> Option<Receiver<()>> {
+        if self.is_token_valid() {
+            return None;
+        }
+        let (tx, rx) = mpsc::channel(1);
+        self.pending_notifications.push(tx);
+        Some(rx)
     }
     #[allow(dead_code)]
     pub fn logout(&mut self) {
