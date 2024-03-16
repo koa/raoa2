@@ -15,10 +15,12 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
+import org.springframework.data.elasticsearch.annotations.Setting;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 
 @Slf4j
 @Document(indexName = "album-entry-1")
+@Setting(shards = 3)
 @Value
 @JsonDeserialize(builder = AlbumEntryData.AlbumEntryDataBuilder.class)
 public class AlbumEntryData {

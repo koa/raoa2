@@ -33,6 +33,7 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.function.TupleUtils;
 import reactor.util.function.Tuple2;
+import reactor.util.function.Tuple5;
 import reactor.util.function.Tuples;
 import reactor.util.retry.Retry;
 
@@ -150,13 +151,16 @@ public class Poller {
                     final AlbumList.FoundAlbum album = albumData.getT1();
                     log.info("Start " + album);
                     final UUID albumId = album.getAlbumId();
+
                     // pendingAlbums.add(albumId);
                     // log.info("Pending: " + pendingAlbums);
-                    return albumDataEntryRepository
-                        .findByAlbumId(albumId)
-                        // .log("entry before")
-                        .collectMap(AlbumEntryData::getEntryId)
-                        .retryWhen(Retry.backoff(10, Duration.ofSeconds(10)))
+                    Mono<Map<ObjectId, AlbumEntryData>> mapMono =
+                        albumDataEntryRepository
+                            .findByAlbumId(albumId)
+                            // .log("entry before")
+                            .collectMap(AlbumEntryData::getEntryId)
+                            .retryWhen(Retry.backoff(10, Duration.ofSeconds(10)));
+                    return mapMono
                         .flatMap(
                             existingEntries ->
                                 album
@@ -263,45 +267,115 @@ public class Poller {
                                                         album.getAccess().getName();
                                                     final Mono<ObjectId> versionMono =
                                                         album.getAccess().getCurrentVersion();
-                                                    final Mono<AlbumMeta> metadata =
+                                                    final Mono<AlbumMeta> metadataMono =
                                                         album.getAccess().getMetadata();
+                                                    Mono<
+                                                            Tuple5<
+                                                                AlbumStatisticsCollector,
+                                                                String,
+                                                                ObjectId,
+                                                                AlbumMeta,
+                                                                Optional<ObjectId>>>
+                                                        tuple5Mono =
+                                                            Mono.zip(
+                                                                    nameMono,
+                                                                    versionMono,
+                                                                    metadataMono)
+                                                                .flatMap(
+                                                                    TupleUtils.function(
+                                                                        (name, version, metadata) ->
+                                                                            albumDataEntryRepository
+                                                                                .findByAlbumId(
+                                                                                    albumId)
+                                                                                .publish(
+                                                                                    flux -> {
+                                                                                      String
+                                                                                          titleEntry =
+                                                                                              metadata
+                                                                                                  .getTitleEntry();
+                                                                                      Mono<ObjectId>
+                                                                                          titleEntryId =
+                                                                                              titleEntry
+                                                                                                      != null
+                                                                                                  ? flux.filter(
+                                                                                                          e ->
+                                                                                                              Objects
+                                                                                                                  .equals(
+                                                                                                                      e
+                                                                                                                          .getFilename(),
+                                                                                                                      titleEntry))
+                                                                                                      .next()
+                                                                                                      .map(
+                                                                                                          AlbumEntryData
+                                                                                                              ::getEntryId)
+                                                                                                  : Mono
+                                                                                                      .empty();
+                                                                                      Mono<
+                                                                                              AlbumStatisticsCollector>
+                                                                                          collect =
+                                                                                              flux
+                                                                                                  .collect(
+                                                                                                      () ->
+                                                                                                          new AlbumStatisticsCollector(
+                                                                                                              Collections
+                                                                                                                  .emptySet()),
+                                                                                                      AlbumStatisticsCollector
+                                                                                                          ::addAlbumData);
+                                                                                      return Mono
+                                                                                          .zip(
+                                                                                              collect,
+                                                                                              titleEntryId
+                                                                                                  .map(
+                                                                                                      Optional
+                                                                                                          ::of)
+                                                                                                  .defaultIfEmpty(
+                                                                                                      Optional
+                                                                                                          .empty()));
+                                                                                    })
+                                                                                .next()
+                                                                                .map(
+                                                                                    TupleUtils
+                                                                                        .function(
+                                                                                            (stats,
+                                                                                                optTitle) ->
+                                                                                                Tuples
+                                                                                                    .of(
+                                                                                                        stats,
+                                                                                                        name,
+                                                                                                        version,
+                                                                                                        metadata,
+                                                                                                        optTitle)))));
 
-                                                    return Mono.zip(
-                                                            albumDataEntryRepository
-                                                                .findByAlbumId(albumId)
-                                                                .collect(
-                                                                    () ->
-                                                                        new AlbumStatisticsCollector(
-                                                                            Collections.emptySet()),
-                                                                    AlbumStatisticsCollector
-                                                                        ::addAlbumData),
-                                                            nameMono,
-                                                            versionMono,
-                                                            metadata)
-                                                        .flatMap(
-                                                            t -> {
-                                                              final AlbumStatisticsCollector stats =
-                                                                  t.getT1();
-                                                              final String name = t.getT2();
-                                                              final AlbumMeta albumMeta = t.getT4();
+                                                    return tuple5Mono.flatMap(
+                                                        t -> {
+                                                          final AlbumStatisticsCollector stats =
+                                                              t.getT1();
+                                                          final String name = t.getT2();
+                                                          final AlbumMeta albumMeta = t.getT4();
+                                                          Optional<ObjectId> titleEntryId =
+                                                              t.getT5();
 
-                                                              AlbumData.AlbumDataBuilder
-                                                                  albumDataBuilder =
-                                                                      AlbumData.builder()
-                                                                          .repositoryId(albumId)
-                                                                          .name(name);
-                                                              newVersion.ifPresent(
-                                                                  albumDataBuilder::currentVersion);
-                                                              Optional.ofNullable(
-                                                                      albumMeta.getLabels())
-                                                                  .ifPresent(
-                                                                      albumDataBuilder::labels);
-                                                              stats.fill(albumDataBuilder);
+                                                          AlbumData.AlbumDataBuilder
+                                                              albumDataBuilder =
+                                                                  AlbumData.builder()
+                                                                      .repositoryId(albumId)
+                                                                      .name(name);
+                                                          newVersion.ifPresent(
+                                                              albumDataBuilder::currentVersion);
+                                                          Optional.ofNullable(albumMeta.getLabels())
+                                                              .ifPresent(albumDataBuilder::labels);
+                                                          Optional.ofNullable(
+                                                                  albumMeta.getTitleEntry())
+                                                              .ifPresent(
+                                                                  albumDataBuilder::titleEntry);
+                                                          titleEntryId.ifPresent(
+                                                              albumDataBuilder::titleEntryId);
+                                                          stats.fill(albumDataBuilder);
 
-                                                              return albumDataRepository
-                                                                  .save(albumDataBuilder.build())
-                                                                  .timeout(Duration.ofSeconds(20));
-                                                            });
+                                                          return albumDataRepository
+                                                              .save(albumDataBuilder.build())
+                                                              .timeout(Duration.ofSeconds(20));
+                                                        });
                                                   })
                                               .doOnNext(entry -> log.info("updated: " + entry))
                                               .map(AlbumData::getRepositoryId)

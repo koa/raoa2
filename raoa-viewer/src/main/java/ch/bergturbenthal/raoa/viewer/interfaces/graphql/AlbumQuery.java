@@ -84,6 +84,15 @@ public class AlbumQuery {
         .map(e -> createAlbumEntry(album, e));
   }
 
+  @SchemaMapping(typeName = TYPE_NAME)
+  public Mono<AlbumEntry> titleEntry(Album album) {
+    return dataViewService
+        .readAlbum(album.getId())
+        .flatMap(a -> Mono.justOrEmpty(a.getTitleEntryId()))
+        .flatMap(e -> dataViewService.loadEntry(album.getId(), e))
+        .map(e -> createAlbumEntry(album, e));
+  }
+
   @NotNull
   private AlbumEntry createAlbumEntry(final Album album, AlbumEntryData entry) {
     return new AlbumEntry(album, entry.getEntryId().name(), entry);

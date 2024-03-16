@@ -245,6 +245,7 @@ type Album {
     name: String
     entries: [AlbumEntry!]!
     albumEntry(entryId: ID): AlbumEntry
+    titleEntry: AlbumEntry
     entryCount: Int
     canAccessedBy: [User!]!
     canAccessedByGroup: [Group!]!

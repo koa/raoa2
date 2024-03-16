@@ -16,8 +16,10 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
+import org.springframework.data.elasticsearch.annotations.Setting;
 
-@Document(indexName = "album-data-1")
+@Document(indexName = "album-data-2")
+@Setting(shards = 3)
 @Value
 @Builder
 @JsonDeserialize(builder = AlbumData.AlbumDataBuilder.class)
@@ -43,6 +45,13 @@ public class AlbumData {
 
   @Field(type = FieldType.Object)
   Map<String, String> labels;
+
+  @Field(type = FieldType.Keyword)
+  String titleEntry;
+
+  @Field(type = FieldType.Keyword)
+  @JsonSerialize(using = ObjectIdSerializer.class)
+  ObjectId titleEntryId;
 
   @JsonPOJOBuilder(withPrefix = "")
   public static class AlbumDataBuilder {}
