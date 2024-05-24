@@ -211,7 +211,7 @@ pub struct AlbumEntry {
     pub created: Option<DateTime>,
     pub keywords: Box<[Box<str>]>,
     pub camera_model: Option<Box<str>>,
-    pub exposure_time: Option<Duration>,
+    pub exposure_time: Option<u64>,
     pub f_number: Option<OrderedFloat<f32>>,
     pub focal_length_35: Option<OrderedFloat<f32>>,
     pub iso_speed_ratings: Option<OrderedFloat<f32>>,
@@ -243,7 +243,7 @@ impl AlbumEntry {
         self.camera_model.as_deref()
     }
     pub fn exposure_time(&self) -> Option<Duration> {
-        self.exposure_time
+        self.exposure_time.map(|t| Duration::from_nanos(t))
     }
     pub fn f_number(&self) -> Option<OrderedFloat<f32>> {
         self.f_number
@@ -277,10 +277,48 @@ impl AlbumEntry {
             created,
             keywords,
             camera_model,
-            exposure_time,
+            exposure_time: exposure_time.map(|d| d.as_nanos() as u64),
             f_number,
             focal_length_35,
             iso_speed_ratings,
         }
+    }
+}
+#[cfg(test)]
+mod test {
+    use std::time::Duration;
+
+    use crate::data::storage::AlbumEntry;
+
+    #[test]
+    fn test_serialize_duration() {
+        let original_duration = Some(Duration::from_nanos(625000));
+        let duration_as_string = serde_json::to_string(&original_duration).unwrap();
+        //println!("Duration: {duration_as_string}");
+        let copied_duration: Option<Duration> = serde_json::from_str(&duration_as_string).unwrap();
+        assert_eq!(original_duration, copied_duration);
+        //println!("Restored: {copied_duration:?}");
+    }
+    #[test]
+    fn test_serialize_album_entry() {
+        let original_entry = [AlbumEntry {
+            album_id: "aid".to_string().into_boxed_str(),
+            entry_id: "eid".to_string().into_boxed_str(),
+            name: "my big picture".to_string().into_boxed_str(),
+            target_width: 0,
+            target_height: 0,
+            created: None,
+            keywords: Box::new([]),
+            camera_model: None,
+            exposure_time: Some(Duration::from_nanos(625000).as_nanos() as u64),
+            f_number: None,
+            focal_length_35: None,
+            iso_speed_ratings: None,
+        }];
+        let entry_as_string = serde_json::to_string(&original_entry).unwrap();
+        //println!("Duration: {entry_as_string}");
+        let copied_entry: [AlbumEntry; 1] = serde_json::from_str(&entry_as_string).unwrap();
+        //println!("Restored: {copied_entry:?}");
+        assert_eq!(original_entry, copied_entry);
     }
 }

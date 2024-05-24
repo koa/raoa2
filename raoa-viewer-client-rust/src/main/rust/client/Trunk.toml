@@ -4,6 +4,8 @@ port = 4200
 backend = "https://photos.teamkoenig.ch/graphql"
 [[proxy]]
 backend = "https://photos.teamkoenig.ch/config"
+[[proxy]]
+backend = "https://photos.teamkoenig.ch/rest/"
 
 [[hooks]]
 stage = "pre_build"
@@ -21,7 +23,7 @@ command = "sh"
 command_arguments = ["-c", "cd node && npm install"]
 
 [watch]
-watch = ["src"]
+watch = ["src", "index.html"]
 
 [build]
 target = "index.html"

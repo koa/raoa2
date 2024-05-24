@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use log::{error, info};
+use patternfly_yew::prelude::CardTitle;
 use patternfly_yew::prelude::{Card, Gallery, Level, Progress, Spinner, Title};
 use tokio_stream::StreamExt;
 use yew::{html, html::Scope, platform::spawn_local, Component, Context, Html};
@@ -86,11 +87,13 @@ impl Component for AlbumList {
                     .map(|t| t.as_ref().format("%c").to_string())
                     .map(|date| html! {<Title level={Level::H4}>{date}</Title>});
                 let title = html! {<>{timestamp}<Title>{html!(album.name())}</Title></>};
-                let target = AppRoute::Album {
+                let to = AppRoute::Album {
                     id: album.id().to_string(),
                 };
                 //
-                html! {<Link<AppRoute> {target}><Card {title} full_height=true></Card></Link<AppRoute>>}
+                html! {<Link<AppRoute> {to}><Card full_height=true>
+                <CardTitle>{title}</CardTitle>
+                </Card></Link<AppRoute>>}
             })
             .collect();
 

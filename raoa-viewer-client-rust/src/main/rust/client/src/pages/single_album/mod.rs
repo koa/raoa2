@@ -1,19 +1,26 @@
+use gloo::file::ObjectUrl;
+use std::cell::RefCell;
+use std::ops::DerefMut;
 use std::rc::Rc;
 
+use lazy_static::__Deref;
 use log::{error, info};
 use patternfly_yew::prelude::{Progress, Spinner};
 use tokio_stream::StreamExt;
+use web_sys::Blob;
 use yew::{html, html::Scope, platform::spawn_local, Component, Context, Html, Properties};
 
+use crate::data::server_api::thumbnail_url;
+use crate::data::MediaUrl;
 use crate::{
     data::{storage::AlbumEntry, DataAccess, DataAccessError, DataFetchMessage},
     error::FrontendError,
 };
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct SingleAlbum {
     id: Box<str>,
-    entries: Box<[AlbumEntry]>,
+    entries: Rc<Box<[(AlbumEntry, RefCell<Option<MediaUrl>>)]>>,
     processing: ProcessingState,
 }
 #[derive(Debug, Default)]
@@ -24,11 +31,11 @@ enum ProcessingState {
     Progress(f64),
     Error(DataAccessError),
 }
-#[derive(Debug)]
+//#[derive(Debug)]
 pub enum SingleAlbumMessage {
     StartProgress,
     FinishProgress,
-    EntryList(Box<[AlbumEntry]>),
+    EntryList(Rc<Box<[(AlbumEntry, RefCell<Option<MediaUrl>>)]>>),
     UpdateProgress(f64),
     DataError(DataAccessError),
 }
@@ -45,7 +52,7 @@ impl Component for SingleAlbum {
         let props = ctx.props();
         Self {
             id: props.id.clone().into_boxed_str(),
-            entries: Box::new([]),
+            entries: Rc::new(Box::new([])),
             processing: Default::default(),
         }
     }
@@ -67,10 +74,13 @@ impl Component for SingleAlbum {
                 ProcessingState::Error(_) => false,
             },
             SingleAlbumMessage::EntryList(entries) => {
-                if self.entries == entries {
+                let equals = self.entries == entries;
+                if equals {
                     false
                 } else {
                     self.entries = entries;
+                    let scope = ctx.link().clone();
+                    spawn_local(async move {});
                     true
                 }
             }
@@ -94,7 +104,28 @@ impl Component for SingleAlbum {
             }
             ProcessingState::Error(error) => error.render_error_message(),
         };
-        html!(<>{format!("Entries: {}",self.entries.len())}{indicator}</>)
+        html! {
+            <>
+                {indicator}
+                <ol class="image-rows">
+                {
+                    for self.entries.iter().map(|e|{
+                    let b = e.1.borrow();
+                    let d = b.deref();
+                    if let Some(blob)=d{
+                        let src=blob.deref().to_string();
+                        html!{<li><img {src}/></li>}
+                    }else{
+                        html!(<li>{"Loading"}</li>)
+                    }
+                    })
+
+                }
+                </ol>
+            </>
+        }
+
+        //html!(<>{format!("Entries: {}",self.entries.len())}{indicator}</>)
     }
 
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
@@ -103,8 +134,14 @@ impl Component for SingleAlbum {
             let id = self.id.clone();
             spawn_local(async move {
                 scope.send_message(SingleAlbumMessage::StartProgress);
-                if let Err(e) = fetch_album_content(&scope, &id).await {
-                    error!("Cannot get album list: {e}");
+                match fetch_album_content(&scope, &id).await {
+                    /*Err(FrontendError::NotLoggedIn)=>{
+                        scope.send_message(SingleAlbumMessage::)
+                    }*/
+                    Err(e) => {
+                        error!("Cannot get album list: {e}");
+                    }
+                    Ok(..) => {}
                 }
                 scope.send_message(SingleAlbumMessage::FinishProgress);
             });
@@ -117,10 +154,30 @@ async fn fetch_album_content(scope: &Scope<SingleAlbum>, id: &str) -> Result<(),
         .context::<Rc<DataAccess>>(Default::default())
         .expect("Context missing");
     let mut album_stream = access.fetch_album_content_interactive(id);
+
     while let Some(msg) = album_stream.next().await {
         match msg {
             DataFetchMessage::Data(data) => {
-                scope.send_message(SingleAlbumMessage::EntryList(data));
+                let new_list = Rc::new(
+                    data.iter()
+                        .cloned()
+                        .map(|e| (e, RefCell::new(None)))
+                        .collect::<Box<[_]>>(),
+                );
+
+                scope.send_message(SingleAlbumMessage::EntryList(new_list.clone()));
+                scope.send_message(SingleAlbumMessage::StartProgress);
+                for (idx, (entry, blob_ref)) in new_list.iter().enumerate() {
+                    if idx % 10 == 9 {
+                        scope.send_message(SingleAlbumMessage::UpdateProgress(
+                            new_list.len() as f64 / idx as f64,
+                        ));
+                    }
+                    let blob = access.fetch_thumbnail(entry, None).await?;
+
+                    blob_ref.replace(Some(blob));
+                }
+                scope.send_message(SingleAlbumMessage::FinishProgress);
             }
             DataFetchMessage::Progress(p) => {
                 scope.send_message(SingleAlbumMessage::UpdateProgress(p))

@@ -1,43 +1,85 @@
 use std::borrow::Cow;
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
+use std::fmt::{write, Debug, Formatter};
 use std::ops::Deref;
 use std::rc::Rc;
 use std::time::Duration;
 
+use gloo::file::ObjectUrl;
 use google_signin_client::{
     prompt_async, render_button, ButtonType, DismissedReason, GsiButtonConfiguration, PromptResult,
 };
 use log::{error, info};
 use ordered_float::OrderedFloat;
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};
+use reqwest::header::{HeaderMap, InvalidHeaderValue, AUTHORIZATION};
+use reqwest::Client;
 use thiserror::Error;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Sender;
-use tokio_stream::wrappers::ReceiverStream;
-use tokio_stream::Stream;
-use web_sys::{window, HtmlElement, Navigator, Window};
-use yew::platform::spawn_local;
-use yew::{html, Html, NodeRef};
+use tokio::{sync::mpsc, sync::mpsc::Sender};
+use tokio_stream::{wrappers::ReceiverStream, Stream};
+use wasm_bindgen::JsValue;
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{window, Blob, Cache, CacheStorage, HtmlElement, Navigator, Response, Window};
+use yew::{html, platform::spawn_local, Html, NodeRef};
 
-use crate::data::server_api::graphql::model::get_album_details::GetAlbumDetailsAlbumByIdLabels;
-use crate::data::server_api::graphql::model::{
-    album_content, all_album_versions, get_album_details, AlbumContent, AllAlbumVersions,
-    GetAlbumDetails,
+use crate::{
+    data::{
+        server_api::{
+            fetch_blob,
+            graphql::{
+                model::{
+                    album_content, all_album_versions, get_album_details,
+                    get_album_details::GetAlbumDetailsAlbumByIdLabels, AlbumContent,
+                    AllAlbumVersions, GetAlbumDetails,
+                },
+                query, GraphqlAccessError,
+            },
+            thumbnail_url,
+        },
+        session::UserSessionData,
+        storage::{AlbumDetails, AlbumEntry, StorageAccess, StorageError},
+    },
+    error::FrontendError,
 };
-use crate::data::server_api::graphql::{query, GraphqlAccessError};
-use crate::data::session::UserSessionData;
-use crate::data::storage::{AlbumDetails, AlbumEntry, StorageAccess, StorageError};
 
 pub mod server_api;
 pub mod session;
 pub mod storage;
+pub struct MediaUrl(ObjectUrl);
+
+impl Deref for MediaUrl {
+    type Target = ObjectUrl;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<ObjectUrl> for MediaUrl {
+    fn from(value: ObjectUrl) -> Self {
+        MediaUrl(value)
+    }
+}
+
+impl PartialEq for MediaUrl {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.to_string().eq(&other.0.to_string())
+    }
+}
+
+impl Debug for MediaUrl {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "MediaUrl: {}", self.0.to_string())
+    }
+}
 
 #[derive(Debug)]
 pub struct DataAccess {
     storage: RefCell<StorageAccess>,
     login_data: RefCell<UserSessionData>,
     login_button_ref: NodeRef,
+    cache_storage: Cache,
 }
 
 impl PartialEq for DataAccess {
@@ -48,6 +90,10 @@ impl PartialEq for DataAccess {
 
 impl DataAccess {
     pub async fn new(login_button_ref: NodeRef) -> Result<Rc<DataAccess>, DataAccessError> {
+        let caches = JsFuture::from(window().unwrap().caches().unwrap().open("thumbnails"))
+            .await
+            .unwrap()
+            .into();
         Ok(Rc::new(Self {
             storage: RefCell::new(
                 StorageAccess::new()
@@ -56,6 +102,7 @@ impl DataAccess {
             ),
             login_data: Default::default(),
             login_button_ref,
+            cache_storage: caches,
         }))
     }
 
@@ -187,12 +234,11 @@ impl DataAccess {
             return None;
         }
 
-        {
-            let session_data = self.login_data();
-            if session_data.is_token_valid() {
-                return Some(session_data);
-            }
+        let session_data = self.login_data();
+        if session_data.is_token_valid() {
+            return Some(session_data);
         }
+        drop(session_data);
         let result = prompt_async().await;
         if result == PromptResult::Dismissed(DismissedReason::CredentialReturned) {
             return Some(self.login_data());
@@ -251,7 +297,6 @@ impl DataAccess {
         id: String,
     ) -> Result<(), DoFetchError<Box<[AlbumEntry]>>> {
         let result = self.storage().list_album_entries(&id).await;
-        info!("Result: {result:?}");
         let stored_entries = result.map_err(DataAccessError::FetchAlbum)?.clone();
         tx.send(DataFetchMessage::Data(stored_entries.clone()))
             .await?;
@@ -286,7 +331,7 @@ impl DataAccess {
                 let existing_entry = existing_entries.remove(entry_id.as_ref());
                 let entry = AlbumEntry {
                     album_id: id.clone().into_boxed_str(),
-                    entry_id: entry_id,
+                    entry_id,
                     name: entry.name.clone().unwrap_or_default().into_boxed_str(),
                     target_width: entry.target_width.map(|i| i as u32).unwrap_or_default(),
                     target_height: entry.target_height.map(|i| i as u32).unwrap_or_default(),
@@ -299,7 +344,7 @@ impl DataAccess {
                     camera_model: entry.camera_model.clone().map(|s| s.into_boxed_str()),
                     exposure_time: entry
                         .exposure_time
-                        .map(|v| Duration::from_secs_f32(v as f32)),
+                        .map(|v| Duration::from_secs_f32(v as f32).as_nanos() as u64),
                     f_number: entry.f_number.map(|v| OrderedFloat(v as f32)),
                     focal_length_35: entry.focal_length35.map(|v| OrderedFloat(v as f32)),
                     iso_speed_ratings: entry.iso_speed_ratings.map(|v| OrderedFloat(v as f32)),
@@ -327,6 +372,47 @@ impl DataAccess {
         }
         Ok(())
     }
+    pub async fn fetch_thumbnail(
+        &self,
+        entry: &AlbumEntry,
+        max_length: Option<u16>,
+    ) -> Result<MediaUrl, FrontendError> {
+        let entry_path = thumbnail_url(&entry.album_id, &entry.entry_id, max_length);
+
+        let result = JsFuture::from(self.cache_storage.match_with_str(&entry_path))
+            .await
+            .map_err(js_to_frontend_error)?;
+        if !result.is_undefined() {
+            return Self::extract_blob_from_result(result)
+                .await
+                .map_err(js_to_frontend_error);
+        }
+
+        if let Some(token) = self.valid_token_str().await {
+            let loaded_blob = fetch_blob(&token, &entry_path).await?;
+            JsFuture::from(self.cache_storage.put_with_str(&entry_path, &loaded_blob))
+                .await
+                .map_err(js_to_frontend_error)?;
+            let result = JsFuture::from(self.cache_storage.match_with_str(&entry_path))
+                .await
+                .map_err(js_to_frontend_error)?;
+            Self::extract_blob_from_result(result)
+                .await
+                .map_err(js_to_frontend_error)
+        } else {
+            Err(FrontendError::NotLoggedIn)
+        }
+    }
+
+    async fn extract_blob_from_result(result: JsValue) -> Result<MediaUrl, JsValue> {
+        Ok(ObjectUrl::from(Blob::from(
+            JsFuture::from(Response::from(result).blob()?).await?,
+        ))
+        .into())
+    }
+}
+fn js_to_frontend_error(error: JsValue) -> FrontendError {
+    FrontendError::JS(error.into())
 }
 #[derive(Debug, Error)]
 enum DoFetchError<D> {
