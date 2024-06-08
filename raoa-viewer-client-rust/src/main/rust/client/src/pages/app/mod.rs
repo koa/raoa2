@@ -6,10 +6,11 @@ use google_signin_client::{
 };
 use log::{info, warn};
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType, BackdropViewer, Page, ToastViewer};
-use web_sys::HtmlElement;
+use web_sys::{Event, HtmlElement};
+use yew::virtual_dom::ListenerKind::{onclick, onscroll};
 use yew::{
-    function_component, html, platform::spawn_local, Context, ContextProvider, Html, NodeRef,
-    Properties,
+    function_component, html, platform::spawn_local, use_state_eq, Callback, Context,
+    ContextProvider, Html, NodeRef, Properties, TargetCast,
 };
 use yew_nested_router::{prelude::Switch as RouterSwitch, Router};
 
@@ -43,7 +44,6 @@ enum ErrorState {
 pub enum AppMessage {
     DataAccessInitialized(Rc<DataAccess>),
     ClientIdReceived(Box<str>),
-    TokenReceived(Box<str>),
     ClientError(FrontendError),
     LoginFailed(PromptResult),
     DataAccessError(DataAccessError),
@@ -64,16 +64,6 @@ impl yew::Component for App {
                 self.data = Some(data);
                 true
             }
-
-            AppMessage::TokenReceived(token) => {
-                if let Some(mut session) = self.data.as_deref().map(DataAccess::login_data_mut) {
-                    session.update_token(token);
-                    self.error_state = None;
-                    session.is_token_valid()
-                } else {
-                    false
-                }
-            }
             AppMessage::ClientIdReceived(client_id) => {
                 self.client_id = Some(client_id);
                 self.error_state = None;
@@ -92,7 +82,10 @@ impl yew::Component for App {
                 .as_deref()
                 .map(DataAccess::login_data)
                 .as_ref()
-                .map(|v| UserSessionData::is_token_valid(v))
+                .and_then(|v| {
+                    info!("Drop here");
+                    v.borrow().as_ref().map(|s| s.is_token_valid())
+                })
                 .unwrap_or(true),
             AppMessage::DataAccessError(error) => {
                 self.error_state = Some(ErrorState::DataAccessError(error));
@@ -102,22 +95,22 @@ impl yew::Component for App {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let login_data = self.data.as_deref().map(DataAccess::login_data);
-        let login_valid = login_data.map(|t| t.is_token_valid()).unwrap_or(false);
+        let login_valid = self
+            .data
+            .as_deref()
+            .map(DataAccess::login_data)
+            .and_then(|t| t.borrow().as_ref().map(|d| d.is_token_valid()))
+            .unwrap_or(false);
         if let (Some(client_id), false) = (&self.client_id, login_valid) {
             if self.error_state.is_none() {
                 let mut configuration = IdConfiguration::new(client_id.clone().into_string());
                 //configuration.set_auto_select(true);
                 let link = ctx.link().clone();
-                configuration.set_callback(Box::new(move |response| {
-                    link.send_message(AppMessage::TokenReceived(
-                        response.credential().to_string().into_boxed_str(),
-                    ));
-                }));
                 let link = ctx.link().clone();
                 initialize(configuration);
                 spawn_local(async move {
                     let result = prompt_async().await;
+                    info!("Result: {result:?}");
                     if result != PromptResult::Dismissed(DismissedReason::CredentialReturned) {
                         link.send_message(AppMessage::LoginFailed(result))
                     }
@@ -186,22 +179,24 @@ impl yew::Component for App {
             let scope = ctx.link().clone();
             let login_ref = self.login_button_ref.clone();
             spawn_local(async move {
-                match DataAccess::new(login_ref).await {
+                let google_client_id = match fetch_settings().await {
+                    Ok(ClientProperties { google_client_id }) => {
+                        scope.send_message(AppMessage::ClientIdReceived(google_client_id.clone()));
+                        google_client_id
+                    }
+                    Err(err) => {
+                        warn!("Error from server: {err}");
+                        scope.send_message(AppMessage::ClientError(err));
+                        return;
+                    }
+                };
+                match DataAccess::new(login_ref, google_client_id).await {
                     Ok(data) => {
                         scope.send_message(AppMessage::DataAccessInitialized(data));
                     }
                     Err(err) => {
                         warn!("Error from server: {err}");
                         scope.send_message(AppMessage::DataAccessError(err));
-                    }
-                }
-                match fetch_settings().await {
-                    Ok(ClientProperties { google_client_id }) => {
-                        scope.send_message(AppMessage::ClientIdReceived(google_client_id));
-                    }
-                    Err(err) => {
-                        warn!("Error from server: {err}");
-                        scope.send_message(AppMessage::ClientError(err));
                     }
                 }
             });
@@ -216,13 +211,29 @@ struct MainProps {
 
 #[function_component(MainPage)]
 fn main_page(props: &MainProps) -> Html {
+    let top = use_state_eq(|| 0);
+    let height = use_state_eq(|| 0);
+    let scroll_top = use_state_eq(|| 0);
+    let on_main_scroll = {
+        let top = top.clone();
+        let height = height.clone();
+        let scroll_top = scroll_top.clone();
+        Callback::from(move |event: Event| {
+            if let Some(target) = event.target_dyn_into::<HtmlElement>() {
+                top.set(target.offset_top());
+                height.set(target.offset_height());
+                scroll_top.set(target.scroll_top());
+                //info!("Scroll Top: {}", target.scroll_top());
+            }
+        })
+    };
     html! {
         <BackdropViewer>
             <ToastViewer>
-                <Page>
+                <Page {on_main_scroll}>
                     {props.login_button.clone()}
                     <RouterSwitch<AppRoute>
-                        render = { AppRoute::switch_main}
+                        render = {move |route:AppRoute| route.switch_main(*top, *height, *scroll_top)}
                     />
                 </Page>
             </ToastViewer>

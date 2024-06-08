@@ -5,6 +5,22 @@ div.pf-c-page {
         "nav main";
 }
 
+ol.image-rows {
+    display: flex;
+    list-style: none;
+    flex-direction: column;
+    width: 100%;
+}
+
+div.image-row {
+    display: flex;
+}
+
+div.image-row > div.image-entry {
+    align-content: center;
+    vertical-align: middle;
+}
+
 dl {
     display: grid;
     grid-template-columns: auto;
@@ -21,6 +37,7 @@ dd {
     margin-inline-start: 1em;
     color: black;
 }
+
 li.pf-v5-c-nav__item {
     list-style-type: none;
 }

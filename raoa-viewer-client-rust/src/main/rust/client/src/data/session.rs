@@ -1,75 +1,66 @@
+use std::fmt::{Debug, Formatter};
+
 use jwt::{claims::SecondsSinceEpoch, Claims, Header, Token, Unverified};
-use log::warn;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Receiver;
-use yew::platform::spawn_local;
+use self_cell::self_cell;
 
-#[derive(Debug, Clone, Default)]
-pub struct UserSessionData {
-    jwt: Option<Box<str>>,
-    valid_until: Option<SecondsSinceEpoch>,
-    pending_notifications: Vec<mpsc::Sender<()>>,
-}
-
-impl PartialEq for UserSessionData {
-    fn eq(&self, other: &Self) -> bool {
-        self.jwt == other.jwt && self.valid_until == other.valid_until
+type ParsedToken<'a> = Option<Token<Header, Claims, Unverified<'a>>>;
+self_cell!(
+    struct ParsedAndRaw {
+        owner: Box<str>,
+        #[covariant]
+        dependent: ParsedToken,
+    }
+);
+impl Debug for ParsedAndRaw {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.borrow_owner().fmt(f)
     }
 }
+impl Clone for ParsedAndRaw {
+    fn clone(&self) -> Self {
+        let new_token = self.borrow_owner().clone();
+        ParsedAndRaw::new(new_token, |t| parse_token(t))
+    }
+}
+impl PartialEq for ParsedAndRaw {
+    fn eq(&self, other: &Self) -> bool {
+        self.borrow_owner() == other.borrow_owner()
+    }
+}
+
+fn parse_token(t: &Box<str>) -> Option<Token<Header, Claims, Unverified>> {
+    Token::<Header, Claims, Unverified<'_>>::parse_unverified(t).ok()
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct UserSessionData(ParsedAndRaw);
 
 impl UserSessionData {
-    pub fn update_token(&mut self, token: Box<str>) {
-        let option = Token::<Header, Claims, Unverified<'_>>::parse_unverified(&token)
-            .ok()
-            .and_then(|token| token.claims().registered.expiration);
-        if let Some(exp) = option {
-            self.jwt = Some(token);
-            self.valid_until = Some(exp);
-            while let Some(tx) = self.pending_notifications.pop() {
-                spawn_local(async move {
-                    if let Err(e) = tx.send(()).await {
-                        warn!("Cannot notify: {e}");
-                    }
-                });
-            }
-        } else {
-            self.jwt = None;
-            self.valid_until = None;
-        }
+    pub fn new(token: Box<str>) -> Self {
+        UserSessionData(ParsedAndRaw::new(token, parse_token))
     }
     pub fn is_token_valid(&self) -> bool {
-        if let (Some(expire), Ok(now)) = (
-            &self.valid_until,
+        if let (Some(valid_until), Ok(now)) = (
+            self.valid_until(),
             wasm_timer::SystemTime::now().duration_since(wasm_timer::SystemTime::UNIX_EPOCH),
         ) {
-            now.as_secs_f64() < *expire as f64
+            now.as_secs_f64() < valid_until as f64
         } else {
             false
         }
     }
-    pub fn wait_for_token(&mut self) -> Option<Receiver<()>> {
-        if self.is_token_valid() {
-            return None;
-        }
-        let (tx, rx) = mpsc::channel(1);
-        self.pending_notifications.push(tx);
-        Some(rx)
-    }
-    #[allow(dead_code)]
-    pub fn logout(&mut self) {
-        self.jwt = None;
-        self.valid_until = None;
-    }
 
-    pub fn jwt(&self) -> Option<&str> {
-        self.jwt.as_deref()
+    pub fn jwt(&self) -> &str {
+        &self.0.borrow_owner()
     }
     pub fn token(&self) -> Option<Token<Header, Claims, Unverified<'_>>> {
-        self.jwt()
-            .and_then(|token| Token::<Header, Claims, Unverified<'_>>::parse_unverified(token).ok())
+        Token::<Header, Claims, Unverified<'_>>::parse_unverified(self.jwt()).ok()
     }
     #[allow(dead_code)]
-    pub fn valid_until(&self) -> Option<&SecondsSinceEpoch> {
-        self.valid_until.as_ref()
+    pub fn valid_until(&self) -> Option<SecondsSinceEpoch> {
+        self.0
+            .borrow_dependent()
+            .as_ref()
+            .and_then(|t| t.claims().registered.expiration)
     }
 }

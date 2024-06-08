@@ -23,7 +23,7 @@ command = "sh"
 command_arguments = ["-c", "cd node && npm install"]
 
 [watch]
-watch = ["src", "index.html"]
+watch = ["src", "index.html", "local.css"]
 
 [build]
 target = "index.html"

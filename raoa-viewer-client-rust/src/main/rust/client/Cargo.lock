@@ -1162,6 +1162,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 
 [[package]]
+name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1392,8 +1401,6 @@ dependencies = [
 [[package]]
 name = "patternfly-yew"
 version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51e99b261c0d7695dcbc4a503dfe50b452895774ff0ab9bfdc7391e6e4e058b1"
 dependencies = [
  "chrono",
  "gloo-events 0.2.0",
@@ -1607,8 +1614,10 @@ dependencies = [
  "anyhow",
  "chrono",
  "gloo 0.11.0",
+ "gloo-events 0.2.0",
  "google-signin-client",
  "graphql_client",
+ "itertools",
  "jwt",
  "lazy_static",
  "log",
@@ -1616,6 +1625,7 @@ dependencies = [
  "patternfly-yew",
  "reqwest",
  "rexie",
+ "self_cell",
  "serde",
  "serde-wasm-bindgen 0.6.3",
  "serde_json",
@@ -1830,6 +1840,12 @@ dependencies = [
  "core-foundation-sys",
  "libc",
 ]
+
+[[package]]
+name = "self_cell"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d369a96f978623eb3dc28807c4852d6cc617fed53da5d3c400feff1ef34a714a"
 
 [[package]]
 name = "serde"

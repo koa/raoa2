@@ -1,26 +1,27 @@
-use std::borrow::Cow;
-use std::cell::{Ref, RefCell, RefMut};
-use std::collections::HashMap;
-use std::fmt::{write, Debug, Formatter};
-use std::ops::Deref;
-use std::rc::Rc;
-use std::time::Duration;
+use std::{
+    borrow::Cow,
+    cell::{self},
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    ops::Deref,
+    rc::Rc,
+    time::Duration,
+};
 
 use gloo::file::ObjectUrl;
 use google_signin_client::{
-    prompt_async, render_button, ButtonType, DismissedReason, GsiButtonConfiguration, PromptResult,
+    initialize, prompt_async, render_button, ButtonType, DismissedReason, GsiButtonConfiguration,
+    IdConfiguration, PromptResult,
 };
 use log::{error, info};
 use ordered_float::OrderedFloat;
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};
-use reqwest::header::{HeaderMap, InvalidHeaderValue, AUTHORIZATION};
-use reqwest::Client;
 use thiserror::Error;
-use tokio::{sync::mpsc, sync::mpsc::Sender};
+use tokio::sync::{mpsc, oneshot, watch};
 use tokio_stream::{wrappers::ReceiverStream, Stream};
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{window, Blob, Cache, CacheStorage, HtmlElement, Navigator, Response, Window};
+use web_sys::{window, Blob, Cache, HtmlElement, Navigator, Response, Window};
 use yew::{html, platform::spawn_local, Html, NodeRef};
 
 use crate::{
@@ -46,6 +47,7 @@ use crate::{
 pub mod server_api;
 pub mod session;
 pub mod storage;
+#[derive(Clone)]
 pub struct MediaUrl(ObjectUrl);
 
 impl Deref for MediaUrl {
@@ -76,56 +78,77 @@ impl Debug for MediaUrl {
 
 #[derive(Debug)]
 pub struct DataAccess {
-    storage: RefCell<StorageAccess>,
-    login_data: RefCell<UserSessionData>,
+    storage: cell::RefCell<StorageAccess>,
+    login_data: watch::Receiver<Option<UserSessionData>>,
+    login_data_updater: mpsc::Sender<Option<UserSessionData>>,
     login_button_ref: NodeRef,
     cache_storage: Cache,
+    client_id: Box<str>,
 }
 
 impl PartialEq for DataAccess {
     fn eq(&self, other: &Self) -> bool {
-        self.login_data == other.login_data
+        *self.login_data.borrow() == *other.login_data.borrow()
     }
 }
 
 impl DataAccess {
-    pub async fn new(login_button_ref: NodeRef) -> Result<Rc<DataAccess>, DataAccessError> {
+    pub async fn new(
+        login_button_ref: NodeRef,
+        google_client_id: impl ToString,
+    ) -> Result<Rc<DataAccess>, DataAccessError> {
         let caches = JsFuture::from(window().unwrap().caches().unwrap().open("thumbnails"))
             .await
             .unwrap()
             .into();
+        let (watch_sender, login_data) = watch::channel(None);
+        let (login_data_updater, mut ch_receiver) = mpsc::channel(3);
+        spawn_local(async move {
+            while let Some(data) = ch_receiver.recv().await {
+                if let Err(e) = watch_sender.send(data) {
+                    error!("Cannot send message {}", e);
+                    break;
+                }
+            }
+        });
         Ok(Rc::new(Self {
-            storage: RefCell::new(
+            storage: cell::RefCell::new(
                 StorageAccess::new()
                     .await
                     .map_err(DataAccessError::Initialization)?,
             ),
-            login_data: Default::default(),
+            login_data,
+            login_data_updater,
             login_button_ref,
             cache_storage: caches,
+            client_id: google_client_id.to_string().into(),
         }))
     }
 
-    pub fn storage(&self) -> Ref<'_, StorageAccess> {
+    pub fn storage(&self) -> cell::Ref<'_, StorageAccess> {
         self.storage.borrow()
     }
-    pub fn storage_mut(&self) -> RefMut<'_, StorageAccess> {
+    pub fn storage_mut(&self) -> cell::RefMut<'_, StorageAccess> {
         self.storage.borrow_mut()
     }
-    pub fn login_data(&self) -> Ref<'_, UserSessionData> {
-        self.login_data.borrow()
+    pub fn login_data(&self) -> &watch::Receiver<Option<UserSessionData>> {
+        &self.login_data
     }
-    pub fn login_data_mut(&self) -> RefMut<'_, UserSessionData> {
-        self.login_data.borrow_mut()
+    pub async fn update_token(&self, token: impl Into<Box<str>>) {
+        info!("Update token");
+        let data = UserSessionData::new(token.into());
+        if let Err(e) = self.login_data_updater.send(Some(data)).await {
+            error!("Channel closed: {e}");
+        }
     }
 
     pub fn fetch_albums_interactive(
-        self: &Rc<Self>,
+        self: Rc<Self>,
     ) -> impl Stream<Item = DataFetchMessage<Box<[AlbumDetails]>>> {
         let (tx, rx) = mpsc::channel(10);
-        let s_clone = self.clone();
+
         spawn_local(async move {
-            match s_clone.do_fetch_albums_interactive(tx.clone()).await {
+            match self.do_fetch_albums_interactive(tx.clone()).await {
                 Err(DoFetchError::ExternalError(e)) => {
                     tx.send(DataFetchMessage::Error(e))
                         .await
@@ -139,15 +162,15 @@ impl DataAccess {
         });
         ReceiverStream::new(rx)
     }
-    async fn valid_token_str(&self) -> Option<String> {
+    async fn valid_token_str(&self) -> Option<Box<str>> {
         self.valid_user_session()
             .await
-            .and_then(|s| s.jwt().map(|s| s.to_string()))
+            .map(|s| s.jwt().to_string().into_boxed_str())
     }
 
     async fn do_fetch_albums_interactive(
         &self,
-        tx: Sender<DataFetchMessage<Box<[AlbumDetails]>>>,
+        tx: mpsc::Sender<DataFetchMessage<Box<[AlbumDetails]>>>,
     ) -> Result<(), DoFetchError<Box<[AlbumDetails]>>> {
         let stored_albums = self
             .storage()
@@ -219,7 +242,14 @@ impl DataAccess {
         }
         Ok(())
     }
-    async fn valid_user_session(&self) -> Option<Ref<'_, UserSessionData>> {
+    pub fn is_token_valid(&self) -> bool {
+        self.login_data
+            .borrow()
+            .as_ref()
+            .map(|s| s.is_token_valid())
+            .unwrap_or(false)
+    }
+    async fn valid_user_session(&self) -> Option<UserSessionData> {
         // hide login button (if still visible)
         if let Some(login_button_ref) = self.login_button_ref.cast::<HtmlElement>() {
             login_button_ref.set_hidden(true);
@@ -234,16 +264,48 @@ impl DataAccess {
             return None;
         }
 
-        let session_data = self.login_data();
-        if session_data.is_token_valid() {
-            return Some(session_data);
+        let login_data_receiver = self.login_data();
+        let session_data = login_data_receiver.borrow();
+        if let Some(session) = &*session_data {
+            if session.is_token_valid() {
+                return Some(session.clone());
+            }
         }
         drop(session_data);
+
+        let mut configuration = IdConfiguration::new(self.client_id.clone().into_string());
+        //configuration.set_auto_select(true);
+
+        //let updater = &self.client_id_updater;
+        let login_updater = self.login_data_updater.clone();
+        configuration.set_callback(Box::new(move |response| {
+            let login_updater = login_updater.clone();
+            spawn_local(async move {
+                info!("Callback 2: {response:?}");
+                let token = response.credential().to_string().into_boxed_str();
+                let session = UserSessionData::new(token);
+                let result = login_updater.send(Some(session)).await;
+                info!("Sent: {result:?}");
+            })
+        }));
+        initialize(configuration);
+        spawn_local(async move {
+            let result = prompt_async().await;
+            if result != PromptResult::Dismissed(DismissedReason::CredentialReturned) {
+                //link.send_message(AppMessage::LoginFailed(result))
+            }
+        });
+
         let result = prompt_async().await;
         if result == PromptResult::Dismissed(DismissedReason::CredentialReturned) {
-            return Some(self.login_data());
+            let session_data = login_data_receiver.borrow();
+            if let Some(session) = &*session_data {
+                if session.is_token_valid() {
+                    return Some(session.clone());
+                }
+            }
+            drop(session_data);
         }
-
         if let Some(login_button_ref) = self
             .login_button_ref
             .cast::<HtmlElement>()
@@ -253,20 +315,27 @@ impl DataAccess {
                 login_button_ref.0.clone(),
                 GsiButtonConfiguration::new(ButtonType::Standard),
             );
-            let mut ref_mut = self.login_data_mut();
-            if let Some(mut rx) = ref_mut.wait_for_token() {
-                drop(ref_mut);
-                rx.recv().await;
-                let session_data = self.login_data();
-                if session_data.is_token_valid() {
-                    return Some(session_data);
+            info!("Borrow mut");
+            let mut ref_mut = self.login_data.clone();
+            let data = ref_mut.wait_for(|data| data.is_some()).await;
+            info!("Received Login data");
+            match data {
+                Ok(d) => {
+                    if let Some(session) = d.deref() {
+                        return Some(session.clone());
+                    }
+                    error!("No session data found");
+                }
+                Err(e) => {
+                    error!("Cannot wait for session data: {e}");
                 }
             }
         }
+
         None
     }
     pub fn fetch_album_content_interactive(
-        self: &Rc<Self>,
+        self: Rc<Self>,
         id: &str,
     ) -> impl Stream<Item = DataFetchMessage<Box<[AlbumEntry]>>> {
         let (tx, rx) = mpsc::channel(10);
@@ -293,7 +362,7 @@ impl DataAccess {
     }
     async fn do_fetch_album_entries_interactive(
         &self,
-        tx: Sender<DataFetchMessage<Box<[AlbumEntry]>>>,
+        tx: mpsc::Sender<DataFetchMessage<Box<[AlbumEntry]>>>,
         id: String,
     ) -> Result<(), DoFetchError<Box<[AlbumEntry]>>> {
         let result = self.storage().list_album_entries(&id).await;
@@ -377,6 +446,7 @@ impl DataAccess {
         entry: &AlbumEntry,
         max_length: Option<u16>,
     ) -> Result<MediaUrl, FrontendError> {
+        //info!("Fetch length {max_length:?}");
         let entry_path = thumbnail_url(&entry.album_id, &entry.entry_id, max_length);
 
         let result = JsFuture::from(self.cache_storage.match_with_str(&entry_path))

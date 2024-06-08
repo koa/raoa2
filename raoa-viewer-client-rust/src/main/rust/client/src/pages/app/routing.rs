@@ -1,4 +1,4 @@
-use yew::{html, Html};
+use yew::{html, Html, UseStateHandle};
 use yew_nested_router::Target;
 
 use crate::pages::album_list::AlbumList;
@@ -14,10 +14,12 @@ pub enum AppRoute {
 }
 
 impl AppRoute {
-    pub fn switch_main(self) -> Html {
+    pub fn switch_main(self, top: i32, height: i32, scroll_top: i32) -> Html {
         match self {
             AppRoute::AlbumList => html! {<AlbumList/>},
-            AppRoute::Album { id } => html! {<SingleAlbum {id}/>},
+            AppRoute::Album { id } => {
+                html! {<SingleAlbum {id} top={top} height={height} scroll_top={scroll_top}/>}
+            }
         }
     }
 }
