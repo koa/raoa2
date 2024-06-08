@@ -281,11 +281,14 @@ impl DataAccess {
         configuration.set_callback(Box::new(move |response| {
             let login_updater = login_updater.clone();
             spawn_local(async move {
-                info!("Callback 2: {response:?}");
-                let token = response.credential().to_string().into_boxed_str();
-                let session = UserSessionData::new(token);
-                let result = login_updater.send(Some(session)).await;
-                info!("Sent: {result:?}");
+                if let Err(e) = login_updater
+                    .send(Some(UserSessionData::new(
+                        response.credential().to_string().into_boxed_str(),
+                    )))
+                    .await
+                {
+                    error!("Cannot login: {e}");
+                }
             })
         }));
         initialize(configuration);
@@ -313,12 +316,10 @@ impl DataAccess {
         {
             render_button(
                 login_button_ref.0.clone(),
-                GsiButtonConfiguration::new(ButtonType::Standard),
+                GsiButtonConfiguration::new(ButtonType::Icon),
             );
-            info!("Borrow mut");
             let mut ref_mut = self.login_data.clone();
             let data = ref_mut.wait_for(|data| data.is_some()).await;
-            info!("Received Login data");
             match data {
                 Ok(d) => {
                     if let Some(session) = d.deref() {

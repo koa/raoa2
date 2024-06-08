@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::rc::Rc;
 
 use gloo_events::EventListener;
@@ -101,8 +102,6 @@ impl Component for SingleAlbum {
                     false
                 } else {
                     self.entries = entries;
-                    let scope = ctx.link().clone();
-                    spawn_local(async move {});
                     true
                 }
             }
@@ -187,7 +186,7 @@ impl Component for SingleAlbum {
             let scope = ctx.link().clone();
             let id = self.id.clone();
             spawn_local(async move {
-                scope.send_message(SingleAlbumMessage::StartProgress);
+                //scope.send_message(SingleAlbumMessage::StartProgress);
                 match fetch_album_content(&scope, &id).await {
                     /*Err(FrontendError::NotLoggedIn)=>{
                         scope.send_message(SingleAlbumMessage::)
@@ -211,14 +210,14 @@ async fn fetch_album_content(scope: &Scope<SingleAlbum>, id: &str) -> Result<(),
 
     while let Some(msg) = album_stream.next().await {
         match msg {
-            DataFetchMessage::Data(data) => {
-                /*let new_list = Rc::new(
-                    data.iter()
-                        .cloned()
-                        .map(|e| (e, RefCell::new(None)))
-                        .collect::<Box<[_]>>(),
-                );*/
-
+            DataFetchMessage::Data(mut data) => {
+                data.sort_by(|e1, e2| {
+                    let create_compare = Option::cmp(&e1.created, &e1.created);
+                    if create_compare != Ordering::Equal {
+                        return create_compare;
+                    }
+                    e1.name.cmp(&e2.name)
+                });
                 scope.send_message(SingleAlbumMessage::EntryList(Rc::new(data)));
                 /*
                 scope.send_message(SingleAlbumMessage::StartProgress);

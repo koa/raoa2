@@ -9,7 +9,7 @@ use patternfly_yew::prelude::{Alert, AlertGroup, AlertType, BackdropViewer, Page
 use web_sys::{Event, HtmlElement};
 use yew::virtual_dom::ListenerKind::{onclick, onscroll};
 use yew::{
-    function_component, html, platform::spawn_local, use_state_eq, Callback, Context,
+    function_component, html, platform::spawn_local, props, use_state_eq, Callback, Context,
     ContextProvider, Html, NodeRef, Properties, TargetCast,
 };
 use yew_nested_router::{prelude::Switch as RouterSwitch, Router};
@@ -105,7 +105,7 @@ impl yew::Component for App {
             if self.error_state.is_none() {
                 let mut configuration = IdConfiguration::new(client_id.clone().into_string());
                 //configuration.set_auto_select(true);
-                let link = ctx.link().clone();
+                /*let link = ctx.link().clone();
                 let link = ctx.link().clone();
                 initialize(configuration);
                 spawn_local(async move {
@@ -114,7 +114,7 @@ impl yew::Component for App {
                     if result != PromptResult::Dismissed(DismissedReason::CredentialReturned) {
                         link.send_message(AppMessage::LoginFailed(result))
                     }
-                });
+                });*/
             }
         }
         if let Some(context) = self.data.clone() {
@@ -172,7 +172,12 @@ impl yew::Component for App {
 
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if let Some(login_button_ref) = self.login_button_ref.cast::<HtmlElement>() {
-            login_button_ref.set_hidden(true);
+            let login_valid = self
+                .data
+                .as_ref()
+                .map(|da| da.is_token_valid())
+                .unwrap_or(false);
+            login_button_ref.set_hidden(self.client_id.is_none() && !login_valid);
         }
 
         if first_render {
@@ -227,11 +232,14 @@ fn main_page(props: &MainProps) -> Html {
             }
         })
     };
+    let login_button = props.login_button.clone();
+    let tools = html! {
+        <div style="margin-left: auto">{login_button}</div>
+    };
     html! {
         <BackdropViewer>
             <ToastViewer>
-                <Page {on_main_scroll}>
-                    {props.login_button.clone()}
+                <Page {on_main_scroll} {tools}>
                     <RouterSwitch<AppRoute>
                         render = {move |route:AppRoute| route.switch_main(*top, *height, *scroll_top)}
                     />
