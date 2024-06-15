@@ -878,7 +878,8 @@ dependencies = [
 
 [[package]]
 name = "google-signin-client"
-version = "0.1.3-SNAPSHOT"
+version = "0.2.0-SNAPSHOT"
+source = "git+https://git.panter.ch/open-source/google-signin-client.git#6e29c4d3ed167f983c6dbb3905c9166bf14a5324"
 dependencies = [
  "async_cell",
  "js-sys",
@@ -1401,6 +1402,7 @@ dependencies = [
 [[package]]
 name = "patternfly-yew"
 version = "0.6.1"
+source = "git+https://github.com/koa/patternfly-yew.git#c639793a278d2949542474ae9835182d4ca56f8b"
 dependencies = [
  "chrono",
  "gloo-events 0.2.0",
