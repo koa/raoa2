@@ -2,15 +2,13 @@ use std::cmp::Ordering;
 use std::rc::Rc;
 
 use gloo_events::EventListener;
-use itertools::Itertools;
 use log::{error, info};
 use patternfly_yew::prelude::{Progress, Spinner};
 use tokio_stream::StreamExt;
 use web_sys::{window, HtmlElement};
 use yew::{
-    function_component, html, html::Scope, platform::spawn_local, use_context, use_effect_with,
-    use_node_ref, use_state, use_state_eq, Callback, Component, Context, Html, NodeRef, Properties,
-    UseStateHandle,
+    function_component, html, html::Scope, platform::spawn_local, use_effect_with, use_node_ref,
+    use_state_eq, Component, Context, Html, NodeRef, Properties,
 };
 
 use crate::{
@@ -51,6 +49,51 @@ pub struct SingleAlbumProps {
     pub top: i32,
     pub height: i32,
     pub scroll_top: i32,
+}
+
+trait RowIteratorTrait<'a, I: Iterator<Item = &'a AlbumEntry>> {
+    fn calculate_rows(self, width: f64) -> RowIterator<'a, I>;
+}
+impl<'a, I: Iterator<Item = &'a AlbumEntry>> RowIteratorTrait<'a, I> for I {
+    fn calculate_rows(self, width: f64) -> RowIterator<'a, I> {
+        RowIterator {
+            iterator: self,
+            remainder: None,
+            width,
+        }
+    }
+}
+
+struct RowIterator<'a, I: Iterator<Item = &'a AlbumEntry>> {
+    iterator: I,
+    remainder: Option<&'a AlbumEntry>,
+    width: f64,
+}
+
+impl<'a, I: Iterator<Item = &'a AlbumEntry>> Iterator for RowIterator<'a, I> {
+    type Item = Box<[AlbumEntry]>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut row = Vec::new();
+        let mut current_width = 0.0;
+        if let Some(entry) = self.remainder.take() {
+            current_width += entry.target_width as f64 / entry.target_height as f64;
+            row.push(entry.clone());
+        }
+        for entry in self.iterator.by_ref() {
+            current_width += entry.target_width as f64 / entry.target_height as f64;
+            if !row.is_empty() && current_width > self.width {
+                self.remainder = Some(entry);
+                break;
+            }
+            row.push(entry.clone());
+        }
+        if row.is_empty() {
+            None
+        } else {
+            Some(row.into_boxed_slice())
+        }
+    }
 }
 
 impl Component for SingleAlbum {
@@ -143,8 +186,8 @@ impl Component for SingleAlbum {
                 {indicator}
                 <ol class="image-rows">
                 {
-                    for self.entries.iter().chunks(4).into_iter().map(|row| {
-                        let entries:Box<[AlbumEntry]>=row.cloned().collect();
+                    for self.entries.iter().calculate_rows(4.0).into_iter().map(|row| {
+                        let entries:Box<[AlbumEntry]>=row;
                         let rendered=false;
                         html!{
                             <li>
