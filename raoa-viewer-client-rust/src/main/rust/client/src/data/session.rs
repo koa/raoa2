@@ -19,7 +19,7 @@ impl Debug for ParsedAndRaw {
 impl Clone for ParsedAndRaw {
     fn clone(&self) -> Self {
         let new_token = self.borrow_owner().clone();
-        ParsedAndRaw::new(new_token, |t| parse_token(t))
+        ParsedAndRaw::new(new_token, parse_token)
     }
 }
 impl PartialEq for ParsedAndRaw {
@@ -27,7 +27,7 @@ impl PartialEq for ParsedAndRaw {
         self.borrow_owner() == other.borrow_owner()
     }
 }
-
+#[allow(clippy::borrowed_box)]
 fn parse_token(t: &Box<str>) -> Option<Token<Header, Claims, Unverified>> {
     Token::<Header, Claims, Unverified<'_>>::parse_unverified(t).ok()
 }
@@ -51,7 +51,7 @@ impl UserSessionData {
     }
 
     pub fn jwt(&self) -> &str {
-        &self.0.borrow_owner()
+        self.0.borrow_owner()
     }
     pub fn token(&self) -> Option<Token<Header, Claims, Unverified<'_>>> {
         Token::<Header, Claims, Unverified<'_>>::parse_unverified(self.jwt()).ok()

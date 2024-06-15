@@ -11,7 +11,7 @@ patternfly-yew = { version = "0.6.1", git = "https://github.com/koa/patternfly-y
 graphql_client = { version = "0.14.0", features = ["reqwest-rustls"] }
 jwt = "0.16.0"
 google-signin-client = { version = "0.2.0-SNAPSHOT", git = "https://git.panter.ch/open-source/google-signin-client.git" }
-gloo = { version = "0.11.0", features = ["file"] }
+gloo = { version = "0.11.0", features = ["file", "storage"] }
 log = "0.4.20"
 wasm-logger = "0.2.0"
 reqwest = { version = "0.11.13", features = ["rustls-tls", "json"] }

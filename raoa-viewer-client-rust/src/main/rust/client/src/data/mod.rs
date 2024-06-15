@@ -1,3 +1,14 @@
+use gloo::{
+    file::ObjectUrl,
+    storage::{LocalStorage, Storage},
+};
+use google_signin_client::{
+    initialize, prompt_async, render_button, ButtonType, DismissedReason, GsiButtonConfiguration,
+    IdConfiguration, PromptResult,
+};
+use log::{error, info};
+use ordered_float::OrderedFloat;
+use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};
 use std::{
     borrow::Cow,
     cell::{self},
@@ -7,15 +18,6 @@ use std::{
     rc::Rc,
     time::Duration,
 };
-
-use gloo::file::ObjectUrl;
-use google_signin_client::{
-    initialize, prompt_async, render_button, ButtonType, DismissedReason, GsiButtonConfiguration,
-    IdConfiguration, PromptResult,
-};
-use log::{error, info};
-use ordered_float::OrderedFloat;
-use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio_stream::{wrappers::ReceiverStream, Stream};
@@ -250,6 +252,16 @@ impl DataAccess {
             .unwrap_or(false)
     }
     async fn valid_user_session(&self) -> Option<UserSessionData> {
+        if let Ok(token) = LocalStorage::get::<Box<str>>("jwt") {
+            let current_session = UserSessionData::new(token);
+            let login_updater = self.login_data_updater.clone();
+            if current_session.is_token_valid() {
+                if let Err(e) = login_updater.send(Some(current_session.clone())).await {
+                    error!("Cannot login: {e}");
+                }
+                return Some(current_session);
+            }
+        }
         // hide login button (if still visible)
         if let Some(login_button_ref) = self.login_button_ref.cast::<HtmlElement>() {
             login_button_ref.set_hidden(true);
@@ -276,15 +288,16 @@ impl DataAccess {
         let mut configuration = IdConfiguration::new(self.client_id.clone().into_string());
         //configuration.set_auto_select(true);
 
-        //let updater = &self.client_id_updater;
         let login_updater = self.login_data_updater.clone();
         configuration.set_callback(Box::new(move |response| {
             let login_updater = login_updater.clone();
             spawn_local(async move {
+                let jwt_token_as_string = response.credential().to_string().into_boxed_str();
+                if let Err(e) = LocalStorage::set("jwt", jwt_token_as_string.clone()) {
+                    error!("Cannot update locale storage: {e}");
+                }
                 if let Err(e) = login_updater
-                    .send(Some(UserSessionData::new(
-                        response.credential().to_string().into_boxed_str(),
-                    )))
+                    .send(Some(UserSessionData::new(jwt_token_as_string)))
                     .await
                 {
                     error!("Cannot login: {e}");
