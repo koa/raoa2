@@ -1,11 +1,9 @@
-use std::cmp::Ordering;
-use std::rc::Rc;
-
-use gloo_events::EventListener;
 use log::{error, info};
 use patternfly_yew::prelude::{Progress, Spinner};
+use std::{cmp::Ordering, rc::Rc};
 use tokio_stream::StreamExt;
-use web_sys::{window, HtmlElement};
+use wasm_bindgen::{closure::Closure, JsCast, UnwrapThrowExt};
+use web_sys::{window, Element, HtmlElement, ResizeObserver, ResizeObserverEntry};
 use yew::{
     function_component, html, html::Scope, platform::spawn_local, use_effect_with, use_node_ref,
     use_state_eq, Component, Context, Html, NodeRef, Properties,
@@ -23,7 +21,6 @@ pub struct SingleAlbum {
     id: Box<str>,
     entries: EntryList,
     processing: ProcessingState,
-    listener: Option<EventListener>,
     div_ref: NodeRef,
     scroll_top: i32,
 }
@@ -103,21 +100,10 @@ impl Component for SingleAlbum {
     fn create(ctx: &Context<Self>) -> Self {
         let props = ctx.props();
         let div_ref = Default::default();
-
-        let window = window().unwrap();
-
-        info!("Install resize event on {window:?}");
-        let listener = Some(EventListener::new(&window, "resize", |event| {
-            info!("On Resize: {event:?}")
-        }));
-        info!("Event: {:?}", listener);
-        info!("Original scroll top: {}", props.scroll_top);
-
         Self {
             id: props.id.clone().into_boxed_str(),
             entries: Rc::new(Box::new([])),
             processing: Default::default(),
-            listener,
             div_ref,
             scroll_top: props.scroll_top,
         }
@@ -422,6 +408,25 @@ impl Component for Image {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
+        let div_ref = self.div_ref.clone();
+        let scope = ctx.link().clone();
+
+        let closure = Closure::wrap(Box::new(move |entries: Vec<ResizeObserverEntry>| {
+            for entry in &entries {
+                let element = entry.target();
+                let width = element.client_width() as u16;
+                let height = element.client_height() as u16;
+                let max_length = u16::max(width, height);
+                let target_length = find_target_length(max_length);
+                scope.send_message(ImageMessage::SetLength(target_length));
+            }
+        }) as Box<dyn Fn(Vec<ResizeObserverEntry>)>);
+
+        let observer = ResizeObserver::new(closure.as_ref().unchecked_ref()).unwrap_throw();
+        closure.forget();
+        if let Some(element) = &div_ref.cast::<Element>() {
+            observer.observe(element);
+        }
         let style = format!(
             "aspect-ratio: {}/{};",
             self.entry.target_width, self.entry.target_height,
@@ -435,29 +440,16 @@ impl Component for Image {
                 html!(<img {src}/>)
             }
         };
-        let div_ref = self.div_ref.clone();
-        let onresize = ctx.link().callback(|_| ImageMessage::Resized);
-        html!(<div class="image-entry" {style} {onresize} ref={div_ref}>{content}</div>)
+        html!(<div class="image-entry" {style} ref={div_ref}>{content}</div>)
     }
 
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if !self.rendered {
             return;
         }
-        let scope = ctx.link();
-        let div = self
-            .div_ref
-            .cast::<HtmlElement>()
-            .expect("div_ref not attached to div element");
-        //let window = window().unwrap();
-        //let window_height = window.inner_height().unwrap().as_f64().unwrap();
-        let rect = div.get_bounding_client_rect();
-        //let visible = rect.bottom() > 0.0 && rect.top() < window_height;
-        //scope.send_message(ImageMessage::ShowImage(visible));
-        //info!("Size: {}:{}", rect.width(), rect.height());
-        let length = find_target_length(f64::max(rect.width(), rect.height()) as u16);
-        scope.send_message(ImageMessage::SetLength(length));
+        let length = self.length;
         if self.rendered && self.blob_url.is_none() && length > 0 {
+            let scope = ctx.link();
             let (access, _) = scope
                 .context::<Rc<DataAccess>>(Default::default())
                 .expect("Context missing");
