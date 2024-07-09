@@ -1,11 +1,11 @@
 [serve]
 port = 4200
 [[proxy]]
-backend = "https://photos.teamkoenig.ch/graphql"
+backend = "https://photos.lkw.teamkoenig.ch/graphql"
 [[proxy]]
-backend = "https://photos.teamkoenig.ch/config"
+backend = "https://photos.lkw.teamkoenig.ch/config"
 [[proxy]]
-backend = "https://photos.teamkoenig.ch/rest/"
+backend = "https://photos.lkw.teamkoenig.ch/rest/"
 
 [[hooks]]
 stage = "pre_build"

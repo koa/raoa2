@@ -8,6 +8,7 @@ lazy_static = "1.4.0"
 yew = { version = "0.21.0", features = ["csr"] }
 yew-nested-router = "0.7.0"
 patternfly-yew = { version = "0.6.1", git = "https://github.com/koa/patternfly-yew.git" }
+yew-hooks = "0.3.2"
 graphql_client = { version = "0.14.0", features = ["reqwest-rustls"] }
 jwt = "0.16.0"
 google-signin-client = { version = "0.2.0-SNAPSHOT", git = "https://git.panter.ch/open-source/google-signin-client.git" }

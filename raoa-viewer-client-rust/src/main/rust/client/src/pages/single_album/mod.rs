@@ -1,7 +1,15 @@
 use log::{error, info};
+use crate::components::image::Image;
+use yew_hooks::use_size;
+use std::cmp::Ordering;
+use std::rc::Rc;
+
+use gloo_events::EventListener;
 use patternfly_yew::prelude::{Progress, Spinner};
 use std::{cmp::Ordering, rc::Rc};
 use tokio_stream::StreamExt;
+use web_sys::{window, HtmlElement, Blob};
+use yew::{function_component, html, html::Scope, platform::spawn_local, use_effect_with, use_node_ref, use_state_eq, Component, Context, Html, NodeRef, Properties, use_state, use_context};
 use wasm_bindgen::{closure::Closure, JsCast, UnwrapThrowExt};
 use web_sys::{window, Element, HtmlElement, ResizeObserver, ResizeObserverEntry};
 use yew::{
@@ -9,6 +17,7 @@ use yew::{
     use_state_eq, Component, Context, Html, NodeRef, Properties,
 };
 
+use crate::pages::single_album::row_iterator::RowIteratorTrait;
 use crate::{
     data::{storage::AlbumEntry, DataAccess, DataAccessError, DataFetchMessage, MediaUrl},
     error::FrontendError,
@@ -48,50 +57,7 @@ pub struct SingleAlbumProps {
     pub scroll_top: i32,
 }
 
-trait RowIteratorTrait<'a, I: Iterator<Item = &'a AlbumEntry>> {
-    fn calculate_rows(self, width: f64) -> RowIterator<'a, I>;
-}
-impl<'a, I: Iterator<Item = &'a AlbumEntry>> RowIteratorTrait<'a, I> for I {
-    fn calculate_rows(self, width: f64) -> RowIterator<'a, I> {
-        RowIterator {
-            iterator: self,
-            remainder: None,
-            width,
-        }
-    }
-}
-
-struct RowIterator<'a, I: Iterator<Item = &'a AlbumEntry>> {
-    iterator: I,
-    remainder: Option<&'a AlbumEntry>,
-    width: f64,
-}
-
-impl<'a, I: Iterator<Item = &'a AlbumEntry>> Iterator for RowIterator<'a, I> {
-    type Item = Box<[AlbumEntry]>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut row = Vec::new();
-        let mut current_width = 0.0;
-        if let Some(entry) = self.remainder.take() {
-            current_width += entry.target_width as f64 / entry.target_height as f64;
-            row.push(entry.clone());
-        }
-        for entry in self.iterator.by_ref() {
-            current_width += entry.target_width as f64 / entry.target_height as f64;
-            if !row.is_empty() && current_width > self.width {
-                self.remainder = Some(entry);
-                break;
-            }
-            row.push(entry.clone());
-        }
-        if row.is_empty() {
-            None
-        } else {
-            Some(row.into_boxed_slice())
-        }
-    }
-}
+mod row_iterator;
 
 impl Component for SingleAlbum {
     type Message = SingleAlbumMessage;
@@ -172,7 +138,7 @@ impl Component for SingleAlbum {
                 {indicator}
                 <ol class="image-rows">
                 {
-                    for self.entries.iter().calculate_rows(4.0).into_iter().map(|row| {
+                    for self.entries.iter().calculate_rows(6.0).into_iter().map(|row| {
                         let entries:Box<[AlbumEntry]>=row;
                         let rendered=false;
                         html!{
@@ -322,152 +288,4 @@ fn ImageRow(
     }</div>)
 }
 
-#[derive(Properties, PartialEq, Clone, Debug)]
-struct ImageProps {
-    entry: AlbumEntry,
-    rendered: bool,
-}
 
-struct Image {
-    blob_url: Option<MediaUrl>,
-    length: u16,
-    div_ref: NodeRef,
-    entry: AlbumEntry,
-    rendered: bool,
-}
-
-#[derive(Debug)]
-enum ImageMessage {
-    SetLength(u16),
-    SetDataUrl(MediaUrl, u16),
-    ShowImage(bool),
-    Resized,
-}
-
-impl Component for Image {
-    type Message = ImageMessage;
-    type Properties = ImageProps;
-
-    fn create(ctx: &Context<Self>) -> Self {
-        let props = ctx.props();
-        Self {
-            blob_url: None,
-            length: 0,
-            div_ref: Default::default(),
-            entry: props.entry.clone(),
-            rendered: props.rendered,
-        }
-    }
-
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        //info!("msg: {msg:?}");
-        match msg {
-            ImageMessage::SetLength(l) => {
-                if l != self.length {
-                    self.length = l;
-                    self.blob_url = None;
-                    true
-                } else {
-                    false
-                }
-            }
-            ImageMessage::SetDataUrl(url, l) => {
-                if l == self.length {
-                    self.blob_url = Some(url);
-                    true
-                } else {
-                    false
-                }
-            }
-            ImageMessage::ShowImage(visible) => {
-                if self.rendered != visible {
-                    self.rendered = visible;
-                    true
-                } else {
-                    false
-                }
-            }
-            ImageMessage::Resized => true,
-        }
-    }
-
-    fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
-        let props = ctx.props();
-        let mut modified = false;
-        if self.entry != props.entry {
-            self.entry = props.entry.clone();
-            self.blob_url = None;
-            modified = true;
-        }
-        if self.rendered != props.rendered {
-            self.rendered = props.rendered;
-            modified = true;
-        }
-
-        modified
-    }
-
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let div_ref = self.div_ref.clone();
-        let scope = ctx.link().clone();
-
-        let closure = Closure::wrap(Box::new(move |entries: Vec<ResizeObserverEntry>| {
-            for entry in &entries {
-                let element = entry.target();
-                let width = element.client_width() as u16;
-                let height = element.client_height() as u16;
-                let max_length = u16::max(width, height);
-                let target_length = find_target_length(max_length);
-                scope.send_message(ImageMessage::SetLength(target_length));
-            }
-        }) as Box<dyn Fn(Vec<ResizeObserverEntry>)>);
-
-        let observer = ResizeObserver::new(closure.as_ref().unchecked_ref()).unwrap_throw();
-        closure.forget();
-        if let Some(element) = &div_ref.cast::<Element>() {
-            observer.observe(element);
-        }
-        let style = format!(
-            "aspect-ratio: {}/{};",
-            self.entry.target_width, self.entry.target_height,
-        );
-        let content = match self.blob_url.as_ref() {
-            None => {
-                html!({ &*self.entry.name })
-            }
-            Some(src) => {
-                let src = src.to_string();
-                html!(<img {src}/>)
-            }
-        };
-        html!(<div class="image-entry" {style} ref={div_ref}>{content}</div>)
-    }
-
-    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
-        if !self.rendered {
-            return;
-        }
-        let length = self.length;
-        if self.rendered && self.blob_url.is_none() && length > 0 {
-            let scope = ctx.link();
-            let (access, _) = scope
-                .context::<Rc<DataAccess>>(Default::default())
-                .expect("Context missing");
-            let entry = self.entry.clone();
-            let scope = scope.clone();
-            spawn_local(async move {
-                if let Ok(data) = access.fetch_thumbnail(&entry, Some(length)).await {
-                    scope.send_message(ImageMessage::SetDataUrl(data, length))
-                }
-            });
-        }
-    }
-}
-
-fn find_target_length(length: u16) -> u16 {
-    let mut result = 25;
-    while result < length {
-        result <<= 1;
-    }
-    result
-}

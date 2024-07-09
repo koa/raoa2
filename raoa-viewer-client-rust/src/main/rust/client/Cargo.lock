@@ -1640,6 +1640,7 @@ dependencies = [
  "wasm-timer",
  "web-sys",
  "yew",
+ "yew-hooks",
  "yew-nested-router",
 ]
 

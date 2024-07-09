@@ -6,6 +6,7 @@ mod model;
 mod pages;
 mod serde;
 mod utils;
+mod components;
 
 #[cfg(not(debug_assertions))]
 const LOG_LEVEL: log::Level = log::Level::Info;
