@@ -451,6 +451,7 @@ export class DataService {// implements OnDestroy {
     }
 
     private async fetchAlbum(albumId: string): Promise<[AlbumData, AlbumEntryData[]]> {
+        console.log(`AlbumId: ${albumId}`);
         const oldAlbumState = await this.storageService.getAlbum(albumId);
         const content = await this.serverApi.query<AlbumContentQuery, AlbumContentQueryVariables>(this.albumContentGQL, {albumId});
         const albumById = content.albumById;

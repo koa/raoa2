@@ -1,3 +1,13 @@
+use std::{
+    borrow::Cow,
+    cell::{self},
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    ops::Deref,
+    rc::Rc,
+    time::Duration,
+};
+
 use gloo::{
     file::ObjectUrl,
     storage::{LocalStorage, Storage},
@@ -9,15 +19,6 @@ use google_signin_client::{
 use log::{error, info};
 use ordered_float::OrderedFloat;
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};
-use std::{
-    borrow::Cow,
-    cell::{self},
-    collections::HashMap,
-    fmt::{Debug, Formatter},
-    ops::Deref,
-    rc::Rc,
-    time::Duration,
-};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio_stream::{wrappers::ReceiverStream, Stream};
@@ -217,13 +218,30 @@ impl DataAccess {
                                 fnch_album_id = Some(label_value.into_boxed_str())
                             }
                         }
+                        let title_entry = album_data.title_entry.map(|e| AlbumEntry {
+                            album_id: album.id.clone().into_boxed_str(),
+                            entry_id: e.id.into_boxed_str(),
+                            name: e.name.map(|name| name.into_boxed_str()).unwrap_or_default(),
+                            target_width: e.target_width.unwrap_or_default() as u32,
+                            target_height: e.target_height.unwrap_or_default() as u32,
+                            created: e.created,
+                            keywords: e.keywords.into_iter().map(|k| k.into_boxed_str()).collect(),
+                            camera_model: e.camera_model.map(|s| s.into_boxed_str()),
+                            exposure_time: e
+                                .exposure_time
+                                .map(|v| Duration::from_secs_f32(v as f32).as_nanos() as u64),
+                            f_number: e.f_number.map(|v| OrderedFloat(v as f32)),
+                            focal_length_35: e.focal_length35.map(|v| OrderedFloat(v as f32)),
+                            iso_speed_ratings: e.iso_speed_ratings.map(|v| OrderedFloat(v as f32)),
+                        });
                         let entry = AlbumDetails::new(
                             album_data.id.into_boxed_str(),
                             album_data.name.unwrap_or_default().into_boxed_str(),
                             album_data.version.into_boxed_str(),
                             album_data.album_time,
                             album_data.entry_count.map(|i| i as u32).unwrap_or(0),
-                            fnch_album_id,
+                            fnch_album_id, /* std::option::Option<Box<str>> */
+                            title_entry,
                         );
                         self.storage_mut()
                             .store_album(entry.clone())

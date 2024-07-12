@@ -5,6 +5,21 @@ query GetAlbumDetails ($albumId: ID!){
         entryCount,
         albumTime,
         version,
+        titleEntry {
+            id,
+            name,
+            entryUri,
+            targetWidth,
+            targetHeight,
+            created,
+            contentType,
+            keywords,
+            cameraModel,
+            exposureTime,
+            fNumber,
+            focalLength35,
+            isoSpeedRatings,
+        }
         labels{
             labelName
             labelValue

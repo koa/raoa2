@@ -57,11 +57,13 @@ public class Query {
 
   @QueryMapping
   public Mono<Album> albumById(@Argument UUID id) {
+    log.info("albumById {}", id);
     return queryContextSupplier
         .createContext()
         .filterWhen(
             queryContext ->
                 authorizationManager.canUserAccessToAlbum(queryContext.getSecurityContext(), id))
+        .log("albumById")
         .map(c -> new Album(id, c, dataViewService.readAlbum(id).cache()));
   }
 

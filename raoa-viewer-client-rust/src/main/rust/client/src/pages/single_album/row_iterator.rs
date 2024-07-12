@@ -1,10 +1,10 @@
 use crate::data::storage::AlbumEntry;
 
-pub trait RowIteratorTrait<'a, I: Iterator<Item=&'a AlbumEntry>> {
+pub trait RowIteratorTrait<'a, I: Iterator<Item = &'a AlbumEntry>> {
     fn calculate_rows(self, width: f64) -> RowIterator<'a, I>;
 }
 
-impl<'a, I: Iterator<Item=&'a AlbumEntry>> RowIteratorTrait<'a, I> for I {
+impl<'a, I: Iterator<Item = &'a AlbumEntry>> RowIteratorTrait<'a, I> for I {
     fn calculate_rows(self, width: f64) -> RowIterator<'a, I> {
         RowIterator {
             iterator: self,
@@ -14,13 +14,13 @@ impl<'a, I: Iterator<Item=&'a AlbumEntry>> RowIteratorTrait<'a, I> for I {
     }
 }
 
-pub struct RowIterator<'a, I: Iterator<Item=&'a AlbumEntry>> {
+pub struct RowIterator<'a, I: Iterator<Item = &'a AlbumEntry>> {
     iterator: I,
     remainder: Option<&'a AlbumEntry>,
     width: f64,
 }
 
-impl<'a, I: Iterator<Item=&'a AlbumEntry>> Iterator for RowIterator<'a, I> {
+impl<'a, I: Iterator<Item = &'a AlbumEntry>> Iterator for RowIterator<'a, I> {
     type Item = Box<[AlbumEntry]>;
 
     fn next(&mut self) -> Option<Self::Item> {

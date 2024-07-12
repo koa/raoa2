@@ -1,17 +1,14 @@
-use std::cmp::Ordering;
 use std::rc::Rc;
 
-use gloo_events::EventListener;
-use log::{error, info};
-use patternfly_yew::prelude::{Progress, Spinner};
-use tokio_stream::StreamExt;
-use web_sys::{window, HtmlElement, Blob};
-use yew::{function_component, html, html::Scope, platform::spawn_local, use_effect_with, use_node_ref, use_state_eq, Component, Context, Html, NodeRef, Properties, use_state, use_context};
-
-use crate::{
-    data::{storage::AlbumEntry, DataAccess, DataAccessError, DataFetchMessage, MediaUrl},
-    error::FrontendError,
+use log::info;
+use web_sys::HtmlElement;
+use yew::{
+    Component, Context, html, Html, NodeRef, platform::spawn_local, Properties,
+    use_context, use_node_ref, use_state, use_state_eq,
 };
+
+use crate::data::{DataAccess, MediaUrl, storage::AlbumEntry};
+
 #[derive(Properties, PartialEq, Clone, Debug)]
 pub struct ImageProps {
     pub entry: AlbumEntry,
@@ -157,4 +154,3 @@ fn find_target_length(length: u16) -> u16 {
     }
     result
 }
-

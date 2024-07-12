@@ -1,12 +1,12 @@
 use crate::pages::app::App;
 
+mod components;
 mod data;
 mod error;
 mod model;
 mod pages;
 mod serde;
 mod utils;
-mod components;
 
 #[cfg(not(debug_assertions))]
 const LOG_LEVEL: log::Level = log::Level::Info;

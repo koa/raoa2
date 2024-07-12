@@ -157,6 +157,7 @@ pub struct AlbumDetails {
     pub name: Box<str>,
     pub version: Box<str>,
     pub timestamp: Option<DateTime>,
+    pub title_image: Option<AlbumEntry>,
     pub entry_count: u32,
     pub fnch_album_id: Option<Box<str>>,
 }
@@ -189,12 +190,14 @@ impl AlbumDetails {
         timestamp: Option<DateTime>,
         entry_count: u32,
         fnch_album_id: Option<Box<str>>,
+        title_image: Option<AlbumEntry>,
     ) -> Self {
         Self {
             id,
             name,
             version,
             timestamp,
+            title_image,
             entry_count,
             fnch_album_id,
         }

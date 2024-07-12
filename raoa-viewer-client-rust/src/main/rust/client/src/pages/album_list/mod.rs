@@ -1,17 +1,18 @@
 use std::rc::Rc;
 
 use log::{error, info};
+use patternfly_yew::prelude::{Card, CardBody, Gallery, Level, Progress, Spinner, Title};
 use patternfly_yew::prelude::CardTitle;
-use patternfly_yew::prelude::{Card, Gallery, Level, Progress, Spinner, Title};
 use tokio_stream::StreamExt;
-use yew::{html, html::Scope, platform::spawn_local, Component, Context, Html};
+use yew::{Component, Context, html, Html, html::Scope, platform::spawn_local};
 use yew_nested_router::components::Link;
 
 use crate::{
-    data::{storage::AlbumDetails, DataAccess, DataAccessError, DataFetchMessage},
+    data::{DataAccess, DataAccessError, DataFetchMessage, storage::AlbumDetails},
     error::FrontendError,
     pages::app::routing::AppRoute,
 };
+use crate::components::image::Image;
 
 #[derive(Debug, Default)]
 pub struct AlbumList {
@@ -78,30 +79,34 @@ impl Component for AlbumList {
             }
             ProcessingState::Error(error) => error.render_error_message(),
         };
-        let album_cards: Vec<_> = self
-            .albums
-            .iter()
-            .map(|album| {
-                let timestamp = album
-                    .timestamp()
-                    .map(|t| t.as_ref().format("%c").to_string())
-                    .map(|date| html! {<Title level={Level::H4}>{date}</Title>});
-                let title = html! {<>{timestamp}<Title>{html!(album.name())}</Title></>};
-                let to = AppRoute::Album {
-                    id: album.id().to_string(),
-                };
-                //
-                html! {<Link<AppRoute> {to}><Card full_height=true>
-                <CardTitle>{title}</CardTitle>
-                </Card></Link<AppRoute>>}
-            })
-            .collect();
 
         html! {
             <>
             {indicator}
             <Gallery gutter=true style="margin: 0.5em">
-                {for album_cards.into_iter()}
+                {for self
+                    .albums
+                    .iter()
+                    .map(|album| {
+                        let timestamp = album
+                            .timestamp()
+                            .map(|t| t.as_ref().format("%c").to_string())
+                            .map(|date| html! {<Title level={Level::H4}>{date}</Title>});
+                        let title = html! {<>{timestamp}<Title>{html!(album.name())}</Title></>};
+                        let to = AppRoute::Album {
+                            id: album.id().to_string(),
+                        };
+                        let title_image = album.title_image.as_ref().map(|title_image|
+                        {let entry=title_image.clone();
+                        html!(<Image {entry} rendered=true/>) } ).unwrap_or_default();
+
+                        //
+                        html! {<Link<AppRoute> {to}><Card full_height=true>
+                        <CardTitle>{title}</CardTitle>
+                        <CardBody>{title_image}</CardBody>
+                        </Card></Link<AppRoute>>}
+                    })
+                }
             </Gallery>
             </>
         }

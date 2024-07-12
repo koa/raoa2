@@ -114,7 +114,12 @@ public class AlbumQuery {
 
   @SchemaMapping(typeName = TYPE_NAME)
   public Mono<String> version(Album album) {
-    return extractElField(album, albumData -> albumData.getCurrentVersion().name());
+    return extractElField(
+        album,
+        albumData -> {
+          log.info("Album Data: " + albumData);
+          return albumData.getCurrentVersion().name();
+        });
   }
 
   @SchemaMapping(typeName = TYPE_NAME)
