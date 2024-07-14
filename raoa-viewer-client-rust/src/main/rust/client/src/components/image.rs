@@ -3,11 +3,11 @@ use std::rc::Rc;
 use log::info;
 use web_sys::HtmlElement;
 use yew::{
-    Component, Context, html, Html, NodeRef, platform::spawn_local, Properties,
-    use_context, use_node_ref, use_state, use_state_eq,
+    html, platform::spawn_local, use_context, use_node_ref, use_state, use_state_eq, Component,
+    Context, Html, NodeRef, Properties,
 };
 
-use crate::data::{DataAccess, MediaUrl, storage::AlbumEntry};
+use crate::data::{storage::AlbumEntry, DataAccess, MediaUrl};
 
 #[derive(Properties, PartialEq, Clone, Debug)]
 pub struct ImageProps {
