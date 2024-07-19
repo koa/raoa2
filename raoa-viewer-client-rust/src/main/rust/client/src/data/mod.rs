@@ -1,6 +1,5 @@
 use std::{
     borrow::Cow,
-    cell::{self},
     collections::HashMap,
     fmt::{Debug, Formatter},
     ops::Deref,
@@ -20,7 +19,7 @@ use log::{error, info};
 use ordered_float::OrderedFloat;
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};
 use thiserror::Error;
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, watch, Mutex, MutexGuard, OwnedMutexGuard};
 use tokio_stream::{wrappers::ReceiverStream, Stream};
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
@@ -81,7 +80,7 @@ impl Debug for MediaUrl {
 
 #[derive(Debug)]
 pub struct DataAccess {
-    storage: cell::RefCell<StorageAccess>,
+    storage: Mutex<StorageAccess>,
     login_data: watch::Receiver<Option<UserSessionData>>,
     login_data_updater: mpsc::Sender<Option<UserSessionData>>,
     login_button_ref: NodeRef,
@@ -115,7 +114,7 @@ impl DataAccess {
             }
         });
         Ok(Rc::new(Self {
-            storage: cell::RefCell::new(
+            storage: Mutex::new(
                 StorageAccess::new()
                     .await
                     .map_err(DataAccessError::Initialization)?,
@@ -128,11 +127,8 @@ impl DataAccess {
         }))
     }
 
-    pub fn storage(&self) -> cell::Ref<'_, StorageAccess> {
-        self.storage.borrow()
-    }
-    pub fn storage_mut(&self) -> cell::RefMut<'_, StorageAccess> {
-        self.storage.borrow_mut()
+    pub async fn storage(&self) -> MutexGuard<'_, StorageAccess> {
+        self.storage.lock().await
     }
     pub fn login_data(&self) -> &watch::Receiver<Option<UserSessionData>> {
         &self.login_data
@@ -177,6 +173,7 @@ impl DataAccess {
     ) -> Result<(), DoFetchError<Box<[AlbumDetails]>>> {
         let stored_albums = self
             .storage()
+            .await
             .list_albums()
             .await
             .map_err(DataAccessError::FetchAlbum)?;
@@ -243,7 +240,8 @@ impl DataAccess {
                             fnch_album_id, /* std::option::Option<Box<str>> */
                             title_entry,
                         );
-                        self.storage_mut()
+                        self.storage()
+                            .await
                             .store_album(entry.clone())
                             .await
                             .map_err(DataAccessError::FetchAlbum)?;
@@ -254,7 +252,8 @@ impl DataAccess {
             tx.send(DataFetchMessage::Data(all_albums.into_boxed_slice()))
                 .await?;
             for id in existing_albums.keys() {
-                self.storage_mut()
+                self.storage()
+                    .await
                     .remove_album(&id)
                     .await
                     .map_err(DataAccessError::FetchAlbum)?;
@@ -397,7 +396,7 @@ impl DataAccess {
         tx: mpsc::Sender<DataFetchMessage<Box<[AlbumEntry]>>>,
         id: String,
     ) -> Result<(), DoFetchError<Box<[AlbumEntry]>>> {
-        let result = self.storage().list_album_entries(&id).await;
+        let result = self.storage().await.list_album_entries(&id).await;
         let stored_entries = result.map_err(DataAccessError::FetchAlbum)?.clone();
         tx.send(DataFetchMessage::Data(stored_entries.clone()))
             .await?;
@@ -460,12 +459,14 @@ impl DataAccess {
 
             if !modified_entries.is_empty() {
                 self.storage()
+                    .await
                     .store_album_entries(modified_entries)
                     .await
                     .map_err(DataAccessError::FetchAlbum)?;
             }
             if !existing_entries.is_empty() {
                 self.storage()
+                    .await
                     .remove_album_entries(existing_entries.values().copied())
                     .await
                     .map_err(DataAccessError::FetchAlbum)?;
