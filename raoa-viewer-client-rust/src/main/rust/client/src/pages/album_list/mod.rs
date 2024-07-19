@@ -19,11 +19,11 @@ pub struct AlbumList {
     albums: Box<[AlbumDetails]>,
     processing: ProcessingState,
 }
+#[derive(Debug)]
 pub enum AlbumListMessage {
     AlbumList(Box<[AlbumDetails]>),
     UpdateProgress(f64),
     StartProgress,
-    FinishProgress,
     DataError(DataAccessError),
 }
 
@@ -49,6 +49,7 @@ impl Component for AlbumList {
             AlbumListMessage::AlbumList(mut response) => {
                 response.sort_by(|a, b| a.timestamp().cmp(&b.timestamp()).reverse());
                 self.albums = response;
+                self.processing = ProcessingState::None;
                 true
             }
             AlbumListMessage::UpdateProgress(v) => {
@@ -57,10 +58,6 @@ impl Component for AlbumList {
             }
             AlbumListMessage::StartProgress => {
                 self.processing = ProcessingState::FetchingInfinite;
-                true
-            }
-            AlbumListMessage::FinishProgress => {
-                self.processing = ProcessingState::None;
                 true
             }
             AlbumListMessage::DataError(error) => {
@@ -79,7 +76,6 @@ impl Component for AlbumList {
             }
             ProcessingState::Error(error) => error.render_error_message(),
         };
-
         html! {
             <>
             {indicator}
@@ -94,7 +90,7 @@ impl Component for AlbumList {
                             .map(|date| html! {<Title level={Level::H4}>{date}</Title>});
                         let title = html! {<>{timestamp}<Title>{html!(album.name())}</Title></>};
                         let to = AppRoute::Album {
-                            id: album.id().to_string(),
+                            id: album.id().into(),
                         };
                         let title_image = album.title_image.as_ref().map(|title_image|
                         {let entry=title_image.clone();
@@ -120,7 +116,6 @@ impl Component for AlbumList {
                 if let Err(e) = fetch_albums(&scope).await {
                     error!("Cannot get album list: {e}");
                 }
-                scope.send_message(AlbumListMessage::FinishProgress);
             });
         }
     }

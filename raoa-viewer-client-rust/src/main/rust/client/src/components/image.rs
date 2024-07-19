@@ -2,10 +2,7 @@ use std::rc::Rc;
 
 use log::info;
 use web_sys::HtmlElement;
-use yew::{
-    html, platform::spawn_local, use_context, use_node_ref, use_state, use_state_eq, Component,
-    Context, Html, NodeRef, Properties,
-};
+use yew::{html, platform::spawn_local, Component, Context, Html, NodeRef, Properties};
 
 use crate::data::{storage::AlbumEntry, DataAccess, MediaUrl};
 

@@ -1,11 +1,11 @@
-use std::any::type_name;
-use std::fmt::{Debug, Display, Formatter};
-
 use ::reqwest::{header::HeaderMap, Client};
 use graphql_client::{reqwest::post_graphql, GraphQLQuery};
 use lazy_static::lazy_static;
 use log::warn;
 use reqwest::header::{InvalidHeaderValue, AUTHORIZATION};
+use std::any::type_name;
+use std::fmt::{Debug, Display, Formatter};
+use std::rc::Rc;
 use thiserror::Error;
 use yew::Component;
 
@@ -16,7 +16,7 @@ pub mod model;
 lazy_static! {
     static ref GRAPHQL_URL: String = format!("{}/graphql", host());
 }
-#[derive(Error)]
+#[derive(Error, Clone)]
 pub struct GraphqlAccessError<Q: GraphQLQuery> {
     request: Q::Variables,
     detail: GraphqlAccessErrorDetail,
@@ -56,11 +56,21 @@ impl<Q: GraphQLQuery> Display for GraphqlAccessError<Q> {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum GraphqlAccessErrorDetail {
-    InvalidHeaderValue(#[from] InvalidHeaderValue),
-    Reqwest(#[from] reqwest::Error),
+    InvalidHeaderValue(Rc<InvalidHeaderValue>),
+    Reqwest(Rc<reqwest::Error>),
     Response(Box<[graphql_client::Error]>),
+}
+impl From<InvalidHeaderValue> for GraphqlAccessErrorDetail {
+    fn from(value: InvalidHeaderValue) -> Self {
+        GraphqlAccessErrorDetail::InvalidHeaderValue(Rc::new(value))
+    }
+}
+impl From<reqwest::Error> for GraphqlAccessErrorDetail {
+    fn from(value: reqwest::Error) -> Self {
+        GraphqlAccessErrorDetail::Reqwest(Rc::new(value))
+    }
 }
 
 impl Display for GraphqlAccessErrorDetail {

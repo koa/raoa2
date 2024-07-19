@@ -41,7 +41,7 @@ fn generate_graphql_package() -> Result<()> {
         writeln!(
             &mut target_file,
             "
-#[derive(GraphQLQuery)]
+#[derive(GraphQLQuery,Clone)]
 #[graphql(
     schema_path = \"./graphql/schema.graphql\",
     query_path = \"./graphql/{filename}.graphql\",

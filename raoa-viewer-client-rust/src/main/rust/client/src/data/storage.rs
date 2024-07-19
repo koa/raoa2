@@ -1,9 +1,11 @@
+use std::rc::Rc;
 use std::time::Duration;
 
 use log::info;
 use ordered_float::OrderedFloat;
 use rexie::{Index, KeyRange, ObjectStore, Rexie, TransactionMode};
 use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen::Error;
 use thiserror::Error;
 use wasm_bindgen::JsValue;
 
@@ -19,12 +21,18 @@ pub struct StorageAccess {
     db: Rexie,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum StorageError {
     #[error("Error from index db: {0}")]
     IndexDb(#[from] rexie::Error),
     #[error("Error serializing to JSValue: {0}")]
-    SerdeWasmBindgen(#[from] serde_wasm_bindgen::Error),
+    SerdeWasmBindgen(Rc<serde_wasm_bindgen::Error>),
+}
+
+impl From<serde_wasm_bindgen::Error> for StorageError {
+    fn from(value: serde_wasm_bindgen::Error) -> Self {
+        StorageError::SerdeWasmBindgen(Rc::new(value))
+    }
 }
 
 impl StorageAccess {
@@ -71,15 +79,17 @@ impl StorageAccess {
         let entries_store = tx.store(ALBUM_ENTRIES)?;
         let key_value = &JsValue::from_str(id);
         let key = KeyRange::only(key_value)?;
+        let mut offset = 0;
         loop {
             let entries = entries_store
                 .index(ALBUM_ENTRIES_IDX_ALBUM)?
-                .get_all(Some(&key), Some(100), Some(0), None)
+                .get_all(Some(&key), Some(1000), Some(offset), None)
                 .await?;
             if entries.is_empty() {
                 break;
             }
             info!("Remove {} entries", { entries.len() });
+            offset += entries.len() as u32;
             for (key, _) in entries {
                 entries_store.delete(&key).await?;
             }

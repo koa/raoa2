@@ -234,7 +234,7 @@ fn main_page(props: &MainProps) -> Html {
     };
     let login_button = props.login_button.clone();
     let tools = html! {
-        <div style="margin-left: auto">{login_button}</div>
+        <RouterSwitch<AppRoute> render = {move |route:AppRoute| route.switch_header(login_button.clone())}/>
     };
     html! {
         <BackdropViewer>

@@ -15,11 +15,11 @@ use google_signin_client::{
     initialize, prompt_async, render_button, ButtonType, DismissedReason, GsiButtonConfiguration,
     IdConfiguration, PromptResult,
 };
-use log::{error, info};
+use log::{error, info, warn};
 use ordered_float::OrderedFloat;
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};
 use thiserror::Error;
-use tokio::sync::{mpsc, watch, Mutex, MutexGuard, OwnedMutexGuard};
+use tokio::sync::{mpsc, watch, Mutex, MutexGuard};
 use tokio_stream::{wrappers::ReceiverStream, Stream};
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
@@ -190,61 +190,16 @@ impl DataAccess {
             let mut all_albums = Vec::with_capacity(album_count);
             for (idx, album) in responses.list_albums.iter().enumerate() {
                 if let Some(found_entry) = existing_albums
-                    .remove(album.id.as_str())
+                    .remove(album.version.as_str())
                     .filter(|entry| entry.version() == album.version.as_str())
                 {
                     all_albums.push(found_entry.clone());
                 } else {
                     tx.send(DataFetchMessage::Progress(idx as f64 / album_count as f64))
                         .await?;
-                    let details = query::<GetAlbumDetails>(
-                        &token,
-                        get_album_details::Variables {
-                            album_id: album.id.clone(),
-                        },
-                    )
-                    .await?;
-                    if let Some(album_data) = details.album_by_id {
-                        let mut fnch_album_id = None;
-                        for GetAlbumDetailsAlbumByIdLabels {
-                            label_name,
-                            label_value,
-                        } in album_data.labels
-                        {
-                            if label_name.as_str() == "fnch-competition_id" {
-                                fnch_album_id = Some(label_value.into_boxed_str())
-                            }
-                        }
-                        let title_entry = album_data.title_entry.map(|e| AlbumEntry {
-                            album_id: album.id.clone().into_boxed_str(),
-                            entry_id: e.id.into_boxed_str(),
-                            name: e.name.map(|name| name.into_boxed_str()).unwrap_or_default(),
-                            target_width: e.target_width.unwrap_or_default() as u32,
-                            target_height: e.target_height.unwrap_or_default() as u32,
-                            created: e.created,
-                            keywords: e.keywords.into_iter().map(|k| k.into_boxed_str()).collect(),
-                            camera_model: e.camera_model.map(|s| s.into_boxed_str()),
-                            exposure_time: e
-                                .exposure_time
-                                .map(|v| Duration::from_secs_f32(v as f32).as_nanos() as u64),
-                            f_number: e.f_number.map(|v| OrderedFloat(v as f32)),
-                            focal_length_35: e.focal_length35.map(|v| OrderedFloat(v as f32)),
-                            iso_speed_ratings: e.iso_speed_ratings.map(|v| OrderedFloat(v as f32)),
-                        });
-                        let entry = AlbumDetails::new(
-                            album_data.id.into_boxed_str(),
-                            album_data.name.unwrap_or_default().into_boxed_str(),
-                            album_data.version.into_boxed_str(),
-                            album_data.album_time,
-                            album_data.entry_count.map(|i| i as u32).unwrap_or(0),
-                            fnch_album_id, /* std::option::Option<Box<str>> */
-                            title_entry,
-                        );
-                        self.storage()
-                            .await
-                            .store_album(entry.clone())
-                            .await
-                            .map_err(DataAccessError::FetchAlbum)?;
+                    let album_id = &album.id;
+                    let fetched = self.fetch_album_by_id(&token, album_id).await?;
+                    if let Some(entry) = fetched {
                         all_albums.push(entry);
                     }
                 }
@@ -261,12 +216,89 @@ impl DataAccess {
         }
         Ok(())
     }
+
+    async fn fetch_album_by_id(
+        &self,
+        token: &str,
+        album_id: &str,
+    ) -> Result<Option<AlbumDetails>, DataAccessError> {
+        let details = query::<GetAlbumDetails>(
+            &token,
+            get_album_details::Variables {
+                album_id: album_id.to_string(),
+            },
+        )
+        .await?;
+        let fetched = if let Some(album_data) = details.album_by_id {
+            let mut fnch_album_id = None;
+            for GetAlbumDetailsAlbumByIdLabels {
+                label_name,
+                label_value,
+            } in album_data.labels
+            {
+                if label_name.as_str() == "fnch-competition_id" {
+                    fnch_album_id = Some(label_value.into_boxed_str())
+                }
+            }
+            let title_entry = album_data.title_entry.map(|e| AlbumEntry {
+                album_id: album_id.to_string().into_boxed_str(),
+                entry_id: e.id.into_boxed_str(),
+                name: e.name.map(|name| name.into_boxed_str()).unwrap_or_default(),
+                target_width: e.target_width.unwrap_or_default() as u32,
+                target_height: e.target_height.unwrap_or_default() as u32,
+                created: e.created,
+                keywords: e.keywords.into_iter().map(|k| k.into_boxed_str()).collect(),
+                camera_model: e.camera_model.map(|s| s.into_boxed_str()),
+                exposure_time: e
+                    .exposure_time
+                    .map(|v| Duration::from_secs_f32(v as f32).as_nanos() as u64),
+                f_number: e.f_number.map(|v| OrderedFloat(v as f32)),
+                focal_length_35: e.focal_length35.map(|v| OrderedFloat(v as f32)),
+                iso_speed_ratings: e.iso_speed_ratings.map(|v| OrderedFloat(v as f32)),
+            });
+            let entry = AlbumDetails::new(
+                album_data.id.into_boxed_str(),
+                album_data.name.unwrap_or_default().into_boxed_str(),
+                album_data.version.into_boxed_str(),
+                album_data.album_time,
+                album_data.entry_count.map(|i| i as u32).unwrap_or(0),
+                fnch_album_id, /* std::option::Option<Box<str>> */
+                title_entry,
+            );
+            self.storage()
+                .await
+                .store_album(entry.clone())
+                .await
+                .map_err(DataAccessError::StoreAlbum)?;
+            Some(entry)
+        } else {
+            None
+        };
+        Ok(fetched)
+    }
+
     pub fn is_token_valid(&self) -> bool {
         self.login_data
             .borrow()
             .as_ref()
             .map(|s| s.is_token_valid())
             .unwrap_or(false)
+    }
+    pub async fn album_data(&self, id: &str) -> Result<Option<AlbumDetails>, DataAccessError> {
+        let data = self
+            .storage()
+            .await
+            .get_album_by_id(id)
+            .await
+            .map_err(DataAccessError::FetchAlbum)?;
+        if data.is_some() {
+            return Ok(data);
+        }
+        if let Some(token) = self.valid_token_str().await {
+            self.fetch_album_by_id(token.as_ref(), id).await
+        } else {
+            Ok(None)
+        }
     }
     async fn valid_user_session(&self) -> Option<UserSessionData> {
         if let Ok(token) = LocalStorage::get::<Box<str>>("jwt") {
@@ -535,12 +567,14 @@ pub enum DataFetchMessage<D> {
     Error(DataAccessError),
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum DataAccessError {
     #[error("Error initializing data access: {0}")]
     Initialization(StorageError),
-    #[error("Error fetching albums: {0}")]
+    #[error("Error fetching album: {0}")]
     FetchAlbum(StorageError),
+    #[error("Error Storing album: {0}")]
+    StoreAlbum(StorageError),
     #[error("Error fetching albums: {0}")]
     GraphqlAllAlbumVersions(GraphqlAccessError<AllAlbumVersions>),
     #[error("Error fetch album details: {0}")]
@@ -572,6 +606,10 @@ impl DataAccessError {
                 "Fehler beim Laden der Daten vom Server".into(),
                 error.to_string().into(),
             ),
+            DataAccessError::StoreAlbum(error) => (
+                "Fehler beim Speichern der lokalen Daten".into(),
+                error.to_string().into(),
+            ),
         }
     }
     pub fn render_error_message(&self) -> Html {
@@ -589,7 +627,6 @@ impl From<GraphqlAccessError<AllAlbumVersions>> for DataAccessError {
         Self::GraphqlAllAlbumVersions(value)
     }
 }
-
 impl From<GraphqlAccessError<GetAlbumDetails>> for DataAccessError {
     fn from(value: GraphqlAccessError<GetAlbumDetails>) -> Self {
         Self::GraphqlGetAlbumDetails(value)
