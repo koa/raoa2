@@ -15,6 +15,7 @@ use yew::{
 use yew_nested_router::{prelude::Switch as RouterSwitch, Router};
 
 use crate::data::{DataAccess, DataAccessError};
+use crate::pages::app::routing::AlbumsRoute;
 use crate::{
     data::{server_api::fetch_settings, session::UserSessionData},
     error::FrontendError,
@@ -121,7 +122,7 @@ impl yew::Component for App {
             let login_button = html!(<div ref={self.login_button_ref.clone()}></div>);
             html! {
             <ContextProvider<Rc<DataAccess>> {context}>
-                <Router<AppRoute> default={AppRoute::default()}>
+                <Router<AppRoute> default={AppRoute::Albums {view: AlbumsRoute::List}}>
                     <MainPage {login_button}/>
                 </Router<AppRoute>>
             </ContextProvider<Rc<DataAccess>>>

@@ -8,6 +8,7 @@ use yew::{html, html::Scope, platform::spawn_local, Component, Context, Html};
 use yew_nested_router::components::Link;
 
 use crate::components::image::Image;
+use crate::pages::app::routing::{AlbumRoute, AlbumsRoute};
 use crate::{
     data::{storage::AlbumDetails, DataAccess, DataAccessError, DataFetchMessage},
     error::FrontendError,
@@ -89,9 +90,7 @@ impl Component for AlbumList {
                             .map(|t| t.as_ref().format("%c").to_string())
                             .map(|date| html! {<Title level={Level::H4}>{date}</Title>});
                         let title = html! {<>{timestamp}<Title>{html!(album.name())}</Title></>};
-                        let to = AppRoute::Album {
-                            id: album.id().into(),
-                        };
+                        let to = AppRoute::Albums{view: AlbumsRoute::Album {id: album.id.clone().into(),view: AlbumRoute::List}};
                         let title_image = album.title_image.as_ref().map(|title_image|
                         {let entry=title_image.clone();
                         html!(<Image {entry} rendered=true/>) } ).unwrap_or_default();
