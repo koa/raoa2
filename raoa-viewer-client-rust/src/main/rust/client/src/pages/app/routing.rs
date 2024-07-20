@@ -1,6 +1,7 @@
-use crate::components::album_header::AlbumHeader;
-use crate::pages::album_list::AlbumList;
-use crate::pages::single_album::SingleAlbum;
+use crate::{
+    components::album_header::AlbumHeader,
+    pages::{album_list::AlbumList, single_album::SingleAlbum},
+};
 use log::info;
 use patternfly_yew::prelude::{
     Breadcrumb, BreadcrumbRouterItem, Nav, Toolbar, ToolbarContent, ToolbarElementModifier,
@@ -34,11 +35,9 @@ pub enum AlbumRoute {
         id: String,
     },
 }
-use yew_nested_router::target::Target;
 impl AppRoute {
     pub fn switch_main(self, top: i32, height: i32, scroll_top: i32) -> Html {
         info!("Route: {self:?}");
-        info!("Path: {:?}", self.render_self());
         match self {
             AppRoute::Albums { view } => match view {
                 AlbumsRoute::List => {

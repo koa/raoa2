@@ -1,12 +1,3 @@
-use std::{
-    borrow::Cow,
-    collections::HashMap,
-    fmt::{Debug, Formatter},
-    ops::Deref,
-    rc::Rc,
-    time::Duration,
-};
-
 use gloo::{
     file::ObjectUrl,
     storage::{LocalStorage, Storage},
@@ -16,8 +7,20 @@ use google_signin_client::{
     IdConfiguration, PromptResult,
 };
 use log::{error, info, warn};
+use lru::LruCache;
 use ordered_float::OrderedFloat;
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};
+use std::collections::HashSet;
+use std::num::NonZero;
+use std::sync::Arc;
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    ops::Deref,
+    rc::Rc,
+    time::Duration,
+};
 use thiserror::Error;
 use tokio::sync::{mpsc, watch, Mutex, MutexGuard};
 use tokio_stream::{wrappers::ReceiverStream, Stream};
@@ -86,6 +89,7 @@ pub struct DataAccess {
     login_button_ref: NodeRef,
     cache_storage: Cache,
     client_id: Box<str>,
+    thumbnails: Mutex<LruCache<Box<str>, Arc<Mutex<MediaUrl>>>>,
 }
 
 impl PartialEq for DataAccess {
@@ -124,6 +128,9 @@ impl DataAccess {
             login_button_ref,
             cache_storage: caches,
             client_id: google_client_id.to_string().into(),
+            thumbnails: Mutex::new(LruCache::new(
+                NonZero::new(100).expect("should be bigger than 0"),
+            )),
         }))
     }
 
@@ -510,20 +517,29 @@ impl DataAccess {
         &self,
         entry: &AlbumEntry,
         max_length: Option<u16>,
-    ) -> Result<MediaUrl, FrontendError> {
+    ) -> Result<Arc<Mutex<MediaUrl>>, FrontendError> {
         //info!("Fetch length {max_length:?}");
         let entry_path = thumbnail_url(&entry.album_id, &entry.entry_id, max_length);
+        let mut read_lock = self.thumbnails.lock().await;
+        if let Some(url) = read_lock.get(entry_path.as_str()) {
+            //info!("Found in cache");
+            return Ok(url.clone());
+        }
+        drop(read_lock);
+        //info!("Cache miss: {}", entry_path);
 
         let result = JsFuture::from(self.cache_storage.match_with_str(&entry_path))
             .await
             .map_err(js_to_frontend_error)?;
         if !result.is_undefined() {
-            return Self::extract_blob_from_result(result)
+            let media_url = extract_blob_from_result(result)
                 .await
-                .map_err(js_to_frontend_error);
-        }
-
-        if let Some(token) = self.valid_token_str().await {
+                .map_err(js_to_frontend_error)?;
+            let arc = Arc::new(Mutex::new(media_url));
+            let mut urls = self.thumbnails.lock().await;
+            urls.put(entry_path.into_boxed_str(), arc.clone());
+            Ok(arc)
+        } else if let Some(token) = self.valid_token_str().await {
             let loaded_blob = fetch_blob(&token, &entry_path).await?;
             JsFuture::from(self.cache_storage.put_with_str(&entry_path, &loaded_blob))
                 .await
@@ -531,20 +547,21 @@ impl DataAccess {
             let result = JsFuture::from(self.cache_storage.match_with_str(&entry_path))
                 .await
                 .map_err(js_to_frontend_error)?;
-            Self::extract_blob_from_result(result)
+            info!("Fetched from server");
+            let media_url = extract_blob_from_result(result)
                 .await
-                .map_err(js_to_frontend_error)
+                .map_err(js_to_frontend_error)?;
+            Ok(Arc::new(Mutex::new(media_url)))
         } else {
             Err(FrontendError::NotLoggedIn)
         }
     }
-
-    async fn extract_blob_from_result(result: JsValue) -> Result<MediaUrl, JsValue> {
-        Ok(ObjectUrl::from(Blob::from(
-            JsFuture::from(Response::from(result).blob()?).await?,
-        ))
-        .into())
-    }
+}
+async fn extract_blob_from_result(result: JsValue) -> Result<MediaUrl, JsValue> {
+    Ok(ObjectUrl::from(Blob::from(
+        JsFuture::from(Response::from(result).blob()?).await?,
+    ))
+    .into())
 }
 fn js_to_frontend_error(error: JsValue) -> FrontendError {
     FrontendError::JS(error.into())

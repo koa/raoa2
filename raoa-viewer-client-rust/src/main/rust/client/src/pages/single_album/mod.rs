@@ -1,5 +1,12 @@
 use std::{cmp::Ordering, rc::Rc};
 
+use crate::{
+    components::image::Image,
+    data::{storage::AlbumEntry, DataAccess, DataAccessError, DataFetchMessage},
+    error::FrontendError,
+    pages::app::routing::{AlbumRoute, AlbumsRoute, AppRoute},
+    pages::single_album::row_iterator::RowIteratorTrait,
+};
 use log::error;
 use patternfly_yew::prelude::{Progress, Spinner};
 use tokio_stream::StreamExt;
@@ -8,13 +15,7 @@ use yew::{
     function_component, html, html::Scope, platform::spawn_local, use_effect_with, use_node_ref,
     use_state_eq, Component, Context, Html, NodeRef, Properties,
 };
-
-use crate::{
-    components::image::Image,
-    data::{storage::AlbumEntry, DataAccess, DataAccessError, DataFetchMessage},
-    error::FrontendError,
-    pages::single_album::row_iterator::RowIteratorTrait,
-};
+use yew_nested_router::components::Link;
 
 type EntryList = Rc<Box<[AlbumEntry]>>;
 
@@ -276,7 +277,8 @@ fn ImageRow(
 
     html!(<div class="image-row" {style} ref={div_ref}>{
         for entries.iter().cloned().map(|entry|{
-            html!(<Image {entry} rendered={*rendered}/>)
+            let target=AppRoute::Albums {view: AlbumsRoute::Album {id: entry.album_id.to_string(),view: AlbumRoute::Entry {id: entry.entry_id.to_string()}}};
+            html!(<Image {entry} rendered={*rendered} {target}/>)
         })
     }</div>)
 }

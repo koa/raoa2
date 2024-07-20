@@ -37,6 +37,7 @@ wasm-bindgen-futures = "0.4.42"
 itertools = "0.13.0"
 gloo-events = "0.2.0"
 self_cell = "1.0.4"
+lru = "0.12.3"
 
 
 

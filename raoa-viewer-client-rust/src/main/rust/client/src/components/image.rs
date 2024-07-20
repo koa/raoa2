@@ -1,29 +1,35 @@
-use std::rc::Rc;
-
+use crate::data::{storage::AlbumEntry, DataAccess, MediaUrl};
+use crate::pages::app::routing::AppRoute;
 use log::info;
+use std::rc::Rc;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use web_sys::HtmlElement;
 use yew::{html, platform::spawn_local, Component, Context, Html, NodeRef, Properties};
-
-use crate::data::{storage::AlbumEntry, DataAccess, MediaUrl};
+use yew_nested_router::components::Link;
 
 #[derive(Properties, PartialEq, Clone, Debug)]
 pub struct ImageProps {
     pub entry: AlbumEntry,
+    #[prop_or_default]
     pub rendered: bool,
+    #[prop_or_default]
+    pub target: Option<AppRoute>,
 }
 
 pub struct Image {
-    blob_url: Option<MediaUrl>,
+    blob_url: Option<Arc<Mutex<MediaUrl>>>,
     length: u16,
     div_ref: NodeRef,
     entry: AlbumEntry,
     rendered: bool,
+    target: Option<AppRoute>,
 }
 
 #[derive(Debug)]
 pub enum ImageMessage {
     SetLength(u16),
-    SetDataUrl(MediaUrl, u16),
+    SetDataUrl(Arc<Mutex<MediaUrl>>, u16),
     ShowImage(bool),
     Resized,
 }
@@ -40,6 +46,7 @@ impl Component for Image {
             div_ref: Default::default(),
             entry: props.entry.clone(),
             rendered: props.rendered,
+            target: None,
         }
     }
 
@@ -47,7 +54,7 @@ impl Component for Image {
         //info!("msg: {msg:?}");
         match msg {
             ImageMessage::SetLength(l) => {
-                if l != self.length {
+                if l > self.length {
                     self.length = l;
                     self.blob_url = None;
                     true
@@ -60,6 +67,7 @@ impl Component for Image {
                     self.blob_url = Some(url);
                     true
                 } else {
+                    info!("Length changed from {l} to {}", self.length);
                     false
                 }
             }
@@ -87,6 +95,10 @@ impl Component for Image {
             self.rendered = props.rendered;
             modified = true;
         }
+        if self.target != props.target {
+            self.target.clone_from(&props.target);
+            modified = true;
+        }
 
         modified
     }
@@ -101,10 +113,16 @@ impl Component for Image {
                 html!({ &*self.entry.name })
             }
             Some(src) => {
-                let src = src.to_string();
+                let src = src.blocking_lock().to_string();
+                //let src = src.to_string();
                 html!(<img {src}/>)
             }
         };
+        /*let content = match self.target.as_ref() {
+            None => content,
+            Some(target) => html!(<Link<AppRoute> to={target.clone()}>{content}</Link<AppRoute>>),
+        };*/
+
         let div_ref = self.div_ref.clone();
         let onresize = ctx.link().callback(|evt| {
             info!("Resized: {evt:?}");
