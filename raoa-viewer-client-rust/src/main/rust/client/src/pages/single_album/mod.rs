@@ -4,10 +4,12 @@ use crate::{
     components::image::Image,
     data::{storage::AlbumEntry, DataAccess, DataAccessError, DataFetchMessage},
     error::FrontendError,
-    pages::app::routing::{AlbumRoute, AlbumsRoute, AppRoute},
-    pages::single_album::row_iterator::RowIteratorTrait,
+    pages::{
+        app::routing::{AlbumRoute, AlbumsRoute, AppRoute},
+        single_album::row_iterator::{BlockIteratorTrait, RowIteratorTrait},
+    },
 };
-use log::error;
+use log::{error, info};
 use patternfly_yew::prelude::{Progress, Spinner};
 use tokio_stream::StreamExt;
 use web_sys::{window, HtmlElement};
@@ -15,7 +17,6 @@ use yew::{
     function_component, html, html::Scope, platform::spawn_local, use_effect_with, use_node_ref,
     use_state_eq, Component, Context, Html, NodeRef, Properties,
 };
-use yew_nested_router::components::Link;
 
 type EntryList = Rc<Box<[AlbumEntry]>>;
 
@@ -130,14 +131,13 @@ impl Component for SingleAlbum {
         html! {
             <div ref={div_ref}>
                 {indicator}
-                <ol class="image-rows">
+                <ol class="image-blocks">
                 {
-                    for self.entries.iter().calculate_rows(6.0).into_iter().map(|row| {
-                        let entries:Box<[AlbumEntry]>=row;
-                        let rendered=false;
+                    for self.entries.iter().calculate_rows(6.0).calculate_blocks(40.0).map(|row| {
+                        let entries=row;
                         html!{
                             <li>
-                                <ImageRow {entries} {rendered} {scroll_top}/>
+                                <ImageBlock {entries} {scroll_top}/>
                             </li>
                         }
 
@@ -235,8 +235,7 @@ async fn fetch_album_content(scope: &Scope<SingleAlbum>, id: &str) -> Result<(),
 }
 #[derive(Properties, PartialEq)]
 struct ImageRowProps {
-    entries: Box<[AlbumEntry]>,
-    rendered: bool,
+    entries: row_iterator::ImageRow,
     scroll_top: i32,
 }
 
@@ -244,16 +243,11 @@ struct ImageRowProps {
 fn ImageRow(
     ImageRowProps {
         entries,
-        rendered,
         scroll_top,
     }: &ImageRowProps,
 ) -> Html {
-    let with_ratio: u32 = entries
-        .iter()
-        .map(|e| e.target_width * 1000 / e.target_height)
-        .sum();
-    //let total_height: u32 = entries.iter().map(|e| e.target_width).sum();
-    let style = format!("aspect-ratio: {}/1000;", with_ratio);
+    let with_ratio: u32 = (entries.height() * 1000.0) as u32;
+    let style = format!("aspect-ratio: 1000/{with_ratio};");
     let window = window().unwrap();
     let height = window.inner_height().unwrap().as_f64().unwrap();
     let div_ref = use_node_ref();
@@ -274,11 +268,71 @@ fn ImageRow(
             rendered.set(visible);
         });
     }
+    let entries = if *rendered { Some(entries) } else { None };
 
     html!(<div class="image-row" {style} ref={div_ref}>{
-        for entries.iter().cloned().map(|entry|{
+        for entries.iter().flat_map(|row| row.images().iter()).cloned().map(|entry|{
             let target=AppRoute::Albums {view: AlbumsRoute::Album {id: entry.album_id.to_string(),view: AlbumRoute::Entry {id: entry.entry_id.to_string()}}};
             html!(<Image {entry} rendered={*rendered} {target}/>)
         })
     }</div>)
+}
+#[derive(Properties, PartialEq)]
+struct ImageBlockProps {
+    entries: row_iterator::ImageBlock,
+    scroll_top: i32,
+}
+#[function_component]
+fn ImageBlock(
+    ImageBlockProps {
+        entries,
+        scroll_top,
+    }: &ImageBlockProps,
+) -> Html {
+    let height = entries.rows().iter().map(|r| r.height()).sum::<f64>() * 1000.0;
+    let style = format!("aspect-ratio: 1000/{height};");
+
+    let window = window().unwrap();
+    let height = window.inner_height().unwrap().as_f64().unwrap();
+    let div_ref = use_node_ref();
+
+    let rendered = use_state_eq(|| false);
+
+    {
+        let div_ref = div_ref.clone();
+        let rendered = rendered.clone();
+
+        use_effect_with((div_ref, *scroll_top), move |(div_ref, scroll_top)| {
+            let div = div_ref
+                .cast::<HtmlElement>()
+                .expect("div_ref not attached to div element");
+            let rect = div.get_bounding_client_rect();
+            /*info!(
+                "Bottom: {}, Height: {}, Top: {}",
+                rect.bottom(),
+                height,
+                rect.top()
+            );
+            let visible_width = rect.right() - rect.left();
+            let visible_height = rect.bottom() - rect.top();
+            info!("AR: {} {}", 1000.0 / height, visible_width / visible_height);*/
+            let visible = rect.bottom() >= -height && rect.top() <= 2.0 * height;
+            //info!("Visible Block: {visible}");
+            rendered.set(visible);
+        });
+    }
+    let entries = if *rendered {
+        //info!("Show {} rows", entries.rows().len());
+        Some(entries)
+    } else {
+        //info!("Hide {} rows", entries.rows().len());
+        None
+    };
+
+    html!(<div class="image-block" {style} ref={div_ref}>
+           <ol class="image-rows">{
+        for entries.iter().flat_map(|b| b.rows().iter()).cloned().map(|entries|{
+            html!(<li><ImageRow {entries} {scroll_top}/></li>)
+        })
+    }</ol></div>)
 }

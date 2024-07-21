@@ -25,12 +25,12 @@ pub fn AlbumHeader(props: &AlbumHeaderProps) -> Html {
         })
         .unwrap_or_else(|| id.into()))
     });
-    info!(
+    /*info!(
         "Loading: {},{},{}",
         title.loading,
         title.data.is_some(),
         title.error.is_some()
-    );
+    );*/
     if !title.loading && title.data.is_none() && title.error.is_none() {
         title.run();
     }

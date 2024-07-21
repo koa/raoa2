@@ -1,8 +1,9 @@
-use crate::data::{storage::AlbumEntry, DataAccess, MediaUrl};
-use crate::pages::app::routing::AppRoute;
+use crate::{
+    data::{storage::AlbumEntry, DataAccess, MediaUrl},
+    pages::app::routing::AppRoute,
+};
 use log::info;
-use std::rc::Rc;
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 use tokio::sync::Mutex;
 use web_sys::HtmlElement;
 use yew::{html, platform::spawn_local, Component, Context, Html, NodeRef, Properties};
@@ -22,7 +23,6 @@ pub struct Image {
     length: u16,
     div_ref: NodeRef,
     entry: AlbumEntry,
-    rendered: bool,
     target: Option<AppRoute>,
 }
 
@@ -30,7 +30,6 @@ pub struct Image {
 pub enum ImageMessage {
     SetLength(u16),
     SetDataUrl(Arc<Mutex<MediaUrl>>, u16),
-    ShowImage(bool),
     Resized,
 }
 
@@ -45,8 +44,7 @@ impl Component for Image {
             length: 0,
             div_ref: Default::default(),
             entry: props.entry.clone(),
-            rendered: props.rendered,
-            target: None,
+            target: props.target.clone(),
         }
     }
 
@@ -71,14 +69,6 @@ impl Component for Image {
                     false
                 }
             }
-            ImageMessage::ShowImage(visible) => {
-                if self.rendered != visible {
-                    self.rendered = visible;
-                    true
-                } else {
-                    false
-                }
-            }
             ImageMessage::Resized => true,
         }
     }
@@ -89,10 +79,6 @@ impl Component for Image {
         if self.entry != props.entry {
             self.entry = props.entry.clone();
             self.blob_url = None;
-            modified = true;
-        }
-        if self.rendered != props.rendered {
-            self.rendered = props.rendered;
             modified = true;
         }
         if self.target != props.target {
@@ -118,23 +104,16 @@ impl Component for Image {
                 html!(<img {src}/>)
             }
         };
-        /*let content = match self.target.as_ref() {
+        let content = match self.target.as_ref() {
             None => content,
             Some(target) => html!(<Link<AppRoute> to={target.clone()}>{content}</Link<AppRoute>>),
-        };*/
+        };
 
         let div_ref = self.div_ref.clone();
-        let onresize = ctx.link().callback(|evt| {
-            info!("Resized: {evt:?}");
-            ImageMessage::Resized
-        });
-        html!(<div class="image-entry" {style} {onresize} ref={div_ref}>{content}</div>)
+        html!(<div class="image-entry" {style} ref={div_ref}>{content}</div>)
     }
 
-    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
-        if !self.rendered {
-            return;
-        }
+    fn rendered(&mut self, ctx: &Context<Self>, _first_render: bool) {
         let scope = ctx.link();
         let div = self
             .div_ref
@@ -148,7 +127,7 @@ impl Component for Image {
         //info!("Size: {}:{}", rect.width(), rect.height());
         let length = find_target_length(f64::max(rect.width(), rect.height()) as u16);
         scope.send_message(ImageMessage::SetLength(length));
-        if self.rendered && self.blob_url.is_none() && length > 0 {
+        if self.blob_url.is_none() && length > 0 {
             let (access, _) = scope
                 .context::<Rc<DataAccess>>(Default::default())
                 .expect("Context missing");
