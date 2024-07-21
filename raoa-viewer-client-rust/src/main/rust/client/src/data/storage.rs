@@ -112,6 +112,21 @@ impl StorageAccess {
             Ok(None)
         }
     }
+    pub async fn get_album_entry(
+        &self,
+        entry_id: &str,
+    ) -> Result<Option<AlbumEntry>, StorageError> {
+        let tx = self
+            .db
+            .transaction(&[ALBUM_ENTRIES], TransactionMode::ReadWrite)?;
+        let store = tx.store(ALBUM_ENTRIES)?;
+        let entry_value = store.get(&JsValue::from_str(entry_id)).await?;
+        if entry_value.is_object() {
+            Ok(Some(serde_wasm_bindgen::from_value(entry_value)?))
+        } else {
+            Ok(None)
+        }
+    }
     pub async fn list_album_entries(
         &self,
         album_id: &str,

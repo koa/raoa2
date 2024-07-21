@@ -1,3 +1,4 @@
+use crate::components::entry_header::EntryHeader;
 use crate::{
     components::album_header::AlbumHeader,
     pages::{album_list::AlbumList, single_album::SingleAlbum},
@@ -78,7 +79,7 @@ impl AppRoute {
                             <Breadcrumb>
                                 <BreadcrumbRouterItem<AppRoute> to={AppRoute::Albums {view: AlbumsRoute::List}}>{"Album List"}</BreadcrumbRouterItem<AppRoute>>
                                 <BreadcrumbRouterItem<AppRoute> to={AppRoute::Albums {view: AlbumsRoute::Album {id: album_id.clone(),view: AlbumRoute::List} }}><AlbumHeader id={album_id.clone()}/></BreadcrumbRouterItem<AppRoute>>
-                                <BreadcrumbRouterItem<AppRoute> to={AppRoute::Albums {view: AlbumsRoute::Album {id: album_id.clone(),view: AlbumRoute::Entry {id: entry_id.clone()}} }}>{"Photo"}</BreadcrumbRouterItem<AppRoute>>
+                                <BreadcrumbRouterItem<AppRoute> to={AppRoute::Albums {view: AlbumsRoute::Album {id: album_id.clone(),view: AlbumRoute::Entry {id: entry_id.clone()}} }}><EntryHeader album_id={album_id.clone()} entry_id={entry_id.clone()}/></BreadcrumbRouterItem<AppRoute>>
                             </Breadcrumb>
                         }
                     }

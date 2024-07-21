@@ -23,7 +23,7 @@ use std::{
 };
 use thiserror::Error;
 use tokio::sync::{mpsc, watch, Mutex, MutexGuard};
-use tokio_stream::{wrappers::ReceiverStream, Stream};
+use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{window, Blob, Cache, HtmlElement, Navigator, Response, Window};
@@ -306,6 +306,40 @@ impl DataAccess {
         } else {
             Ok(None)
         }
+    }
+    pub async fn album_entry_data(
+        self: Rc<Self>,
+        album_id: &str,
+        entry_id: &str,
+    ) -> Result<Option<AlbumEntry>, DataAccessError> {
+        let data = self
+            .storage()
+            .await
+            .get_album_entry(entry_id)
+            .await
+            .map_err(DataAccessError::FetchAlbum)?;
+        if data.is_some() {
+            return Ok(data);
+        }
+        let mut stream = self.fetch_album_content_interactive(album_id);
+        while let Some(msg) = stream.next().await {
+            match msg {
+                DataFetchMessage::Progress(_) => {}
+                DataFetchMessage::Data(data) => {
+                    if let Some(found_entry) = data
+                        .iter()
+                        .find(|e| e.entry_id.as_ref() == entry_id)
+                        .cloned()
+                    {
+                        return Ok(Some(found_entry));
+                    }
+                }
+                DataFetchMessage::Error(error) => {
+                    return Err(error);
+                }
+            }
+        }
+        Ok(None)
     }
     async fn valid_user_session(&self) -> Option<UserSessionData> {
         if let Ok(token) = LocalStorage::get::<Box<str>>("jwt") {
