@@ -62,7 +62,7 @@ impl Component for SingleEntry {
 
     fn create(ctx: &Context<Self>) -> Self {
         let props = ctx.props();
-        let (router, context_listener) = ctx
+        let (router, _) = ctx
             .link()
             .context(Callback::noop())
             .expect("No Message Context Provided");
@@ -92,7 +92,7 @@ impl Component for SingleEntry {
                 }
                 false
             }
-            SingleEntryMessage::OnTransitionEnd(event) => {
+            SingleEntryMessage::OnTransitionEnd(_) => {
                 if let Some(swiper) = &self.swiper {
                     let active_index = swiper.active_index();
                     if let Some(replace_id) = if active_index == 0 {

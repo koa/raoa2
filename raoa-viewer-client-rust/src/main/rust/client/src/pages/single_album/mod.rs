@@ -71,7 +71,7 @@ impl Component for SingleAlbum {
         }
     }
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         //info!("Msg: {msg:?}");
         match msg {
             SingleAlbumMessage::StartProgress => {
