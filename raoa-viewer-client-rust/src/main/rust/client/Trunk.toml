@@ -20,10 +20,10 @@ command_arguments = ["-c", "clear"]
 [[hooks]]
 stage = "pre_build"
 command = "sh"
-command_arguments = ["-c", "cd node && npm install"]
+command_arguments = ["-c", "cd node && npm install && npm run build"]
 
 [watch]
-watch = ["src", "index.html", "local.css"]
+watch = ["src", "index.html", "local.css", "node/main.js", "node/package.json"]
 
 [build]
 target = "index.html"

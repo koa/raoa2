@@ -1,4 +1,5 @@
 use crate::components::entry_header::EntryHeader;
+use crate::pages::single_entry::SingleEntry;
 use crate::{
     components::album_header::AlbumHeader,
     pages::{album_list::AlbumList, single_album::SingleAlbum},
@@ -49,7 +50,7 @@ impl AppRoute {
                         html! {<SingleAlbum id={album_id} top={top} height={height} scroll_top={scroll_top}/>}
                     }
                     AlbumRoute::Entry { id: entry_id } => {
-                        html!("Dummy")
+                        html!(<SingleEntry {album_id} {entry_id}/>)
                     }
                 },
             },

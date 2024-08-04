@@ -17,6 +17,7 @@ use yew::{
     function_component, html, html::Scope, platform::spawn_local, use_effect_with, use_node_ref,
     use_state_eq, Component, Context, Html, NodeRef, Properties,
 };
+use yew_nested_router::Router;
 
 type EntryList = Rc<Box<[AlbumEntry]>>;
 
@@ -208,20 +209,6 @@ async fn fetch_album_content(scope: &Scope<SingleAlbum>, id: &str) -> Result<(),
                     e1.name.cmp(&e2.name)
                 });
                 scope.send_message(SingleAlbumMessage::EntryList(Rc::new(data)));
-                /*
-                scope.send_message(SingleAlbumMessage::StartProgress);
-                let total_elements = data.len();
-                for (idx, (entry, blob_ref)) in new_list.iter().enumerate() {
-                    if idx % 10 == 9 {
-                        scope.send_message(SingleAlbumMessage::UpdateProgress(
-                            idx as f64 / total_elements as f64,
-                        ));
-                    }
-                    let blob = access.fetch_thumbnail(entry, None).await?;
-
-                    blob_ref.replace(Some(blob));
-                }
-                scope.send_message(SingleAlbumMessage::FinishProgress);*/
             }
             DataFetchMessage::Progress(p) => {
                 scope.send_message(SingleAlbumMessage::UpdateProgress(p))

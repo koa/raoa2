@@ -41,3 +41,58 @@ dd {
 li.pf-v5-c-nav__item {
     list-style-type: none;
 }
+
+swiper-container {
+    height: 100%;
+    width: 100%;
+
+    div {
+        width: 100%;
+        height: 100%;
+    }
+}
+
+swiper-slide {
+    height: 100%;
+    width: 100%;
+}
+
+.image {
+    height: 100%;
+    width: 100%;
+    background-color: black;
+    color: white;
+}
+
+.image img {
+    height: 100%;
+    width: 100%;
+    display: block;
+    object-fit: contain;
+}
+
+.image video {
+    height: 100%;
+    width: 100%;
+    display: block;
+    object-fit: contain;
+}
+
+div.overlay {
+    position: absolute;
+    display: grid;
+    right: 0;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    color: white;
+}
+
+div.overlay > button {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: flex-start;
+    z-index: 1;
+}

@@ -474,9 +474,8 @@ impl DataAccess {
         tx.send(DataFetchMessage::Data(stored_entries.clone()))
             .await?;
         if let Some(token) = self.valid_token_str().await {
-            let mut existing_entries = stored_entries
-                .into_iter()
-                .map(|e| (e.entry_id(), e))
+            let mut existing_entries = IntoIterator::into_iter(stored_entries)
+                .map(|e| (e.entry_id().to_string().into_boxed_str(), e))
                 .collect::<HashMap<_, _>>();
             let responses = query::<AlbumContent>(
                 &token,
@@ -522,7 +521,7 @@ impl DataAccess {
                     focal_length_35: entry.focal_length35.map(|v| OrderedFloat(v as f32)),
                     iso_speed_ratings: entry.iso_speed_ratings.map(|v| OrderedFloat(v as f32)),
                 };
-                if Some(&entry) != existing_entry {
+                if Some(&entry) != existing_entry.as_ref() {
                     modified_entries.push(entry.clone());
                 }
                 found_entries.push(entry);
@@ -540,7 +539,7 @@ impl DataAccess {
             if !existing_entries.is_empty() {
                 self.storage()
                     .await
-                    .remove_album_entries(existing_entries.values().copied())
+                    .remove_album_entries(existing_entries.values())
                     .await
                     .map_err(DataAccessError::FetchAlbum)?;
             }
@@ -612,6 +611,7 @@ impl<D, T: Into<DataAccessError>> From<T> for DoFetchError<D> {
     }
 }
 
+#[derive(Debug)]
 pub enum DataFetchMessage<D> {
     Progress(f64),
     Data(D),
