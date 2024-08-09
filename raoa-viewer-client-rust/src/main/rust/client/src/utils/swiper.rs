@@ -77,6 +77,12 @@ impl Swiper {
             .change_direction(direction, need_update)
             .unwrap();
     }
+    pub fn enable_zoom(&self) {
+        self.delegate.zoom().enable().unwrap()
+    }
+    pub fn zoom_out(&self) {
+        self.delegate.zoom().out().unwrap()
+    }
 }
 /*impl Drop for Swiper {
     fn drop(&mut self) {

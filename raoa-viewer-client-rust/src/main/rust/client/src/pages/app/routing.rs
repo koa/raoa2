@@ -39,7 +39,6 @@ pub enum AlbumRoute {
 }
 impl AppRoute {
     pub fn switch_main(self, top: i32, height: i32, scroll_top: i32) -> Html {
-        info!("Route: {self:?}");
         match self {
             AppRoute::Albums { view } => match view {
                 AlbumsRoute::List => {

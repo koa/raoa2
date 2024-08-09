@@ -254,6 +254,7 @@ impl Component for SingleEntry {
                 match swiper {
                     Ok(swiper) => {
                         swiper.set_active_index(1);
+                        swiper.enable_zoom();
                         self.swiper = Some(swiper);
                     }
                     Err(e) => {

@@ -68,6 +68,8 @@ fn build_swiper_wasm() {
         extern "C" {
             #[wasm_bindgen(js_name = "Swiper")]
             pub type JsSwiper;
+            #[wasm_bindgen]
+            pub type JsSwiperZoom;
             #[wasm_bindgen(catch, js_class = "Swiper")]
             pub fn swiper_of_element(element: HtmlElement) -> Result<JsSwiper, JsValue>;
             #[wasm_bindgen(catch, constructor, js_class = "Swiper")]
@@ -98,6 +100,12 @@ fn build_swiper_wasm() {
             pub fn slide_to(this: &JsSwiper, index: u32) -> Result<(), JsValue>;
             #[wasm_bindgen(catch, method)]
             pub fn update(this: &JsSwiper) -> Result<(), JsValue>;
+            #[wasm_bindgen(catch, method)]
+            pub fn enable(this: &JsSwiperZoom) -> Result<(), JsValue>;
+            #[wasm_bindgen(catch, method)]
+            pub fn disable(this: &JsSwiperZoom) -> Result<(), JsValue>;
+            #[wasm_bindgen(catch, method)]
+            pub fn out(this: &JsSwiperZoom) -> Result<(), JsValue>;
         }
     );
 
@@ -111,8 +119,15 @@ fn build_swiper_wasm() {
         ("clicked_index", parse_quote!(u32)),
         ("clicked_slide", parse_quote!(HtmlElement)),
         ("swipe_direction", parse_quote!(SwipeDirection)),
+        ("zoom", parse_quote!(JsSwiperZoom)),
     ] {
-        append_field(&mut main.items, parse_quote!(JsSwiper), &name, ty);
+        append_field(&mut main.items, parse_quote!(JsSwiper), name, ty);
+    }
+    for (name, ty) in [
+        ("enabled", parse_quote!(bool)),
+        ("scale", parse_quote!(f32)),
+    ] {
+        append_field(&mut main.items, parse_quote!(JsSwiperZoom), name, ty);
     }
 
     let mut swiper_options: ItemForeignMod = parse_quote!(
