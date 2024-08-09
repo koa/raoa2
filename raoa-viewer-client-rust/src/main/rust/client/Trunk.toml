@@ -23,7 +23,7 @@ command = "sh"
 command_arguments = ["-c", "cd node && npm install && npm run build"]
 
 [watch]
-watch = ["src", "index.html", "local.css", "node/main.js", "node/package.json"]
+watch = ["src", "index.html", "node/main.js", "node/package.json", "node/src"]
 
 [build]
 target = "index.html"

@@ -1,0 +1,14 @@
+@import "../node_modules/@patternfly/patternfly/patternfly.scss";
+@import "../node_modules/@patternfly/patternfly/patternfly-addons.scss";
+@import "../node_modules/swiper/swiper.scss";
+@import "../node_modules/swiper/modules/zoom.scss";
+@import "./local.scss";
+
+.pf-v5-c-masthead .pf-v5-c-toolbar {
+  --pf-v5-c-toolbar--PaddingBottom: 0.2em;
+  --pf-v5-c-toolbar--PaddingTop: 0.2em;
+}
+
+.pf-v5-c-masthead__content {
+  min-height: 0;
+}
