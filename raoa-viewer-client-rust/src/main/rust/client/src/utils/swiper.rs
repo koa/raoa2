@@ -53,8 +53,6 @@ macro_rules! delegate_method {
 impl Swiper {
     pub fn new(element: HtmlElement) -> Result<Self, Error> {
         let delegate = swiper_of_element(element)?;
-        let is_init = delegate.params().init();
-        info!("Is Init: {is_init:?}");
         Ok(Self { delegate })
     }
     delegate_field!(active_index, u32);

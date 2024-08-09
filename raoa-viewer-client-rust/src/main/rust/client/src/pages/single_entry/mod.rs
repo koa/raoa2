@@ -1,23 +1,24 @@
-use crate::components::image::Image;
-use crate::data::storage::AlbumEntry;
-use crate::data::{DataAccess, DataAccessError, DataFetchMessage};
-use crate::error::FrontendError;
-use crate::pages::app::routing::{AlbumRoute, AlbumsRoute, AppRoute};
-use crate::pages::single_album::{SingleAlbum, SingleAlbumMessage};
-use crate::utils::swiper::{Error, Swiper};
+use crate::{
+    components::image::Image,
+    data::{storage::AlbumEntry, DataAccess, DataAccessError, DataFetchMessage},
+    error::FrontendError,
+    pages::app::routing::{AlbumRoute, AlbumsRoute, AppRoute},
+    utils::swiper::Swiper,
+};
+use itertools::Itertools;
 use log::{error, info};
-use std::cmp::Ordering;
-use std::rc::Rc;
+use serde::{Deserialize, Serialize};
+use std::{cmp::Ordering, rc::Rc};
 use tokio_stream::StreamExt;
 use wasm_bindgen::closure::Closure;
-use wasm_bindgen::JsCast;
-use web_sys::{Event, HtmlElement};
-use yew::html::{ontransitionend, Scope};
-use yew::platform::spawn_local;
-use yew::virtual_dom::VNode;
-use yew::{html, Callback, Component, Context, Html, NodeRef, Properties};
-use yew_nested_router::prelude::{RouterContext, State};
-use yew_nested_router::Router;
+use wasm_bindgen::{JsCast, JsValue};
+use web_sys::Location;
+use web_sys::{window, Event, History, HtmlElement, Window};
+use yew::{
+    html, html::Scope, platform::spawn_local, virtual_dom::VNode, Callback, Component, Context,
+    Html, NodeRef, Properties,
+};
+use yew_nested_router::prelude::{RouterContext, State, Target};
 
 type EntryList = Rc<Box<[AlbumEntry]>>;
 
@@ -33,7 +34,7 @@ pub struct SingleEntry {
     prev_entry: Option<AlbumEntry>,
     entry: Option<AlbumEntry>,
     next_entry: Option<AlbumEntry>,
-    router: RouterContext<AppRoute>,
+    history: Option<History>,
 }
 #[derive(Debug, Default)]
 enum ProcessingState {
@@ -50,7 +51,7 @@ pub enum SingleEntryMessage {
     UpdateDataFetch(DataFetchMessage<Box<[AlbumEntry]>>),
     ActivateEntry(Box<str>),
 }
-#[derive(Properties, PartialEq)]
+#[derive(Properties, PartialEq, Serialize, Deserialize, Debug)]
 pub struct SingleEntryProps {
     pub album_id: String,
     pub entry_id: String,
@@ -62,11 +63,7 @@ impl Component for SingleEntry {
 
     fn create(ctx: &Context<Self>) -> Self {
         let props = ctx.props();
-        let (router, _) = ctx
-            .link()
-            .context(Callback::noop())
-            .expect("No Message Context Provided");
-
+        let history = access_history();
         Self {
             album_id: props.album_id.clone().into_boxed_str(),
             entry_id: props.entry_id.clone().into_boxed_str(),
@@ -79,12 +76,12 @@ impl Component for SingleEntry {
             prev_entry: None,
             entry: None,
             next_entry: None,
-            router,
+            history,
         }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        info!("MSG: {msg:?}");
+        //info!("MSG: {msg:?}");
         match msg {
             SingleEntryMessage::SlideNext => {
                 if let Some(swiper) = &self.swiper {
@@ -104,18 +101,22 @@ impl Component for SingleEntry {
                     }
                     .map(|e| &e.entry_id)
                     {
+                        let album_id = self.album_id.to_string();
+                        let entry_id = replace_id.to_string();
                         let target = AppRoute::Albums {
                             view: AlbumsRoute::Album {
-                                id: self.album_id.to_string(),
+                                id: album_id.clone(),
                                 view: AlbumRoute::Entry {
-                                    id: replace_id.to_string(),
+                                    id: entry_id.clone(),
                                 },
                             },
                         };
+
                         ctx.link().send_message(SingleEntryMessage::ActivateEntry(
-                            replace_id.to_string().into_boxed_str(),
+                            entry_id.clone().into_boxed_str(),
                         ));
-                        self.router.push(target);
+                        //let props = SingleEntryProps { album_id, entry_id };
+                        //self.router.push_with(target, State::json(&props).unwrap());
                     }
                     swiper.set_active_index(1);
                     swiper.update();
@@ -166,6 +167,43 @@ impl Component for SingleEntry {
                         }
                     }
                     self.entry_id = entry_id;
+                    let target = AppRoute::Albums {
+                        view: AlbumsRoute::Album {
+                            id: self.album_id.to_string(),
+                            view: AlbumRoute::Entry {
+                                id: self.entry_id.to_string(),
+                            },
+                        },
+                    };
+                    if let Some(history) = self.history.as_ref() {
+                        let new_path: String = target
+                            .render_path()
+                            .iter()
+                            .flat_map(|seg| ["/", seg])
+                            .collect();
+                        match serde_wasm_bindgen::to_value(&SingleEntryProps {
+                            album_id: self.album_id.to_string(),
+                            entry_id: self.entry_id.to_string(),
+                        }) {
+                            Ok(new_state) => {
+                                let title = self
+                                    .entry
+                                    .as_ref()
+                                    .map(|e| e.name.as_ref())
+                                    .unwrap_or_default();
+                                history
+                                    .replace_state_with_url(
+                                        &new_state,
+                                        title,
+                                        Some(new_path.as_str()),
+                                    )
+                                    .expect("Cannot update history entry");
+                            }
+                            Err(e) => {
+                                error!("Cannot serialize properties: {e}")
+                            }
+                        }
+                    }
                     true
                 }
             }
@@ -179,7 +217,7 @@ impl Component for SingleEntry {
         let image = render_entry(&self.entry);
         html! {
             <div class="image" ref={video_root_ref}>
-                <swiper-container ref={image_slider_ref} init="true">
+                <swiper-container ref={image_slider_ref} init="true" css-mode="true">
                     <swiper-slide>{render_entry(&self.prev_entry)}</swiper-slide>
                     <swiper-slide>
                         <div class="swiper-zoom-container">
@@ -216,9 +254,6 @@ impl Component for SingleEntry {
                 match swiper {
                     Ok(swiper) => {
                         swiper.set_active_index(1);
-                        let active_index = swiper.active_index();
-                        info!("Got active index: {active_index}");
-                        info!("Swiper: {swiper:?}");
                         self.swiper = Some(swiper);
                     }
                     Err(e) => {
@@ -237,6 +272,11 @@ impl Component for SingleEntry {
     }
 }
 
+#[inline]
+fn access_history() -> Option<History> {
+    Some(window()?.history().ok()?)
+}
+
 fn render_entry(option: &Option<AlbumEntry>) -> Option<VNode> {
     option
         .as_ref()
@@ -244,12 +284,10 @@ fn render_entry(option: &Option<AlbumEntry>) -> Option<VNode> {
         .map(|entry| html!(<Image {entry}/>))
 }
 async fn fetch_album_content(scope: &Scope<SingleEntry>, id: &str) -> Result<(), FrontendError> {
-    info!("Fetch");
     let (access, _) = scope
         .context::<Rc<DataAccess>>(Default::default())
         .expect("Context missing");
     let mut album_stream = access.fetch_album_content_interactive(id);
-
     while let Some(msg) = album_stream.next().await {
         scope.send_message(SingleEntryMessage::UpdateDataFetch(msg));
     }

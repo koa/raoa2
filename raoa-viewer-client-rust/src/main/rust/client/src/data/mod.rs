@@ -580,7 +580,6 @@ impl DataAccess {
             let result = JsFuture::from(self.cache_storage.match_with_str(&entry_path))
                 .await
                 .map_err(js_to_frontend_error)?;
-            info!("Fetched from server");
             let media_url = extract_blob_from_result(result)
                 .await
                 .map_err(js_to_frontend_error)?;

@@ -23,7 +23,7 @@ web-sys = { version = "0.3.69", features = ["Blob", 'Headers',
     'RequestInit',
     'RequestMode',
     'Response',
-    'Window', "CacheStorage", "Cache", "ResizeObserver", "ResizeObserverEntry"] }
+    'Window', "CacheStorage", "Cache", "ResizeObserver", "ResizeObserverEntry", "History", "Location"] }
 js-sys = "0.3.69"
 serde = { version = "1.0.130", features = ["derive"] }
 serde_json = "1.0.68"
