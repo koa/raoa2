@@ -115,7 +115,7 @@ type ImportedFile {
 input ImportFile {
     fileId: ID!
     filename: String
-    size: Int
+    size: Long
 }
 
 input AlbumEntryUpdate {

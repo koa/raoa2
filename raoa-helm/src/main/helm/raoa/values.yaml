@@ -67,7 +67,7 @@ repack:
 ingress:
   enabled: false
   annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: 2048m
+    nginx.ingress.kubernetes.io/proxy-body-size: 4096m
     nginx.ingress.kubernetes.io/proxy-read-timeout: "900"
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
