@@ -65,7 +65,10 @@ impl Component for Image {
                     self.blob_url = Some(url);
                     true
                 } else {
-                    info!("Length changed from {l} to {}", self.length);
+                    info!(
+                        "Length changed from {l} to {}, ignoring outdated response",
+                        self.length
+                    );
                     false
                 }
             }

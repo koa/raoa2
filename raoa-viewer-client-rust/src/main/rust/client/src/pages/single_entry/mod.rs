@@ -5,15 +5,12 @@ use crate::{
     pages::app::routing::{AlbumRoute, AlbumsRoute, AppRoute},
     utils::swiper::Swiper,
 };
-use itertools::Itertools;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, rc::Rc};
 use tokio_stream::StreamExt;
-use wasm_bindgen::closure::Closure;
-use wasm_bindgen::{JsCast, JsValue};
-use web_sys::Location;
-use web_sys::{window, Event, History, HtmlElement, Window};
+use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use web_sys::{window, Event, History, HtmlElement, KeyboardEvent, Location, Window};
 use yew::{
     html, html::Scope, platform::spawn_local, virtual_dom::VNode, Callback, Component, Context,
     Html, NodeRef, Properties,
@@ -44,12 +41,15 @@ enum ProcessingState {
     Progress(f64),
     Error(DataAccessError),
 }
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum SingleEntryMessage {
+    #[default]
+    Noop,
     SlideNext,
     OnTransitionEnd(Event),
     UpdateDataFetch(DataFetchMessage<Box<[AlbumEntry]>>),
     ActivateEntry(Box<str>),
+    SlidePrev,
 }
 #[derive(Properties, PartialEq, Serialize, Deserialize, Debug)]
 pub struct SingleEntryProps {
@@ -89,6 +89,12 @@ impl Component for SingleEntry {
                 }
                 false
             }
+            SingleEntryMessage::SlidePrev => {
+                if let Some(swiper) = &self.swiper {
+                    swiper.slide_prev();
+                }
+                false
+            }
             SingleEntryMessage::OnTransitionEnd(_) => {
                 if let Some(swiper) = &self.swiper {
                     let active_index = swiper.active_index();
@@ -101,16 +107,16 @@ impl Component for SingleEntry {
                     }
                     .map(|e| &e.entry_id)
                     {
-                        let album_id = self.album_id.to_string();
+                        //let album_id = self.album_id.to_string();
                         let entry_id = replace_id.to_string();
-                        let target = AppRoute::Albums {
+                        /*let target = AppRoute::Albums {
                             view: AlbumsRoute::Album {
                                 id: album_id.clone(),
                                 view: AlbumRoute::Entry {
                                     id: entry_id.clone(),
                                 },
                             },
-                        };
+                        };*/
 
                         ctx.link().send_message(SingleEntryMessage::ActivateEntry(
                             entry_id.clone().into_boxed_str(),
@@ -207,6 +213,7 @@ impl Component for SingleEntry {
                     true
                 }
             }
+            SingleEntryMessage::Noop => false,
         }
     }
 
@@ -214,9 +221,22 @@ impl Component for SingleEntry {
         let image_slider_ref = self.image_slider_ref.clone();
         let video_root_ref = self.video_root_ref.clone();
         let onclick = ctx.link().callback(|_| SingleEntryMessage::SlideNext);
-        let image = render_entry(&self.entry);
+        let onkeyup = ctx.link().callback(|event: KeyboardEvent| {
+            let code = event.code();
+            let code = code.as_str();
+
+            match (code, event.shift_key(), event.alt_key(), event.ctrl_key()) {
+                ("ArrowRight", false, false, false) => SingleEntryMessage::SlideNext,
+                ("ArrowLeft", false, false, false) => SingleEntryMessage::SlidePrev,
+                (code, shift, alt, ctrl) => {
+                    info!("Code: {code} {shift} {alt} {ctrl}");
+                    SingleEntryMessage::Noop
+                }
+            }
+        });
+        //let image = render_entry(&self.entry);
         html! {
-            <div class="image" ref={video_root_ref}>
+            <div class="image" ref={video_root_ref} {onkeyup}>
                 <swiper-container ref={image_slider_ref} init="true" css-mode="true">
                     <swiper-slide>{render_entry(&self.prev_entry)}</swiper-slide>
                     <swiper-slide>

@@ -10,15 +10,14 @@ use log::{error, info, warn};
 use lru::LruCache;
 use ordered_float::OrderedFloat;
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};
-use std::collections::HashSet;
-use std::num::NonZero;
-use std::sync::Arc;
 use std::{
     borrow::Cow,
     collections::HashMap,
     fmt::{Debug, Formatter},
+    num::NonZero,
     ops::Deref,
     rc::Rc,
+    sync::Arc,
     time::Duration,
 };
 use thiserror::Error;
@@ -184,6 +183,7 @@ impl DataAccess {
             .list_albums()
             .await
             .map_err(DataAccessError::FetchAlbum)?;
+        info!("Found {} albums", stored_albums.len());
         tx.send(DataFetchMessage::Data(stored_albums.clone()))
             .await?;
         if let Some(token) = self.valid_token_str().await {
@@ -197,7 +197,7 @@ impl DataAccess {
             let mut all_albums = Vec::with_capacity(album_count);
             for (idx, album) in responses.list_albums.iter().enumerate() {
                 if let Some(found_entry) = existing_albums
-                    .remove(album.version.as_str())
+                    .remove(album.id.as_str())
                     .filter(|entry| entry.version() == album.version.as_str())
                 {
                     all_albums.push(found_entry.clone());
@@ -214,9 +214,10 @@ impl DataAccess {
             tx.send(DataFetchMessage::Data(all_albums.into_boxed_slice()))
                 .await?;
             for id in existing_albums.keys() {
+                info!("Album disabppeared: {id}");
                 self.storage()
                     .await
-                    .remove_album(&id)
+                    .remove_album(id)
                     .await
                     .map_err(DataAccessError::FetchAlbum)?;
             }
