@@ -30,7 +30,7 @@ export class SvpsDataService {
         if (this.veranstaltungen.has(id)) {
             return this.veranstaltungen.get(id);
         }
-        const veranstaltung = await firstValueFrom(this.httpClient.get<Veranstaltung>(`https://info.fnch.ch/startlisten/${id}.json`));
+        const veranstaltung = await firstValueFrom(this.httpClient.get<Veranstaltung>(`https://info.swiss-equestrian.ch/startlisten/${id}.json`));
         this.veranstaltungen.set(id, veranstaltung);
         return veranstaltung;
     }
@@ -40,7 +40,7 @@ export class SvpsDataService {
         if (this.startlisten.has(key)) {
             return this.startlisten.get(key);
         }
-        const startliste = await firstValueFrom(this.httpClient.get<Startliste>(`https://info.fnch.ch/startlisten/${competitionId}.json?startliste_id=${listId}`));
+        const startliste = await firstValueFrom(this.httpClient.get<Startliste>(`https://info.swiss-equestrian.ch/startlisten/${competitionId}.json?startliste_id=${listId}`));
         this.startlisten.set(key, startliste);
         return startliste;
     }
@@ -49,7 +49,7 @@ export class SvpsDataService {
         if (this.veranstaltungResultate.has(id)) {
             return this.veranstaltungResultate.get(id);
         }
-        const veranstaltung = await firstValueFrom(this.httpClient.get<ResultatOverall>(`https://info.fnch.ch/resultate/veranstaltungen/${id}.json`));
+        const veranstaltung = await firstValueFrom(this.httpClient.get<ResultatOverall>(`https://info.swiss-equestrian.ch/resultate/veranstaltungen/${id}.json`));
         this.veranstaltungResultate.set(id, veranstaltung);
         return veranstaltung;
 
@@ -60,7 +60,7 @@ export class SvpsDataService {
         if (this.resultate.has(key)) {
             return this.resultate.get(key);
         }
-        const resultat = await firstValueFrom(this.httpClient.get<Resultat>(`https://info.fnch.ch/resultate/${competitionId}.json?pruefung_id=${listId}`));
+        const resultat = await firstValueFrom(this.httpClient.get<Resultat>(`https://info.swiss-equestrian.ch/resultate/${competitionId}.json?pruefung_id=${listId}`));
         this.resultate.set(key, resultat);
         return resultat;
     }

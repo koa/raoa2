@@ -10,20 +10,20 @@
     <ion-card *ngIf="userState && userState.currentUser">
         <ion-card-header class="person">
             <div>
-                <ion-card-title>{{userState.currentUser.info.name}}</ion-card-title>
-                <ion-card-subtitle>{{userState.currentUser.info.email}}</ion-card-subtitle>
+                <ion-card-title>{{ userState.currentUser.info.name }}</ion-card-title>
+                <ion-card-subtitle>{{ userState.currentUser.info.email }}</ion-card-subtitle>
             </div>
             <img [src]="userState.currentUser.info.picture">
         </ion-card-header>
         <ion-card-content>
             <ion-card *ngFor="let pw of userState.currentUser.temporaryPasswords">
                 <ion-card-header>
-                    <ion-card-title>{{pw.title}}</ion-card-title>
+                    <ion-card-title>{{ pw.title }}</ion-card-title>
                 </ion-card-header>
                 <ion-card-content>
                     <dl>
                         <dt>Gültig bis</dt>
-                        <dd>{{pw.validUntil | date}}</dd>
+                        <dd>{{ pw.validUntil | date }}</dd>
                     </dl>
                     <ion-button (click)="removeSecret(pw.title)">
                         <ion-icon name="trash-outline"></ion-icon>
@@ -53,21 +53,22 @@
     <ion-card *ngIf="userState?.authenticationState === 'AUTHENTICATED' && userName">
         <ion-card-header class="person">
             <div>
-                <ion-card-title>{{userName}}</ion-card-title>
-                <ion-card-subtitle>{{userMail}}</ion-card-subtitle>
+                <ion-card-title>{{ userName }}</ion-card-title>
+                <ion-card-subtitle>{{ userMail }}</ion-card-subtitle>
             </div>
             <img [src]="userPicture">
         </ion-card-header>
         <ion-card-content>
-            <h2>Hallo {{userName}}</h2>
+            <h2>Hallo {{ userName }}</h2>
             <p>Du hast dich mit deinem GMail-Account angemeldet.</p>
             <p>Jetzt kannst du den Zugang beantragen. Wenn du das machst, wird dein Foto (das oben rechts), dein Name
-                ({{userName}}) und deine eMail-Adresse ({{userMail}})
+                ({{ userName }}) und deine eMail-Adresse ({{ userMail }})
                 an den Server übermittelt und dort gespeichert. Damit kann der <a href="mailto:photos@teamkoenig.ch">Administrator</a>
                 dir die Fotos frei schalten.
             </p>
             <p>
-                Bitte beschreibe zu welchem Team du gehörst, damit du alle Alben sehen kannst bei denen dein Team anwesend war
+                Bitte beschreibe zu welchem Team du gehörst, damit du alle Alben sehen kannst bei denen dein Team
+                anwesend war
             </p>
             <ion-input #message placeholder="Name des Teams"></ion-input>
             <ion-button (click)="subscribe()">Zugang Beantragen</ion-button>
@@ -76,13 +77,13 @@
     <ion-card *ngIf="userState?.authenticationState=='AUTHORIZATION_REQUESTED' && userName">
         <ion-card-header class="person">
             <div>
-                <ion-card-title>{{userName}}</ion-card-title>
-                <ion-card-subtitle>{{userMail}}</ion-card-subtitle>
+                <ion-card-title>{{ userName }}</ion-card-title>
+                <ion-card-subtitle>{{ userMail }}</ion-card-subtitle>
             </div>
             <img [src]="userPicture">
         </ion-card-header>
         <ion-card-content>
-            <h2>Hallo {{userName}}</h2>
+            <h2>Hallo {{ userName }}</h2>
             <p>Du hast dich mit deinem GMail-Account angemeldet und den Zugang beantragt</p>
             <p>Jetzt musst du warten bis der <a href="mailto:photos@teamkoenig.ch">Administrator</a>
                 dir den Zugang und die Fotos frei geschaltet hat.
@@ -94,7 +95,7 @@
             <ion-card-title>Neue Anträge</ion-card-title>
         </ion-card-header>
         <ion-card-content>
-            <ion-button routerLink="/process-pending-requests">{{userState?.listPendingRequests?.length}} neue User
+            <ion-button routerLink="/process-pending-requests">{{ userState?.listPendingRequests?.length }} neue User
             </ion-button>
         </ion-card-content>
     </ion-card>
@@ -108,9 +109,9 @@
                     href="mailto:photos@teamkoenig.ch">Administrator</a> um Zugang zu den interessanten Photos zu
                 erhalten.
             </p>
-            <p *ngIf="totalPhotoCount>0 && offlinePhotoCount===0">{{totalPhotoCount | number}} Photos</p>
-            <p *ngIf="totalPhotoCount>0 && offlinePhotoCount>0">{{totalPhotoCount | number}} Photos total,
-                {{offlinePhotoCount | number}} offline verfügbar</p>
+            <p *ngIf="totalPhotoCount>0 && offlinePhotoCount===0">{{ totalPhotoCount | number }} Photos</p>
+            <p *ngIf="totalPhotoCount>0 && offlinePhotoCount>0">{{ totalPhotoCount | number }} Photos total,
+                {{ offlinePhotoCount | number }} offline verfügbar</p>
         </ion-card-content>
     </ion-card>
     <ion-card *ngIf="userState && userState.currentUser">
@@ -120,9 +121,9 @@
         <ion-card-content>
             <dl *ngIf="estimation">
                 <dt>Total verfügbar</dt>
-                <dd>{{estimation.quota | filesize}}</dd>
+                <dd>{{ estimation.quota | filesize }}</dd>
                 <dt>Aktuell belegt</dt>
-                <dd>{{estimation.usage | filesize}} ({{estimation.usage / estimation.quota | percent}})</dd>
+                <dd>{{ estimation.usage | filesize }} ({{ estimation.usage / estimation.quota | percent }})</dd>
             </dl>
             <ion-button (click)="cleanupCache()" color="danger">Daten löschen</ion-button>
             <ion-button (click)="syncOffline()"
@@ -134,7 +135,7 @@
                 abbrechen
             </ion-button>
             <p *ngIf="this.syncOfflineSubscription&&!this.syncOfflineSubscription.closed">
-                <ion-label *ngIf="syncProgress?.albumName">Lade {{syncProgress.albumName}}</ion-label>
+                <ion-label *ngIf="syncProgress?.albumName">Lade {{ syncProgress.albumName }}</ion-label>
                 <ion-progress-bar *ngIf="syncProgress?.albumCount>0"
                                   [value]="(syncProgress.albumIndex+1)/(syncProgress.albumCount+1)"></ion-progress-bar>
                 <ion-progress-bar *ngIf="syncProgress?.albumEntryCount>0"
@@ -154,7 +155,7 @@
     </ion-card>
     <ion-card *ngIf="userState?.currentUser?.canManageUsers" (click)="updateFnchGroups()">
         <ion-card-header>
-            <ion-card-title>Gruppen von FNCH updaten</ion-card-title>
+            <ion-card-title>Gruppen von Swiss Equestrian updaten</ion-card-title>
         </ion-card-header>
     </ion-card>
     <ion-card *ngIf="userState?.currentUser?.canManageUsers" routerLink="/import">
@@ -175,6 +176,6 @@
 </ion-content>
 <ion-footer>
     <ion-toolbar>
-        <ion-title>{{version}}</ion-title>
+        <ion-title>{{ version }}</ion-title>
     </ion-toolbar>
 </ion-footer>

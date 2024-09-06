@@ -190,7 +190,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
 
     async updateFnchGroups() {
         // http://info.fnch.ch/startlisten/50450.json
-        const loading = await this.loadingController.create({message: 'Daten von info.fnch.ch laden'});
+        const loading = await this.loadingController.create({message: 'Daten von info.swiss-equestrian.ch laden'});
         await loading.present();
         const metadata = await this.serverApiService.query<WelcomListFetchFnchDataQuery, WelcomListFetchFnchDataQueryVariables>(
             this.welcomListFetchFnchDataGQL, {}
@@ -205,6 +205,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
                 eventNames.set(eventId, albumData.name);
             }
         });
+        console.log('events', events);
         const groups = new Map<number, string>();
         metadata.listGroups.forEach(groupData => {
             const found = groupData.labels.filter(e => e.labelName === FNCH_COMPETITOR_ID).map(e => e.labelValue);
@@ -213,11 +214,12 @@ export class WelcomeComponent implements OnInit, OnDestroy {
                 groups.set(competitorId, groupData.id);
             }
         });
+        console.log('groups', groups);
         const groupUpdates: SingleGroupVisibilityUpdate[] = [];
         for (const [eventId, albumId] of events.entries()) {
             const competitors = new Set<number>();
             const eventData: FnchEvent = await this.httpClient
-                .get<FnchEvent>(`https://info.fnch.ch/resultate/veranstaltungen/${eventId}.json`)
+                .get<FnchEvent>(`https://info.swiss-equestrian.ch/resultate/veranstaltungen/${eventId}.json`)
                 .toPromise()
                 .catch(error => {
                     this.toastController.create({
@@ -232,7 +234,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
             }
             for (const competitionId of eventData.pruefungen.map(comp => comp.id)) {
                 const competitionData: FnchCompetition = await this.httpClient
-                    .get<FnchCompetition>(`https://info.fnch.ch/resultate/veranstaltungen/${eventId}.json?pruefung_id=${competitionId}`)
+                    .get<FnchCompetition>(`https://info.swiss-equestrian.ch/resultate/veranstaltungen/${eventId}.json?pruefung_id=${competitionId}`)
                     .toPromise();
                 competitionData.resultate.map(e => e.reiter_id).forEach(id => competitors.add(id));
             }
