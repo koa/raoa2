@@ -15,14 +15,27 @@ import com.drew.lang.Charsets;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
-import java.io.*;
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.URLDecoder;
 import java.nio.file.Path;
 import java.text.NumberFormat;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -42,7 +55,12 @@ import org.apache.commons.imaging.formats.tiff.write.TiffOutputDirectory;
 import org.apache.commons.imaging.formats.tiff.write.TiffOutputField;
 import org.apache.commons.imaging.formats.tiff.write.TiffOutputSet;
 import org.apache.tika.io.TikaInputStream;
-import org.apache.tika.metadata.*;
+import org.apache.tika.metadata.HttpHeaders;
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.Property;
+import org.apache.tika.metadata.TIFF;
+import org.apache.tika.metadata.TikaCoreProperties;
+import org.apache.tika.metadata.XMPDM;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.sax.BodyContentHandler;
 import org.eclipse.jgit.lib.ObjectId;
@@ -210,218 +228,250 @@ public class DefaultProcessor implements Processor {
   @Override
   public boolean run() {
     final UUID albumId = jobProperties.getRepository();
+    final Set<String> jobFiles = jobProperties.getFiles();
     return Boolean.TRUE.equals(
         albumList
             .getAlbum(albumId)
             .flatMap(
                 ga ->
-                    Flux.fromIterable(jobProperties.getFiles())
-                        .map(s -> URLDecoder.decode(s, Charsets.UTF_8))
+                    ga.listFiles(
+                            OrTreeFilter.create(
+                                jobFiles.stream()
+                                    .map(s -> URLDecoder.decode(s, Charsets.UTF_8))
+                                    .map(filename1 -> filename1 + ".xmp")
+                                    .map(PathFilter::create)
+                                    .collect(Collectors.toUnmodifiableList())))
+                        .collectMap(GitAccess.GitFileEntry::getNameString, Function.identity())
+                        .doOnNext(
+                            metadatafiles -> {
+                              log.info(
+                                  "found {} metadata files for {}",
+                                  metadatafiles.size(),
+                                  jobFiles.size());
+                            })
                         .flatMap(
-                            filename -> {
-                              final String metadataFilename = filename + ".xmp";
-                              return ga.listFiles(
-                                      OrTreeFilter.create(
-                                          PathFilter.create(filename),
-                                          PathFilter.create(metadataFilename)))
-                                  .collectMap(
-                                      GitAccess.GitFileEntry::getNameString, Function.identity())
-                                  .flatMap(
-                                      files -> {
-                                        final GitAccess.GitFileEntry fileEntry =
-                                            files.get(filename);
-                                        if (fileEntry == null) {
-                                          log.warn("File not found " + filename);
-                                          return Mono.empty();
-                                        }
-                                        return Mono.zip(
-                                            readFileEntryToTemp(ga, fileEntry)
-                                                .flatMap(
-                                                    entry ->
-                                                        asyncService
-                                                            .asyncMono(
-                                                                () -> {
-                                                                  BodyContentHandler handler =
-                                                                      new BodyContentHandler();
-                                                                  Metadata metadata =
-                                                                      new Metadata();
+                            metadataFiles ->
+                                ga.listFiles(
+                                        OrTreeFilter.create(
+                                            jobFiles.stream()
+                                                .map(s -> URLDecoder.decode(s, Charsets.UTF_8))
+                                                .map(PathFilter::create)
+                                                .collect(Collectors.toUnmodifiableList())))
+                                    .flatMap(
+                                        contentFile -> {
+                                          final String filename = contentFile.getNameString();
+                                          final String metadataFilename = filename + ".xml";
+                                          return Mono.zip(
+                                                  readFileEntryToTemp(ga, contentFile)
+                                                      .flatMap(
+                                                          entry ->
+                                                              asyncService
+                                                                  .asyncMono(
+                                                                      () -> {
+                                                                        BodyContentHandler handler =
+                                                                            new BodyContentHandler();
+                                                                        Metadata metadata =
+                                                                            new Metadata();
 
-                                                                  final Path path =
-                                                                      entry.getT2().toPath();
-                                                                  try (final TikaInputStream
-                                                                      inputStream =
-                                                                          TikaInputStream.get(
-                                                                              path)) {
-                                                                    parser.parse(
-                                                                        inputStream,
-                                                                        handler,
-                                                                        metadata);
-                                                                    return metadata;
-                                                                  }
-                                                                })
-                                                            .map(
-                                                                metadata ->
-                                                                    Tuples.of(
-                                                                        entry.getT1(),
-                                                                        entry.getT2(),
-                                                                        metadata))),
-                                            Mono.justOrEmpty(files.get(metadataFilename))
-                                                .map(GitAccess.GitFileEntry::getFileId)
-                                                .flatMap(
-                                                    entry ->
-                                                        ga.readObject(entry)
-                                                            .flatMap(
-                                                                loader ->
-                                                                    asyncService.asyncMono(
-                                                                        () -> {
-                                                                          try (final ObjectStream
-                                                                              stream =
-                                                                                  loader
-                                                                                      .openStream()) {
-                                                                            return XMPMetaFactory
-                                                                                .parse(stream);
-                                                                          }
-                                                                        }))
-                                                            .map(
-                                                                meta ->
-                                                                    Tuples.of(
-                                                                        Optional.of(entry),
-                                                                        Optional.of(meta)))
-                                                            .onErrorResume(
-                                                                ex -> {
-                                                                  log.warn(
-                                                                      "Cannot read file "
-                                                                          + metadataFilename,
-                                                                      ex);
-                                                                  return Mono.empty();
-                                                                }))
-                                                .defaultIfEmpty(
-                                                    Tuples.of(Optional.empty(), Optional.empty())));
-                                      })
-                                  .map(
-                                      t ->
-                                          Tuples.of(
-                                              t.getT1().getT1(),
-                                              t.getT1().getT2(),
-                                              t.getT1().getT3(),
-                                              t.getT2().getT1(),
-                                              t.getT2().getT2()))
-                                  .filterWhen(
-                                      params -> {
-                                        final Metadata metadata = params.getT3();
-                                        final ObjectId imageFileId = params.getT1().getFileId();
-                                        final String contentType =
-                                            metadata.get(HttpHeaders.CONTENT_TYPE);
-                                        final Stream<ThumbnailFilenameService.FileAndScale>
-                                            fileAndScaleStream =
-                                                thumbnailFilenameService.listThumbnailsOf(
-                                                    albumId, imageFileId);
-                                        if (contentType.startsWith("image")) {
-                                          final List<ThumbnailFilenameService.FileAndScale>
-                                              missingThumbnails =
-                                                  fileAndScaleStream
-                                                      .filter(fas -> !fas.getFile().exists())
-                                                      .collect(Collectors.toList());
-                                          if (!missingThumbnails.isEmpty()) {
-                                            log.info(
-                                                "Scaling "
-                                                    + filename
-                                                    + " to sizes "
-                                                    + missingThumbnails.stream()
-                                                        .map(
-                                                            ThumbnailFilenameService.FileAndScale
-                                                                ::getSize)
-                                                        .map(Object::toString)
-                                                        .collect(Collectors.joining(", ")));
-                                            return asyncService.asyncMono(
-                                                () -> {
-                                                  final File mediaFile = params.getT2();
+                                                                        final Path path =
+                                                                            entry.getT2().toPath();
+                                                                        try (final TikaInputStream
+                                                                            inputStream =
+                                                                                TikaInputStream.get(
+                                                                                    path)) {
+                                                                          parser.parse(
+                                                                              inputStream,
+                                                                              handler,
+                                                                              metadata);
+                                                                          return metadata;
+                                                                        }
+                                                                      })
+                                                                  .map(
+                                                                      metadata ->
+                                                                          Tuples.of(
+                                                                              entry.getT1(),
+                                                                              entry.getT2(),
+                                                                              metadata))),
+                                                  Mono.justOrEmpty(
+                                                          metadataFiles.get(metadataFilename))
+                                                      .map(GitAccess.GitFileEntry::getFileId)
+                                                      .flatMap(
+                                                          entry ->
+                                                              ga.readObject(entry)
+                                                                  .flatMap(
+                                                                      loader ->
+                                                                          asyncService.asyncMono(
+                                                                              () -> {
+                                                                                try (final
+                                                                                ObjectStream
+                                                                                    stream =
+                                                                                        loader
+                                                                                            .openStream()) {
+                                                                                  return XMPMetaFactory
+                                                                                      .parse(
+                                                                                          stream);
+                                                                                }
+                                                                              }))
+                                                                  .map(
+                                                                      meta ->
+                                                                          Tuples.of(
+                                                                              Optional.of(entry),
+                                                                              Optional.of(meta)))
+                                                                  .onErrorResume(
+                                                                      ex -> {
+                                                                        log.warn(
+                                                                            "Cannot read file "
+                                                                                + metadataFilename,
+                                                                            ex);
+                                                                        return Mono.empty();
+                                                                      }))
+                                                      .defaultIfEmpty(
+                                                          Tuples.of(
+                                                              Optional.empty(), Optional.empty())))
+                                              .map(
+                                                  t ->
+                                                      Tuples.of(
+                                                          t.getT1().getT1(),
+                                                          t.getT1().getT2(),
+                                                          t.getT1().getT3(),
+                                                          t.getT2().getT1(),
+                                                          t.getT2().getT2()))
+                                              .filterWhen(
+                                                  params -> {
+                                                    final Metadata metadata = params.getT3();
+                                                    final ObjectId imageFileId =
+                                                        params.getT1().getFileId();
+                                                    final String contentType =
+                                                        metadata.get(HttpHeaders.CONTENT_TYPE);
+                                                    final Stream<
+                                                            ThumbnailFilenameService.FileAndScale>
+                                                        fileAndScaleStream =
+                                                            thumbnailFilenameService
+                                                                .listThumbnailsOf(
+                                                                    albumId, imageFileId);
+                                                    if (contentType.startsWith("image")) {
+                                                      final List<
+                                                              ThumbnailFilenameService.FileAndScale>
+                                                          missingThumbnails =
+                                                              fileAndScaleStream
+                                                                  .filter(
+                                                                      fas ->
+                                                                          !fas.getFile().exists())
+                                                                  .collect(Collectors.toList());
+                                                      if (!missingThumbnails.isEmpty()) {
+                                                        log.info(
+                                                            "Scaling "
+                                                                + filename
+                                                                + " to sizes "
+                                                                + missingThumbnails.stream()
+                                                                    .map(
+                                                                        ThumbnailFilenameService
+                                                                                .FileAndScale
+                                                                            ::getSize)
+                                                                    .map(Object::toString)
+                                                                    .collect(
+                                                                        Collectors.joining(", ")));
+                                                        return asyncService.asyncMono(
+                                                            () -> {
+                                                              final File mediaFile = params.getT2();
 
-                                                  final ImageMetadata imageMetadata =
-                                                      Imaging.getMetadata(mediaFile);
+                                                              final ImageMetadata imageMetadata =
+                                                                  Imaging.getMetadata(mediaFile);
 
-                                                  final Optional<TiffOutputSet> tiffOutputSet;
-                                                  if (imageMetadata instanceof JpegImageMetadata) {
-                                                    tiffOutputSet =
-                                                        Optional.ofNullable(
-                                                                ((JpegImageMetadata) imageMetadata)
-                                                                    .getExif())
-                                                            .map(
-                                                                m -> {
-                                                                  try {
-                                                                    return m.getOutputSet();
-                                                                  } catch (ImageWriteException e) {
-                                                                    throw new RuntimeException(e);
-                                                                  }
-                                                                });
-                                                    /*} else if (imageMetadata
-                                                                                                          instanceof TiffImageMetadata) {
-                                                                                                        tiffOutputSet =
-                                                                                                            Optional.ofNullable(
-                                                                                                                ((TiffImageMetadata) imageMetadata)
-                                                                                                                    .getOutputSet());
-                                                    */
-                                                  } else tiffOutputSet = Optional.empty();
+                                                              final Optional<TiffOutputSet>
+                                                                  tiffOutputSet;
+                                                              if (imageMetadata
+                                                                  instanceof JpegImageMetadata) {
+                                                                tiffOutputSet =
+                                                                    Optional.ofNullable(
+                                                                            ((JpegImageMetadata)
+                                                                                    imageMetadata)
+                                                                                .getExif())
+                                                                        .map(
+                                                                            m -> {
+                                                                              try {
+                                                                                return m
+                                                                                    .getOutputSet();
+                                                                              } catch (
+                                                                                  ImageWriteException
+                                                                                      e) {
+                                                                                throw new RuntimeException(
+                                                                                    e);
+                                                                              }
+                                                                            });
+                                                                /*} else if (imageMetadata
+                                                                                                                      instanceof TiffImageMetadata) {
+                                                                                                                    tiffOutputSet =
+                                                                                                                        Optional.ofNullable(
+                                                                                                                            ((TiffImageMetadata) imageMetadata)
+                                                                                                                                .getOutputSet());
+                                                                */
+                                                              } else
+                                                                tiffOutputSet = Optional.empty();
 
-                                                  final Tuple2<BufferedImage, Boolean> loadedImage =
-                                                      loadImage(mediaFile);
-                                                  final int orientation =
-                                                      loadedImage.getT2()
-                                                          ? 1
-                                                          : Optional.ofNullable(
-                                                                  metadata.get(TIFF.ORIENTATION))
-                                                              .map(Integer::parseInt)
-                                                              .orElse(1);
-                                                  return createImageThumbnails(
-                                                      albumId,
-                                                      imageFileId,
-                                                      loadedImage.getT1(),
-                                                      tiffOutputSet,
-                                                      missingThumbnails,
-                                                      orientation);
-                                                });
-                                          }
-                                        } else if (contentType.startsWith("video")) {
-                                          final List<ThumbnailFilenameService.FileAndScale>
-                                              missingThumbnails =
-                                                  fileAndScaleStream
-                                                      .filter(
-                                                          fas ->
-                                                              !fas.getFile().exists()
-                                                                  || !fas.getVideoFile().exists())
-                                                      .collect(Collectors.toList());
-                                          if (!missingThumbnails.isEmpty())
-                                            return createVideoThumbnails(
-                                                params.getT1().getNameString(),
-                                                params.getT2(),
-                                                metadata,
-                                                missingThumbnails);
-                                        }
-                                        return Mono.just(true);
-                                      })
-                                  .flatMap(
-                                      params -> {
-                                        final Metadata metadata = params.getT3();
-                                        final ObjectId imageFileId = params.getT1().getFileId();
-                                        return albumDataEntryRepository
-                                            .save(
-                                                createAlbumEntry(
-                                                    albumId,
-                                                    imageFileId,
-                                                    params.getT1().getNameString(),
-                                                    metadata,
-                                                    params.getT4(),
-                                                    params.getT5()))
-                                            .doOnNext(f -> log.info("stored " + filename));
-                                      })
-                              // .log(filename)
-                              ;
-                            },
-                            1)
-                        .count()
-                        .map(
-                            processedCount ->
-                                jobProperties.getFiles().size() == processedCount.intValue()))
+                                                              final Tuple2<BufferedImage, Boolean>
+                                                                  loadedImage =
+                                                                      loadImage(mediaFile);
+                                                              final int orientation =
+                                                                  loadedImage.getT2()
+                                                                      ? 1
+                                                                      : Optional.ofNullable(
+                                                                              metadata.get(
+                                                                                  TIFF.ORIENTATION))
+                                                                          .map(Integer::parseInt)
+                                                                          .orElse(1);
+                                                              return createImageThumbnails(
+                                                                  albumId,
+                                                                  imageFileId,
+                                                                  loadedImage.getT1(),
+                                                                  tiffOutputSet,
+                                                                  missingThumbnails,
+                                                                  orientation);
+                                                            });
+                                                      }
+                                                    } else if (contentType.startsWith("video")) {
+                                                      final List<
+                                                              ThumbnailFilenameService.FileAndScale>
+                                                          missingThumbnails =
+                                                              fileAndScaleStream
+                                                                  .filter(
+                                                                      fas ->
+                                                                          !fas.getFile().exists()
+                                                                              || !fas.getVideoFile()
+                                                                                  .exists())
+                                                                  .collect(Collectors.toList());
+                                                      if (!missingThumbnails.isEmpty())
+                                                        return createVideoThumbnails(
+                                                            params.getT1().getNameString(),
+                                                            params.getT2(),
+                                                            metadata,
+                                                            missingThumbnails);
+                                                    }
+                                                    return Mono.just(true);
+                                                  })
+                                              .flatMap(
+                                                  params -> {
+                                                    final Metadata metadata = params.getT3();
+                                                    final ObjectId imageFileId =
+                                                        params.getT1().getFileId();
+                                                    return albumDataEntryRepository
+                                                        .save(
+                                                            createAlbumEntry(
+                                                                albumId,
+                                                                imageFileId,
+                                                                params.getT1().getNameString(),
+                                                                metadata,
+                                                                params.getT4(),
+                                                                params.getT5()))
+                                                        .doOnNext(
+                                                            f -> log.info("stored " + filename));
+                                                  });
+                                        },
+                                        1)
+                                    .count()
+                                    .map(
+                                        processedCount ->
+                                            jobFiles.size() == processedCount.intValue())))
             .onErrorResume(
                 ex -> {
                   log.error("Cannot process " + jobProperties, ex);
