@@ -83,6 +83,9 @@
                             <arguments>
                                 <argument>build</argument>
                             </arguments>
+                            <environmentVariables>
+                                <TERM>vt52</TERM>
+                            </environmentVariables>
                         </configuration>
                     </execution>
                 </executions>
