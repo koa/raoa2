@@ -65,8 +65,10 @@ import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.sax.BodyContentHandler;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectStream;
+import org.eclipse.jgit.treewalk.filter.NotTreeFilter;
 import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
+import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -235,9 +237,9 @@ public class DefaultProcessor implements Processor {
             .flatMap(
                 ga ->
                     ga.listFiles(
-                            OrTreeFilter.create(
+                            findAny(
                                 jobFiles.stream()
-                                    .map(s -> URLDecoder.decode(s, Charsets.UTF_8))
+                                    .map(s1 -> URLDecoder.decode(s1, Charsets.UTF_8))
                                     .map(filename1 -> filename1 + ".xmp")
                                     .map(PathFilter::create)
                                     .collect(Collectors.toUnmodifiableList())))
@@ -252,7 +254,7 @@ public class DefaultProcessor implements Processor {
                         .flatMap(
                             metadataFiles ->
                                 ga.listFiles(
-                                        OrTreeFilter.create(
+                                        findAny(
                                             jobFiles.stream()
                                                 .map(s -> URLDecoder.decode(s, Charsets.UTF_8))
                                                 .map(PathFilter::create)
@@ -478,6 +480,14 @@ public class DefaultProcessor implements Processor {
                   return Mono.just(Boolean.FALSE);
                 })
             .block());
+  }
+
+  private static TreeFilter findAny(final List<TreeFilter> filters) {
+    if (filters.isEmpty()) {
+      return NotTreeFilter.create(TreeFilter.ALL);
+    }
+    if (filters.size() == 1) return filters.get(0);
+    return OrTreeFilter.create(filters);
   }
 
   private Mono<Tuple2<GitAccess.GitFileEntry, File>> readFileEntryToTemp(
