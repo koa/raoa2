@@ -2,17 +2,17 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <artifactId>raoa-job-coordinator</artifactId>
-    <version>0.0.28</version>
+    <version>0.0.29-SNAPSHOT</version>
     <parent>
         <groupId>ch.bergturbenthal.raoa2</groupId>
         <artifactId>parent</artifactId>
-        <version>0.0.28</version>
+        <version>0.0.29-SNAPSHOT</version>
     </parent>
     <dependencies>
          <dependency>
             <groupId>ch.bergturbenthal.raoa2</groupId>
             <artifactId>raoa-libs-elastic</artifactId>
-            <version>0.0.28</version>
+            <version>0.0.29-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
