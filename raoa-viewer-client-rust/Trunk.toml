@@ -27,6 +27,6 @@ watch = ["src", "index.html", "node/main.js", "node/package.json", "node/src"]
 
 [build]
 target = "index.html"
-dist = "dist"
+dist = "target/dist"
 filehash = true
 public_url = "/"

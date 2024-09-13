@@ -1,0 +1,316 @@
+scalar DateTime
+scalar Long
+
+schema {
+    query: Query
+    mutation: Mutation
+    subscription: Subscription
+}
+
+type Query {
+    albumById(id: ID!): Album
+    listAlbums: [Album!]!
+    authenticationState: AuthenticationState!
+    listPendingRequests: [RegistrationRequest!]!
+    currentUser: User
+    listUsers: [User!]!
+    listGroups: [Group!]!
+    userById(id: ID!):User
+    groupById(id: ID!):Group
+    previewImport(file: ImportFile!):Album
+    pollCommitState(jobId: ID!): CommitJob
+}
+type Mutation{
+    requestAccess(comment: String): RequestAccessResult
+    removeRequest(id: AuthenticationKey!): Boolean
+    createUser(id: AuthenticationKey!): User
+    removeUser(id: ID!): Boolean
+    setCanManageUserFlag(userId: ID, enabled: Boolean): User
+    setAlbumVisibility(userId: ID!, albumId: ID!, visible: Boolean!): User
+    updateUser(userId: ID!, update: UserUpdate): User
+    createGroup(name: String!): Group
+    updateGroup(groupId: ID!, update: GroupUpdate): Group
+    updateCredentials(update: CredentialUpgrade!): UpdateResult
+    updateAlbum(albumId: ID!, update: AlbumUpdate!):Album
+    updateAlbumEntry(albumId: ID!, albumEntryId: ID!, update: AlbumEntryUpdate): AlbumEntry
+    commitImport(files: [ImportFile!]!):[ImportedFile!]!
+    createAlbum(path: [String!]!):Album
+    createTemporaryPassword(duration: Long, title: String!): CreatedTemporaryPassword
+    mutate(updates: [MutationData!]!):MutationResult!
+    enqueueCommit(data: CommitData!):CommitJob
+}
+
+type CommitJob {
+    commitJobId: ID!
+    album: Album
+    currentPhase: CommitPhase
+    totalStepCount: Int
+    currentStep: Int
+    files: [ImportingFile!]!
+}
+
+type ImportingFile {
+    fileId: ID!
+    filename: String!
+    size: Int!
+}
+
+enum CommitPhase {
+    READY,ADD_FILES,WRITE_TREE,DONE
+}
+
+input CommitData {
+    albumId: ID!
+    files: [ImportFile!]!
+}
+
+type Subscription{
+    albumModified: AlbumUpdatedEvent
+}
+
+input MutationData {
+    addKeywordMutation: AddKeywordMutation
+    removeKeywordMutation: RemoveKeywordMutation
+}
+
+type MutationResult{
+    errors: [MutationError!]!
+    modifiedEntries:[AlbumEntry!]!
+}
+
+type MutationError{
+    albumId: ID
+    albumEntryId: ID
+    message: String!
+}
+
+input AddKeywordMutation {
+    albumId: ID!
+    albumEntryId: ID!
+    keyword: String!
+}
+input RemoveKeywordMutation {
+    albumId: ID!
+    albumEntryId: ID!
+    keyword: String!
+}
+
+
+type CreatedTemporaryPassword {
+    title: String!
+    password: String!
+    validUntil: DateTime!
+}
+
+type TemporaryPassword {
+    title: String!
+    validUntil: DateTime!
+}
+
+type ImportedFile {
+    fileId: ID!
+    albumEntry: AlbumEntry
+}
+
+input ImportFile {
+    fileId: ID!
+    filename: String
+    size: Long
+}
+
+input AlbumEntryUpdate {
+    addKeywords: [String!]!
+    removeKeywords: [String!]!
+}
+
+input AlbumUpdate {
+    newAlbumTitle: String
+    newTitleEntry: ID
+    newLabels: [LabelInput!]!
+    removeLabels: [String!]!
+    autoadd: [DateTime!]
+}
+
+
+type UpdateResult {
+    done: Boolean!
+}
+
+input CredentialUpgrade{
+    userUpdates: [SingleUserVisibilityUpdate!]!
+    groupUpdates: [SingleGroupVisibilityUpdate!]!
+    groupMembershipUpdates: [SingleGroupMembershipUpdate!]!
+}
+
+input GroupUpdate {
+    newName: String
+    newLabels: [LabelInput!]!
+    removeLabels: [String!]!
+}
+
+input LabelInput {
+    labelName: String!
+    labelValue: String!
+}
+
+input SingleGroupMembershipUpdate {
+    userId: ID!
+    groupId: ID!
+    from: DateTime
+    until: DateTime
+    isMember: Boolean!
+}
+
+input SingleGroupVisibilityUpdate {
+    groupId: ID!
+    albumId: ID!
+    isMember: Boolean!
+}
+
+input SingleUserVisibilityUpdate {
+    userId: ID!
+    albumId: ID!
+    isMember: Boolean!
+}
+
+input UserUpdate{
+    visibilityUpdates: [UserVisibilityUpdate!]!
+    canManageUsers: Boolean
+    isEditor: Boolean
+    removeTemporaryPasswords: [String!]
+}
+
+input UserVisibilityUpdate{
+    albumId: ID
+    visibility: Boolean
+}
+
+type RegistrationRequest{
+    authenticationId: AuthenticationId
+    reason: String
+    data: UserInfo
+    requestAlbum: Album
+}
+type AuthenticationId{
+    authority: String
+    id: String
+}
+
+input AuthenticationKey{
+    authority: String
+    id: String
+}
+type User{
+    id: ID!
+    canAccess: [Album]
+    canAccessDirect: [Album]
+    newestAlbumCanAccess: Album
+    info: UserInfo
+    authentications: [AuthenticationId]
+    groups: [GroupMembership]
+    canManageUsers: Boolean
+    canEdit: Boolean
+    isEditor: Boolean
+    temporaryPasswords: [TemporaryPassword!]!
+}
+
+type GroupMembership {
+    group: Group!
+    from: DateTime
+    until: DateTime
+}
+
+type Group {
+    id: ID!
+    name: String!
+    canAccess: [Album!]!
+    members: [UserMembership!]!
+    labels: [Label!]!
+}
+
+type UserMembership {
+    user: User!
+    from: DateTime
+    until: DateTime
+}
+
+type Label{
+    labelName: String!
+    labelValue: String!
+}
+
+type Album {
+    id: ID!
+    version: String
+    name: String
+    entries: [AlbumEntry!]!
+    albumEntry(entryId: ID): AlbumEntry
+    titleEntry: AlbumEntry
+    entryCount: Int
+    canAccessedBy: [User!]!
+    canAccessedByGroup: [Group!]!
+    canAccessedByUser: [User!]!
+    zipDownloadUri: String
+    albumTime: DateTime
+    labels: [Label!]!
+    keywordCounts: [KeywordCount!]!
+    autoaddDates: [DateTime!]!
+    albumPath: [String!]!
+}
+
+type KeywordCount {
+    keyword: String!
+    count: Int!
+}
+
+type AlbumEntry {
+    id: ID!
+    name: String
+    contentType: String
+    created: DateTime
+    entryUri: String
+    thumbnailUri: String
+    originalUri: String
+    width: Int
+    height: Int
+    targetWidth: Int
+    targetHeight: Int
+    cameraModel: String
+    cameraManufacturer: String
+    focalLength: Int
+    focalLength35: Int
+    exposureTime: Float
+    isoSpeedRatings: Int
+    fNumber: Float
+    keywords: [String!]!
+    album: Album
+}
+
+enum AuthenticationState {
+    UNKNOWN, AUTHENTICATED, AUTHORIZATION_REQUESTED, AUTHORIZED
+}
+
+type RequestAccessResult{
+    ok: Boolean
+    result: RequestAccessResultCode
+
+}
+enum RequestAccessResultCode{
+    OK, NOT_LOGGED_IN, ALREADY_ACCEPTED
+}
+
+type UserInfo{
+    email: String
+    name: String
+    picture: String
+}
+
+type AlbumUpdatedEvent{
+    type: AlbumUpdateEventType
+    id: ID!
+    album: Album
+}
+
+enum AlbumUpdateEventType{
+    ADDED, REMOVED, MODIFIED
+}

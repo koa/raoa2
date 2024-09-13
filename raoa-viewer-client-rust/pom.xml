@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>ch.bergturbenthal.raoa2</groupId>
@@ -10,28 +11,6 @@
     <artifactId>raoa-viewer-client-rust</artifactId>
     <build>
         <plugins>
-            <!--<plugin>
-                <groupId>org.questdb</groupId>
-                <artifactId>rust-maven-plugin</artifactId>
-                <version>1.1.1</version>
-                <executions>
-                    <execution>
-                        <id>rust-build-id</id>
-                        <goals>
-                            <goal>build</goal>
-                        </goals>
-                        <configuration>
-                            <path>src/main/rust/client</path>
-                            <copyTo>${project.build.directory}/wasm</copyTo>
-                            <copyWithPlatformDir>true</copyWithPlatformDir>
-                            <extraArgs>
-                                <extraArg>&#45;&#45;target</extraArg>
-                                <extraArg>wasm32-unknown-unknown</extraArg>
-                            </extraArgs>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>-->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
@@ -45,7 +24,7 @@
                         <phase>initialize</phase>
                         <configuration>
                             <executable>rustup</executable>
-                            <workingDirectory>${project.basedir}/src/main/rust/client</workingDirectory>
+                            <workingDirectory>${project.basedir}</workingDirectory>
                             <arguments>
                                 <argument>target</argument>
                                 <argument>add</argument>
@@ -60,7 +39,7 @@
                         </goals>
                         <phase>initialize</phase>
                         <configuration>
-                            <workingDirectory>${project.basedir}/src/main/rust/client</workingDirectory>
+                            <workingDirectory>${project.basedir}</workingDirectory>
                             <executable>cargo</executable>
                             <arguments>
                                 <argument>install</argument>
@@ -68,8 +47,6 @@
                             </arguments>
                         </configuration>
                     </execution>
-
-
                     <execution>
                         <id>compile</id>
                         <goals>
@@ -78,7 +55,7 @@
                         <phase>compile</phase>
                         <configuration>
                             <executable>trunk</executable>
-                            <workingDirectory>${project.basedir}/src/main/rust/client</workingDirectory>
+                            <workingDirectory>${project.basedir}</workingDirectory>
                             <arguments>
                                 <argument>build</argument>
                             </arguments>
