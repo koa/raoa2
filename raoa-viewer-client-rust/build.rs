@@ -64,7 +64,7 @@ pub struct {filename};"
 
 fn build_swiper_wasm() {
     let mut main: ItemForeignMod = parse_quote!(
-        #[wasm_bindgen(module = "/target/dist/debug/swiper.js")]
+        #[wasm_bindgen(module = "/target/classes/resources/debug/swiper.js")]
         extern "C" {
             #[wasm_bindgen(js_name = "Swiper")]
             pub type JsSwiper;
@@ -131,7 +131,7 @@ fn build_swiper_wasm() {
     }
 
     let mut swiper_options: ItemForeignMod = parse_quote!(
-        #[wasm_bindgen(module = "/target/dist/debug/swiper.js")]
+        #[wasm_bindgen(module = "/target/classes/resources/debug/swiper.js")]
         extern "C" {
             #[wasm_bindgen(js_name = "SwiperOptions")]
             pub type JsSwiperOptions;

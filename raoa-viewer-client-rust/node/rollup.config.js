@@ -6,12 +6,12 @@ export default {
     input: "src/swiper.js",
     output: [
         {
-            file: "../target/dist/debug/swiper.js",
+            file: "../target/classes/resources/debug/swiper.js",
             format: "esm",
             compact: false,
         },
         {
-            file: "../target/dist/release/swiper.js",
+            file: "../target/classes/resources/swiper.js",
             format: "esm",
             compact: true,
             plugins: [terser()]

@@ -1,11 +1,11 @@
 [serve]
 port = 4200
 [[proxy]]
-backend = "https://photos.berg-turbenthal.ch/graphql"
+backend = "https://photos.teamkoenig.ch/graphql"
 [[proxy]]
-backend = "https://photos.berg-turbenthal.ch/config"
+backend = "https://photos.teamkoenig.ch/config"
 [[proxy]]
-backend = "https://photos.berg-turbenthal.ch/rest/"
+backend = "https://photos.teamkoenig.ch/rest/"
 
 [[hooks]]
 stage = "pre_build"
@@ -27,6 +27,6 @@ watch = ["src", "index.html", "node/main.js", "node/package.json", "node/src"]
 
 [build]
 target = "index.html"
-dist = "target/dist"
+dist = "target/classes/resources"
 filehash = true
 public_url = "/"
