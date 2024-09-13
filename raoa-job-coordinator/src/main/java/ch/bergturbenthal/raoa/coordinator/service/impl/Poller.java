@@ -11,13 +11,26 @@ import ch.bergturbenthal.raoa.elastic.repository.CommitJobRepository;
 import ch.bergturbenthal.raoa.elastic.service.impl.AlbumStatisticsCollector;
 import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
-import ch.bergturbenthal.raoa.libs.service.*;
+import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.libs.service.AsyncService;
+import ch.bergturbenthal.raoa.libs.service.FileImporter;
+import ch.bergturbenthal.raoa.libs.service.GitAccess;
+import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
+import ch.bergturbenthal.raoa.libs.service.Updater;
+import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.io.File;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +69,7 @@ public class Poller {
   private final UploadFilenameService uploadFilenameService;
 
   private final Scheduler pollerScheduler = Schedulers.boundedElastic();
+  private final Mono<Void> resetJobStates;
 
   public Poller(
       final AlbumList albumList,
@@ -536,8 +550,6 @@ public class Poller {
         .flatMap(loader -> asyncService.asyncMono(loader::getSize))
         .map(s -> s > 0);
   }
-
-  private final Mono<Void> resetJobStates;
 
   @Scheduled(fixedDelay = 3600 * 1000, initialDelay = 120 * 1000)
   public void cleanupDoneJobs() {
