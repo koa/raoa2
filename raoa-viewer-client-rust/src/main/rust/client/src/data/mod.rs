@@ -196,9 +196,10 @@ impl DataAccess {
             let album_count = responses.list_albums.len();
             let mut all_albums = Vec::with_capacity(album_count);
             for (idx, album) in responses.list_albums.iter().enumerate() {
-                if let Some(found_entry) = existing_albums
-                    .remove(album.id.as_str())
-                    .filter(|entry| entry.version() == album.version.as_str())
+                if let Some(found_entry) =
+                    existing_albums.remove(album.id.as_str()).filter(|entry| {
+                        Some(entry.version()) == album.version.as_ref().map(|x| x.as_str())
+                    })
                 {
                     all_albums.push(found_entry.clone());
                 } else {
@@ -264,21 +265,25 @@ impl DataAccess {
                 focal_length_35: e.focal_length35.map(|v| OrderedFloat(v as f32)),
                 iso_speed_ratings: e.iso_speed_ratings.map(|v| OrderedFloat(v as f32)),
             });
-            let entry = AlbumDetails::new(
-                album_data.id.into_boxed_str(),
-                album_data.name.unwrap_or_default().into_boxed_str(),
-                album_data.version.into_boxed_str(),
-                album_data.album_time,
-                album_data.entry_count.map(|i| i as u32).unwrap_or(0),
-                fnch_album_id, /* std::option::Option<Box<str>> */
-                title_entry,
-            );
-            self.storage()
-                .await
-                .store_album(entry.clone())
-                .await
-                .map_err(DataAccessError::StoreAlbum)?;
-            Some(entry)
+            if let Some(version) = album_data.version {
+                let entry = AlbumDetails::new(
+                    album_data.id.into_boxed_str(),
+                    album_data.name.unwrap_or_default().into_boxed_str(),
+                    version.into_boxed_str(),
+                    album_data.album_time,
+                    album_data.entry_count.map(|i| i as u32).unwrap_or(0),
+                    fnch_album_id, /* std::option::Option<Box<str>> */
+                    title_entry,
+                );
+                self.storage()
+                    .await
+                    .store_album(entry.clone())
+                    .await
+                    .map_err(DataAccessError::StoreAlbum)?;
+                Some(entry)
+            } else {
+                None
+            }
         } else {
             None
         };
