@@ -241,7 +241,7 @@ type Label{
 
 type Album {
     id: ID!
-    version: String!
+    version: String
     name: String
     entries: [AlbumEntry!]!
     albumEntry(entryId: ID): AlbumEntry
