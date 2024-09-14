@@ -23,10 +23,12 @@ command = "sh"
 command_arguments = ["-c", "cd node && npm install && npm run build"]
 
 [watch]
-watch = ["src", "index.html", "node/main.js", "node/package.json", "node/src"]
+watch = ["src", "index-yew.html", "node/main.js", "node/package.json", "node/src"]
 
 [build]
-target = "index.html"
+target = "index-yew.html"
 dist = "target/classes/resources"
 filehash = true
 public_url = "/"
+
+

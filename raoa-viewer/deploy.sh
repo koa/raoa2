@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-#namespace=raoa-dev
+namespace=raoa-dev
 #namespace=raoa-prod
 context=berg-main
-namespace=raoa-prod
 #namespace=raoa-lkw
 #context=teamkoenig-lkw
-deployment=raoa-viewer
+#deployment=raoa-viewer
+deployment=raoa-dev-viewer
 
 cd "$(dirname "$0")" || exit
 version=$(date "+%Y%m%d%H%M%S")

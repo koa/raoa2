@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-#namespace=raoa-dev
-namespace=raoa-prod
+namespace=raoa-dev
+#namespace=raoa-prod
 #namespace=raoa-lkw
 #context=teamkoenig-lkw
 context=berg-main
 deployment=$namespace-coordinator
-deployment=raoa-coordinator
+#deployment=raoa-coordinator
 
 
 cd "$(dirname "$0")"

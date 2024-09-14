@@ -32,7 +32,8 @@ public class ViewController {
     "/svps"
   })
   public String index() {
-    return "forward:/index.html";
+    if (viewerProperties.isNewUi()) return "forward:/index-yew.html";
+    else return "forward:/index.html";
   }
 
   @RequestMapping("/config")

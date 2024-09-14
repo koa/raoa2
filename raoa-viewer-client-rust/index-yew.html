@@ -7,15 +7,15 @@
     <link data-trunk rel="copy-dir" href="node/node_modules/@patternfly/patternfly/assets">
     <link data-trunk rel="copy-dir" href="assets/img">
     <link data-trunk rel="copy-file" href="assets/favicon.ico">
-    <link data-trunk rel="copy-file" href="assets/js/sw.js">
-    <link data-trunk rel="copy-file" href="assets/js/manifest.json">
-    <link rel="manifest" href="/manifest.json">
+    <link data-trunk rel="copy-file" href="assets/js/sw-yew.js">
+    <link data-trunk rel="copy-file" href="assets/js/manifest-yew.json">
+    <link rel="manifest" href="/manifest-yew.json">
     <!--<link data-trunk rel="rust" data-keep-debug="true" data-no-demangle="true">-->
     <script src="https://accounts.google.com/gsi/client"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register(
-                '/sw.js'
+                '/sw-yew.js'
             );
         }
 

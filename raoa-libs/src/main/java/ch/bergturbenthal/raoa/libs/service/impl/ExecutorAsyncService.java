@@ -3,7 +3,13 @@ package ch.bergturbenthal.raoa.libs.service.impl;
 import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import java.time.Duration;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -22,7 +28,7 @@ public class ExecutorAsyncService implements AsyncService {
     final CustomizableThreadFactory threadFactory = new CustomizableThreadFactory("async");
     threadFactory.setDaemon(true);
     final LinkedBlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>();
-    final ThreadPoolExecutor executorService =
+    this.executor =
         new ThreadPoolExecutor(
             properties.getAsyncThreadCount(),
             properties.getAsyncThreadCount(),
@@ -30,7 +36,6 @@ public class ExecutorAsyncService implements AsyncService {
             TimeUnit.MILLISECONDS,
             workQueue,
             threadFactory);
-    this.executor = executorService;
   }
 
   @Override

@@ -20,6 +20,7 @@ public class ViewerProperties {
   private ClientProperties clientProperties = new ClientProperties();
   private boolean alwaysShowLatestRepository = false;
   private boolean allowAlsoDebugging = false;
+  private boolean newUi = false;
 
   public ViewerProperties() throws IOException {
 
