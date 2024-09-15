@@ -1,11 +1,9 @@
-use std::rc::Rc;
-use std::time::Duration;
+use std::{rc::Rc, time::Duration};
 
 use log::info;
 use ordered_float::OrderedFloat;
 use rexie::{Index, KeyRange, ObjectStore, Rexie, TransactionMode};
 use serde::{Deserialize, Serialize};
-use serde_wasm_bindgen::Error;
 use thiserror::Error;
 use wasm_bindgen::JsValue;
 

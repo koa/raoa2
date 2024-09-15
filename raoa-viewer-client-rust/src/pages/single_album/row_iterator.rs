@@ -1,5 +1,4 @@
 use crate::data::storage::AlbumEntry;
-use std::slice::Iter;
 
 pub trait RowIteratorTrait<'a, I: Iterator<Item = &'a AlbumEntry>> {
     fn calculate_rows(self, width: f64) -> RowIterator<'a, I>;

@@ -3,11 +3,12 @@ use graphql_client::{reqwest::post_graphql, GraphQLQuery};
 use lazy_static::lazy_static;
 use log::warn;
 use reqwest::header::{InvalidHeaderValue, AUTHORIZATION};
-use std::any::type_name;
-use std::fmt::{Debug, Display, Formatter};
-use std::rc::Rc;
+use std::{
+    any::type_name,
+    fmt::{Debug, Display, Formatter},
+    rc::Rc,
+};
 use thiserror::Error;
-use yew::Component;
 
 use crate::utils::host;
 

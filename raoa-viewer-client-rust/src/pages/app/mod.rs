@@ -1,27 +1,22 @@
 use std::rc::Rc;
 
 use gloo::timers::callback::Timeout;
-use google_signin_client::{
-    initialize, prompt_async, DismissedReason, IdConfiguration, NotDisplayedReason, PromptResult,
-};
+use google_signin_client::{IdConfiguration, PromptResult};
 use log::{info, warn};
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType, BackdropViewer, Page, ToastViewer};
 use web_sys::{Event, HtmlElement};
-use yew::virtual_dom::ListenerKind::{onclick, onscroll};
 use yew::{
-    function_component, html, platform::spawn_local, props, use_state_eq, Callback, Context,
+    function_component, html, platform::spawn_local, use_state_eq, Callback, Context,
     ContextProvider, Html, NodeRef, Properties, TargetCast,
 };
 use yew_nested_router::{prelude::Switch as RouterSwitch, Router};
 
-use crate::data::{DataAccess, DataAccessError};
-use crate::pages::app::routing::AlbumsRoute;
 use crate::{
-    data::{server_api::fetch_settings, session::UserSessionData},
+    data::{server_api::fetch_settings, DataAccess, DataAccessError},
     error::FrontendError,
     model::ClientProperties,
-    pages::app::routing::AppRoute,
 };
+use routing::{AlbumsRoute, AppRoute};
 
 pub mod routing;
 

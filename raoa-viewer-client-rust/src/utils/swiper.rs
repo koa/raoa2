@@ -1,14 +1,12 @@
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 
 use crate::utils::swiper::{
     swiper::{swiper_of_element, JsSwiper},
     swiper_options::JsSwiperOptions,
 };
-use log::info;
 use paste::paste;
 use thiserror::Error;
-use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen::JsValue;
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use web_sys::HtmlElement;
 
 #[derive(Debug)]

@@ -1,7 +1,7 @@
 use crate::data::{DataAccess, DataAccessError};
 use patternfly_yew::prelude::Spinner;
 use std::rc::Rc;
-use yew::{function_component, html, props, use_context, Html, Properties};
+use yew::{function_component, html, use_context, Html, Properties};
 use yew_hooks::{use_async, UseAsyncHandle};
 
 #[derive(Clone, PartialEq, Properties)]

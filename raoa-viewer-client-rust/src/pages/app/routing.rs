@@ -1,13 +1,9 @@
-use crate::components::entry_header::EntryHeader;
-use crate::pages::single_entry::SingleEntry;
 use crate::{
-    components::album_header::AlbumHeader,
-    pages::{album_list::AlbumList, single_album::SingleAlbum},
+    components::{album_header::AlbumHeader, entry_header::EntryHeader},
+    pages::{album_list::AlbumList, single_album::SingleAlbum, single_entry::SingleEntry},
 };
-use log::info;
 use patternfly_yew::prelude::{
-    Breadcrumb, BreadcrumbRouterItem, Nav, Toolbar, ToolbarContent, ToolbarElementModifier,
-    ToolbarItem,
+    Breadcrumb, BreadcrumbRouterItem, Toolbar, ToolbarContent, ToolbarElementModifier, ToolbarItem,
 };
 use yew::{html, Html};
 use yew_nested_router::Target;

@@ -1,18 +1,18 @@
 use std::rc::Rc;
 
-use log::{error, info};
-use patternfly_yew::prelude::CardTitle;
-use patternfly_yew::prelude::{Card, CardBody, Gallery, Level, Progress, Spinner, Title};
+use log::error;
+use patternfly_yew::prelude::{
+    Card, CardBody, CardTitle, Gallery, Level, Progress, Spinner, Title,
+};
 use tokio_stream::StreamExt;
 use yew::{html, html::Scope, platform::spawn_local, Component, Context, Html};
 use yew_nested_router::components::Link;
 
-use crate::components::image::Image;
-use crate::pages::app::routing::{AlbumRoute, AlbumsRoute};
 use crate::{
+    components::image::Image,
     data::{storage::AlbumDetails, DataAccess, DataAccessError, DataFetchMessage},
     error::FrontendError,
-    pages::app::routing::AppRoute,
+    pages::app::routing::{AlbumRoute, AlbumsRoute, AppRoute},
 };
 
 #[derive(Debug, Default)]

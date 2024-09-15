@@ -4,15 +4,13 @@ use reqwest::header::InvalidHeaderValue;
 use thiserror::Error;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::Blob;
-use web_sys::Request;
-use web_sys::RequestInit;
-use web_sys::RequestMode;
-use web_sys::Response;
+use web_sys::{Request, RequestInit, RequestMode, Response};
 
-use crate::error::{FrontendError, JavascriptError};
-use crate::model::ClientProperties;
-use crate::utils::host;
+use crate::{
+    error::{FrontendError, JavascriptError},
+    model::ClientProperties,
+    utils::host,
+};
 
 pub mod graphql;
 lazy_static! {

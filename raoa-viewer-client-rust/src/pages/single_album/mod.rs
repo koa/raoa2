@@ -9,7 +9,7 @@ use crate::{
         single_album::row_iterator::{BlockIteratorTrait, RowIteratorTrait},
     },
 };
-use log::{error, info};
+use log::error;
 use patternfly_yew::prelude::{Progress, Spinner};
 use tokio_stream::StreamExt;
 use web_sys::{window, HtmlElement};
@@ -17,7 +17,6 @@ use yew::{
     function_component, html, html::Scope, platform::spawn_local, use_effect_with, use_node_ref,
     use_state_eq, Component, Context, Html, NodeRef, Properties,
 };
-use yew_nested_router::Router;
 
 type EntryList = Rc<Box<[AlbumEntry]>>;
 

@@ -6,7 +6,7 @@ use google_signin_client::{
     initialize, prompt_async, render_button, ButtonType, DismissedReason, GsiButtonConfiguration,
     IdConfiguration, PromptResult,
 };
-use log::{error, info, warn};
+use log::{error, info};
 use lru::LruCache;
 use ordered_float::OrderedFloat;
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};

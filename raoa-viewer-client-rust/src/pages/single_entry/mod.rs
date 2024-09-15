@@ -9,15 +9,13 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, rc::Rc};
 use tokio_stream::StreamExt;
-use wasm_bindgen::{closure::Closure, JsCast, JsValue};
-use web_sys::{window, Event, History, HtmlElement, KeyboardEvent, Location, Window};
+use wasm_bindgen::{closure::Closure, JsCast};
+use web_sys::{window, Event, History, HtmlElement, KeyboardEvent};
 use yew::{
-    html, html::Scope, platform::spawn_local, virtual_dom::VNode, Callback, Component, Context,
-    Html, NodeRef, Properties,
+    html, html::Scope, platform::spawn_local, virtual_dom::VNode, Component, Context, Html,
+    NodeRef, Properties,
 };
-use yew_nested_router::prelude::{RouterContext, State, Target};
-
-type EntryList = Rc<Box<[AlbumEntry]>>;
+use yew_nested_router::prelude::Target;
 
 pub struct SingleEntry {
     album_id: Box<str>,
