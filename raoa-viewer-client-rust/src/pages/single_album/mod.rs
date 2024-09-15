@@ -53,6 +53,43 @@ pub struct SingleAlbumProps {
 }
 
 mod row_iterator;
+mod sections {
+    use crate::data::storage::AlbumEntry;
+    use crate::pages::single_album::row_iterator::ImageBlock;
+    use chrono::format::{DelayedFormat, Item, Numeric, Pad};
+    use chrono::{Datelike, Local, Locale};
+    use std::str::FromStr;
+    use web_sys::window;
+    use yew::Html;
+
+    pub struct Section {
+        header: Html,
+        blocks: Box<[ImageBlock]>,
+    }
+    fn split_days(entries: Box<[AlbumEntry]>) {
+        let current_day = None;
+        for entry in entries {
+            if let Some(timestamp) = &entry.created {
+                let date = timestamp.as_ref().with_timezone(&Local {});
+                if Some(date.day()) == current_day {
+                    let locale = Locale::from_str(
+                        window().unwrap().navigator().language().unwrap().as_str(),
+                    )
+                    .expect("Cannot parse locale");
+                    let title = format!(
+                        "{}",
+                        DelayedFormat::new_with_locale(
+                            Some(date.date_naive()),
+                            None,
+                            [Item::Numeric(Numeric::Day, Pad::None)].into_iter(),
+                            locale,
+                        )
+                    );
+                }
+            }
+        }
+    }
+}
 
 impl Component for SingleAlbum {
     type Message = SingleAlbumMessage;
@@ -175,15 +212,8 @@ impl Component for SingleAlbum {
             let scope = ctx.link().clone();
             let id = self.id.clone();
             spawn_local(async move {
-                //scope.send_message(SingleAlbumMessage::StartProgress);
-                match fetch_album_content(&scope, &id).await {
-                    /*Err(FrontendError::NotLoggedIn)=>{
-                        scope.send_message(SingleAlbumMessage::)
-                    }*/
-                    Err(e) => {
-                        error!("Cannot get album list: {e}");
-                    }
-                    Ok(..) => {}
+                if let Err(e) = fetch_album_content(&scope, &id).await {
+                    error!("Cannot get album list: {e}");
                 }
                 scope.send_message(SingleAlbumMessage::FinishProgress);
             });
@@ -293,27 +323,11 @@ fn ImageBlock(
                 .cast::<HtmlElement>()
                 .expect("div_ref not attached to div element");
             let rect = div.get_bounding_client_rect();
-            /*info!(
-                "Bottom: {}, Height: {}, Top: {}",
-                rect.bottom(),
-                height,
-                rect.top()
-            );
-            let visible_width = rect.right() - rect.left();
-            let visible_height = rect.bottom() - rect.top();
-            info!("AR: {} {}", 1000.0 / height, visible_width / visible_height);*/
             let visible = rect.bottom() >= -height && rect.top() <= 2.0 * height;
-            //info!("Visible Block: {visible}");
             rendered.set(visible);
         });
     }
-    let entries = if *rendered {
-        //info!("Show {} rows", entries.rows().len());
-        Some(entries)
-    } else {
-        //info!("Hide {} rows", entries.rows().len());
-        None
-    };
+    let entries = if *rendered { Some(entries) } else { None };
 
     html!(<div class="image-block" {style} ref={div_ref}>
            <ol class="image-rows">{

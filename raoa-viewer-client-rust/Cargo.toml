@@ -32,7 +32,7 @@ tokio = { version = "1.33.0", features = ["sync"] }
 tokio-stream = { version = "0.1.14", features = ["sync"] }
 wasm-timer = "0.2.5"
 rexie = "0.5.0"
-chrono = "0.4.31"
+chrono = { version = "0.4.38", features = ["unstable-locales"] }
 ordered-float = { version = "4.2.0", features = ["serde"] }
 wasm-bindgen-futures = "0.4.42"
 itertools = "0.13.0"
