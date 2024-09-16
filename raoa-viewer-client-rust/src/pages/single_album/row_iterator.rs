@@ -68,7 +68,7 @@ impl ImageRow {
 }
 
 pub trait BlockIteratorTrait<I: Iterator<Item = ImageRow>> {
-    fn calculate_blocks(self, width: f64) -> BlockIterator<I>;
+    fn calculate_blocks(self, height: f64) -> BlockIterator<I>;
 }
 
 impl<I: Iterator<Item = ImageRow>> BlockIteratorTrait<I> for I {

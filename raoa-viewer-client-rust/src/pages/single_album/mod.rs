@@ -1,5 +1,3 @@
-use std::{cmp::Ordering, rc::Rc};
-
 use crate::{
     components::image::Image,
     data::{storage::AlbumEntry, DataAccess, DataAccessError, DataFetchMessage},
@@ -9,8 +7,10 @@ use crate::{
         single_album::row_iterator::{BlockIteratorTrait, RowIteratorTrait},
     },
 };
+use chrono::Local;
 use log::error;
 use patternfly_yew::prelude::{Progress, Spinner};
+use std::{cmp::Ordering, rc::Rc};
 use tokio_stream::StreamExt;
 use web_sys::{window, HtmlElement};
 use yew::{
@@ -52,41 +52,83 @@ pub struct SingleAlbumProps {
     pub scroll_top: i32,
 }
 
+mod util;
+
 mod row_iterator;
 mod sections {
     use crate::data::storage::AlbumEntry;
     use crate::pages::single_album::row_iterator::ImageBlock;
-    use chrono::format::{DelayedFormat, Item, Numeric, Pad};
-    use chrono::{Datelike, Local, Locale};
-    use std::str::FromStr;
-    use web_sys::window;
+    use crate::pages::single_album::util::{IteratorSegment, SameSplitCondition};
+    use chrono::Local;
+    use chrono::{DateTime, Datelike};
+    use std::marker::PhantomData;
     use yew::Html;
 
     pub struct Section {
         header: Html,
         blocks: Box<[ImageBlock]>,
     }
-    fn split_days(entries: Box<[AlbumEntry]>) {
-        let current_day = None;
-        for entry in entries {
-            if let Some(timestamp) = &entry.created {
-                let date = timestamp.as_ref().with_timezone(&Local {});
-                if Some(date.day()) == current_day {
-                    let locale = Locale::from_str(
-                        window().unwrap().navigator().language().unwrap().as_str(),
-                    )
-                    .expect("Cannot parse locale");
-                    let title = format!(
-                        "{}",
-                        DelayedFormat::new_with_locale(
-                            Some(date.date_naive()),
-                            None,
-                            [Item::Numeric(Numeric::Day, Pad::None)].into_iter(),
-                            locale,
-                        )
-                    );
-                }
+
+    struct SectionIterator<
+        E: Clone,
+        I: Iterator<Item = E>,
+        S: Fn(&E) -> D,
+        D: PartialEq + Clone,
+        C: for<'a> FnMut(
+            IteratorSegment<'a, E, I, SameSplitCondition<'a, D, S, E>, &'_ mut Option<E>>,
+        ) -> R,
+        R,
+    > {
+        iterator: I,
+        splitter: S,
+        collector: C,
+        last_entry: Option<E>,
+        discriminant_phantom: PhantomData<D>,
+    }
+    impl<
+            E: Clone,
+            I: Iterator<Item = E>,
+            S: Fn(&E) -> D,
+            D: PartialEq + Clone,
+            C: for<'a> FnMut(
+                IteratorSegment<'a, E, I, SameSplitCondition<'a, D, S, E>, &'_ mut Option<E>>,
+            ) -> R,
+            R,
+        > Iterator for SectionIterator<E, I, S, D, C, R>
+    {
+        type Item = R;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let mut last_entry = self.last_entry.take();
+            if last_entry.is_none() {
+                last_entry = self.iterator.next();
             }
+            let last_entry = last_entry.take()?;
+            let splitter = &self.splitter;
+
+            let condition = SameSplitCondition::new(&last_entry, splitter);
+            Some((self.collector)(IteratorSegment::new(
+                Some(last_entry),
+                &mut self.iterator,
+                condition,
+                Some(&mut self.last_entry),
+            )))
+        }
+    }
+    fn split_days(
+        entries: impl IntoIterator<Item = AlbumEntry>,
+    ) -> impl Iterator<Item = Box<[AlbumEntry]>> {
+        SectionIterator {
+            iterator: entries.into_iter(),
+            splitter: |album| {
+                album.created.as_ref().map(|date| {
+                    let dt: DateTime<Local> = (*date.as_ref()).into();
+                    (dt.year(), dt.month(), dt.day())
+                })
+            },
+            collector: |i| i.collect::<Box<[_]>>(),
+            last_entry: None,
+            discriminant_phantom: Default::default(),
         }
     }
 }
