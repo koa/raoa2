@@ -7,6 +7,8 @@ use crate::{
         single_album::row_iterator::{BlockIteratorTrait, RowIteratorTrait},
     },
 };
+use chrono::{DateTime, Datelike, Local, Locale, NaiveDate};
+use itertools::Itertools;
 use log::error;
 use patternfly_yew::prelude::{Progress, Spinner};
 use std::{cmp::Ordering, rc::Rc};
@@ -53,35 +55,14 @@ pub struct SingleAlbumProps {
 
 mod row_iterator;
 mod sections {
-    use crate::data::storage::AlbumEntry;
-    use crate::pages::single_album::row_iterator::{ImageBlock, RowIteratorTrait};
-    use crate::utils::iterator::SectionIterator;
-    use chrono::Local;
-    use chrono::{DateTime, Datelike};
+    use crate::pages::single_album::row_iterator::ImageBlock;
     use yew::Html;
 
     pub struct Section {
         header: Html,
         blocks: Box<[ImageBlock]>,
     }
-
-    fn split_days(entries: impl IntoIterator<Item = AlbumEntry>) {
-        SectionIterator::new(
-            entries.into_iter(),
-            |album| {
-                album.created.as_ref().map(|date| {
-                    let dt: DateTime<Local> = (*date.as_ref()).into();
-                    (dt.year(), dt.month(), dt.day())
-                })
-            },
-            |i| {
-                i.calculate_rows(6.0);
-                //i.collect::<Box<[_]>>()
-            },
-        );
-    }
 }
-
 impl Component for SingleAlbum {
     type Message = SingleAlbumMessage;
     type Properties = SingleAlbumProps;
@@ -161,15 +142,30 @@ impl Component for SingleAlbum {
                 {indicator}
                 <ol class="image-blocks">
                 {
-                    for self.entries.iter().cloned().calculate_rows(6.0).calculate_blocks(40.0).map(|row| {
+                    for self.entries.iter().cloned().chunk_by( |album| {
+                        album.created.as_ref().map(|date| {
+                            let dt: DateTime<Local> = (*date.as_ref()).into();
+                            (dt.year(), dt.month(), dt.day())
+                        })
+                    })
+                    .into_iter().flat_map(|(key, entries)|
+                    {
+                        key
+                        .and_then(|(year,month,day)|NaiveDate::from_ymd_opt(year, month, day))
+                        .map(|date|{
+                            html!{
+                                                <li>{date.format_localized("%A, %-d %B, %C%y",Locale::de_CH).to_string()}</li>
+                                            }
+                         }).into_iter().chain(
+                        entries.calculate_rows(6.0).calculate_blocks(40.0).map(|row| {
                         let entries=row;
                         html!{
                             <li>
                                 <ImageBlock {entries} {scroll_top}/>
                             </li>
                         }
-
-                })
+                    }))
+                 })
                 }
                 </ol>
             </div>
