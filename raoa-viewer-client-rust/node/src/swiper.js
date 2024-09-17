@@ -7,6 +7,7 @@ register();
 export {Swiper, register}
 
 export function swiper_of_element(element) {
+    element.swiper.keyboard.enable();
     return element.swiper;
 }
 
