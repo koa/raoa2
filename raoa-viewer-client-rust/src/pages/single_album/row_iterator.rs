@@ -1,11 +1,33 @@
 use crate::data::storage::AlbumEntry;
 
-pub trait RowIteratorTrait<'a, I: Iterator<Item = &'a AlbumEntry>> {
-    fn calculate_rows(self, width: f64) -> RowIterator<'a, I>;
+pub trait RowIteratorTrait<I: Iterator<Item = AlbumEntry>> {
+    fn calculate_rows(self, width: f64) -> RowIterator<I>;
+    /*fn calculate_collected_rows<
+        IR: Iterator<Item = AlbumEntry>,
+        R,
+        F: for<'a> FnMut(
+            IteratorSegment<
+                'a,
+                AlbumEntry,
+                I,
+                SameSplitCondition<
+                    'a,
+                    Option<(u32, u32, u32)>,
+                    impl Fn(AlbumEntry) -> Option<(u32, u32, u32)>,
+                    AlbumEntry,
+                >,
+                &'_ mut Option<AlbumEntry>,
+            >,
+        ) -> R,
+    >(
+        self,
+        width: f64,
+        collector: F,
+    ) -> R;*/
 }
 
-impl<'a, I: Iterator<Item = &'a AlbumEntry>> RowIteratorTrait<'a, I> for I {
-    fn calculate_rows(self, width: f64) -> RowIterator<'a, I> {
+impl<I: Iterator<Item = AlbumEntry>> RowIteratorTrait<I> for I {
+    fn calculate_rows(self, width: f64) -> RowIterator<I> {
         RowIterator {
             iterator: self,
             remainder: None,
@@ -14,13 +36,13 @@ impl<'a, I: Iterator<Item = &'a AlbumEntry>> RowIteratorTrait<'a, I> for I {
     }
 }
 
-pub struct RowIterator<'a, I: Iterator<Item = &'a AlbumEntry>> {
+pub struct RowIterator<I: Iterator<Item = AlbumEntry>> {
     iterator: I,
-    remainder: Option<&'a AlbumEntry>,
+    remainder: Option<AlbumEntry>,
     width: f64,
 }
 
-impl<'a, I: Iterator<Item = &'a AlbumEntry>> Iterator for RowIterator<'a, I> {
+impl<I: Iterator<Item = AlbumEntry>> Iterator for RowIterator<I> {
     type Item = ImageRow;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -28,7 +50,7 @@ impl<'a, I: Iterator<Item = &'a AlbumEntry>> Iterator for RowIterator<'a, I> {
         let mut current_width = 0.0;
         if let Some(entry) = self.remainder.take() {
             current_width += entry.target_width as f64 / entry.target_height as f64;
-            row.push(entry.clone());
+            row.push(entry);
         }
         for entry in self.iterator.by_ref() {
             current_width += entry.target_width as f64 / entry.target_height as f64;
@@ -36,7 +58,7 @@ impl<'a, I: Iterator<Item = &'a AlbumEntry>> Iterator for RowIterator<'a, I> {
                 self.remainder = Some(entry);
                 break;
             }
-            row.push(entry.clone());
+            row.push(entry);
         }
         if row.is_empty() {
             None

@@ -7,7 +7,6 @@ use crate::{
         single_album::row_iterator::{BlockIteratorTrait, RowIteratorTrait},
     },
 };
-use chrono::Local;
 use log::error;
 use patternfly_yew::prelude::{Progress, Spinner};
 use std::{cmp::Ordering, rc::Rc};
@@ -52,16 +51,13 @@ pub struct SingleAlbumProps {
     pub scroll_top: i32,
 }
 
-mod util;
-
 mod row_iterator;
 mod sections {
     use crate::data::storage::AlbumEntry;
-    use crate::pages::single_album::row_iterator::ImageBlock;
-    use crate::pages::single_album::util::{IteratorSegment, SameSplitCondition};
+    use crate::pages::single_album::row_iterator::{ImageBlock, RowIteratorTrait};
+    use crate::utils::iterator::SectionIterator;
     use chrono::Local;
     use chrono::{DateTime, Datelike};
-    use std::marker::PhantomData;
     use yew::Html;
 
     pub struct Section {
@@ -69,67 +65,20 @@ mod sections {
         blocks: Box<[ImageBlock]>,
     }
 
-    struct SectionIterator<
-        E: Clone,
-        I: Iterator<Item = E>,
-        S: Fn(&E) -> D,
-        D: PartialEq + Clone,
-        C: for<'a> FnMut(
-            IteratorSegment<'a, E, I, SameSplitCondition<'a, D, S, E>, &'_ mut Option<E>>,
-        ) -> R,
-        R,
-    > {
-        iterator: I,
-        splitter: S,
-        collector: C,
-        last_entry: Option<E>,
-        discriminant_phantom: PhantomData<D>,
-    }
-    impl<
-            E: Clone,
-            I: Iterator<Item = E>,
-            S: Fn(&E) -> D,
-            D: PartialEq + Clone,
-            C: for<'a> FnMut(
-                IteratorSegment<'a, E, I, SameSplitCondition<'a, D, S, E>, &'_ mut Option<E>>,
-            ) -> R,
-            R,
-        > Iterator for SectionIterator<E, I, S, D, C, R>
-    {
-        type Item = R;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            let mut last_entry = self.last_entry.take();
-            if last_entry.is_none() {
-                last_entry = self.iterator.next();
-            }
-            let last_entry = last_entry.take()?;
-            let splitter = &self.splitter;
-
-            let condition = SameSplitCondition::new(&last_entry, splitter);
-            Some((self.collector)(IteratorSegment::new(
-                Some(last_entry),
-                &mut self.iterator,
-                condition,
-                Some(&mut self.last_entry),
-            )))
-        }
-    }
-    fn split_days(
-        entries: impl IntoIterator<Item = AlbumEntry>,
-    ) -> impl Iterator<Item = Box<[AlbumEntry]>> {
-        SectionIterator {
-            iterator: entries.into_iter(),
-            splitter: |album| {
+    fn split_days(entries: impl IntoIterator<Item = AlbumEntry>) {
+        SectionIterator::new(
+            entries.into_iter(),
+            |album| {
                 album.created.as_ref().map(|date| {
                     let dt: DateTime<Local> = (*date.as_ref()).into();
                     (dt.year(), dt.month(), dt.day())
                 })
             },
-            collector: |i| i.collect::<Box<[_]>>(),
-            last_entry: None,
-            discriminant_phantom: Default::default(),
-        }
+            |i| {
+                i.calculate_rows(6.0);
+                //i.collect::<Box<[_]>>()
+            },
+        );
     }
 }
 
@@ -212,7 +161,7 @@ impl Component for SingleAlbum {
                 {indicator}
                 <ol class="image-blocks">
                 {
-                    for self.entries.iter().calculate_rows(6.0).calculate_blocks(40.0).map(|row| {
+                    for self.entries.iter().cloned().calculate_rows(6.0).calculate_blocks(40.0).map(|row| {
                         let entries=row;
                         html!{
                             <li>
