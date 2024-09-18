@@ -43,11 +43,11 @@ enum ProcessingState {
 pub enum SingleEntryMessage {
     #[default]
     Noop,
-    SlideNext,
     OnTransitionEnd(Event),
     UpdateDataFetch(DataFetchMessage<Box<[AlbumEntry]>>),
     ActivateEntry(Box<str>),
     SlidePrev,
+    SlideNext,
 }
 #[derive(Properties, PartialEq, Serialize, Deserialize, Debug)]
 pub struct SingleEntryProps {
@@ -103,7 +103,7 @@ impl Component for SingleEntry {
                     } else {
                         None
                     }
-                    .map(|e| &e.entry_id)
+                        .map(|e| &e.entry_id)
                     {
                         //let album_id = self.album_id.to_string();
                         let entry_id = replace_id.to_string();
@@ -219,22 +219,9 @@ impl Component for SingleEntry {
         let image_slider_ref = self.image_slider_ref.clone();
         let video_root_ref = self.video_root_ref.clone();
         let onclick = ctx.link().callback(|_| SingleEntryMessage::SlideNext);
-        let onkeyup = ctx.link().callback(|event: KeyboardEvent| {
-            let code = event.code();
-            let code = code.as_str();
-
-            match (code, event.shift_key(), event.alt_key(), event.ctrl_key()) {
-                ("ArrowRight", false, false, false) => SingleEntryMessage::SlideNext,
-                ("ArrowLeft", false, false, false) => SingleEntryMessage::SlidePrev,
-                (code, shift, alt, ctrl) => {
-                    info!("Code: {code} {shift} {alt} {ctrl}");
-                    SingleEntryMessage::Noop
-                }
-            }
-        });
         //let image = render_entry(&self.entry);
         html! {
-            <div class="image" ref={video_root_ref} {onkeyup}>
+            <div class="image" ref={video_root_ref}>
                 <swiper-container ref={image_slider_ref} init="true" css-mode="true">
                     <swiper-slide>{render_entry(&self.prev_entry)}</swiper-slide>
                     <swiper-slide>
@@ -245,7 +232,11 @@ impl Component for SingleEntry {
                     <swiper-slide>{render_entry(&self.next_entry)}</swiper-slide>
                 </swiper-container>
                 <div class="overlay">
-                    <button {onclick}>{"Next"}</button>
+                    <div class="right">
+                        <div>
+                            <button {onclick}>{">"}</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         }
@@ -265,7 +256,7 @@ impl Component for SingleEntry {
                     "swiperslidechangetransitionend",
                     listener.as_ref().unchecked_ref(),
                 )
-                .unwrap();
+                    .unwrap();
 
                 self.transition_end_listener = Some(listener);
                 let swiper = Swiper::new(node);

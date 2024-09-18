@@ -1,98 +1,114 @@
 div.pf-c-page {
-    grid-template-columns: max-content 1fr;
-    grid-template-areas:
+  grid-template-columns: max-content 1fr;
+  grid-template-areas:
         "header header"
         "nav main";
 }
 
 ol.image-rows {
-    display: flex;
-    list-style: none;
-    flex-direction: column;
-    width: 100%;
+  display: flex;
+  list-style: none;
+  flex-direction: column;
+  width: 100%;
 }
 
 div.image-row {
-    display: flex;
+  display: flex;
 }
 
 div.image-row > div.image-entry {
-    align-content: center;
-    vertical-align: middle;
+  align-content: center;
+  vertical-align: middle;
 }
 
 dl {
-    display: grid;
-    grid-template-columns: auto;
-    justify-content: start;
-    color: #585858;
+  display: grid;
+  grid-template-columns: auto;
+  justify-content: start;
+  color: #585858;
 }
 
 dt {
-    grid-column: 1;
+  grid-column: 1;
 }
 
 dd {
-    grid-column: 2;
-    margin-inline-start: 1em;
-    color: black;
+  grid-column: 2;
+  margin-inline-start: 1em;
+  color: black;
 }
 
 li.pf-v5-c-nav__item {
-    list-style-type: none;
+  list-style-type: none;
 }
 
 swiper-container {
-    height: 100%;
-    width: 100%;
+  height: 100%;
+  width: 100%;
 
-    div {
-        width: 100%;
-        height: 100%;
-    }
+  div {
+    width: 100%;
+    height: 100%;
+  }
 }
 
 swiper-slide {
-    height: 100%;
-    width: 100%;
+  height: 100%;
+  width: 100%;
 }
 
 .image {
-    height: 100%;
-    width: 100%;
-    background-color: black;
-    color: white;
+  height: 100%;
+  width: 100%;
+  background-color: black;
+  color: white;
 }
 
 .image img {
-    height: 100%;
-    width: 100%;
-    display: block;
-    object-fit: contain;
+  height: 100%;
+  width: 100%;
+  display: block;
+  object-fit: contain;
 }
 
 .image video {
-    height: 100%;
-    width: 100%;
-    display: block;
-    object-fit: contain;
+  height: 100%;
+  width: 100%;
+  display: block;
+  object-fit: contain;
 }
 
 div.overlay {
-    position: absolute;
-    display: grid;
-    right: 0;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    color: white;
+  position: absolute;
+  display: grid;
+  right: 0;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  color: white;
 }
 
-div.overlay > button {
-    grid-column: 2;
-    grid-row: 2;
-    align-self: flex-start;
-    z-index: 1;
+div.overlay > .right {
+  grid-column: 3;
+  grid-row: 2;
+  vertical-align: middle;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  flex-grow: unset;
+  align-items: center;
+
+  & div {
+    align-items: flex-end;
+
+    & button {
+      font-size: 4ex;
+      vertical-align: middle;
+      background: transparent;
+      border: none;
+      backdrop-filter: brightness(1.5)
+    }
+  }
 }

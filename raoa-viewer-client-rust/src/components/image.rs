@@ -48,7 +48,7 @@ impl Component for Image {
         }
     }
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         //info!("msg: {msg:?}");
         match msg {
             ImageMessage::SetLength(l) => {
@@ -91,7 +91,6 @@ impl Component for Image {
 
         modified
     }
-
     fn view(&self, ctx: &Context<Self>) -> Html {
         let style = format!(
             "aspect-ratio: {}/{};",
