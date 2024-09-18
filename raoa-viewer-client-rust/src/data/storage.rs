@@ -1,13 +1,12 @@
 use std::{rc::Rc, time::Duration};
 
+use crate::data::server_api::graphql::model::DateTime;
 use log::info;
 use ordered_float::OrderedFloat;
-use rexie::{Index, KeyRange, ObjectStore, Rexie, TransactionMode};
+use rexie::{Error, Index, KeyRange, ObjectStore, Rexie, TransactionMode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use wasm_bindgen::JsValue;
-
-use crate::data::server_api::graphql::model::DateTime;
 
 const INDEX_DB_NAME: &str = "photos";
 const ALBUM_LIST: &str = "albums";
@@ -22,7 +21,7 @@ pub struct StorageAccess {
 #[derive(Debug, Error, Clone)]
 pub enum StorageError {
     #[error("Error from index db: {0}")]
-    IndexDb(#[from] rexie::Error),
+    IndexDb(Rc<rexie::Error>),
     #[error("Error serializing to JSValue: {0}")]
     SerdeWasmBindgen(Rc<serde_wasm_bindgen::Error>),
 }
@@ -30,6 +29,11 @@ pub enum StorageError {
 impl From<serde_wasm_bindgen::Error> for StorageError {
     fn from(value: serde_wasm_bindgen::Error) -> Self {
         StorageError::SerdeWasmBindgen(Rc::new(value))
+    }
+}
+impl From<rexie::Error> for StorageError {
+    fn from(value: Error) -> Self {
+        StorageError::IndexDb(Rc::new(value))
     }
 }
 
@@ -53,10 +57,9 @@ impl StorageAccess {
             .transaction(&[ALBUM_LIST], TransactionMode::ReadOnly)?;
         let album_list_index = tx.store(ALBUM_LIST)?;
         let albums = album_list_index
-            .get_all(None, None, None, None)
+            .get_all(None, None)
             .await?
             .into_iter()
-            .map(|(_, v)| v)
             .map(serde_wasm_bindgen::from_value::<AlbumDetails>)
             .collect::<Result<_, _>>()?;
         Ok(albums)
@@ -75,13 +78,13 @@ impl StorageAccess {
             .db
             .transaction(&[ALBUM_LIST, ALBUM_ENTRIES], TransactionMode::ReadWrite)?;
         let entries_store = tx.store(ALBUM_ENTRIES)?;
-        let key_value = &JsValue::from_str(id);
-        let key = KeyRange::only(key_value)?;
+        let key_value = JsValue::from_str(id);
+        let key = KeyRange::only(&key_value).map_err(|e| rexie::Error::IdbError(e))?;
         let mut offset = 0;
         loop {
             let entries = entries_store
                 .index(ALBUM_ENTRIES_IDX_ALBUM)?
-                .get_all(Some(&key), Some(1000), Some(offset), None)
+                .scan(Some(key.clone()), Some(1000), Some(offset), None)
                 .await?;
             if entries.is_empty() {
                 break;
@@ -89,7 +92,7 @@ impl StorageAccess {
             info!("Remove {} entries", { entries.len() });
             offset += entries.len() as u32;
             for (key, _) in entries {
-                entries_store.delete(&key).await?;
+                entries_store.delete(key).await?;
             }
         }
         let store = tx.store(ALBUM_LIST)?;
@@ -97,15 +100,21 @@ impl StorageAccess {
 
         Ok(())
     }
+
+
     pub async fn get_album_by_id(&self, id: &str) -> Result<Option<AlbumDetails>, StorageError> {
         let tx = self
             .db
             .transaction(&[ALBUM_LIST], TransactionMode::ReadWrite)?;
         let store = tx.store(ALBUM_LIST)?;
 
-        let entry_value = store.get(&JsValue::from_str(id)).await?;
-        if entry_value.is_object() {
-            Ok(Some(serde_wasm_bindgen::from_value(entry_value)?))
+        let entry_value = store.get(JsValue::from_str(id)).await?;
+        if let Some(entry_value) = entry_value {
+            if entry_value.is_object() {
+                Ok(Some(serde_wasm_bindgen::from_value(entry_value)?))
+            } else {
+                Ok(None)
+            }
         } else {
             Ok(None)
         }
@@ -118,9 +127,13 @@ impl StorageAccess {
             .db
             .transaction(&[ALBUM_ENTRIES], TransactionMode::ReadWrite)?;
         let store = tx.store(ALBUM_ENTRIES)?;
-        let entry_value = store.get(&JsValue::from_str(entry_id)).await?;
-        if entry_value.is_object() {
-            Ok(Some(serde_wasm_bindgen::from_value(entry_value)?))
+        let entry_value = store.get(JsValue::from_str(entry_id)).await?;
+        if let Some(entry_value) = entry_value {
+            if entry_value.is_object() {
+                Ok(Some(serde_wasm_bindgen::from_value(entry_value)?))
+            } else {
+                Ok(None)
+            }
         } else {
             Ok(None)
         }
@@ -134,20 +147,20 @@ impl StorageAccess {
             .transaction(&[ALBUM_ENTRIES], TransactionMode::ReadOnly)?;
         let store = tx.store(ALBUM_ENTRIES)?;
         let index = store.index(ALBUM_ENTRIES_IDX_ALBUM)?;
-        let key_value = &JsValue::from_str(album_id);
-        let range = KeyRange::only(key_value)?;
-        let key = Some(&range);
+        let key_value = JsValue::from_str(album_id);
+        let range = KeyRange::only(&key_value).map_err(|e| rexie::Error::IdbError(e))?;
+        let key = Some(range);
 
-        let total_amount = index.count(key).await?;
+        let total_amount = index.count(key.clone()).await?;
         let mut ret = Vec::with_capacity(total_amount as usize);
-        for (_, entry) in index.get_all(key, None, None, None).await? {
+        for entry in index.get_all(key, None).await? {
             ret.push(serde_wasm_bindgen::from_value(entry)?);
         }
         Ok(ret.into_boxed_slice())
     }
     pub async fn store_album_entries(
         &self,
-        entries: impl IntoIterator<Item = AlbumEntry>,
+        entries: impl IntoIterator<Item=AlbumEntry>,
     ) -> Result<(), StorageError> {
         let tx = self
             .db
@@ -161,14 +174,14 @@ impl StorageAccess {
     }
     pub async fn remove_album_entries(
         &self,
-        entries: impl IntoIterator<Item = &AlbumEntry>,
+        entries: impl IntoIterator<Item=&AlbumEntry>,
     ) -> Result<(), StorageError> {
         let tx = self
             .db
             .transaction(&[ALBUM_ENTRIES], TransactionMode::ReadWrite)?;
         let store = tx.store(ALBUM_ENTRIES)?;
         for entry in entries {
-            store.delete(&JsValue::from_str(&entry.entry_id)).await?;
+            store.delete(JsValue::from_str(&entry.entry_id)).await?;
         }
         Ok(())
     }

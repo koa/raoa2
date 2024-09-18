@@ -4,49 +4,49 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-lazy_static = "1.4.0"
+lazy_static = "1.5.0"
 yew = { version = "0.21.0", features = ["csr"] }
 yew-nested-router = "0.7.0"
-patternfly-yew = { version = "0.6.1", git = "https://github.com/koa/patternfly-yew.git" }
+patternfly-yew = { version = "0.6.3" }
 yew-hooks = "0.3.2"
 graphql_client = { version = "0.14.0", features = ["reqwest-rustls"] }
 jwt = "0.16.0"
 google-signin-client = { version = "0.2.0-SNAPSHOT", git = "https://git.panter.ch/open-source/google-signin-client.git" }
 gloo = { version = "0.11.0", features = ["file", "storage"] }
-log = "0.4.20"
+log = "0.4.22"
 wasm-logger = "0.2.0"
-reqwest = { version = "0.11.13", features = ["rustls-tls", "json"] }
-thiserror = "1.0.56"
-wasm-bindgen = "0.2.87"
-web-sys = { version = "0.3.69", features = ["Blob", 'Headers',
+reqwest = { version = "0.11.23", features = ["rustls-tls", "json"] }
+thiserror = "1.0.63"
+wasm-bindgen = "0.2.93"
+web-sys = { version = "0.3.70", features = ["Blob", 'Headers',
     'Request',
     'RequestInit',
     'RequestMode',
     'Response',
     'Window', "CacheStorage", "Cache", "ResizeObserver", "ResizeObserverEntry", "History", "Location"] }
-js-sys = "0.3.69"
-serde = { version = "1.0.130", features = ["derive"] }
-serde_json = "1.0.68"
-serde-wasm-bindgen = "0.6.3"
-tokio = { version = "1.33.0", features = ["sync"] }
-tokio-stream = { version = "0.1.14", features = ["sync"] }
+js-sys = "0.3.70"
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+serde-wasm-bindgen = "0.6.5"
+tokio = { version = "1.40.0", features = ["sync"] }
+tokio-stream = { version = "0.1.16", features = ["sync"] }
 wasm-timer = "0.2.5"
-rexie = "0.5.0"
+rexie = "0.6.2"
 chrono = { version = "0.4.38", features = ["unstable-locales"] }
-ordered-float = { version = "4.2.0", features = ["serde"] }
-wasm-bindgen-futures = "0.4.42"
+ordered-float = { version = "4.2.2", features = ["serde"] }
+wasm-bindgen-futures = "0.4.43"
 itertools = "0.13.0"
 gloo-events = "0.2.0"
 self_cell = "1.0.4"
-lru = "0.12.3"
+lru = "0.12.4"
 paste = "1.0.15"
 
 
 [build-dependencies]
-anyhow = "1.0.75"
-syn = "2.0.72"
+anyhow = "1.0.89"
+syn = "2.0.77"
 proc-macro2 = "1.0.86"
-prettyplease = "0.2.20"
+prettyplease = "0.2.22"
 convert_case = "0.6.0"
 
 [profile.release]
