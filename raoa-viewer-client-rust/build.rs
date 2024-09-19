@@ -140,11 +140,31 @@ fn build_swiper_wasm() {
     for (name, ty) in [
         ("init", parse_quote!(Option<bool>)),
         ("enabled", parse_quote!(Option<bool>)),
+        ("keyboard", parse_quote!(Option<JsSwiperKeyboardOptions>)),
     ] {
         append_field(
             &mut swiper_options.items,
             parse_quote!(JsSwiperOptions),
-            &name,
+            name,
+            ty,
+        );
+    }
+    let mut swiper_options_keyboard: ItemForeignMod = parse_quote!(
+        #[wasm_bindgen(module = "/target/classes/resources/debug/swiper.js")]
+        extern "C" {
+            #[wasm_bindgen(js_name = "KeyboardOptions")]
+            pub type JsSwiperKeyboardOptions;
+        }
+    );
+    for (name, ty) in [
+        ("enabled", parse_quote!(Option<bool>)),
+        ("only_in_viewport", parse_quote!(Option<bool>)),
+        ("page_up_down", parse_quote!((Option<bool>))),
+    ] {
+        append_field(
+            &mut swiper_options_keyboard.items,
+            parse_quote!(JsSwiperKeyboardOptions),
+            name,
             ty,
         );
     }
@@ -155,9 +175,21 @@ fn build_swiper_wasm() {
             parse_quote!(
                 use crate::utils::swiper::swiper::JsSwiper;
             ),
+            parse_quote!(
+                use crate::utils::swiper::swiper_options_keyboard::JsSwiperKeyboardOptions;
+            ),
             Item::ForeignMod(swiper_options),
         ],
         parse_quote!(swiper_options),
+    );
+    let swiper_options_keyboard_mod = create_module(
+        vec![
+            parse_quote!(
+                use crate::utils::swiper::swiper::JsSwiper;
+            ),
+            Item::ForeignMod(swiper_options_keyboard),
+        ],
+        parse_quote!(swiper_options_keyboard),
     );
     let swiper_mod = create_module(
         vec![
@@ -196,7 +228,7 @@ fn build_swiper_wasm() {
     let file = syn::File {
         shebang: None,
         attrs: vec![],
-        items: vec![swiper_mod, swiper_options_mod],
+        items: vec![swiper_mod, swiper_options_mod, swiper_options_keyboard_mod],
     };
     fs::write(dest_path, unparse(&file)).expect("Cannot write source file");
 }

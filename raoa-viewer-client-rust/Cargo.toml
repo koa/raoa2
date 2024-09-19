@@ -51,3 +51,6 @@ convert_case = "0.6.0"
 
 [profile.release]
 debug = true
+
+[patch.crates-io]
+yew-nested-router = { git = "https://github.com/koa/yew-nested-router.git" }

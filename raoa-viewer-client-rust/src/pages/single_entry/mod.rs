@@ -10,12 +10,9 @@ use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, rc::Rc};
 use tokio_stream::StreamExt;
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{window, Event, History, HtmlElement, KeyboardEvent};
-use yew::{
-    html, html::Scope, platform::spawn_local, virtual_dom::VNode, Component, Context, Html,
-    NodeRef, Properties,
-};
-use yew_nested_router::prelude::Target;
+use web_sys::{window, Event, History, HtmlElement};
+use yew::{html, html::Scope, platform::spawn_local, virtual_dom::VNode, Callback, Component, Context, Html, NodeRef, Properties};
+use yew_nested_router::prelude::RouterContext;
 
 pub struct SingleEntry {
     album_id: Box<str>,
@@ -29,7 +26,7 @@ pub struct SingleEntry {
     prev_entry: Option<AlbumEntry>,
     entry: Option<AlbumEntry>,
     next_entry: Option<AlbumEntry>,
-    history: Option<History>,
+    router_context: Option<RouterContext<AppRoute>>,
 }
 #[derive(Debug, Default)]
 enum ProcessingState {
@@ -61,7 +58,7 @@ impl Component for SingleEntry {
 
     fn create(ctx: &Context<Self>) -> Self {
         let props = ctx.props();
-        let history = access_history();
+        let router_context = ctx.link().context::<RouterContext<AppRoute>>(Callback::from(|_| {})).map(|(c, _)| c);
         Self {
             album_id: props.album_id.clone().into_boxed_str(),
             entry_id: props.entry_id.clone().into_boxed_str(),
@@ -74,12 +71,11 @@ impl Component for SingleEntry {
             prev_entry: None,
             entry: None,
             next_entry: None,
-            history,
+            router_context,
         }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        //info!("MSG: {msg:?}");
         match msg {
             SingleEntryMessage::SlideNext => {
                 if let Some(swiper) = &self.swiper {
@@ -179,34 +175,8 @@ impl Component for SingleEntry {
                             },
                         },
                     };
-                    if let Some(history) = self.history.as_ref() {
-                        let new_path: String = target
-                            .render_path()
-                            .iter()
-                            .flat_map(|seg| ["/", seg])
-                            .collect();
-                        match serde_wasm_bindgen::to_value(&SingleEntryProps {
-                            album_id: self.album_id.to_string(),
-                            entry_id: self.entry_id.to_string(),
-                        }) {
-                            Ok(new_state) => {
-                                let title = self
-                                    .entry
-                                    .as_ref()
-                                    .map(|e| e.name.as_ref())
-                                    .unwrap_or_default();
-                                history
-                                    .replace_state_with_url(
-                                        &new_state,
-                                        title,
-                                        Some(new_path.as_str()),
-                                    )
-                                    .expect("Cannot update history entry");
-                            }
-                            Err(e) => {
-                                error!("Cannot serialize properties: {e}")
-                            }
-                        }
+                    if let Some(mut router_context) = self.router_context.clone() {
+                        router_context.replace(target.clone());
                     }
                     true
                 }
@@ -282,10 +252,6 @@ impl Component for SingleEntry {
     }
 }
 
-#[inline]
-fn access_history() -> Option<History> {
-    Some(window()?.history().ok()?)
-}
 
 fn render_entry(option: &Option<AlbumEntry>) -> Option<VNode> {
     option

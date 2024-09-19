@@ -170,28 +170,6 @@ impl Component for SingleAlbum {
                 </ol>
             </div>
         }
-        /*html! {
-            <>
-                {indicator}
-                <ol class="image-rows">
-                {
-                    for self.entries.iter().map(|e|{
-                        let style=format!("width: {}px; height: {}px;",e.0.target_width,e.0.target_height);
-                        let optional_url_ref = e.1.borrow();
-                        if let Some(blob)=optional_url_ref.deref(){
-                            let src=blob.deref().to_string();
-                            //html!{<li><img {src} loading="lazy" {width} {height}/></li>}
-                            html!(<li><div><div {style} class="fa-regular fa-image"></div></div></li>)
-                        }else{
-                            html!(<li {style}><i class="fa-regular fa-image"></i></li>)
-                        }
-                    })
-                }
-                </ol>
-            </>
-        }*/
-
-        //html!(<>{format!("Entries: {}",self.entries.len())}{indicator}</>)
     }
 
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {

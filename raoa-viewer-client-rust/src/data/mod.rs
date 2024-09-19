@@ -149,7 +149,7 @@ impl DataAccess {
 
     pub fn fetch_albums_interactive(
         self: Rc<Self>,
-    ) -> impl Stream<Item = DataFetchMessage<Box<[AlbumDetails]>>> {
+    ) -> impl Stream<Item=DataFetchMessage<Box<[AlbumDetails]>>> {
         let (tx, rx) = mpsc::channel(10);
 
         spawn_local(async move {
@@ -237,7 +237,7 @@ impl DataAccess {
                 album_id: album_id.to_string(),
             },
         )
-        .await?;
+            .await?;
         let fetched = if let Some(album_data) = details.album_by_id {
             let mut fnch_album_id = None;
             for GetAlbumDetailsAlbumByIdLabels {
@@ -447,7 +447,7 @@ impl DataAccess {
     pub fn fetch_album_content_interactive(
         self: Rc<Self>,
         id: &str,
-    ) -> impl Stream<Item = DataFetchMessage<Box<[AlbumEntry]>>> {
+    ) -> impl Stream<Item=DataFetchMessage<Box<[AlbumEntry]>>> {
         let (tx, rx) = mpsc::channel(10);
         let s_clone = self.clone();
         let id = id.to_string();
@@ -489,8 +489,8 @@ impl DataAccess {
                     album_id: id.clone(),
                 },
             )
-            .await
-            .map_err(DataAccessError::GraphqlAlbumContent)?;
+                .await
+                .map_err(DataAccessError::GraphqlAlbumContent)?;
             let entries = responses
                 .album_by_id
                 .as_ref()
@@ -599,7 +599,7 @@ async fn extract_blob_from_result(result: JsValue) -> Result<MediaUrl, JsValue> 
     Ok(ObjectUrl::from(Blob::from(
         JsFuture::from(Response::from(result).blob()?).await?,
     ))
-    .into())
+        .into())
 }
 fn js_to_frontend_error(error: JsValue) -> FrontendError {
     FrontendError::JS(error.into())
