@@ -3,7 +3,7 @@ use std::{rc::Rc, time::Duration};
 use crate::data::server_api::graphql::model::DateTime;
 use log::info;
 use ordered_float::OrderedFloat;
-use rexie::{Error, Index, KeyRange, ObjectStore, Rexie, TransactionMode};
+use rexie::{Index, KeyRange, ObjectStore, Rexie, TransactionMode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use wasm_bindgen::JsValue;
@@ -32,7 +32,7 @@ impl From<serde_wasm_bindgen::Error> for StorageError {
     }
 }
 impl From<rexie::Error> for StorageError {
-    fn from(value: Error) -> Self {
+    fn from(value: rexie::Error) -> Self {
         StorageError::IndexDb(Rc::new(value))
     }
 }
@@ -101,7 +101,6 @@ impl StorageAccess {
         Ok(())
     }
 
-
     pub async fn get_album_by_id(&self, id: &str) -> Result<Option<AlbumDetails>, StorageError> {
         let tx = self
             .db
@@ -160,7 +159,7 @@ impl StorageAccess {
     }
     pub async fn store_album_entries(
         &self,
-        entries: impl IntoIterator<Item=AlbumEntry>,
+        entries: impl IntoIterator<Item = AlbumEntry>,
     ) -> Result<(), StorageError> {
         let tx = self
             .db
@@ -174,7 +173,7 @@ impl StorageAccess {
     }
     pub async fn remove_album_entries(
         &self,
-        entries: impl IntoIterator<Item=&AlbumEntry>,
+        entries: impl IntoIterator<Item = &AlbumEntry>,
     ) -> Result<(), StorageError> {
         let tx = self
             .db

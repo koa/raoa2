@@ -1,14 +1,6 @@
 use crate::data::DataAccess;
 use std::rc::Rc;
-use yew::{
-    html,
-    html::Scope,
-    platform::spawn_local,
-    Component,
-    Context,
-    Html,
-    Properties,
-};
+use yew::{html, html::Scope, platform::spawn_local, Component, Context, Html, Properties};
 
 #[derive(Clone, PartialEq, Properties)]
 pub struct EntryHeaderProps {
@@ -33,8 +25,11 @@ impl EntryHeader {
         spawn_local(async move {
             if let Some(title) = access
                 .album_entry_data(&album_id, &entry_id)
-                .await.ok().flatten()
-                .map(|details| details.name.clone()) {
+                .await
+                .ok()
+                .flatten()
+                .map(|details| details.name.clone())
+            {
                 scope.send_message(EntryHeaderMsg::TitleUpdated(title));
             }
         });
@@ -42,7 +37,7 @@ impl EntryHeader {
 }
 #[derive(Debug)]
 pub enum EntryHeaderMsg {
-    TitleUpdated(Box<str>)
+    TitleUpdated(Box<str>),
 }
 
 impl Component for EntryHeader {
@@ -79,15 +74,14 @@ impl Component for EntryHeader {
         }
     }
 
-
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {<>{
-        if let Some(data)=&self.loaded_title{
-            html!(data)
-        }else {
-            html!(self.entry_id.as_ref())
-        }
-    }</>}
+            if let Some(data)=&self.loaded_title{
+                html!(data)
+            }else {
+                html!(self.entry_id.as_ref())
+            }
+        }</>}
     }
 
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {

@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 lazy_static = "1.5.0"
 yew = { version = "0.21.0", features = ["csr"] }
-yew-nested-router = "0.7.0"
+yew-nested-router = "0.7.2"
 patternfly-yew = { version = "0.6.3" }
 yew-hooks = "0.3.2"
 graphql_client = { version = "0.14.0", features = ["reqwest-rustls"] }
@@ -53,4 +53,4 @@ convert_case = "0.6.0"
 debug = true
 
 [patch.crates-io]
-yew-nested-router = { git = "https://github.com/koa/yew-nested-router.git" }
+#yew-nested-router = { git = "https://github.com/koa/yew-nested-router.git" }

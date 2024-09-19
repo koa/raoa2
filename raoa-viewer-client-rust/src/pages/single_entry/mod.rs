@@ -5,13 +5,18 @@ use crate::{
     pages::app::routing::{AlbumRoute, AlbumsRoute, AppRoute},
     utils::swiper::Swiper,
 };
-use log::{error, info};
+use chrono::{DateTime, Local};
+use log::error;
 use serde::{Deserialize, Serialize};
+use std::ops::Deref;
 use std::{cmp::Ordering, rc::Rc};
 use tokio_stream::StreamExt;
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{window, Event, History, HtmlElement};
-use yew::{html, html::Scope, platform::spawn_local, virtual_dom::VNode, Callback, Component, Context, Html, NodeRef, Properties};
+use web_sys::{Event, HtmlElement};
+use yew::{
+    html, html::Scope, html_nested, platform::spawn_local, virtual_dom::VNode, Callback, Component,
+    Context, Html, NodeRef, Properties,
+};
 use yew_nested_router::prelude::RouterContext;
 
 pub struct SingleEntry {
@@ -58,7 +63,10 @@ impl Component for SingleEntry {
 
     fn create(ctx: &Context<Self>) -> Self {
         let props = ctx.props();
-        let router_context = ctx.link().context::<RouterContext<AppRoute>>(Callback::from(|_| {})).map(|(c, _)| c);
+        let router_context = ctx
+            .link()
+            .context::<RouterContext<AppRoute>>(Callback::from(|_| {}))
+            .map(|(c, _)| c);
         Self {
             album_id: props.album_id.clone().into_boxed_str(),
             entry_id: props.entry_id.clone().into_boxed_str(),
@@ -188,8 +196,41 @@ impl Component for SingleEntry {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let image_slider_ref = self.image_slider_ref.clone();
         let video_root_ref = self.video_root_ref.clone();
-        let onclick = ctx.link().callback(|_| SingleEntryMessage::SlideNext);
-        //let image = render_entry(&self.entry);
+        let onclick_next = ctx.link().callback(|_| SingleEntryMessage::SlideNext);
+        let onclick_previous = ctx.link().callback(|_| SingleEntryMessage::SlidePrev);
+        let buttons = self
+            .entry
+            .as_ref()
+            .map(|entry| {
+                [
+                    entry.created.as_ref().map(|timestamp| {
+                        let x: DateTime<Local> = (*timestamp.as_ref()).into();
+                        x.format("%H:%M:%S").to_string().into_boxed_str()
+                    }),
+                    entry.camera_model.clone(),
+                    entry.exposure_time.map(|time| {
+                        if time > 0 && time < 1_000_000_000 {
+                            let fraction = 1_000_000_000f64 / time as f64;
+                            format!("1/{fraction:.0}s").into_boxed_str()
+                        } else {
+                            let seconds = time as f64 / 1_000_000_000f64;
+                            format!("{seconds:.1}s").into_boxed_str()
+                        }
+                    }),
+                    entry
+                        .iso_speed_ratings
+                        .map(|iso| format!("ISO {iso}").into_boxed_str()),
+                    entry
+                        .focal_length_35
+                        .map(|length| format!("{length}mm").into_boxed_str()),
+                ]
+                    .into_iter()
+                    .flatten()
+                    .chain(entry.keywords.iter().cloned())
+                    .map(|str| html!(<div class="over-image">{str.as_ref()}</div>))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         html! {
             <div class="image" ref={video_root_ref}>
                 <swiper-container ref={image_slider_ref} init="true" css-mode="true">
@@ -203,9 +244,13 @@ impl Component for SingleEntry {
                 </swiper-container>
                 <div class="overlay">
                     <div class="right">
-                        <div>
-                            <button {onclick}>{">"}</button>
-                        </div>
+                        <button class="over-image" onclick={onclick_next}>{">"}</button>
+                    </div>
+                    <div class="left">
+                        <button class="over-image" onclick={onclick_previous}>{"<"}</button>
+                    </div>
+                    <div class="bottom">
+                        <div>{buttons}</div>
                     </div>
                 </div>
             </div>
@@ -251,7 +296,6 @@ impl Component for SingleEntry {
         }
     }
 }
-
 
 fn render_entry(option: &Option<AlbumEntry>) -> Option<VNode> {
     option

@@ -64,6 +64,10 @@ swiper-slide {
   color: white;
 }
 
+.image-entry {
+  background-color: black;
+}
+
 .image img {
   height: 100%;
   width: 100%;
@@ -87,28 +91,60 @@ div.overlay {
   bottom: 0;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
-  color: white;
-}
 
-div.overlay > .right {
-  grid-column: 3;
-  grid-row: 2;
-  vertical-align: middle;
-  z-index: 1;
-  display: flex;
-  justify-content: flex-end;
-  flex-grow: unset;
-  align-items: center;
+  & > .left {
+    grid-column: 1;
+    grid-row: 2;
+    vertical-align: middle;
+    z-index: 1;
+    display: flex;
+    justify-content: flex-start;
+    flex-grow: unset;
+    align-items: center;
+  }
 
-  & div {
-    align-items: flex-end;
+  & > .right {
+    grid-column: 3;
+    grid-row: 2;
+    vertical-align: middle;
+    z-index: 1;
+    display: flex;
+    justify-content: flex-end;
+    flex-grow: unset;
+    align-items: center;
 
-    & button {
-      font-size: 4ex;
-      vertical-align: middle;
-      background: transparent;
-      border: none;
-      backdrop-filter: brightness(1.5)
+  }
+
+  & button {
+    font-size: 10vh;
+    vertical-align: middle;
+    border: none;
+  }
+
+  & > .bottom {
+    grid-column: 1/-1;
+    grid-row: 3;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+
+    & > div {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+
+      & > div {
+        margin: 0.5em;
+        border-radius: 0.6em;
+        padding: 0.4em;
+      }
     }
   }
+
+  & .over-image {
+    color: black;
+    background: rgba(255, 255, 255, 0.5);
+  }
 }
+
