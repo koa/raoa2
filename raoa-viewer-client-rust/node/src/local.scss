@@ -112,13 +112,13 @@ div.overlay {
     justify-content: flex-end;
     flex-grow: unset;
     align-items: center;
-
   }
 
   & button {
     font-size: 10vh;
     vertical-align: middle;
     border: none;
+    border-radius: 50%;
   }
 
   & > .bottom {

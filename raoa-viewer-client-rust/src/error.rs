@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
+use crate::data::server_api;
 use crate::data::storage::StorageError;
 use log::error;
 use patternfly_yew::prelude::{Alert, AlertGroup, AlertType};
@@ -70,6 +71,8 @@ pub enum FrontendError {
     SerdeWasmBindgen(#[from] serde_wasm_bindgen::Error),
     #[error("Error accessing Storage: {0}")]
     StorageAccess(#[from] StorageError),
+    #[error("Error accessing server: {0}")]
+    Server(#[from] server_api::Error),
 }
 
 impl FrontendError {
@@ -143,6 +146,11 @@ impl FrontendError {
                 </AlertGroup>
             },
             FrontendError::StorageAccess(error) => html! {
+                <AlertGroup>
+                    <Alert inline=true title="Error from storage access" r#type={AlertType::Danger}>{error.to_string()}</Alert>
+                </AlertGroup>
+            },
+            FrontendError::Server(error) => html! {
                 <AlertGroup>
                     <Alert inline=true title="Error from storage access" r#type={AlertType::Danger}>{error.to_string()}</Alert>
                 </AlertGroup>

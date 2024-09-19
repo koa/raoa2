@@ -107,7 +107,7 @@ impl Component for SingleEntry {
                     } else {
                         None
                     }
-                        .map(|e| &e.entry_id)
+                    .map(|e| &e.entry_id)
                     {
                         //let album_id = self.album_id.to_string();
                         let entry_id = replace_id.to_string();
@@ -224,11 +224,11 @@ impl Component for SingleEntry {
                         .focal_length_35
                         .map(|length| format!("{length}mm").into_boxed_str()),
                 ]
-                    .into_iter()
-                    .flatten()
-                    .chain(entry.keywords.iter().cloned())
-                    .map(|str| html!(<div class="over-image">{str.as_ref()}</div>))
-                    .collect::<Vec<_>>()
+                .into_iter()
+                .flatten()
+                .chain(entry.keywords.iter().cloned())
+                .map(|str| html!(<div class="over-image">{str.as_ref()}</div>))
+                .collect::<Vec<_>>()
             })
             .unwrap_or_default();
         html! {
@@ -271,7 +271,7 @@ impl Component for SingleEntry {
                     "swiperslidechangetransitionend",
                     listener.as_ref().unchecked_ref(),
                 )
-                    .unwrap();
+                .unwrap();
 
                 self.transition_end_listener = Some(listener);
                 let swiper = Swiper::new(node);
