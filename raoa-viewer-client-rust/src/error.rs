@@ -78,20 +78,16 @@ pub enum FrontendError {
 impl FrontendError {
     pub fn render_error_message(&self) -> Html {
         match self {
-            FrontendError::JS(js_error) => {
-                html! {
-                    <AlertGroup>
-                        <Alert inline=true title="Javascript Error" r#type={AlertType::Danger}>{js_error.to_string()}</Alert>
-                    </AlertGroup>
-                }
-            }
-            FrontendError::Serde(serde_error) => {
-                html! {
-                    <AlertGroup>
-                        <Alert inline=true title="Serialization Error" r#type={AlertType::Danger}>{serde_error.to_string()}</Alert>
-                    </AlertGroup>
-                }
-            }
+            FrontendError::JS(js_error) => html! {
+                <AlertGroup>
+                    <Alert inline=true title="Javascript Error" r#type={AlertType::Danger}>{js_error.to_string()}</Alert>
+                </AlertGroup>
+            },
+            FrontendError::Serde(serde_error) => html! {
+                <AlertGroup>
+                    <Alert inline=true title="Serialization Error" r#type={AlertType::Danger}>{serde_error.to_string()}</Alert>
+                </AlertGroup>
+            },
             FrontendError::Graphql { type_name, errors } => {
                 let graphql_error = errors.clone();
                 html! {
@@ -121,20 +117,16 @@ impl FrontendError {
                     </AlertGroup>
                 }
             }
-            FrontendError::Reqwest(reqwest_error) => {
-                html! {
-                    <AlertGroup>
-                        <Alert inline=true title="Cannot call Server" r#type={AlertType::Danger}>{reqwest_error.to_string()}</Alert>
-                    </AlertGroup>
-                }
-            }
-            FrontendError::InvalidHeader(header_error) => {
-                html! {
-                    <AlertGroup>
-                        <Alert inline=true title="Header Error" r#type={AlertType::Danger}>{header_error.to_string()}</Alert>
-                    </AlertGroup>
-                }
-            }
+            FrontendError::Reqwest(reqwest_error) => html! {
+                <AlertGroup>
+                    <Alert inline=true title="Cannot call Server" r#type={AlertType::Danger}>{reqwest_error.to_string()}</Alert>
+                </AlertGroup>
+            },
+            FrontendError::InvalidHeader(header_error) => html! {
+                <AlertGroup>
+                    <Alert inline=true title="Header Error" r#type={AlertType::Danger}>{header_error.to_string()}</Alert>
+                </AlertGroup>
+            },
             FrontendError::DomError(dom_error) => html! {
                 <AlertGroup>
                     <Alert inline=true title="Error from indexdb" r#type={AlertType::Danger}>{dom_error.to_string()}</Alert>
@@ -155,13 +147,11 @@ impl FrontendError {
                     <Alert inline=true title="Error from storage access" r#type={AlertType::Danger}>{error.to_string()}</Alert>
                 </AlertGroup>
             },
-            FrontendError::NotLoggedIn => {
-                html! {
-                        <AlertGroup>
-                            <Alert inline=true title="Session timeout" r#type={AlertType::Danger}>{"Login abgelaufen, bitte neu einloggen"}</Alert>
-                        </AlertGroup>
-                }
-            }
+            FrontendError::NotLoggedIn => html! {
+                <AlertGroup>
+                    <Alert inline=true title="Session timeout" r#type={AlertType::Danger}>{"Login abgelaufen, bitte neu einloggen"}</Alert>
+                </AlertGroup>
+            },
         }
     }
 }
