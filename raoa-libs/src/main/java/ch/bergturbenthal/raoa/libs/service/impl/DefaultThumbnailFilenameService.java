@@ -71,7 +71,7 @@ public class DefaultThumbnailFilenameService
 
   @NotNull
   private File getUploadDir() {
-    final File uploadDir = new File(properties.getThumbnailDir(), "upload");
+    final File uploadDir = properties.getImportDir();
     if (!uploadDir.exists()) uploadDir.mkdirs();
     return uploadDir;
   }

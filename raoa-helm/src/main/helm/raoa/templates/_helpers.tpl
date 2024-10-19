@@ -93,6 +93,15 @@ persistentVolumeClaim:
 {{- end -}}
 {{- end -}}
 
+{{- define "raoa.importVolume" -}}
+{{- if .Values.data.import.override -}}
+{{ toYaml .Values.data.import.definition }}
+{{- else -}}
+persistentVolumeClaim:
+  claimName: {{ include "raoa.name" . }}-import
+{{- end -}}
+{{- end -}}
+
 {{- define "raoa.tls.name" -}}
 {{- printf "%s-tls" .Values.ingress.host | replace "." "-" | trunc 63 -}}
 {{- end -}}
@@ -107,6 +116,7 @@ management.endpoint.health.show-details: always
 management.endpoint.health.show-components: always
 raoa.repository: /data
 raoa.thumbnailDir: /cache
+raoa.importDir: /import
 raoa.max-concurrent: "20"
 server.use-forward-headers: "true"
 spring.elasticsearch.uris: {{ include "raoa.fullname" . }}-es-http:9200

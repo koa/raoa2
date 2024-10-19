@@ -13,14 +13,14 @@ image:
   pullPolicy: IfNotPresent
 
 priorityClass:
-  {}
+  { }
   #coordinator: raoa-essential
   #imageProcessor: raoa-low
-  #viewer: raoa-essential
+#viewer: raoa-essential
 
 imageProcessorCount: 3
 
-imagePullSecrets: []
+imagePullSecrets: [ ]
 nameOverride: ""
 fullnameOverride: ""
 
@@ -35,7 +35,7 @@ serviceAccount:
   # If not set and create is true, a name is generated using the fullname template
   name:
 
-podSecurityContext: {}
+podSecurityContext: { }
 # fsGroup: 2000
 
 securityContext:
@@ -87,12 +87,14 @@ data:
     initStorage: true
   cache:
     size: 10Gi
+  import:
+    size: 2Gi
   elasticsearch:
     nodeCount: 1
     volumesOverride: false
     volumes:
       - name: elasticsearch-data
-        emptyDir: {}
+        emptyDir: { }
 viewerResources:
   limits:
     cpu: "8"
@@ -136,11 +138,11 @@ coordinatorSettings:
   raoa.coordinator.concurrentProcessingAlbums: "2"
   raoa.coordinator.processTimeout: "10m"
 
-nodeSelector: {}
+nodeSelector: { }
 
-tolerations: []
+tolerations: [ ]
 
-affinity: {}
+affinity: { }
 
 containerPort: 8080
 managementPort: 8090

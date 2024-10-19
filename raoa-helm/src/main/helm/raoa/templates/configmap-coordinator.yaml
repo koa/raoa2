@@ -95,6 +95,8 @@ data:
                 volumeMounts:
                   - mountPath: /cache
                     name: shared-cache
+                  - mountPath: /import
+                    name: shared-import
                   - mountPath: /data
                     name: data
                   - mountPath: /dumps
@@ -132,6 +134,8 @@ data:
                 {{- include "raoa.dataVolume" . | nindent 16 }}
               - name: shared-cache
                 {{- include "raoa.cacheVolume" . | nindent 16 }}
+              - name: shared-import
+                {{- include "raoa.importVolume" . | nindent 16 }}
               - emptyDir: { }
                 name: dumps
               - name: ca
