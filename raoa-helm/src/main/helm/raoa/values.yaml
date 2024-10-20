@@ -15,7 +15,7 @@ image:
 priorityClass:
   { }
   #coordinator: raoa-essential
-  #imageProcessor: raoa-low
+#imageProcessor: raoa-low
 #viewer: raoa-essential
 
 imageProcessorCount: 3
@@ -92,6 +92,7 @@ data:
   elasticsearch:
     nodeCount: 1
     volumesOverride: false
+    setSysctl: false
     volumes:
       - name: elasticsearch-data
         emptyDir: { }
