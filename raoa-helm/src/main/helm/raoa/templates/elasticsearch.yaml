@@ -9,7 +9,7 @@ spec:
       maxSurge: 3
       maxUnavailable: 1
   nodeSets:
-    - name: data
+    - name: {{.Values.data.elasticsearch.nodeSetName}}
       count: {{.Values.data.elasticsearch.nodeCount}}
       config:
         xpack.ml.enabled: false
@@ -28,7 +28,7 @@ spec:
               securityContext:
                 capabilities:
                   add: [ "SYS_CHROOT" ]
-          {{ if .Values.data.elasticsearch.volumesOverride }}
-          volumes:
-            {{- toYaml .Values.data.elasticsearch.volumes | nindent 12 }}
-          {{ end }}
+      {{ if .Values.data.elasticsearch.volumesOverride }}
+      volumeClaimTemplates:
+        {{- toYaml .Values.data.elasticsearch.volumes | nindent 8 }}
+      {{ end }}
