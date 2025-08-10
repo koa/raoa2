@@ -6,12 +6,13 @@ import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
 import ch.bergturbenthal.raoa.viewer.interfaces.graphql.model.ImportFile;
-import ch.bergturbenthal.raoa.viewer.model.graphql.*;
+import ch.bergturbenthal.raoa.viewer.model.graphql.Album;
+import ch.bergturbenthal.raoa.viewer.model.graphql.AuthenticationState;
+import ch.bergturbenthal.raoa.viewer.model.graphql.GroupReference;
+import ch.bergturbenthal.raoa.viewer.model.graphql.QueryContext;
+import ch.bergturbenthal.raoa.viewer.model.graphql.RegistrationRequest;
+import ch.bergturbenthal.raoa.viewer.model.graphql.UserReference;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
-import java.io.File;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
@@ -19,6 +20,11 @@ import org.springframework.stereotype.Controller;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
+
+import java.io.File;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Function;
 
 @Slf4j
 @Controller
@@ -50,10 +56,9 @@ public class Query {
 
     @QueryMapping
     public Mono<Album> albumById(@Argument UUID id) {
-        log.info("albumById {}", id);
         return queryContextSupplier.createContext().filterWhen(
                 queryContext -> authorizationManager.canUserAccessToAlbum(queryContext.getSecurityContext(), id))
-                .log("albumById").map(c -> new Album(id, c, dataViewService.readAlbum(id).cache()));
+                .map(c -> new Album(id, c, dataViewService.readAlbum(id).cache()));
     }
 
     @QueryMapping()

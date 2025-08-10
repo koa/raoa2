@@ -4,42 +4,32 @@ import ch.bergturbenthal.raoa.elastic.repository.AlbumDataRepository;
 import ch.bergturbenthal.raoa.elastic.repository.SyncAlbumDataEntryRepository;
 import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
 import ch.bergturbenthal.raoa.libs.RaoaLibConfiguration;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.time.Instant;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.springframework.boot.autoconfigure.data.elasticsearch.ReactiveElasticsearchRestClientProperties;
 import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.context.properties.PropertyMapper;
-import org.springframework.context.annotation.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.data.convert.Jsr310Converters;
 import org.springframework.data.convert.ReadingConverter;
 import org.springframework.data.convert.WritingConverter;
-import org.springframework.data.elasticsearch.client.ClientConfiguration;
-import org.springframework.data.elasticsearch.client.RestClients;
-import org.springframework.data.elasticsearch.client.reactive.ReactiveElasticsearchClient;
-import org.springframework.data.elasticsearch.client.reactive.ReactiveRestClients;
-import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
-import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
-import org.springframework.data.elasticsearch.core.ReactiveElasticsearchTemplate;
-import org.springframework.data.elasticsearch.core.RefreshPolicy;
 import org.springframework.data.elasticsearch.core.convert.ElasticsearchConverter;
 import org.springframework.data.elasticsearch.core.convert.ElasticsearchCustomConversions;
 import org.springframework.data.elasticsearch.core.convert.MappingElasticsearchConverter;
 import org.springframework.data.elasticsearch.core.mapping.SimpleElasticsearchMappingContext;
 import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
 import org.springframework.data.elasticsearch.repository.config.EnableReactiveElasticsearchRepositories;
-import org.springframework.util.unit.DataSize;
-import org.springframework.web.reactive.function.client.ExchangeStrategies;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @Configuration
@@ -47,7 +37,7 @@ import org.springframework.web.reactive.function.client.ExchangeStrategies;
 @EnableElasticsearchRepositories(basePackageClasses = SyncAlbumDataEntryRepository.class)
 @Import({ RaoaLibConfiguration.class })
 @ComponentScan(basePackageClasses = ElasticSearchDataViewService.class)
-@EnableConfigurationProperties({ ElasticsearchProperties.class, ReactiveElasticsearchRestClientProperties.class })
+@EnableConfigurationProperties({ ElasticsearchProperties.class })
 public class RaoaElasticConfiguration {
 
     static {
@@ -75,12 +65,6 @@ public class RaoaElasticConfiguration {
                 Jsr310Converters.getConvertersToRegister().stream()).collect(Collectors.toList()));
     }
 
-    @Bean(name = { "elasticsearchOperations", "elasticsearchTemplate" })
-    public ElasticsearchOperations elasticsearchOperations(ElasticsearchConverter elasticsearchConverter,
-            final RestHighLevelClient client) {
-        return new ElasticsearchRestTemplate(client, elasticsearchConverter);
-    }
-
     @Bean
     ElasticsearchConverter elasticsearchConverter(SimpleElasticsearchMappingContext mappingContext,
             ElasticsearchCustomConversions customConversions) {
@@ -89,54 +73,6 @@ public class RaoaElasticConfiguration {
         mappingElasticsearchConverter.setConversions(customConversions);
 
         return mappingElasticsearchConverter;
-    }
-
-    @Bean
-    @Primary
-    ReactiveElasticsearchTemplate reactiveElasticsearchTemplate(ReactiveElasticsearchClient client,
-            ElasticsearchConverter converter) {
-        ReactiveElasticsearchTemplate template = new ReactiveElasticsearchTemplate(client, converter);
-
-        template.setIndicesOptions(IndicesOptions.strictExpandOpenAndForbidClosed());
-        template.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        return template;
-    }
-
-    @Bean
-    public ClientConfiguration clientConfiguration(ElasticsearchProperties properties,
-            ReactiveElasticsearchRestClientProperties restClientProperties) {
-        final String[] hostAndPorts = properties.getUris().toArray(new String[0]);
-        ClientConfiguration.MaybeSecureClientConfigurationBuilder builder = ClientConfiguration.builder()
-                .connectedTo(hostAndPorts);
-
-        try {
-            builder.usingSsl(SSLContext.getDefault());
-        } catch (NoSuchAlgorithmException e) {
-            log.warn("Cannot init SSL", e);
-        }
-        PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
-
-        builder.withBasicAuth(properties.getUsername(), properties.getPassword());
-
-        map.from(properties.getConnectionTimeout()).to(builder::withConnectTimeout);
-        map.from(properties.getSocketTimeout()).to(builder::withSocketTimeout);
-        map.from(properties.getPathPrefix()).to(builder::withPathPrefix);
-
-        map.from(restClientProperties.getMaxInMemorySize()).asInt(DataSize::toBytes).to((maxInMemorySize) -> {
-            builder.withClientConfigurer(ReactiveRestClients.WebClientConfigurationCallback.from((webClient) -> {
-                ExchangeStrategies exchangeStrategies = ExchangeStrategies.builder()
-                        .codecs((configurer) -> configurer.defaultCodecs().maxInMemorySize(maxInMemorySize)).build();
-                return webClient.mutate().exchangeStrategies(exchangeStrategies).build();
-            }));
-        });
-        return builder.build();
-    }
-
-    @Bean
-    public RestHighLevelClient elasticsearchClient(ClientConfiguration configuration) {
-
-        final RestClients.ElasticsearchRestClient elasticsearchRestClient = RestClients.create(configuration);
-        return elasticsearchRestClient.rest();
     }
 
     @WritingConverter

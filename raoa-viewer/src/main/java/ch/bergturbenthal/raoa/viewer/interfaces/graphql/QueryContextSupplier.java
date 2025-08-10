@@ -5,9 +5,7 @@ import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.viewer.model.graphql.AuthenticationState;
 import ch.bergturbenthal.raoa.viewer.model.graphql.QueryContext;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
-import java.util.Optional;
-import java.util.UUID;
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.security.core.context.SecurityContext;
@@ -17,6 +15,9 @@ import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import reactor.core.publisher.Mono;
+
+import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @Component

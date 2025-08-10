@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.7.7</version>
-        <relativePath /> <!-- lookup parent from repository -->
+        <version>3.4.5</version>
+        <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <packaging>pom</packaging>
 
@@ -24,7 +25,8 @@
     </modules>
     <properties>
         <jib.httpTimeout>30000</jib.httpTimeout>
-        <java.version>17</java.version>
+        <java.version>21</java.version>
+        <maven-compiler-plugin.jdk>21</maven-compiler-plugin.jdk>
         <maven.build.timestamp.format>yyyyMMddHHmmss</maven.build.timestamp.format>
         <local.version>${maven.build.timestamp}</local.version>
         <docker.host>docker-snapshot.berg-turbenthal.ch</docker.host>
@@ -40,16 +42,9 @@
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
-                <version>2021.0.5</version>
+                <version>2024.0.1</version>
                 <type>pom</type>
                 <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.data</groupId>
-                <artifactId>spring-data-bom</artifactId>
-                <version>2021.2.6</version>
-                <scope>import</scope>
-                <type>pom</type>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -68,17 +63,14 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>com.cosium.code</groupId>
-                <artifactId>maven-git-code-format</artifactId>
-                <version>1.25</version>
+                <groupId>net.revelc.code.formatter</groupId>
+                <artifactId>formatter-maven-plugin</artifactId>
+                <version>2.26.0</version>
                 <executions>
-                    <!-- On commit, format the modified java files -->
                     <execution>
-                        <id>install-formatter-hook</id>
                         <goals>
-                            <goal>install-hooks</goal>
+                            <goal>format</goal>
                         </goals>
-                        <inherited>false</inherited>
                     </execution>
                 </executions>
             </plugin>

@@ -6,14 +6,13 @@ import ch.bergturbenthal.raoa.processor.media.service.Processor;
 import ch.bergturbenthal.raoa.processor.media.service.impl.DefaultProcessor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.actuate.autoconfigure.elasticsearch.ElasticSearchRestHealthContributorAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 
-@SpringBootApplication(exclude = { ElasticSearchRestHealthContributorAutoConfiguration.class })
+@SpringBootApplication()
 @Import({ RaoaElasticConfiguration.class })
 @EnableConfigurationProperties(JobProperties.class)
 @ComponentScan(basePackageClasses = { DefaultProcessor.class })

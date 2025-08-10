@@ -2,22 +2,12 @@ package ch.bergturbenthal.raoa.libs.service.impl;
 
 import ch.bergturbenthal.raoa.libs.model.AlbumMeta;
 import ch.bergturbenthal.raoa.libs.properties.Properties;
-import ch.bergturbenthal.raoa.libs.service.*;
+import ch.bergturbenthal.raoa.libs.service.AlbumList;
+import ch.bergturbenthal.raoa.libs.service.AsyncService;
+import ch.bergturbenthal.raoa.libs.service.FileImporter;
+import ch.bergturbenthal.raoa.libs.service.GitAccess;
+import ch.bergturbenthal.raoa.libs.service.Updater;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.exception.TikaException;
@@ -37,6 +27,32 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -62,7 +78,7 @@ public class BareAlbumList implements AlbumList {
         this.properties = properties;
         this.asyncService = asyncService;
 
-        processScheduler = Schedulers.newElastic("process");
+        processScheduler = Schedulers.newBoundedElastic(2, 300, "process");
         repoRootPath = this.properties.getRepository().toPath();
         if (!Files.isDirectory(repoRootPath)) {
             try {
@@ -195,9 +211,15 @@ public class BareAlbumList implements AlbumList {
         BodyContentHandler handler = new BodyContentHandler();
         Metadata metadata = new Metadata();
         final TikaInputStream inputStream = TikaInputStream.get(file);
-        parser.parse(inputStream, handler, metadata);
-        if (!IMPORTING_TYPES.contains(metadata.get(Metadata.CONTENT_TYPE))) {
-            log.info("Unsupported content type: " + metadata.get(Metadata.CONTENT_TYPE));
+        try {
+            parser.parse(inputStream, handler, metadata);
+        } catch (Throwable e) {
+            log.error("Error while parsing file {}", file, e);
+            return Optional.empty();
+        }
+        final String mediaType = metadata.get(Metadata.CONTENT_TYPE);
+        if (!IMPORTING_TYPES.contains(mediaType)) {
+            log.info("Unsupported content type: " + mediaType);
             return Optional.empty();
         }
         final Date createDate = metadata.getDate(TikaCoreProperties.CREATED);

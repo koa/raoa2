@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.libs.service.impl;
+package ch.bergturbenthal.raoa.libs.service;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;

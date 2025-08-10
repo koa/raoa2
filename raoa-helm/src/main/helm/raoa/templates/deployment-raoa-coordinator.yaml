@@ -44,11 +44,14 @@ spec:
           volumeMounts:
             - mountPath: /data
               name: data
+            - mountPath: /import
+              name: shared-import
           command:
             - chown
             - -R
             - 1000:1000
             - /data
+            - /import
         {{ end }}
         - name: import-ca-certs
           image: eclipse-temurin:17-jre
@@ -80,7 +83,7 @@ spec:
             httpGet:
               port: {{ .Values.managementPort}}
               path: /actuator/health
-            initialDelaySeconds: 10
+            initialDelaySeconds: 5
             failureThreshold: 30
             periodSeconds: 3
           livenessProbe:

@@ -4,19 +4,20 @@ import ch.bergturbenthal.raoa.elastic.model.serializer.ObjectIdSerializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import lombok.Builder;
 import lombok.Value;
 import org.eclipse.jgit.lib.ObjectId;
-import org.elasticsearch.core.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 import org.springframework.data.elasticsearch.annotations.Setting;
+import org.springframework.lang.Nullable;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Document(indexName = "album-data-2")
 @Setting(shards = 3)

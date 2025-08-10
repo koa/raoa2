@@ -45,7 +45,7 @@ spec:
             httpGet:
               port: {{ .Values.managementPort}}
               path: /actuator/health
-            initialDelaySeconds: 10
+            initialDelaySeconds: 5
             failureThreshold: 10
             periodSeconds: 3
           livenessProbe:

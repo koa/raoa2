@@ -14,17 +14,6 @@ import io.fabric8.kubernetes.client.Watcher;
 import io.fabric8.kubernetes.client.WatcherException;
 import io.fabric8.kubernetes.client.dsl.MixedOperation;
 import io.fabric8.kubernetes.client.dsl.ScalableResource;
-import java.io.ByteArrayInputStream;
-import java.io.Closeable;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
@@ -32,6 +21,23 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
+
+import java.io.ByteArrayInputStream;
+import java.io.Closeable;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -48,7 +54,13 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
             ScheduledExecutorService executorService) {
         jobs = kubernetesClient.batch().v1().jobs();
         mediaProcessorTemplate = properties.getMediaProcessorTemplate();
-        jobs.delete(jobs.list(createListOptions()).getItems());
+        final List<Job> initItems = jobs.list(createListOptions()).getItems();
+        log.info("Found {} items in KubernetesMediaProcessor", initItems.size());
+        for (final Job job : initItems) {
+            final String name = job.getMetadata().getName();
+            log.info("Delete old job {}", name);
+            jobs.withName(name).delete();
+        }
         scheduler = Schedulers.fromExecutor(executorService);
 
         Consumer<Job> jobStatusConsumer = resource -> {
@@ -63,11 +75,11 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
                     log.warn("Job Failed: " + jobs.withName(resource.getMetadata().getName()).getLog(true));
                     waitingSink.success(false);
                 }
-                jobs.delete(resource);
+                jobs.withName(resource.getMetadata().getName()).delete();
             }
             final Integer succeeded = status.getSucceeded();
             if (succeeded != null && succeeded > 0) {
-                jobs.delete(resource);
+                jobs.withName(resource.getMetadata().getName()).delete();
                 final MonoSink<Boolean> waitingSink = waitingForCompletion.remove(jobId);
                 if (waitingSink != null)
                     waitingSink.success(true);
@@ -132,30 +144,31 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
         return Mono.<Boolean> create(sink -> {
             final String fileList = files.stream().map(s -> URLEncoder.encode(s, Charsets.UTF_8))
                     .collect(Collectors.joining(","));
+            final long jobId = idCounter.incrementAndGet();
             final String filledTemplate = mediaProcessorTemplate.replace("$repoId$", album.toString())
-                    .replace("$fileList$", fileList);
+                    .replace("$fileList$", fileList).replace("$jobId$", String.valueOf(jobId));
             final ScalableResource<Job> expandedJob = jobs
                     .load(new ByteArrayInputStream(filledTemplate.getBytes(StandardCharsets.UTF_8)));
-            final Job job = expandedJob.get();
-            final long jobId = idCounter.incrementAndGet();
-
-            job.getMetadata().setLabels(Map.of("coordinator", "raoa-job-coordinator", "job-id", String.valueOf(jobId)));
-
-            job.getMetadata().setName("raoa-job-" + jobId);
+            /*
+             * final UnaryOperator<Job> coordinator = (Job job) -> { log.info("jobRef: " + job);
+             * job.getMetadata().setLabels( Map.of("coordinator", "raoa-jobRef-coordinator", "jobRef-id",
+             * String.valueOf(jobId))); job.getMetadata().setName("raoa-jobRef-" + jobId); return job; };
+             * expandedJob.edit(coordinator);
+             */
 
             AtomicBoolean started = new AtomicBoolean(false);
             waitingForCompletion.put(jobId, sink);
             sink.onRequest(count -> {
                 if (count > 0) {
                     if (started.compareAndSet(false, true)) {
-                        jobs.create(job);
+                        expandedJob.create();
                     }
                 }
             });
 
             sink.onCancel(() -> {
                 final MonoSink<Boolean> removed = waitingForCompletion.remove(jobId);
-                jobs.delete(job);
+                expandedJob.delete();
                 if (removed != null)
                     removed.success(false);
             });

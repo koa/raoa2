@@ -10,6 +10,18 @@ import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
+import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
@@ -18,18 +30,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.provider.OAuth2Authentication;
-import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.util.function.Tuple2;
-import reactor.util.function.Tuples;
 
 @Slf4j
 @Service
@@ -69,12 +69,7 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
         final Authentication authentication = context.getAuthentication();
         if (authentication == null)
             return Optional.empty();
-        final Authentication userAuthentication;
-        if (authentication instanceof OAuth2Authentication) {
-            userAuthentication = ((OAuth2Authentication) authentication).getUserAuthentication();
-        } else
-            userAuthentication = authentication;
-        final Object principal = userAuthentication.getPrincipal();
+        final Object principal = authentication.getPrincipal();
         if (principal instanceof Jwt) {
             final Map<String, Object> claims = ((Jwt) principal).getClaims();
             final String subject = (String) claims.get("sub");
@@ -99,8 +94,8 @@ public class DefaultAuthorizationManager implements AuthorizationManager {
             });
         }
 
-        if (userAuthentication instanceof UsernamePasswordAuthenticationToken) {
-            final Object details = userAuthentication.getDetails();
+        if (authentication instanceof UsernamePasswordAuthenticationToken) {
+            final Object details = authentication.getDetails();
             if (details instanceof User)
                 return Optional.of(new UserIdentification() {
                     @Override

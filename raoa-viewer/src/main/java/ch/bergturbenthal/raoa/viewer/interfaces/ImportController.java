@@ -7,12 +7,6 @@ import ch.bergturbenthal.raoa.libs.model.UploadResult;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
-import java.io.*;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.jetbrains.annotations.NotNull;
@@ -25,6 +19,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import reactor.core.publisher.Mono;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Controller
@@ -84,7 +89,7 @@ public class ImportController {
                                                 + createTiming(detectTime, "detect", "detect Album") + ", "
                                                 + createTiming(saveEntryTime, "save", "Save Result"))
                                 .body(body);
-                    });
+                    }).doOnError(ex -> log.warn("Cannot import file {}", filename, ex));
         } catch (IOException ex) {
             log.warn("Cannot create file " + tempFile, ex);
             tempFile.delete();

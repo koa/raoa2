@@ -3,23 +3,24 @@ package ch.bergturbenthal.raoa.coordinator.test;
 import ch.bergturbenthal.raoa.coordinator.model.CoordinatorProperties;
 import ch.bergturbenthal.raoa.coordinator.service.RemoteMediaProcessor;
 import ch.bergturbenthal.raoa.coordinator.service.impl.KubernetesMediaProcessor;
-import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.impl.ExecutorAsyncService;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.IOUtils;
+import org.springframework.core.io.ClassPathResource;
+import reactor.core.publisher.Flux;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.IOUtils;
-import org.springframework.core.io.ClassPathResource;
-import reactor.core.publisher.Flux;
 
 @Slf4j
 public class KubernetesClientTest {
@@ -31,7 +32,7 @@ public class KubernetesClientTest {
         final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(2);
         final RemoteMediaProcessor processor = new KubernetesMediaProcessor(client, properties, executorService);
 
-        AsyncService asyncService = new ExecutorAsyncService(new Properties());
+        AsyncService asyncService = new ExecutorAsyncService(Executors.newCachedThreadPool(), Optional.empty());
 
         asyncService.<String> asyncFlux(consumer -> {
             final BufferedReader bufferedReader = new BufferedReader(

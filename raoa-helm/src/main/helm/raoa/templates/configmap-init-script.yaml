@@ -11,3 +11,5 @@ data:
     chown -R $TARGET_USER:$TARGET_GROUP .
     cd /cache
     chown -R $TARGET_USER:$TARGET_GROUP .
+    cd /import
+    chown -R $TARGET_USER:$TARGET_GROUP .

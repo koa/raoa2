@@ -115,19 +115,13 @@ grpc.port: {{.Values.grpcPort | quote}}
 management.endpoint.health.show-details: always
 management.endpoint.health.show-components: always
 raoa.repository: /data
-raoa.thumbnailDir: /cache
-raoa.importDir: /import
+raoa.thumbnail-dir: /cache
+raoa.import-dir: /import
 raoa.max-concurrent: "20"
 server.use-forward-headers: "true"
-spring.elasticsearch.uris: {{ include "raoa.fullname" . }}-es-http:9200
+spring.elasticsearch.uris: https://{{ include "raoa.fullname" . }}-es-http:9200
 spring.elasticsearch.username: elastic
 spring.elasticsearch.socket-timeout: 1m
-spring.data.elasticsearch.client.reactive.endpoints: {{ include "raoa.fullname" . }}-es-http:9200
-spring.data.elasticsearch.client.reactive.useSsl: "true"
-spring.data.elasticsearch.client.reactive.username: elastic
-spring.data.elasticsearch.client.reactive.socket-timeout: 1m
-spring.elasticsearch.rest.uris: https://{{ include "raoa.fullname" . }}-es-http:9200
-spring.elasticsearch.rest.username: elastic
 #logging.level.org.springframework.data.elasticsearch.client.WIRE: trace
 #logging.level.org.apache.kafka: debug
 {{- end -}}

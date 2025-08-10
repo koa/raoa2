@@ -11,8 +11,10 @@ data:
     apiVersion: batch/v1
     kind: Job
     metadata:
-      name: processor-job
+      name: processor-job-$jobId$
       labels:
+        coordinator: raoa-job-coordinator
+        job-id: $jobId$
         {{- include "raoa.labels" . | nindent 8 }}
     spec:
         template:

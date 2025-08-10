@@ -22,6 +22,30 @@ import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
 import com.adobe.internal.xmp.XMPMeta;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.map.LRUMap;
+import org.apache.tika.metadata.HttpHeaders;
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.Property;
+import org.apache.tika.metadata.TIFF;
+import org.apache.tika.metadata.TikaCoreProperties;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
+import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
+import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.jetbrains.annotations.NotNull;
+import org.springframework.data.elasticsearch.client.elc.ReactiveElasticsearchTemplate;
+import org.springframework.data.elasticsearch.core.ReactiveIndexOperations;
+import org.springframework.data.elasticsearch.core.geo.GeoPoint;
+import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
+import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.function.TupleUtils;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
+import reactor.util.retry.Retry;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -42,29 +66,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.map.LRUMap;
-import org.apache.tika.metadata.HttpHeaders;
-import org.apache.tika.metadata.Metadata;
-import org.apache.tika.metadata.Property;
-import org.apache.tika.metadata.TIFF;
-import org.apache.tika.metadata.TikaCoreProperties;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
-import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
-import org.eclipse.jgit.treewalk.filter.TreeFilter;
-import org.jetbrains.annotations.NotNull;
-import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
-import org.springframework.data.elasticsearch.core.IndexOperations;
-import org.springframework.data.elasticsearch.core.geo.GeoPoint;
-import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
-import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.function.TupleUtils;
-import reactor.util.function.Tuple2;
-import reactor.util.function.Tuples;
-import reactor.util.retry.Retry;
 
 @Slf4j
 @Service
@@ -94,7 +95,7 @@ public class ElasticSearchDataViewService implements DataViewService {
             new CustomizableThreadFactory("elastic-data-view"));
     private final Map<UUID, Mono<User>> userCache = Collections.synchronizedMap(new LRUMap<>(20));
     private final Map<UUID, Mono<Group>> groupCache = Collections.synchronizedMap(new LRUMap<>(200));
-    private final ElasticsearchRestTemplate elasticsearchTemplate;
+    private final ReactiveElasticsearchTemplate elasticsearchTemplate;
     private final AtomicReference<ObjectId> lastMetaVersion = new AtomicReference<>();
     private final TemporaryPasswordRepository temporaryPasswordRepository;
     private final AsyncService asyncService;
@@ -103,7 +104,7 @@ public class ElasticSearchDataViewService implements DataViewService {
             final AlbumDataEntryRepository albumDataEntryRepository, final AlbumList albumList,
             final SyncAlbumDataEntryRepository syncAlbumDataEntryRepository, final UserRepository userRepository,
             final GroupRepository groupRepository, final AccessRequestRepository accessRequestRepository,
-            final UserManager userManager, final ElasticsearchRestTemplate elasticsearchTemplate,
+            final UserManager userManager, final ReactiveElasticsearchTemplate elasticsearchTemplate,
             final TemporaryPasswordRepository temporaryPasswordRepository, final AsyncService asyncService) {
         this.albumDataRepository = albumDataRepository;
         this.albumDataEntryRepository = albumDataEntryRepository;
@@ -189,6 +190,11 @@ public class ElasticSearchDataViewService implements DataViewService {
         return albumEntryDataBuilder.build();
     }
 
+    @NotNull
+    private static String createTemporaryPwKey(final UUID userId, final String title) {
+        return userId.toString() + "-" + title;
+    }
+
     // @Scheduled(fixedDelay = 5 * 60 * 1000, initialDelay = 5 * 1000)
     public void updateAlbumData() {
         try {
@@ -206,42 +212,50 @@ public class ElasticSearchDataViewService implements DataViewService {
 
     @Override
     public Mono<Void> updateUserData() {
-        createIndexIfMissing(Group.class);
-        createIndexIfMissing(User.class);
-        return userManager.getMetaVersion()
-                .flatMap(version -> Objects.equals(lastMetaVersion.get(), version) ? Mono.empty()
-                        : Flux.merge(userRepository.findAll().retryWhen(Retry.backoff(10, Duration.ofSeconds(20)))
-                                .onErrorResume(ex -> {
-                                    log.warn("Cannot load existing users", ex);
-                                    return Flux.empty();
-                                }).collectMap(User::getId, Function.identity())
-                                .flatMap((Map<UUID, User> existingUsers) -> userManager.listUsers()
-                                        .flatMap(storedUser -> Objects.equals(existingUsers.get(storedUser.getId()),
-                                                storedUser) ? Mono.just(storedUser.getId())
-                                                        : userRepository.save(storedUser).map(User::getId))
-                                        .<Set<UUID>> collect(() -> new HashSet<>(existingUsers.keySet()), Set::remove))
-                                .flatMapIterable(Function.identity()).flatMap(userRepository::deleteById).then(),
-                                groupRepository.findAll().retryWhen(Retry.backoff(10, Duration.ofSeconds(20)))
-                                        .onErrorResume(ex -> {
-                                            log.warn("Cannot load existing groups", ex);
-                                            return Flux.empty();
-                                        }).collectMap(Group::getId, Function.identity())
-                                        .flatMap(existingGroups -> userManager.listGroups()
-                                                .flatMap(storedGroup -> Objects
-                                                        .equals(existingGroups.get(storedGroup.getId()), storedGroup)
-                                                                ? Mono.just(storedGroup.getId())
-                                                                : groupRepository.save(storedGroup).map(Group::getId))
-                                                .collect(() -> new HashSet<>(existingGroups.keySet()), Set::remove))
-                                        .flatMapIterable(Function.identity()).flatMap(groupRepository::deleteById)
-                                        .then())
-                                .doOnComplete(() -> lastMetaVersion.set(version)).then());
+        return Flux
+                .merge(createIndexIfMissing(Group.class), createIndexIfMissing(User.class)).then(
+                        userManager.getMetaVersion()
+                                .flatMap(version -> Objects.equals(lastMetaVersion.get(), version) ? Mono.empty()
+                                        : Flux.merge(userRepository.findAll()
+                                                .retryWhen(Retry.backoff(10, Duration.ofSeconds(20)))
+                                                .onErrorResume(ex -> {
+                                                    log.warn("Cannot load existing users", ex);
+                                                    return Flux.empty();
+                                                }).collectMap(User::getId, Function.identity())
+                                                .flatMap((Map<UUID, User> existingUsers) -> userManager.listUsers()
+                                                        .flatMap(storedUser -> Objects.equals(
+                                                                existingUsers.get(storedUser.getId()), storedUser)
+                                                                        ? Mono.just(storedUser.getId())
+                                                                        : userRepository.save(storedUser)
+                                                                                .map(User::getId))
+                                                        .<Set<UUID>> collect(
+                                                                () -> new HashSet<>(existingUsers.keySet()),
+                                                                Set::remove))
+                                                .flatMapIterable(Function.identity())
+                                                .flatMap(userRepository::deleteById).then(),
+                                                groupRepository.findAll()
+                                                        .retryWhen(Retry.backoff(10, Duration.ofSeconds(20)))
+                                                        .onErrorResume(ex -> {
+                                                            log.warn("Cannot load existing groups", ex);
+                                                            return Flux.empty();
+                                                        }).collectMap(Group::getId, Function.identity())
+                                                        .flatMap(existingGroups -> userManager.listGroups()
+                                                                .flatMap(storedGroup -> Objects.equals(
+                                                                        existingGroups.get(storedGroup.getId()),
+                                                                        storedGroup)
+                                                                                ? Mono.just(storedGroup.getId())
+                                                                                : groupRepository.save(storedGroup)
+                                                                                        .map(Group::getId))
+                                                                .collect(() -> new HashSet<>(existingGroups.keySet()),
+                                                                        Set::remove))
+                                                        .flatMapIterable(Function.identity())
+                                                        .flatMap(groupRepository::deleteById).then())
+                                                .doOnComplete(() -> lastMetaVersion.set(version)).then()));
     }
 
-    private void createIndexIfMissing(final Class<?> clazz) {
-        final IndexOperations indexOperations = elasticsearchTemplate.indexOps(clazz);
-        if (!indexOperations.exists()) {
-            indexOperations.create();
-        }
+    private Mono<Void> createIndexIfMissing(final Class<?> clazz) {
+        final ReactiveIndexOperations indexOperations = elasticsearchTemplate.indexOps(clazz);
+        return indexOperations.exists().filter(exists -> !exists).flatMap(e -> indexOperations.create()).then();
     }
 
     @Override
@@ -456,10 +470,5 @@ public class ElasticSearchDataViewService implements DataViewService {
     @Override
     public Mono<Void> deleteTemporaryPasswordsByUser(final UUID userId, final String title) {
         return temporaryPasswordRepository.deleteById(createTemporaryPwKey(userId, title));
-    }
-
-    @NotNull
-    private static String createTemporaryPwKey(final UUID userId, final String title) {
-        return userId.toString() + "-" + title;
     }
 }

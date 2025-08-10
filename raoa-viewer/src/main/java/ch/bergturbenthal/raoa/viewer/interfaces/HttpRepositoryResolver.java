@@ -4,13 +4,7 @@ import ch.bergturbenthal.raoa.elastic.model.User;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.viewer.service.AuthorizationManager;
-import java.security.Principal;
-import java.time.Duration;
-import java.util.Collections;
-import java.util.Map;
-import java.util.UUID;
-import java.util.WeakHashMap;
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Repository;
@@ -21,6 +15,13 @@ import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+
+import java.security.Principal;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.Map;
+import java.util.UUID;
+import java.util.WeakHashMap;
 
 @Slf4j
 @Service

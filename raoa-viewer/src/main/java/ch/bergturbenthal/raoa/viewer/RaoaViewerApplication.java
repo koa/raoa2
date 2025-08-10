@@ -5,20 +5,16 @@ import ch.bergturbenthal.raoa.viewer.interfaces.AlbumListController;
 import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import ch.bergturbenthal.raoa.viewer.service.impl.DefaultAuthorizationManager;
 import graphql.scalars.ExtendedScalars;
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Enumeration;
-import javax.servlet.FilterChain;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.jgit.transport.resolver.ReceivePackFactory;
 import org.eclipse.jgit.transport.resolver.RepositoryResolver;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.actuate.autoconfigure.elasticsearch.ElasticSearchRestHealthContributorAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
@@ -30,8 +26,12 @@ import org.springframework.graphql.execution.RuntimeWiringConfigurer;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Enumeration;
+
 @Slf4j
-@SpringBootApplication(exclude = { ElasticSearchRestHealthContributorAutoConfiguration.class })
+@SpringBootApplication()
 @EnableConfigurationProperties(ViewerProperties.class)
 @Import({ RaoaElasticConfiguration.class, ResourceServerConfig.class })
 @ComponentScan(basePackageClasses = { DefaultAuthorizationManager.class, AlbumListController.class })

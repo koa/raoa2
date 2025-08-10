@@ -3,21 +3,25 @@ package ch.bergturbenthal.raoa.libs.service.impl;
 import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
 import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
-import java.io.File;
-import java.util.Arrays;
-import java.util.UUID;
-import java.util.stream.Stream;
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
+import java.util.Arrays;
+import java.util.UUID;
+import java.util.stream.Stream;
+
+@Slf4j
 @Service
 public class DefaultThumbnailFilenameService implements ThumbnailFilenameService, UploadFilenameService {
     public static int[] SCALES = { 25, 50, 100, 200, 400, 800, 1600, 3200 };
     private final Properties properties;
 
     public DefaultThumbnailFilenameService(final Properties properties) {
+        log.debug("Creating DefaultThumbnailFilenameService with properties {}", properties);
         this.properties = properties;
     }
 

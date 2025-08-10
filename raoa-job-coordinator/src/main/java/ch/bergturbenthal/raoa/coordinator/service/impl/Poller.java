@@ -19,20 +19,6 @@ import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
 import ch.bergturbenthal.raoa.libs.service.Updater;
 import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.io.File;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
 import org.eclipse.jgit.lib.ObjectId;
@@ -49,6 +35,21 @@ import reactor.util.function.Tuple2;
 import reactor.util.function.Tuple5;
 import reactor.util.function.Tuples;
 import reactor.util.retry.Retry;
+
+import java.io.File;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -248,8 +249,8 @@ public class Poller {
                                             .map(AlbumData::getRepositoryId).onErrorResume(ex -> {
                                                 log.warn("Error on album " + album.getAlbumId(), ex);
                                                 if (ex instanceof BulkFailureException) {
-                                                    ((BulkFailureException) ex).getFailedDocuments()
-                                                            .forEach((key1, value1) -> log.warn(value1));
+                                                    ((BulkFailureException) ex).getFailedDocuments().forEach((key1,
+                                                            value1) -> log.warn("Details for " + key1 + ": " + value1));
                                                 }
                                                 return Mono.just(albumId);
                                             }).defaultIfEmpty(albumId);

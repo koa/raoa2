@@ -2,7 +2,7 @@
 
 namespace=raoa-dev
 #namespace=raoa-prod
-context=berg-main
+context=admin@berg-main
 #namespace=raoa-lkw
 #context=teamkoenig-lkw
 #deployment=raoa-viewer

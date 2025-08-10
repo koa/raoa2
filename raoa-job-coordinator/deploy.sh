@@ -4,7 +4,7 @@ namespace=raoa-dev
 #namespace=raoa-prod
 #namespace=raoa-lkw
 #context=teamkoenig-lkw
-context=berg-main
+context=admin@berg-main
 deployment=$namespace-coordinator
 #deployment=raoa-coordinator
 

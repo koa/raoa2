@@ -1,7 +1,16 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
 import ch.bergturbenthal.raoa.libs.properties.Properties;
+import ch.bergturbenthal.raoa.libs.service.Limiter;
 import io.micrometer.core.instrument.MeterRegistry;
+import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
+import reactor.core.publisher.Mono;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -10,13 +19,6 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import lombok.Value;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import reactor.core.Disposable;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.FluxSink;
-import reactor.core.publisher.Mono;
 
 @Service
 @Slf4j
@@ -121,7 +123,7 @@ public class ReactiveLimiter implements Limiter {
                                 log.info("Missing entry: " + takenEntry.context);
                         }
                         tryDeqeue(false);
-                    }).subscriberContext(sink.currentContext().put(CONTEXT_KEY, subLimiter))
+                    }).contextWrite(sink.currentContext().put(CONTEXT_KEY, subLimiter))
                     .subscribe(sink::next, sink::error, sink::complete);
             // sink.onCancel(subscription);
             // sink.onDispose(subscription);

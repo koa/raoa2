@@ -1,112 +1,112 @@
 package ch.bergturbenthal.raoa.libs.service.impl;
 
-import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
-import java.time.Duration;
+import io.micrometer.core.instrument.MeterRegistry;
+import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 public class ExecutorAsyncService implements AsyncService {
-    private final ExecutorService executor;
+    private final ExecutorService executorService;
+    private final Optional<MeterRegistry> meterRegistryOptional;
 
-    public ExecutorAsyncService(final Properties properties) {
-
-        final CustomizableThreadFactory threadFactory = new CustomizableThreadFactory("async");
-        threadFactory.setDaemon(true);
-        final LinkedBlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>();
-        this.executor = new ThreadPoolExecutor(properties.getAsyncThreadCount(), properties.getAsyncThreadCount(),
-                Duration.ofMinutes(1).toMillis(), TimeUnit.MILLISECONDS, workQueue, threadFactory);
+    public ExecutorAsyncService(final ExecutorService executorService, Optional<MeterRegistry> meterRegistryOptional) {
+        this.executorService = executorService;
+        this.meterRegistryOptional = meterRegistryOptional;
     }
 
     @Override
-    public <T> Mono<T> asyncMono(final Callable<T> callable) {
-        return Mono.<T> create(sink -> {
-            AtomicBoolean started = new AtomicBoolean(false);
-            AtomicReference<Future<?>> pendingFuture = new AtomicReference<>(null);
-            sink.onRequest(requestCount -> {
-                if (requestCount > 0L && started.compareAndSet(false, true)) {
-                    pendingFuture.set(executor.submit(() -> {
-                        boolean done = false;
-                        try {
-                            final T result = callable.call();
-                            if (result == null)
-                                sink.success();
-                            else
-                                sink.success(result);
-                            done = true;
-                        } catch (Throwable e) {
-                            sink.error(new RuntimeException(e));
-                        }
-                        if (!done)
-                            sink.success();
-                    }));
-                }
-            });
-            sink.onCancel(() -> {
-                final Future<?> future = pendingFuture.getAndSet(null);
-                if (future != null)
-                    future.cancel(true);
-                started.set(false);
-            });
-        }).publishOn(Schedulers.elastic());
+    public <T> Mono<T> asyncMonoOptional(Callable<Optional<T>> callable) {
+        return asyncMono(callable).filter(Optional::isPresent).map(Optional::get);
     }
 
     @Override
-    public <T> Flux<T> asyncFlux(final RelaxConsumer<Consumer<T>> sinkHandler) {
-        return Flux.<T> create(fluxSink -> {
-            Semaphore remainingContingent = new Semaphore(0);
-            AtomicBoolean started = new AtomicBoolean(false);
-            AtomicReference<Future<?>> runningFuture = new AtomicReference<>(null);
-            fluxSink.onRequest(requestCount -> {
-                if (requestCount < 1)
-                    return;
-                int maxRelease = Integer.MAX_VALUE - remainingContingent.availablePermits();
-                remainingContingent.release((int) Math.min(requestCount, maxRelease));
-                if (started.compareAndSet(false, true)) {
-                    runningFuture.set(executor.submit(() -> {
-                        AtomicBoolean done = new AtomicBoolean(false);
-                        try {
-                            sinkHandler.accept(value -> {
-                                if (done.get())
-                                    throw new IllegalStateException("Flux is already closed");
+    public <T> Mono<T> asyncMono(Callable<T> callable) {
+        return Mono.<T> create(monoSink -> {
+            final AtomicReference<Future<?>> runningFuture = new AtomicReference<>(null);
+            final AtomicBoolean interrupted = new AtomicBoolean(false);
+            monoSink.onRequest(count -> {
+                if (count > 0) {
+                    runningFuture.updateAndGet(existingFuture -> existingFuture != null ? existingFuture
+                            : executorService.submit(meterRunnable("asyncMono", () -> {
+                                boolean done = false;
                                 try {
-                                    // log.info("Take " + value);
-                                    remainingContingent.acquire();
-                                    // log.info("Semaphore taken");
-                                    fluxSink.next(value);
-                                    // log.info("Data processed");
-                                } catch (InterruptedException e) {
-                                    throw new IllegalStateException(e);
+                                    monoSink.success(callable.call());
+                                    done = true;
+                                } catch (Exception e) {
+                                    if (!interrupted.get())
+                                        monoSink.error(e);
+                                } finally {
+                                    if (!done)
+                                        monoSink.success();
                                 }
-                            });
-                        } catch (Exception ex) {
-                            fluxSink.error(ex);
-                        } finally {
-                            done.set(true);
-                            fluxSink.complete();
-                        }
-                    }));
+                            })));
                 }
             });
-            fluxSink.onCancel(() -> {
+            monoSink.onCancel(() -> {
                 final Future<?> pendingFuture = runningFuture.getAndSet(null);
+                interrupted.set(true);
                 if (pendingFuture != null)
                     pendingFuture.cancel(true);
             });
-        }).publishOn(Schedulers.elastic());
+        });
+    }
+
+    private Runnable meterRunnable(final String methodName, final Runnable runnable) {
+        return meterRegistryOptional.map(meterRegistry -> (Runnable) () -> meterRegistry
+                .timer("async.task.run", "method", methodName).record(runnable)).orElse(runnable);
+    }
+
+    @Override
+    public <T> Flux<T> asyncFlux(RelaxConsumer<Consumer<T>> sinkHandler) {
+        return Flux.<T> create(fluxSink -> {
+            Semaphore freeSlots = new Semaphore(0);
+            fluxSink.onRequest(count -> freeSlots.release((int) Math.min(count, Integer.MAX_VALUE)));
+            AtomicBoolean interrupted = new AtomicBoolean(false);
+            final Future<?> future = executorService.submit(meterRunnable("asyncFlux", () -> {
+                final Consumer<T> dataConsumer = nextElement -> {
+                    if (interrupted.get()) {
+                        throw new RuntimeException("Flux is already cancelled", new InterruptedException());
+                    }
+                    try {
+                        freeSlots.acquire(1);
+                        try {
+                            fluxSink.next(nextElement);
+                        } catch (Exception e) {
+                            log.error("Error while processing next element {}", nextElement, e);
+                            if (!interrupted.get())
+                                fluxSink.error(e);
+                        }
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                };
+                try {
+                    sinkHandler.accept(dataConsumer);
+                } catch (Exception ex) {
+                    if (!interrupted.get())
+                        fluxSink.error(ex);
+                    else
+                        log.debug("Exception on interrupted process", ex);
+                } finally {
+                    if (!interrupted.get())
+                        fluxSink.complete();
+                }
+            }));
+            fluxSink.onCancel(() -> {
+                interrupted.set(true);
+                future.cancel(true);
+            });
+        });
     }
 }
