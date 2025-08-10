@@ -9,23 +9,23 @@ import reactor.core.publisher.Mono;
 
 public interface AlbumList {
 
-  void resetCache();
+    void resetCache();
 
-  FileImporter createImporter(final Updater.CommitContext context);
+    FileImporter createImporter(final Updater.CommitContext context);
 
-  Flux<FoundAlbum> listAlbums();
+    Flux<FoundAlbum> listAlbums();
 
-  Flux<String> listParentDirs();
+    Flux<String> listParentDirs();
 
-  Mono<GitAccess> getAlbum(UUID albumId);
+    Mono<GitAccess> getAlbum(UUID albumId);
 
-  Mono<UUID> createAlbum(List<String> albumPath);
+    Mono<UUID> createAlbum(List<String> albumPath);
 
-  Mono<UUID> detectTargetAlbum(Path file);
+    Mono<UUID> detectTargetAlbum(Path file);
 
-  @Value
-  class FoundAlbum {
-    UUID albumId;
-    GitAccess access;
-  }
+    @Value
+    class FoundAlbum {
+        UUID albumId;
+        GitAccess access;
+    }
 }

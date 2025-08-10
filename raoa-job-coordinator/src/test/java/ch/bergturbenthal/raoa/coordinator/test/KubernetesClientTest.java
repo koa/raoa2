@@ -23,49 +23,34 @@ import reactor.core.publisher.Flux;
 
 @Slf4j
 public class KubernetesClientTest {
-  public static void main(String[] args) throws IOException, InterruptedException {
-    final KubernetesClient client = new DefaultKubernetesClient().inNamespace("raoa-dev");
-    final CoordinatorProperties properties = new CoordinatorProperties();
-    properties.setMediaProcessorTemplate(
-        IOUtils.resourceToString(
-            "test-template.yaml",
-            StandardCharsets.UTF_8,
-            KubernetesClientTest.class.getClassLoader()));
-    final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(2);
-    final RemoteMediaProcessor processor =
-        new KubernetesMediaProcessor(client, properties, executorService);
+    public static void main(String[] args) throws IOException, InterruptedException {
+        final KubernetesClient client = new DefaultKubernetesClient().inNamespace("raoa-dev");
+        final CoordinatorProperties properties = new CoordinatorProperties();
+        properties.setMediaProcessorTemplate(IOUtils.resourceToString("test-template.yaml", StandardCharsets.UTF_8,
+                KubernetesClientTest.class.getClassLoader()));
+        final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(2);
+        final RemoteMediaProcessor processor = new KubernetesMediaProcessor(client, properties, executorService);
 
-    AsyncService asyncService = new ExecutorAsyncService(new Properties());
+        AsyncService asyncService = new ExecutorAsyncService(new Properties());
 
-    asyncService
-        .<String>asyncFlux(
-            consumer -> {
-              final BufferedReader bufferedReader =
-                  new BufferedReader(
-                      new InputStreamReader(
-                          new ClassPathResource("testfiles.txt").getInputStream()));
-              while (true) {
+        asyncService.<String> asyncFlux(consumer -> {
+            final BufferedReader bufferedReader = new BufferedReader(
+                    new InputStreamReader(new ClassPathResource("testfiles.txt").getInputStream()));
+            while (true) {
                 final String line = bufferedReader.readLine();
-                if (line == null) break;
+                if (line == null)
+                    break;
                 consumer.accept(line);
-              }
-            })
-        .publish(
-            flux ->
-                Flux.merge(
-                    flux.filter(f -> f.toLowerCase(Locale.ROOT).endsWith(".jpg")).buffer(1000),
-                    flux.filter(f1 -> f1.toLowerCase(Locale.ROOT).endsWith(".nef")).buffer(100),
-                    flux.filter(f2 -> f2.toLowerCase(Locale.ROOT).endsWith(".mp4")).buffer(1)))
-        .flatMap(
-            batch ->
-                processor.processFiles(
-                    UUID.fromString("b033dda0-a33f-dc23-4ac5-c5d3e5208f26"), batch),
-            20)
-        .log("batch")
-        .count()
-        .block();
-    processor.close();
-    executorService.shutdown();
-    client.close();
-  }
+            }
+        }).publish(flux -> Flux.merge(flux.filter(f -> f.toLowerCase(Locale.ROOT).endsWith(".jpg")).buffer(1000),
+                flux.filter(f1 -> f1.toLowerCase(Locale.ROOT).endsWith(".nef")).buffer(100),
+                flux.filter(f2 -> f2.toLowerCase(Locale.ROOT).endsWith(".mp4")).buffer(1)))
+                .flatMap(
+                        batch -> processor.processFiles(UUID.fromString("b033dda0-a33f-dc23-4ac5-c5d3e5208f26"), batch),
+                        20)
+                .log("batch").count().block();
+        processor.close();
+        executorService.shutdown();
+        client.close();
+    }
 }

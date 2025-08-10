@@ -4,6 +4,6 @@ import lombok.Value;
 
 @Value
 public class KeywordCount {
-  String keyword;
-  int count;
+    String keyword;
+    int count;
 }

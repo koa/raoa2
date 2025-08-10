@@ -5,7 +5,7 @@ import lombok.Value;
 
 @Value
 public class SingleUserUpdate {
-  UUID userId;
-  UUID albumId;
-  boolean isMember;
+    UUID userId;
+    UUID albumId;
+    boolean isMember;
 }

@@ -5,6 +5,6 @@ import lombok.Value;
 
 @Value
 public class ProcessImageRequest {
-  UUID albumId;
-  String filename;
+    UUID albumId;
+    String filename;
 }

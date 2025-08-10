@@ -25,60 +25,55 @@ import reactor.core.publisher.Mono;
 @Slf4j
 @Service
 public class HttpRepositoryResolver
-    implements RepositoryResolver<HttpServletRequest>, ReceivePackFactory<HttpServletRequest> {
-  private final Map<Repository, UUID> reverseMap = Collections.synchronizedMap(new WeakHashMap<>());
-  private final AlbumList albumList;
-  private final AuthorizationManager authorizationManager;
+        implements RepositoryResolver<HttpServletRequest>, ReceivePackFactory<HttpServletRequest> {
+    private final Map<Repository, UUID> reverseMap = Collections.synchronizedMap(new WeakHashMap<>());
+    private final AlbumList albumList;
+    private final AuthorizationManager authorizationManager;
 
-  public HttpRepositoryResolver(
-      final AlbumList albumList, final AuthorizationManager authorizationManager) {
-    this.albumList = albumList;
-    this.authorizationManager = authorizationManager;
-  }
-
-  private static ReceivePack createFor(final Repository db, final String user, String email) {
-    final ReceivePack rp = new ReceivePack(db);
-    rp.setRefLogIdent(new PersonIdent(user, email));
-    return rp;
-  }
-
-  @Override
-  public Repository open(final HttpServletRequest req, final String name)
-      throws ServiceNotAuthorizedException {
-
-    User user = extractUser(req);
-
-    final UUID albumId = UUID.fromString(name);
-
-    if (user == null) {
-      throw new ServiceNotAuthorizedException("Invalid user / password");
+    public HttpRepositoryResolver(final AlbumList albumList, final AuthorizationManager authorizationManager) {
+        this.albumList = albumList;
+        this.authorizationManager = authorizationManager;
     }
 
-    final Repository repository =
-        albumList.getAlbum(albumId).flatMap(GitAccess::getRepository).block(Duration.ofSeconds(10));
-    reverseMap.put(repository, albumId);
-    return repository;
-  }
+    private static ReceivePack createFor(final Repository db, final String user, String email) {
+        final ReceivePack rp = new ReceivePack(db);
+        rp.setRefLogIdent(new PersonIdent(user, email));
+        return rp;
+    }
 
-  private User extractUser(final HttpServletRequest req) {
-    final Principal userPrincipal = req.getUserPrincipal();
-    if (userPrincipal == null) return null;
-    return (User) ((UsernamePasswordAuthenticationToken) userPrincipal).getDetails();
-  }
+    @Override
+    public Repository open(final HttpServletRequest req, final String name) throws ServiceNotAuthorizedException {
 
-  @Override
-  public ReceivePack create(HttpServletRequest req, Repository db)
-      throws ServiceNotAuthorizedException {
-    final UUID albumId = reverseMap.get(db);
+        User user = extractUser(req);
 
-    final User user = extractUser(req);
+        final UUID albumId = UUID.fromString(name);
 
-    if (user != null
-        && authorizationManager
-            .canUserModifyAlbum(Mono.just(user), albumId)
-            .defaultIfEmpty(false)
-            .block(Duration.ofSeconds(5)))
-      return createFor(db, user.getUserData().getName(), user.getUserData().getEmail());
-    throw new ServiceNotAuthorizedException();
-  }
+        if (user == null) {
+            throw new ServiceNotAuthorizedException("Invalid user / password");
+        }
+
+        final Repository repository = albumList.getAlbum(albumId).flatMap(GitAccess::getRepository)
+                .block(Duration.ofSeconds(10));
+        reverseMap.put(repository, albumId);
+        return repository;
+    }
+
+    private User extractUser(final HttpServletRequest req) {
+        final Principal userPrincipal = req.getUserPrincipal();
+        if (userPrincipal == null)
+            return null;
+        return (User) ((UsernamePasswordAuthenticationToken) userPrincipal).getDetails();
+    }
+
+    @Override
+    public ReceivePack create(HttpServletRequest req, Repository db) throws ServiceNotAuthorizedException {
+        final UUID albumId = reverseMap.get(db);
+
+        final User user = extractUser(req);
+
+        if (user != null && authorizationManager.canUserModifyAlbum(Mono.just(user), albumId).defaultIfEmpty(false)
+                .block(Duration.ofSeconds(5)))
+            return createFor(db, user.getUserData().getName(), user.getUserData().getEmail());
+        throw new ServiceNotAuthorizedException();
+    }
 }

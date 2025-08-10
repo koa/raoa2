@@ -13,45 +13,44 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public interface GitAccess {
-  Flux<GitFileEntry> listFiles(TreeFilter filter);
+    Flux<GitFileEntry> listFiles(TreeFilter filter);
 
-  Mono<ObjectLoader> readObject(AnyObjectId fileId);
+    Mono<ObjectLoader> readObject(AnyObjectId fileId);
 
-  Mono<String> filenameOfObject(AnyObjectId objectId);
+    Mono<String> filenameOfObject(AnyObjectId objectId);
 
-  Mono<ObjectLoader> readObject(String filename);
+    Mono<ObjectLoader> readObject(String filename);
 
-  Mono<ObjectId> getCurrentVersion();
+    Mono<ObjectId> getCurrentVersion();
 
-  Flux<Instant> readAutoadd();
+    Flux<Instant> readAutoadd();
 
-  Mono<Boolean> updateAutoadd(Collection<Instant> autoaddTimes, Updater.CommitContext context);
+    Mono<Boolean> updateAutoadd(Collection<Instant> autoaddTimes, Updater.CommitContext context);
 
-  Mono<Updater> createUpdater();
+    Mono<Updater> createUpdater();
 
-  Mono<String> getName();
+    Mono<String> getName();
 
-  Mono<String> getFullPath();
+    Mono<String> getFullPath();
 
-  Mono<AlbumMeta> getMetadata();
+    Mono<AlbumMeta> getMetadata();
 
-  Mono<Boolean> updateMetadata(
-      Function<AlbumMeta, AlbumMeta> mutation, final Updater.CommitContext context);
+    Mono<Boolean> updateMetadata(Function<AlbumMeta, AlbumMeta> mutation, final Updater.CommitContext context);
 
-  Mono<Metadata> entryMetdata(AnyObjectId entryId);
+    Mono<Metadata> entryMetdata(AnyObjectId entryId);
 
-  Mono<XMPMeta> readXmpMeta(ObjectLoader loader);
+    Mono<XMPMeta> readXmpMeta(ObjectLoader loader);
 
-  Mono<Boolean> writeXmpMeta(String filename, XMPMeta xmpMeta, final Updater.CommitContext context);
+    Mono<Boolean> writeXmpMeta(String filename, XMPMeta xmpMeta, final Updater.CommitContext context);
 
-  Mono<ObjectId> writeXmpMeta(String filename, XMPMeta xmpMeta, Updater updater);
+    Mono<ObjectId> writeXmpMeta(String filename, XMPMeta xmpMeta, Updater updater);
 
-  Mono<Repository> getRepository();
+    Mono<Repository> getRepository();
 
-  @Value
-  class GitFileEntry {
-    String nameString;
-    FileMode fileMode;
-    ObjectId fileId;
-  }
+    @Value
+    class GitFileEntry {
+        String nameString;
+        FileMode fileMode;
+        ObjectId fileId;
+    }
 }

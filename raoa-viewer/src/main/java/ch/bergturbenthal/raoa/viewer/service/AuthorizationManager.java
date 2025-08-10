@@ -12,29 +12,29 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public interface AuthorizationManager {
-  boolean isUserAuthenticated(SecurityContext context);
+    boolean isUserAuthenticated(SecurityContext context);
 
-  Optional<AuthenticationId> currentAuthentication(SecurityContext context);
+    Optional<AuthenticationId> currentAuthentication(SecurityContext context);
 
-  Flux<AlbumData> findVisibleAlbumsOfUser(User user);
+    Flux<AlbumData> findVisibleAlbumsOfUser(User user);
 
-  Flux<AlbumData> findVisibleAlbums(SecurityContext context);
+    Flux<AlbumData> findVisibleAlbums(SecurityContext context);
 
-  Mono<Boolean> canUserAccessToAlbum(SecurityContext context, UUID album);
+    Mono<Boolean> canUserAccessToAlbum(SecurityContext context, UUID album);
 
-  Mono<Boolean> canUserModifyAlbum(SecurityContext context, UUID album);
+    Mono<Boolean> canUserModifyAlbum(SecurityContext context, UUID album);
 
-  Mono<Boolean> canUserModifyAlbum(Mono<User> user, UUID album);
+    Mono<Boolean> canUserModifyAlbum(Mono<User> user, UUID album);
 
-  @NotNull
-  Mono<Boolean> canUserAccessToAlbum(UUID album, Mono<User> currentUser);
+    @NotNull
+    Mono<Boolean> canUserAccessToAlbum(UUID album, Mono<User> currentUser);
 
-  Mono<Boolean> canUserManageUsers(SecurityContext context);
+    Mono<Boolean> canUserManageUsers(SecurityContext context);
 
-  @NotNull
-  Mono<User> currentUser(SecurityContext context);
+    @NotNull
+    Mono<User> currentUser(SecurityContext context);
 
-  PersonalUserData readPersonalUserData(SecurityContext context);
+    PersonalUserData readPersonalUserData(SecurityContext context);
 
-  Mono<Boolean> hasPendingRequest(SecurityContext context);
+    Mono<Boolean> hasPendingRequest(SecurityContext context);
 }

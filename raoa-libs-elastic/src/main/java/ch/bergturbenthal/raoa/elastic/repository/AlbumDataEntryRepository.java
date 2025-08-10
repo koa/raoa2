@@ -6,5 +6,5 @@ import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Flux;
 
 public interface AlbumDataEntryRepository extends ReactiveCrudRepository<AlbumEntryData, String> {
-  Flux<AlbumEntryData> findByAlbumId(UUID albumId);
+    Flux<AlbumEntryData> findByAlbumId(UUID albumId);
 }

@@ -7,17 +7,13 @@ import lombok.Value;
 
 @Value
 public class CreatedTemporaryPassword {
-  UUID userId;
-  String title;
-  String password;
-  OffsetDateTime validUntil;
+    UUID userId;
+    String title;
+    String password;
+    OffsetDateTime validUntil;
 
-  public static CreatedTemporaryPassword from(
-      ch.bergturbenthal.raoa.elastic.model.TemporaryPassword model) {
-    return new CreatedTemporaryPassword(
-        model.getUserId(),
-        model.getTitle(),
-        model.getPassword(),
-        model.getValidUntil().atOffset(ZoneOffset.UTC));
-  }
+    public static CreatedTemporaryPassword from(ch.bergturbenthal.raoa.elastic.model.TemporaryPassword model) {
+        return new CreatedTemporaryPassword(model.getUserId(), model.getTitle(), model.getPassword(),
+                model.getValidUntil().atOffset(ZoneOffset.UTC));
+    }
 }

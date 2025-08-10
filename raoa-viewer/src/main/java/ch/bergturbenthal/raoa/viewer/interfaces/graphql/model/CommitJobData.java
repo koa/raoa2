@@ -5,5 +5,5 @@ import lombok.Value;
 
 @Value
 public class CommitJobData {
-  CommitJob data;
+    CommitJob data;
 }

@@ -24,35 +24,37 @@ import org.springframework.data.elasticsearch.annotations.Setting;
 @Builder
 @JsonDeserialize(builder = AlbumData.AlbumDataBuilder.class)
 public class AlbumData {
-  @Id UUID repositoryId;
+    @Id
+    UUID repositoryId;
 
-  @Field(type = FieldType.Keyword)
-  @JsonSerialize(using = ObjectIdSerializer.class)
-  ObjectId currentVersion;
+    @Field(type = FieldType.Keyword)
+    @JsonSerialize(using = ObjectIdSerializer.class)
+    ObjectId currentVersion;
 
-  @Field(type = FieldType.Text)
-  String name;
+    @Field(type = FieldType.Text)
+    String name;
 
-  @Field(type = FieldType.Integer)
-  int entryCount;
+    @Field(type = FieldType.Integer)
+    int entryCount;
 
-  @Nullable
-  @Field(type = FieldType.Double)
-  Instant createTime;
+    @Nullable
+    @Field(type = FieldType.Double)
+    Instant createTime;
 
-  @Field(type = FieldType.Object)
-  List<KeywordCount> keywordCount;
+    @Field(type = FieldType.Object)
+    List<KeywordCount> keywordCount;
 
-  @Field(type = FieldType.Object)
-  Map<String, String> labels;
+    @Field(type = FieldType.Object)
+    Map<String, String> labels;
 
-  @Field(type = FieldType.Keyword)
-  String titleEntry;
+    @Field(type = FieldType.Keyword)
+    String titleEntry;
 
-  @Field(type = FieldType.Keyword)
-  @JsonSerialize(using = ObjectIdSerializer.class)
-  ObjectId titleEntryId;
+    @Field(type = FieldType.Keyword)
+    @JsonSerialize(using = ObjectIdSerializer.class)
+    ObjectId titleEntryId;
 
-  @JsonPOJOBuilder(withPrefix = "")
-  public static class AlbumDataBuilder {}
+    @JsonPOJOBuilder(withPrefix = "")
+    public static class AlbumDataBuilder {
+    }
 }

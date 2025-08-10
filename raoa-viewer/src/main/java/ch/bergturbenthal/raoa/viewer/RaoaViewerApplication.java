@@ -31,76 +31,71 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Slf4j
-@SpringBootApplication(exclude = {ElasticSearchRestHealthContributorAutoConfiguration.class})
+@SpringBootApplication(exclude = { ElasticSearchRestHealthContributorAutoConfiguration.class })
 @EnableConfigurationProperties(ViewerProperties.class)
-@Import({RaoaElasticConfiguration.class, ResourceServerConfig.class})
-@ComponentScan(basePackageClasses = {DefaultAuthorizationManager.class, AlbumListController.class})
+@Import({ RaoaElasticConfiguration.class, ResourceServerConfig.class })
+@ComponentScan(basePackageClasses = { DefaultAuthorizationManager.class, AlbumListController.class })
 @EnableScheduling
 public class RaoaViewerApplication {
 
-  public static void main(String[] args) {
+    public static void main(String[] args) {
 
-    final ConfigurableApplicationContext run =
-        SpringApplication.run(RaoaViewerApplication.class, args);
-  }
+        final ConfigurableApplicationContext run = SpringApplication.run(RaoaViewerApplication.class, args);
+    }
 
-  @Bean
-  public ServletRegistrationBean<GitServlet> gitServlet(
-      final RepositoryResolver<HttpServletRequest> resolver,
-      final ReceivePackFactory<HttpServletRequest> receivePackFactory) {
-    final GitServlet servlet = new GitServlet();
+    @Bean
+    public ServletRegistrationBean<GitServlet> gitServlet(final RepositoryResolver<HttpServletRequest> resolver,
+            final ReceivePackFactory<HttpServletRequest> receivePackFactory) {
+        final GitServlet servlet = new GitServlet();
 
-    servlet.setRepositoryResolver(resolver);
-    servlet.setReceivePackFactory(receivePackFactory);
-    return new ServletRegistrationBean<>(servlet, "/git/*");
-  }
+        servlet.setRepositoryResolver(resolver);
+        servlet.setReceivePackFactory(receivePackFactory);
+        return new ServletRegistrationBean<>(servlet, "/git/*");
+    }
 
-  @Bean
-  public OncePerRequestFilter appendHeaderFilter() {
-    return new OncePerRequestFilter() {
-      @Override
-      protected void doFilterInternal(
-          final @NotNull HttpServletRequest request,
-          final @NotNull HttpServletResponse response,
-          final @NotNull FilterChain filterChain)
-          throws ServletException, IOException {
-        final String servletPath = request.getServletPath();
-        if (servletPath.equals("/git")) response.setHeader("WWW-Authenticate", "Basic realm=Git");
-        filterChain.doFilter(request, response);
-      }
-    };
-  }
+    @Bean
+    public OncePerRequestFilter appendHeaderFilter() {
+        return new OncePerRequestFilter() {
+            @Override
+            protected void doFilterInternal(final @NotNull HttpServletRequest request,
+                    final @NotNull HttpServletResponse response, final @NotNull FilterChain filterChain)
+                    throws ServletException, IOException {
+                final String servletPath = request.getServletPath();
+                if (servletPath.equals("/git"))
+                    response.setHeader("WWW-Authenticate", "Basic realm=Git");
+                filterChain.doFilter(request, response);
+            }
+        };
+    }
 
-  // @Bean
-  public OncePerRequestFilter requestLoggingFilter() {
+    // @Bean
+    public OncePerRequestFilter requestLoggingFilter() {
 
-    return new OncePerRequestFilter() {
+        return new OncePerRequestFilter() {
 
-      @Override
-      protected void doFilterInternal(
-          final @NotNull HttpServletRequest request,
-          final @NotNull HttpServletResponse response,
-          final @NotNull FilterChain filterChain)
-          throws ServletException, IOException {
-        final String requestURI = request.getRequestURI();
-        filterChain.doFilter(request, response);
-        final Collection<String> responseHeaders = response.getHeaderNames();
-        final Enumeration<String> requestHeaders = request.getHeaderNames();
-        log.info("Request: " + requestURI + " code: " + response.getStatus());
-        while (requestHeaders.hasMoreElements()) {
-          String headerName = requestHeaders.nextElement();
-          log.info(" - " + headerName + ": " + String.join(", ", request.getHeader(headerName)));
-        }
-        log.info("-------------");
-        for (String headerName : responseHeaders) {
-          log.info(" - " + headerName + ": " + String.join(", ", response.getHeaders(headerName)));
-        }
-      }
-    };
-  }
+            @Override
+            protected void doFilterInternal(final @NotNull HttpServletRequest request,
+                    final @NotNull HttpServletResponse response, final @NotNull FilterChain filterChain)
+                    throws ServletException, IOException {
+                final String requestURI = request.getRequestURI();
+                filterChain.doFilter(request, response);
+                final Collection<String> responseHeaders = response.getHeaderNames();
+                final Enumeration<String> requestHeaders = request.getHeaderNames();
+                log.info("Request: " + requestURI + " code: " + response.getStatus());
+                while (requestHeaders.hasMoreElements()) {
+                    String headerName = requestHeaders.nextElement();
+                    log.info(" - " + headerName + ": " + String.join(", ", request.getHeader(headerName)));
+                }
+                log.info("-------------");
+                for (String headerName : responseHeaders) {
+                    log.info(" - " + headerName + ": " + String.join(", ", response.getHeaders(headerName)));
+                }
+            }
+        };
+    }
 
-  @Bean
-  public RuntimeWiringConfigurer scalarConfigurer() {
-    return builder -> builder.scalar(ExtendedScalars.DateTime).scalar(ExtendedScalars.GraphQLLong);
-  }
+    @Bean
+    public RuntimeWiringConfigurer scalarConfigurer() {
+        return builder -> builder.scalar(ExtendedScalars.DateTime).scalar(ExtendedScalars.GraphQLLong);
+    }
 }

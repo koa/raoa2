@@ -13,19 +13,19 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 @Value
 @Builder(toBuilder = true)
 public class TemporaryPassword {
-  @Id
-  @Field(type = FieldType.Keyword)
-  String id;
+    @Id
+    @Field(type = FieldType.Keyword)
+    String id;
 
-  @Field(type = FieldType.Keyword)
-  UUID userId;
+    @Field(type = FieldType.Keyword)
+    UUID userId;
 
-  @Field(type = FieldType.Keyword)
-  String title;
+    @Field(type = FieldType.Keyword)
+    String title;
 
-  @Field(type = FieldType.Keyword)
-  String password;
+    @Field(type = FieldType.Keyword)
+    String password;
 
-  @Field(type = FieldType.Double)
-  Instant validUntil;
+    @Field(type = FieldType.Double)
+    Instant validUntil;
 }

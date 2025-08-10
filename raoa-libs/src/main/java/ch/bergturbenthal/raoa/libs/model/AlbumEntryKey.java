@@ -6,6 +6,6 @@ import org.eclipse.jgit.lib.ObjectId;
 
 @Value
 public class AlbumEntryKey {
-  private UUID album;
-  private ObjectId entry;
+    private UUID album;
+    private ObjectId entry;
 }

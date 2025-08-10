@@ -9,21 +9,21 @@ import org.springframework.web.context.request.RequestAttributes;
 import reactor.core.publisher.Mono;
 
 public interface QueryContext {
-  SecurityContext getSecurityContext();
+    SecurityContext getSecurityContext();
 
-  Mono<AuthenticationState> getAuthenticationState();
+    Mono<AuthenticationState> getAuthenticationState();
 
-  Optional<User> getCurrentUser();
+    Optional<User> getCurrentUser();
 
-  Optional<AuthenticationId> currentAuthenticationId();
+    Optional<AuthenticationId> currentAuthenticationId();
 
-  boolean canUserManageUsers();
+    boolean canUserManageUsers();
 
-  boolean canUserEditData();
+    boolean canUserEditData();
 
-  RequestAttributes getRequestAttributes();
+    RequestAttributes getRequestAttributes();
 
-  String getContexRootPath();
+    String getContexRootPath();
 
-  boolean canAccessGroup(UUID groupId);
+    boolean canAccessGroup(UUID groupId);
 }

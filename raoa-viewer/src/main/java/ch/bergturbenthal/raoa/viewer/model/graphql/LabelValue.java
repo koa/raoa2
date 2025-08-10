@@ -4,6 +4,6 @@ import lombok.Value;
 
 @Value
 public class LabelValue {
-  String labelName;
-  String labelValue;
+    String labelName;
+    String labelValue;
 }

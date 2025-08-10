@@ -8,10 +8,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Data
 // @Validated
 public class Properties {
-  private File repository;
-  private File thumbnailDir = new File("/tmp/raoa/thumbnails");
-  private File importDir = new File("/tmp/raoa/import");
-  private int maxConcurrent = 30;
-  private int asyncThreadCount = 10;
-  private String superuser = "107024483334418897627";
+    private File repository;
+    private File thumbnailDir = new File("/tmp/raoa/thumbnails");
+    private File importDir = new File("/tmp/raoa/import");
+    private int maxConcurrent = 30;
+    private int asyncThreadCount = 10;
+    private String superuser = "107024483334418897627";
 }

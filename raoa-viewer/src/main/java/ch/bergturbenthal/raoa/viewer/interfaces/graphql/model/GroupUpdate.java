@@ -6,7 +6,7 @@ import lombok.Value;
 
 @Value
 public class GroupUpdate {
-  String newName;
-  List<LabelValueInput> newLabels;
-  List<String> removeLabels;
+    String newName;
+    List<LabelValueInput> newLabels;
+    List<String> removeLabels;
 }

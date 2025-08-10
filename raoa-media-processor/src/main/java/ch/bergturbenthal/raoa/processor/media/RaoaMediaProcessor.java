@@ -13,23 +13,22 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 
-@SpringBootApplication(exclude = {ElasticSearchRestHealthContributorAutoConfiguration.class})
-@Import({RaoaElasticConfiguration.class})
+@SpringBootApplication(exclude = { ElasticSearchRestHealthContributorAutoConfiguration.class })
+@Import({ RaoaElasticConfiguration.class })
 @EnableConfigurationProperties(JobProperties.class)
-@ComponentScan(basePackageClasses = {DefaultProcessor.class})
+@ComponentScan(basePackageClasses = { DefaultProcessor.class })
 @Slf4j
 public class RaoaMediaProcessor {
-  public static void main(String[] args) {
-    boolean ok = false;
-    try (ConfigurableApplicationContext context =
-        SpringApplication.run(RaoaMediaProcessor.class, args)) {
+    public static void main(String[] args) {
+        boolean ok = false;
+        try (ConfigurableApplicationContext context = SpringApplication.run(RaoaMediaProcessor.class, args)) {
 
-      ok = context.getBean(Processor.class).run();
-      log.info("Application terminated " + ok);
-    } catch (Throwable t) {
-      ok = false;
-      log.warn("Error processing data ", t);
+            ok = context.getBean(Processor.class).run();
+            log.info("Application terminated " + ok);
+        } catch (Throwable t) {
+            ok = false;
+            log.warn("Error processing data ", t);
+        }
+        System.exit(ok ? 0 : 1);
     }
-    System.exit(ok ? 0 : 1);
-  }
 }

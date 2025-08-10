@@ -8,6 +8,6 @@ import lombok.Value;
 @Value
 @Builder
 public class CommitData {
-  UUID albumId;
-  List<ImportFile> files;
+    UUID albumId;
+    List<ImportFile> files;
 }

@@ -21,105 +21,92 @@ import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 public class ExecutorAsyncService implements AsyncService {
-  private final ExecutorService executor;
+    private final ExecutorService executor;
 
-  public ExecutorAsyncService(final Properties properties) {
+    public ExecutorAsyncService(final Properties properties) {
 
-    final CustomizableThreadFactory threadFactory = new CustomizableThreadFactory("async");
-    threadFactory.setDaemon(true);
-    final LinkedBlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>();
-    this.executor =
-        new ThreadPoolExecutor(
-            properties.getAsyncThreadCount(),
-            properties.getAsyncThreadCount(),
-            Duration.ofMinutes(1).toMillis(),
-            TimeUnit.MILLISECONDS,
-            workQueue,
-            threadFactory);
-  }
+        final CustomizableThreadFactory threadFactory = new CustomizableThreadFactory("async");
+        threadFactory.setDaemon(true);
+        final LinkedBlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>();
+        this.executor = new ThreadPoolExecutor(properties.getAsyncThreadCount(), properties.getAsyncThreadCount(),
+                Duration.ofMinutes(1).toMillis(), TimeUnit.MILLISECONDS, workQueue, threadFactory);
+    }
 
-  @Override
-  public <T> Mono<T> asyncMono(final Callable<T> callable) {
-    return Mono.<T>create(
-            sink -> {
-              AtomicBoolean started = new AtomicBoolean(false);
-              AtomicReference<Future<?>> pendingFuture = new AtomicReference<>(null);
-              sink.onRequest(
-                  requestCount -> {
-                    if (requestCount > 0L && started.compareAndSet(false, true)) {
-                      pendingFuture.set(
-                          executor.submit(
-                              () -> {
-                                boolean done = false;
+    @Override
+    public <T> Mono<T> asyncMono(final Callable<T> callable) {
+        return Mono.<T> create(sink -> {
+            AtomicBoolean started = new AtomicBoolean(false);
+            AtomicReference<Future<?>> pendingFuture = new AtomicReference<>(null);
+            sink.onRequest(requestCount -> {
+                if (requestCount > 0L && started.compareAndSet(false, true)) {
+                    pendingFuture.set(executor.submit(() -> {
+                        boolean done = false;
+                        try {
+                            final T result = callable.call();
+                            if (result == null)
+                                sink.success();
+                            else
+                                sink.success(result);
+                            done = true;
+                        } catch (Throwable e) {
+                            sink.error(new RuntimeException(e));
+                        }
+                        if (!done)
+                            sink.success();
+                    }));
+                }
+            });
+            sink.onCancel(() -> {
+                final Future<?> future = pendingFuture.getAndSet(null);
+                if (future != null)
+                    future.cancel(true);
+                started.set(false);
+            });
+        }).publishOn(Schedulers.elastic());
+    }
+
+    @Override
+    public <T> Flux<T> asyncFlux(final RelaxConsumer<Consumer<T>> sinkHandler) {
+        return Flux.<T> create(fluxSink -> {
+            Semaphore remainingContingent = new Semaphore(0);
+            AtomicBoolean started = new AtomicBoolean(false);
+            AtomicReference<Future<?>> runningFuture = new AtomicReference<>(null);
+            fluxSink.onRequest(requestCount -> {
+                if (requestCount < 1)
+                    return;
+                int maxRelease = Integer.MAX_VALUE - remainingContingent.availablePermits();
+                remainingContingent.release((int) Math.min(requestCount, maxRelease));
+                if (started.compareAndSet(false, true)) {
+                    runningFuture.set(executor.submit(() -> {
+                        AtomicBoolean done = new AtomicBoolean(false);
+                        try {
+                            sinkHandler.accept(value -> {
+                                if (done.get())
+                                    throw new IllegalStateException("Flux is already closed");
                                 try {
-                                  final T result = callable.call();
-                                  if (result == null) sink.success();
-                                  else sink.success(result);
-                                  done = true;
-                                } catch (Throwable e) {
-                                  sink.error(new RuntimeException(e));
+                                    // log.info("Take " + value);
+                                    remainingContingent.acquire();
+                                    // log.info("Semaphore taken");
+                                    fluxSink.next(value);
+                                    // log.info("Data processed");
+                                } catch (InterruptedException e) {
+                                    throw new IllegalStateException(e);
                                 }
-                                if (!done) sink.success();
-                              }));
-                    }
-                  });
-              sink.onCancel(
-                  () -> {
-                    final Future<?> future = pendingFuture.getAndSet(null);
-                    if (future != null) future.cancel(true);
-                    started.set(false);
-                  });
-            })
-        .publishOn(Schedulers.elastic());
-  }
-
-  @Override
-  public <T> Flux<T> asyncFlux(final RelaxConsumer<Consumer<T>> sinkHandler) {
-    return Flux.<T>create(
-            fluxSink -> {
-              Semaphore remainingContingent = new Semaphore(0);
-              AtomicBoolean started = new AtomicBoolean(false);
-              AtomicReference<Future<?>> runningFuture = new AtomicReference<>(null);
-              fluxSink.onRequest(
-                  requestCount -> {
-                    if (requestCount < 1) return;
-                    int maxRelease = Integer.MAX_VALUE - remainingContingent.availablePermits();
-                    remainingContingent.release((int) Math.min(requestCount, maxRelease));
-                    if (started.compareAndSet(false, true)) {
-                      runningFuture.set(
-                          executor.submit(
-                              () -> {
-                                AtomicBoolean done = new AtomicBoolean(false);
-                                try {
-                                  sinkHandler.accept(
-                                      value -> {
-                                        if (done.get())
-                                          throw new IllegalStateException("Flux is already closed");
-                                        try {
-                                          // log.info("Take " + value);
-                                          remainingContingent.acquire();
-                                          // log.info("Semaphore taken");
-                                          fluxSink.next(value);
-                                          // log.info("Data processed");
-                                        } catch (InterruptedException e) {
-                                          throw new IllegalStateException(e);
-                                        }
-                                      });
-                                } catch (Exception ex) {
-                                  fluxSink.error(ex);
-                                } finally {
-                                  done.set(true);
-                                  fluxSink.complete();
-                                }
-                              }));
-                    }
-                  });
-              fluxSink.onCancel(
-                  () -> {
-                    final Future<?> pendingFuture = runningFuture.getAndSet(null);
-                    if (pendingFuture != null) pendingFuture.cancel(true);
-                  });
-            })
-        .publishOn(Schedulers.elastic());
-  }
+                            });
+                        } catch (Exception ex) {
+                            fluxSink.error(ex);
+                        } finally {
+                            done.set(true);
+                            fluxSink.complete();
+                        }
+                    }));
+                }
+            });
+            fluxSink.onCancel(() -> {
+                final Future<?> pendingFuture = runningFuture.getAndSet(null);
+                if (pendingFuture != null)
+                    pendingFuture.cancel(true);
+            });
+        }).publishOn(Schedulers.elastic());
+    }
 }

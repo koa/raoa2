@@ -5,7 +5,7 @@ import lombok.Value;
 
 @Value
 public class GroupMembershipReference {
-  Instant from;
-  Instant until;
-  GroupReference group;
+    Instant from;
+    Instant until;
+    GroupReference group;
 }

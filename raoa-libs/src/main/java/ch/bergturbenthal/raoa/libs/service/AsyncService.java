@@ -7,16 +7,16 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public interface AsyncService {
-  <T> Mono<T> asyncMono(Callable<T> callable);
+    <T> Mono<T> asyncMono(Callable<T> callable);
 
-  default <T> Mono<T> asyncMonoOptional(Callable<Optional<T>> callable) {
-    return asyncMono(callable).filter(Optional::isPresent).map(Optional::get);
-  }
+    default <T> Mono<T> asyncMonoOptional(Callable<Optional<T>> callable) {
+        return asyncMono(callable).filter(Optional::isPresent).map(Optional::get);
+    }
 
-  <T> Flux<T> asyncFlux(RelaxConsumer<Consumer<T>> sinkHandler);
+    <T> Flux<T> asyncFlux(RelaxConsumer<Consumer<T>> sinkHandler);
 
-  @FunctionalInterface
-  interface RelaxConsumer<T> {
-    void accept(T t) throws Exception;
-  }
+    @FunctionalInterface
+    interface RelaxConsumer<T> {
+        void accept(T t) throws Exception;
+    }
 }

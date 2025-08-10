@@ -6,8 +6,8 @@ import lombok.Value;
 
 @Value
 public class UserReference {
-  public static final UUID UNKNOWN_USER_ID = UUID.randomUUID();
-  UUID id;
-  PersonalUserData info;
-  QueryContext context;
+    public static final UUID UNKNOWN_USER_ID = UUID.randomUUID();
+    UUID id;
+    PersonalUserData info;
+    QueryContext context;
 }

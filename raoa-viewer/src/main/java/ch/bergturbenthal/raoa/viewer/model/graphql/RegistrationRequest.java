@@ -8,8 +8,8 @@ import lombok.Value;
 @Value
 @Builder
 public class RegistrationRequest {
-  private AuthenticationId authenticationId;
-  private PersonalUserData data;
-  private String reason;
-  private Album requestAlbum;
+    private AuthenticationId authenticationId;
+    private PersonalUserData data;
+    private String reason;
+    private Album requestAlbum;
 }

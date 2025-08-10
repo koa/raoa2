@@ -45,163 +45,142 @@ import org.springframework.web.reactive.function.client.ExchangeStrategies;
 @Configuration
 @EnableReactiveElasticsearchRepositories(basePackageClasses = AlbumDataRepository.class)
 @EnableElasticsearchRepositories(basePackageClasses = SyncAlbumDataEntryRepository.class)
-@Import({RaoaLibConfiguration.class})
+@Import({ RaoaLibConfiguration.class })
 @ComponentScan(basePackageClasses = ElasticSearchDataViewService.class)
-@EnableConfigurationProperties({
-  ElasticsearchProperties.class,
-  ReactiveElasticsearchRestClientProperties.class
-})
+@EnableConfigurationProperties({ ElasticsearchProperties.class, ReactiveElasticsearchRestClientProperties.class })
 public class RaoaElasticConfiguration {
 
-  static {
-    log.info("Init Class");
-    try {
-      SSLContext sslContext = SSLContext.getInstance("TLS");
-      sslContext.init(null, new TrustManager[] {new DummyX509TrustManager()}, null);
-      SSLContext.setDefault(sslContext);
-    } catch (NoSuchAlgorithmException | KeyManagementException e) {
-      log.error("Cannot override TLS settings");
-      e.printStackTrace();
+    static {
+        log.info("Init Class");
+        try {
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[] { new DummyX509TrustManager() }, null);
+            SSLContext.setDefault(sslContext);
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            log.error("Cannot override TLS settings");
+            e.printStackTrace();
+        }
     }
-  }
 
-  public RaoaElasticConfiguration() {
-    log.info("Init Instance");
-  }
-
-  @Bean
-  public ElasticsearchCustomConversions elasticsearchCustomConversions() {
-    Jsr310Converters.getConvertersToRegister();
-    return new ElasticsearchCustomConversions(
-        Stream.concat(
-                Stream.of(
-                    new ObjectIdToString(),
-                    new StringToObjectId(),
-                    new InstantLongReader(),
-                    new InstantIntegerReader(),
-                    new InstantDoubleReader()),
-                Jsr310Converters.getConvertersToRegister().stream())
-            .collect(Collectors.toList()));
-  }
-
-  @Bean(name = {"elasticsearchOperations", "elasticsearchTemplate"})
-  public ElasticsearchOperations elasticsearchOperations(
-      ElasticsearchConverter elasticsearchConverter, final RestHighLevelClient client) {
-    return new ElasticsearchRestTemplate(client, elasticsearchConverter);
-  }
-
-  @Bean
-  ElasticsearchConverter elasticsearchConverter(
-      SimpleElasticsearchMappingContext mappingContext,
-      ElasticsearchCustomConversions customConversions) {
-    final MappingElasticsearchConverter mappingElasticsearchConverter =
-        new MappingElasticsearchConverter(mappingContext);
-    mappingElasticsearchConverter.setConversions(customConversions);
-
-    return mappingElasticsearchConverter;
-  }
-
-  @Bean
-  @Primary
-  ReactiveElasticsearchTemplate reactiveElasticsearchTemplate(
-      ReactiveElasticsearchClient client, ElasticsearchConverter converter) {
-    ReactiveElasticsearchTemplate template = new ReactiveElasticsearchTemplate(client, converter);
-
-    template.setIndicesOptions(IndicesOptions.strictExpandOpenAndForbidClosed());
-    template.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-    return template;
-  }
-
-  @Bean
-  public ClientConfiguration clientConfiguration(
-      ElasticsearchProperties properties,
-      ReactiveElasticsearchRestClientProperties restClientProperties) {
-    final String[] hostAndPorts = properties.getUris().toArray(new String[0]);
-    ClientConfiguration.MaybeSecureClientConfigurationBuilder builder =
-        ClientConfiguration.builder().connectedTo(hostAndPorts);
-
-    try {
-      builder.usingSsl(SSLContext.getDefault());
-    } catch (NoSuchAlgorithmException e) {
-      log.warn("Cannot init SSL", e);
+    public RaoaElasticConfiguration() {
+        log.info("Init Instance");
     }
-    PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
 
-    builder.withBasicAuth(properties.getUsername(), properties.getPassword());
-
-    map.from(properties.getConnectionTimeout()).to(builder::withConnectTimeout);
-    map.from(properties.getSocketTimeout()).to(builder::withSocketTimeout);
-    map.from(properties.getPathPrefix()).to(builder::withPathPrefix);
-
-    map.from(restClientProperties.getMaxInMemorySize())
-        .asInt(DataSize::toBytes)
-        .to(
-            (maxInMemorySize) -> {
-              builder.withClientConfigurer(
-                  ReactiveRestClients.WebClientConfigurationCallback.from(
-                      (webClient) -> {
-                        ExchangeStrategies exchangeStrategies =
-                            ExchangeStrategies.builder()
-                                .codecs(
-                                    (configurer) ->
-                                        configurer.defaultCodecs().maxInMemorySize(maxInMemorySize))
-                                .build();
-                        return webClient.mutate().exchangeStrategies(exchangeStrategies).build();
-                      }));
-            });
-    return builder.build();
-  }
-
-  @Bean
-  public RestHighLevelClient elasticsearchClient(ClientConfiguration configuration) {
-
-    final RestClients.ElasticsearchRestClient elasticsearchRestClient =
-        RestClients.create(configuration);
-    return elasticsearchRestClient.rest();
-  }
-
-  @WritingConverter
-  static class ObjectIdToString implements Converter<ObjectId, String> {
-
-    @Override
-    public String convert(final ObjectId source) {
-      return source.name();
+    @Bean
+    public ElasticsearchCustomConversions elasticsearchCustomConversions() {
+        Jsr310Converters.getConvertersToRegister();
+        return new ElasticsearchCustomConversions(Stream.concat(
+                Stream.of(new ObjectIdToString(), new StringToObjectId(), new InstantLongReader(),
+                        new InstantIntegerReader(), new InstantDoubleReader()),
+                Jsr310Converters.getConvertersToRegister().stream()).collect(Collectors.toList()));
     }
-  }
 
-  @ReadingConverter
-  static class StringToObjectId implements Converter<String, ObjectId> {
-
-    @Override
-    public ObjectId convert(final String source) {
-      return ObjectId.fromString(source);
+    @Bean(name = { "elasticsearchOperations", "elasticsearchTemplate" })
+    public ElasticsearchOperations elasticsearchOperations(ElasticsearchConverter elasticsearchConverter,
+            final RestHighLevelClient client) {
+        return new ElasticsearchRestTemplate(client, elasticsearchConverter);
     }
-  }
 
-  @ReadingConverter
-  static class InstantLongReader implements Converter<Long, Instant> {
+    @Bean
+    ElasticsearchConverter elasticsearchConverter(SimpleElasticsearchMappingContext mappingContext,
+            ElasticsearchCustomConversions customConversions) {
+        final MappingElasticsearchConverter mappingElasticsearchConverter = new MappingElasticsearchConverter(
+                mappingContext);
+        mappingElasticsearchConverter.setConversions(customConversions);
 
-    @Override
-    public Instant convert(final Long source) {
-      return Instant.ofEpochMilli(source);
+        return mappingElasticsearchConverter;
     }
-  }
 
-  @ReadingConverter
-  static class InstantIntegerReader implements Converter<Integer, Instant> {
+    @Bean
+    @Primary
+    ReactiveElasticsearchTemplate reactiveElasticsearchTemplate(ReactiveElasticsearchClient client,
+            ElasticsearchConverter converter) {
+        ReactiveElasticsearchTemplate template = new ReactiveElasticsearchTemplate(client, converter);
 
-    @Override
-    public Instant convert(final Integer source) {
-      return Instant.ofEpochSecond(source);
+        template.setIndicesOptions(IndicesOptions.strictExpandOpenAndForbidClosed());
+        template.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        return template;
     }
-  }
 
-  @ReadingConverter
-  static class InstantDoubleReader implements Converter<Double, Instant> {
+    @Bean
+    public ClientConfiguration clientConfiguration(ElasticsearchProperties properties,
+            ReactiveElasticsearchRestClientProperties restClientProperties) {
+        final String[] hostAndPorts = properties.getUris().toArray(new String[0]);
+        ClientConfiguration.MaybeSecureClientConfigurationBuilder builder = ClientConfiguration.builder()
+                .connectedTo(hostAndPorts);
 
-    @Override
-    public Instant convert(final Double source) {
-      return Instant.ofEpochMilli(Math.round(source * 1000.0));
+        try {
+            builder.usingSsl(SSLContext.getDefault());
+        } catch (NoSuchAlgorithmException e) {
+            log.warn("Cannot init SSL", e);
+        }
+        PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
+
+        builder.withBasicAuth(properties.getUsername(), properties.getPassword());
+
+        map.from(properties.getConnectionTimeout()).to(builder::withConnectTimeout);
+        map.from(properties.getSocketTimeout()).to(builder::withSocketTimeout);
+        map.from(properties.getPathPrefix()).to(builder::withPathPrefix);
+
+        map.from(restClientProperties.getMaxInMemorySize()).asInt(DataSize::toBytes).to((maxInMemorySize) -> {
+            builder.withClientConfigurer(ReactiveRestClients.WebClientConfigurationCallback.from((webClient) -> {
+                ExchangeStrategies exchangeStrategies = ExchangeStrategies.builder()
+                        .codecs((configurer) -> configurer.defaultCodecs().maxInMemorySize(maxInMemorySize)).build();
+                return webClient.mutate().exchangeStrategies(exchangeStrategies).build();
+            }));
+        });
+        return builder.build();
     }
-  }
+
+    @Bean
+    public RestHighLevelClient elasticsearchClient(ClientConfiguration configuration) {
+
+        final RestClients.ElasticsearchRestClient elasticsearchRestClient = RestClients.create(configuration);
+        return elasticsearchRestClient.rest();
+    }
+
+    @WritingConverter
+    static class ObjectIdToString implements Converter<ObjectId, String> {
+
+        @Override
+        public String convert(final ObjectId source) {
+            return source.name();
+        }
+    }
+
+    @ReadingConverter
+    static class StringToObjectId implements Converter<String, ObjectId> {
+
+        @Override
+        public ObjectId convert(final String source) {
+            return ObjectId.fromString(source);
+        }
+    }
+
+    @ReadingConverter
+    static class InstantLongReader implements Converter<Long, Instant> {
+
+        @Override
+        public Instant convert(final Long source) {
+            return Instant.ofEpochMilli(source);
+        }
+    }
+
+    @ReadingConverter
+    static class InstantIntegerReader implements Converter<Integer, Instant> {
+
+        @Override
+        public Instant convert(final Integer source) {
+            return Instant.ofEpochSecond(source);
+        }
+    }
+
+    @ReadingConverter
+    static class InstantDoubleReader implements Converter<Double, Instant> {
+
+        @Override
+        public Instant convert(final Double source) {
+            return Instant.ofEpochMilli(Math.round(source * 1000.0));
+        }
+    }
 }

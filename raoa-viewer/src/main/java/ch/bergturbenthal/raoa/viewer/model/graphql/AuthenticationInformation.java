@@ -6,6 +6,6 @@ import lombok.Value;
 @Builder
 @Value
 public class AuthenticationInformation {
-  AuthenticationState state;
-  UserReference user;
+    AuthenticationState state;
+    UserReference user;
 }

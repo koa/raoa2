@@ -5,7 +5,7 @@ import lombok.Value;
 
 @Value
 public class AddKeywordMutation {
-  UUID albumId;
-  String albumEntryId;
-  String keyword;
+    UUID albumId;
+    String albumEntryId;
+    String keyword;
 }

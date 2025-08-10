@@ -6,9 +6,8 @@ import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public interface TemporaryPasswordRepository
-    extends ReactiveCrudRepository<TemporaryPassword, String> {
-  Mono<TemporaryPassword> findByUserIdAndPassword(UUID userId, String password);
+public interface TemporaryPasswordRepository extends ReactiveCrudRepository<TemporaryPassword, String> {
+    Mono<TemporaryPassword> findByUserIdAndPassword(UUID userId, String password);
 
-  Flux<TemporaryPassword> findByUserId(UUID userId);
+    Flux<TemporaryPassword> findByUserId(UUID userId);
 }

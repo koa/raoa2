@@ -15,45 +15,41 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 @Value
 @JsonDeserialize(builder = RequestAccess.RequestAccessBuilder.class)
 public class RequestAccess {
-  @Id
-  @Field(index = false)
-  String requestId;
+    @Id
+    @Field(index = false)
+    String requestId;
 
-  @Field(type = FieldType.Nested)
-  PersonalUserData userData;
+    @Field(type = FieldType.Nested)
+    PersonalUserData userData;
 
-  @Field(type = FieldType.Nested)
-  AuthenticationId authenticationId;
+    @Field(type = FieldType.Nested)
+    AuthenticationId authenticationId;
 
-  @Field(type = FieldType.Text)
-  String comment;
+    @Field(type = FieldType.Text)
+    String comment;
 
-  @Field(type = FieldType.Double)
-  Instant requestTime;
+    @Field(type = FieldType.Double)
+    Instant requestTime;
 
-  @Field(type = FieldType.Keyword)
-  UUID requestedAlbum;
+    @Field(type = FieldType.Keyword)
+    UUID requestedAlbum;
 
-  @Builder
-  public RequestAccess(
-      final PersonalUserData userData,
-      final AuthenticationId authenticationId,
-      final String comment,
-      final Instant requestTime,
-      final UUID requestedAlbum,
-      final String requestId) {
-    this.userData = userData;
-    this.authenticationId = authenticationId;
-    this.comment = comment;
-    this.requestTime = requestTime;
-    this.requestedAlbum = requestedAlbum;
-    this.requestId = concatId(authenticationId);
-  }
+    @Builder
+    public RequestAccess(final PersonalUserData userData, final AuthenticationId authenticationId, final String comment,
+            final Instant requestTime, final UUID requestedAlbum, final String requestId) {
+        this.userData = userData;
+        this.authenticationId = authenticationId;
+        this.comment = comment;
+        this.requestTime = requestTime;
+        this.requestedAlbum = requestedAlbum;
+        this.requestId = concatId(authenticationId);
+    }
 
-  public static String concatId(final AuthenticationId authenticationId) {
-    return authenticationId.getAuthority() + ";" + authenticationId.getId();
-  }
+    public static String concatId(final AuthenticationId authenticationId) {
+        return authenticationId.getAuthority() + ";" + authenticationId.getId();
+    }
 
-  @JsonPOJOBuilder(withPrefix = "")
-  public static class RequestAccessBuilder {}
+    @JsonPOJOBuilder(withPrefix = "")
+    public static class RequestAccessBuilder {
+    }
 }

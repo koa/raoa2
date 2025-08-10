@@ -5,7 +5,7 @@ import lombok.Value;
 
 @Value
 public class UploadResult {
-  UUID fileId;
-  long byteCount;
-  UUID suggestedAlbum;
+    UUID fileId;
+    long byteCount;
+    UUID suggestedAlbum;
 }

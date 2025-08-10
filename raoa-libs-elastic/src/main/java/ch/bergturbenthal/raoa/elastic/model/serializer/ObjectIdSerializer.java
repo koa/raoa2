@@ -7,10 +7,9 @@ import java.io.IOException;
 import org.eclipse.jgit.lib.ObjectId;
 
 public class ObjectIdSerializer extends JsonSerializer<ObjectId> {
-  @Override
-  public void serialize(
-      final ObjectId value, final JsonGenerator gen, final SerializerProvider serializers)
-      throws IOException {
-    gen.writeString(value.name());
-  }
+    @Override
+    public void serialize(final ObjectId value, final JsonGenerator gen, final SerializerProvider serializers)
+            throws IOException {
+        gen.writeString(value.name());
+    }
 }

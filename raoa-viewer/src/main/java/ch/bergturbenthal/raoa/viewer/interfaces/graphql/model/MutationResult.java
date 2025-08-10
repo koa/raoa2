@@ -8,6 +8,6 @@ import lombok.Value;
 @Value
 @Builder
 public class MutationResult {
-  List<MutationError> errors;
-  List<AlbumEntry> modifiedEntries;
+    List<MutationError> errors;
+    List<AlbumEntry> modifiedEntries;
 }

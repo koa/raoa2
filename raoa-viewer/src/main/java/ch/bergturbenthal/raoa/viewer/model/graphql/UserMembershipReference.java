@@ -5,7 +5,7 @@ import lombok.Value;
 
 @Value
 public class UserMembershipReference {
-  Instant from;
-  Instant until;
-  UserReference user;
+    Instant from;
+    Instant until;
+    UserReference user;
 }

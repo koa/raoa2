@@ -5,7 +5,7 @@ import lombok.Value;
 
 @Value
 public class ImportFile {
-  UUID fileId;
-  String filename;
-  long size;
+    UUID fileId;
+    String filename;
+    long size;
 }

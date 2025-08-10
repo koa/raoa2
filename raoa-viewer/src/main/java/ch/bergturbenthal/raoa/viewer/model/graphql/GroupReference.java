@@ -6,7 +6,7 @@ import reactor.core.publisher.Mono;
 
 @Value
 public class GroupReference {
-  UUID id;
-  QueryContext context;
-  Mono<ch.bergturbenthal.raoa.elastic.model.Group> group;
+    UUID id;
+    QueryContext context;
+    Mono<ch.bergturbenthal.raoa.elastic.model.Group> group;
 }

@@ -17,22 +17,20 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication(exclude = {ElasticSearchRestHealthContributorAutoConfiguration.class})
+@SpringBootApplication(exclude = { ElasticSearchRestHealthContributorAutoConfiguration.class })
 @EnableConfigurationProperties(CoordinatorProperties.class)
-@Import({RaoaElasticConfiguration.class})
-@ComponentScan(basePackageClasses = {Poller.class})
+@Import({ RaoaElasticConfiguration.class })
+@ComponentScan(basePackageClasses = { Poller.class })
 @EnableScheduling
 @Slf4j
 public class RaoaJobCoordinator {
-  public static void main(String[] args) {
-    SpringApplication.run(RaoaJobCoordinator.class, args);
-  }
+    public static void main(String[] args) {
+        SpringApplication.run(RaoaJobCoordinator.class, args);
+    }
 
-  @Bean
-  public InitAdminUserIfMissing initAdminUserIfMissing(
-      final Properties properties,
-      final DataViewService dataViewService,
-      final UserManager userManager) {
-    return new InitAdminUserIfMissing(properties, dataViewService, userManager);
-  }
+    @Bean
+    public InitAdminUserIfMissing initAdminUserIfMissing(final Properties properties,
+            final DataViewService dataViewService, final UserManager userManager) {
+        return new InitAdminUserIfMissing(properties, dataViewService, userManager);
+    }
 }

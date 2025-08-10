@@ -19,14 +19,13 @@ import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 @Slf4j
 public class RaoaLibConfiguration {
 
-  @Bean
-  public AsyncService asyncService(final Properties properties) {
-    return new ExecutorAsyncService(properties);
-  }
+    @Bean
+    public AsyncService asyncService(final Properties properties) {
+        return new ExecutorAsyncService(properties);
+    }
 
-  @Bean
-  ScheduledExecutorService executorService() {
-    return Executors.newScheduledThreadPool(
-        10, new CustomizableThreadFactory("raoa-lib-scheduled"));
-  }
+    @Bean
+    ScheduledExecutorService executorService() {
+        return Executors.newScheduledThreadPool(10, new CustomizableThreadFactory("raoa-lib-scheduled"));
+    }
 }

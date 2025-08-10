@@ -6,5 +6,5 @@ import org.eclipse.jgit.lib.ObjectId;
 import reactor.core.publisher.Mono;
 
 public interface RemoteImageProcessor {
-  Mono<AlbumEntryData> processImage(ObjectId fileId, ProcessImageRequest data);
+    Mono<AlbumEntryData> processImage(ObjectId fileId, ProcessImageRequest data);
 }

@@ -5,7 +5,7 @@ import lombok.Value;
 
 @Value
 public class CredentialUpgrade {
-  List<SingleUserUpdate> userUpdates;
-  List<SingleGroupUpdate> groupUpdates;
-  List<SingleGroupMembershipUpdate> groupMembershipUpdates;
+    List<SingleUserUpdate> userUpdates;
+    List<SingleGroupUpdate> groupUpdates;
+    List<SingleGroupMembershipUpdate> groupMembershipUpdates;
 }

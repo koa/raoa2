@@ -6,7 +6,8 @@ import lombok.Value;
 
 @Value
 public class MutationError {
-  UUID albumId;
-  String albumEntryId;
-  @NonNull String message;
+    UUID albumId;
+    String albumEntryId;
+    @NonNull
+    String message;
 }

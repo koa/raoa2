@@ -6,6 +6,6 @@ import lombok.Value;
 
 @Value
 public class ImportedFile {
-  UUID fileId;
-  AlbumEntry albumEntry;
+    UUID fileId;
+    AlbumEntry albumEntry;
 }

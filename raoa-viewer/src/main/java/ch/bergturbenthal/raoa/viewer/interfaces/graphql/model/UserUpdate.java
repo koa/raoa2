@@ -6,9 +6,9 @@ import lombok.Value;
 
 @Value
 public class UserUpdate {
-  Boolean canManageUsers;
-  List<UserVisibilityUpdate> visibilityUpdates;
-  Set<String> removeLabels;
-  Boolean isEditor;
-  Set<String> removeTemporaryPasswords;
+    Boolean canManageUsers;
+    List<UserVisibilityUpdate> visibilityUpdates;
+    Set<String> removeLabels;
+    Boolean isEditor;
+    Set<String> removeTemporaryPasswords;
 }

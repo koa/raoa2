@@ -16,46 +16,45 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public interface DataViewService {
-  Mono<Void> updateUserData();
+    Mono<Void> updateUserData();
 
-  Mono<Long> updateAlbums(Flux<AlbumList.FoundAlbum> albumList);
+    Mono<Long> updateAlbums(Flux<AlbumList.FoundAlbum> albumList);
 
-  Flux<AlbumData> listAlbums();
+    Flux<AlbumData> listAlbums();
 
-  Mono<AlbumData> readAlbum(UUID id);
+    Mono<AlbumData> readAlbum(UUID id);
 
-  Flux<AlbumEntryData> listEntries(UUID id);
+    Flux<AlbumEntryData> listEntries(UUID id);
 
-  Mono<AlbumEntryData> loadEntry(UUID albumId, ObjectId entriId);
+    Mono<AlbumEntryData> loadEntry(UUID albumId, ObjectId entriId);
 
-  Flux<User> findUserForAuthentication(AuthenticationId authenticationId);
+    Flux<User> findUserForAuthentication(AuthenticationId authenticationId);
 
-  Mono<User> findUserById(UUID id);
+    Mono<User> findUserById(UUID id);
 
-  Mono<Group> findGroupById(UUID id);
+    Mono<Group> findGroupById(UUID id);
 
-  Flux<User> listUserForAlbum(UUID albumId);
+    Flux<User> listUserForAlbum(UUID albumId);
 
-  Mono<RequestAccess> getPendingRequest(AuthenticationId id);
+    Mono<RequestAccess> getPendingRequest(AuthenticationId id);
 
-  Mono<RequestAccess> requestAccess(RequestAccess request);
+    Mono<RequestAccess> requestAccess(RequestAccess request);
 
-  Flux<RequestAccess> listAllRequestedAccess();
+    Flux<RequestAccess> listAllRequestedAccess();
 
-  Mono<Void> removePendingAccessRequest(AuthenticationId id);
+    Mono<Void> removePendingAccessRequest(AuthenticationId id);
 
-  Flux<User> listUsers();
+    Flux<User> listUsers();
 
-  Flux<Group> listGroups();
+    Flux<Group> listGroups();
 
-  Mono<AlbumEntryData> updateKeyword(UUID albumId, ObjectId entryId, XMPMeta xmpMeta);
+    Mono<AlbumEntryData> updateKeyword(UUID albumId, ObjectId entryId, XMPMeta xmpMeta);
 
-  Mono<TemporaryPassword> createTemporaryPassword(
-      UUID user, final String title, String password, Instant validUntil);
+    Mono<TemporaryPassword> createTemporaryPassword(UUID user, final String title, String password, Instant validUntil);
 
-  Mono<User> findAndValidateTemporaryPassword(UUID user, String password);
+    Mono<User> findAndValidateTemporaryPassword(UUID user, String password);
 
-  Flux<TemporaryPassword> findTemporaryPasswordsByUser(UUID user);
+    Flux<TemporaryPassword> findTemporaryPasswordsByUser(UUID user);
 
-  Mono<Void> deleteTemporaryPasswordsByUser(UUID userId, String title);
+    Mono<Void> deleteTemporaryPasswordsByUser(UUID userId, String title);
 }

@@ -7,21 +7,21 @@ import org.eclipse.jgit.lib.ObjectId;
 import reactor.core.publisher.Mono;
 
 public interface Updater {
-  Mono<ObjectId> importFile(Path file, String name);
+    Mono<ObjectId> importFile(Path file, String name);
 
-  Mono<ObjectId> importFile(Path file, String name, boolean replaceIfExists);
+    Mono<ObjectId> importFile(Path file, String name, boolean replaceIfExists);
 
-  Mono<Boolean> removeFile(String name);
+    Mono<Boolean> removeFile(String name);
 
-  Mono<Boolean> commit(CommitContext context);
+    Mono<Boolean> commit(CommitContext context);
 
-  Mono<Void> close();
+    Mono<Void> close();
 
-  @Value
-  @Builder
-  class CommitContext {
-    String message;
-    String username;
-    String email;
-  }
+    @Value
+    @Builder
+    class CommitContext {
+        String message;
+        String username;
+        String email;
+    }
 }

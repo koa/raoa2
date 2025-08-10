@@ -6,9 +6,9 @@ import lombok.Value;
 
 @Value
 public class SingleGroupMembershipUpdate {
-  UUID groupId;
-  UUID userId;
-  Instant from;
-  Instant until;
-  boolean isMember;
+    UUID groupId;
+    UUID userId;
+    Instant from;
+    Instant until;
+    boolean isMember;
 }

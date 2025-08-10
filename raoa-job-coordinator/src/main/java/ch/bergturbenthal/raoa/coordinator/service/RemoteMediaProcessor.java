@@ -5,7 +5,7 @@ import java.util.UUID;
 import reactor.core.publisher.Mono;
 
 public interface RemoteMediaProcessor {
-  Mono<Boolean> processFiles(UUID album, Collection<String> files);
+    Mono<Boolean> processFiles(UUID album, Collection<String> files);
 
-  void close();
+    void close();
 }

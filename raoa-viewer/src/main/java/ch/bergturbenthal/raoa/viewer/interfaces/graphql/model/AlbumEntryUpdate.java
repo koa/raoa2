@@ -5,6 +5,6 @@ import lombok.Value;
 
 @Value
 public class AlbumEntryUpdate {
-  Set<String> addKeywords;
-  Set<String> removeKeywords;
+    Set<String> addKeywords;
+    Set<String> removeKeywords;
 }

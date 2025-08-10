@@ -9,21 +9,20 @@ import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 
 public interface FileImporter {
-  @NotNull
-  Mono<Tuple2<UUID, ObjectId>> importFile(Path file);
+    @NotNull
+    Mono<Tuple2<UUID, ObjectId>> importFile(Path file);
 
-  @NotNull
-  Mono<Tuple2<UUID, ObjectId>> importFile(final Path file, final String originalFileName);
+    @NotNull
+    Mono<Tuple2<UUID, ObjectId>> importFile(final Path file, final String originalFileName);
 
-  @NotNull
-  Mono<Boolean> commitAll();
+    @NotNull
+    Mono<Boolean> commitAll();
 
-  Mono<Void> close();
+    Mono<Void> close();
 
-  @NotNull
-  Mono<Tuple2<UUID, ObjectId>> importFile(
-      Path file, String originalFileName, Function<UUID, Mono<Boolean>> authorizer);
+    @NotNull
+    Mono<Tuple2<UUID, ObjectId>> importFile(Path file, String originalFileName,
+            Function<UUID, Mono<Boolean>> authorizer);
 
-  Mono<Tuple2<UUID, ObjectId>> importFileIntoRepository(
-      Path file, String originalFileName, UUID selectedRepository);
+    Mono<Tuple2<UUID, ObjectId>> importFileIntoRepository(Path file, String originalFileName, UUID selectedRepository);
 }

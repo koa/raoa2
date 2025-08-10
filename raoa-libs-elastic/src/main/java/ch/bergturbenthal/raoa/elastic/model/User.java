@@ -13,23 +13,24 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 @Value
 @Builder(toBuilder = true)
 public class User {
-  @Id UUID id;
+    @Id
+    UUID id;
 
-  @Field(type = FieldType.Object)
-  PersonalUserData userData;
+    @Field(type = FieldType.Object)
+    PersonalUserData userData;
 
-  @Field(type = FieldType.Keyword)
-  Set<UUID> visibleAlbums;
+    @Field(type = FieldType.Keyword)
+    Set<UUID> visibleAlbums;
 
-  @Field(type = FieldType.Object)
-  Set<GroupMembership> groupMembership;
+    @Field(type = FieldType.Object)
+    Set<GroupMembership> groupMembership;
 
-  @Field(type = FieldType.Object)
-  Set<AuthenticationId> authentications;
+    @Field(type = FieldType.Object)
+    Set<AuthenticationId> authentications;
 
-  @Field(type = FieldType.Boolean)
-  boolean superuser;
+    @Field(type = FieldType.Boolean)
+    boolean superuser;
 
-  @Field(type = FieldType.Boolean)
-  boolean editor;
+    @Field(type = FieldType.Boolean)
+    boolean editor;
 }

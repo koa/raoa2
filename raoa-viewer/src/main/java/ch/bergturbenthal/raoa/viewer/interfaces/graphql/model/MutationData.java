@@ -6,6 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Value
 public class MutationData {
-  AddKeywordMutation addKeywordMutation;
-  RemoveKeywordMutation removeKeywordMutation;
+    AddKeywordMutation addKeywordMutation;
+    RemoveKeywordMutation removeKeywordMutation;
 }

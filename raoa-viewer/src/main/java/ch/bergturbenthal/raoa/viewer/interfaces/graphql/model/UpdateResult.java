@@ -4,5 +4,5 @@ import lombok.Value;
 
 @Value
 public class UpdateResult {
-  boolean done;
+    boolean done;
 }

@@ -12,31 +12,23 @@ import reactor.core.publisher.Mono;
 @Slf4j
 @Controller
 public class QueryCommitJob {
-  private static final String TYPE_NAME = "CommitJob";
-  private final QueryContextSupplier queryContextSupplier;
-  private final AuthorizationManager authorizationManager;
-  private final DataViewService dataViewService;
+    private static final String TYPE_NAME = "CommitJob";
+    private final QueryContextSupplier queryContextSupplier;
+    private final AuthorizationManager authorizationManager;
+    private final DataViewService dataViewService;
 
-  public QueryCommitJob(
-      final QueryContextSupplier queryContextSupplier,
-      final AuthorizationManager authorizationManager,
-      final DataViewService dataViewService) {
-    this.queryContextSupplier = queryContextSupplier;
-    this.authorizationManager = authorizationManager;
-    this.dataViewService = dataViewService;
-  }
+    public QueryCommitJob(final QueryContextSupplier queryContextSupplier,
+            final AuthorizationManager authorizationManager, final DataViewService dataViewService) {
+        this.queryContextSupplier = queryContextSupplier;
+        this.authorizationManager = authorizationManager;
+        this.dataViewService = dataViewService;
+    }
 
-  @SchemaMapping(typeName = TYPE_NAME)
-  public Mono<Album> album(CommitJob job) {
-    return queryContextSupplier
-        .createContext()
-        .filterWhen(
-            queryContext ->
-                authorizationManager.canUserAccessToAlbum(
-                    queryContext.getSecurityContext(), job.getAlbumId()))
-        .map(
-            c ->
-                new Album(
-                    job.getAlbumId(), c, dataViewService.readAlbum(job.getAlbumId()).cache()));
-  }
+    @SchemaMapping(typeName = TYPE_NAME)
+    public Mono<Album> album(CommitJob job) {
+        return queryContextSupplier.createContext()
+                .filterWhen(queryContext -> authorizationManager.canUserAccessToAlbum(queryContext.getSecurityContext(),
+                        job.getAlbumId()))
+                .map(c -> new Album(job.getAlbumId(), c, dataViewService.readAlbum(job.getAlbumId()).cache()));
+    }
 }

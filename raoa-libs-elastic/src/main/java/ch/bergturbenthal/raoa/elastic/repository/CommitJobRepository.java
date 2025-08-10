@@ -6,5 +6,5 @@ import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Flux;
 
 public interface CommitJobRepository extends ReactiveCrudRepository<CommitJob, UUID> {
-  Flux<CommitJob> findByCurrentPhase(final CommitJob.State currentPhase);
+    Flux<CommitJob> findByCurrentPhase(final CommitJob.State currentPhase);
 }

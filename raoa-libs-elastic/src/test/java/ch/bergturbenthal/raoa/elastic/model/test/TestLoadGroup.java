@@ -13,15 +13,14 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
 @Slf4j
 public class TestLoadGroup {
-  @Test
-  public void testLoadGroup() throws IOException {
-    final ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().indentOutput(true).build();
+    @Test
+    public void testLoadGroup() throws IOException {
+        final ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().indentOutput(true).build();
 
-    final ObjectReader groupReader = objectMapper.readerFor(Group.class);
-    // final ObjectWriter groupWriter = objectMapper.writerFor(Group.class);
+        final ObjectReader groupReader = objectMapper.readerFor(Group.class);
+        // final ObjectWriter groupWriter = objectMapper.writerFor(Group.class);
 
-    final Group group = groupReader.readValue(new ClassPathResource("group.json").getInputStream());
-    Assert.assertEquals(
-        group.getLabels(), Collections.singletonMap("fnch-competitor-id", "225856"));
-  }
+        final Group group = groupReader.readValue(new ClassPathResource("group.json").getInputStream());
+        Assert.assertEquals(group.getLabels(), Collections.singletonMap("fnch-competitor-id", "225856"));
+    }
 }

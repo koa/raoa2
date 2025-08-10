@@ -6,13 +6,11 @@ import lombok.Value;
 
 @Value
 public class AlbumUpdatedEvent {
-  AlbumUpdateEventType type;
-  UUID id;
-  Album album;
+    AlbumUpdateEventType type;
+    UUID id;
+    Album album;
 
-  public enum AlbumUpdateEventType {
-    ADDED,
-    REMOVED,
-    MODIFIED
-  }
+    public enum AlbumUpdateEventType {
+        ADDED, REMOVED, MODIFIED
+    }
 }

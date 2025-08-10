@@ -11,12 +11,13 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 @Builder
 @JsonDeserialize(builder = KeywordCount.KeywordCountBuilder.class)
 public class KeywordCount {
-  @Field(type = FieldType.Keyword)
-  private String keyword;
+    @Field(type = FieldType.Keyword)
+    private String keyword;
 
-  @Field(type = FieldType.Integer)
-  private int entryCount;
+    @Field(type = FieldType.Integer)
+    private int entryCount;
 
-  @JsonPOJOBuilder(withPrefix = "")
-  public static class KeywordCountBuilder {}
+    @JsonPOJOBuilder(withPrefix = "")
+    public static class KeywordCountBuilder {
+    }
 }

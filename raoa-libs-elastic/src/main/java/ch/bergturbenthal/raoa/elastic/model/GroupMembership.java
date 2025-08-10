@@ -10,12 +10,12 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 @Value
 @Builder(toBuilder = true)
 public class GroupMembership {
-  @Field(type = FieldType.Double)
-  Instant from;
+    @Field(type = FieldType.Double)
+    Instant from;
 
-  @Field(type = FieldType.Double)
-  Instant until;
+    @Field(type = FieldType.Double)
+    Instant until;
 
-  @Field(type = FieldType.Keyword)
-  UUID group;
+    @Field(type = FieldType.Keyword)
+    UUID group;
 }

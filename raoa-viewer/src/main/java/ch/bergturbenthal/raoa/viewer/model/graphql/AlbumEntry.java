@@ -5,7 +5,7 @@ import lombok.Value;
 
 @Value
 public class AlbumEntry {
-  Album album;
-  String id;
-  AlbumEntryData elDataEntry;
+    Album album;
+    String id;
+    AlbumEntryData elDataEntry;
 }

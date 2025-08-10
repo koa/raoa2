@@ -10,6 +10,6 @@ import org.springframework.boot.context.properties.ConstructorBinding;
 @ConfigurationProperties("raoa.job")
 @Value
 public class JobProperties {
-  UUID repository;
-  Set<String> files;
+    UUID repository;
+    Set<String> files;
 }

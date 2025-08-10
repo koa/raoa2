@@ -6,9 +6,9 @@ import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Flux;
 
 public interface UserRepository extends ReactiveCrudRepository<User, UUID> {
-  Flux<User> findByAuthenticationsAuthorityAndAuthenticationsId(String authority, String id);
+    Flux<User> findByAuthenticationsAuthorityAndAuthenticationsId(String authority, String id);
 
-  Flux<User> findByVisibleAlbums(UUID albumId);
+    Flux<User> findByVisibleAlbums(UUID albumId);
 
-  Flux<User> findBySuperuser(boolean isSuperuser);
+    Flux<User> findBySuperuser(boolean isSuperuser);
 }

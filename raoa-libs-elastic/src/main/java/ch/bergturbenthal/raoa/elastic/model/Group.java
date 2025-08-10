@@ -14,14 +14,15 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 @Value
 @Builder(toBuilder = true)
 public class Group {
-  @Id UUID id;
+    @Id
+    UUID id;
 
-  @Field(type = FieldType.Text)
-  String name;
+    @Field(type = FieldType.Text)
+    String name;
 
-  @Field(type = FieldType.Keyword)
-  Set<UUID> visibleAlbums;
+    @Field(type = FieldType.Keyword)
+    Set<UUID> visibleAlbums;
 
-  @Field(type = FieldType.Object)
-  Map<String, String> labels;
+    @Field(type = FieldType.Object)
+    Map<String, String> labels;
 }

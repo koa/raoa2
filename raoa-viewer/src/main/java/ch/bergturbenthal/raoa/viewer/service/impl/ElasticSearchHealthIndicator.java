@@ -10,22 +10,17 @@ import reactor.core.publisher.Mono;
 @Slf4j
 @Component
 public class ElasticSearchHealthIndicator implements HealthIndicator {
-  private final UserRepository userRepository;
+    private final UserRepository userRepository;
 
-  public ElasticSearchHealthIndicator(final UserRepository userRepository) {
-    this.userRepository = userRepository;
-  }
+    public ElasticSearchHealthIndicator(final UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
 
-  @Override
-  public Health health() {
-    return userRepository
-        .count()
-        .map(c -> Health.up().withDetail("usersCount", c).build())
-        .onErrorResume(
-            ex -> {
-              log.warn("Error on health", ex);
-              return Mono.just(Health.down((Exception) ex).build());
-            })
-        .block();
-  }
+    @Override
+    public Health health() {
+        return userRepository.count().map(c -> Health.up().withDetail("usersCount", c).build()).onErrorResume(ex -> {
+            log.warn("Error on health", ex);
+            return Mono.just(Health.down((Exception) ex).build());
+        }).block();
+    }
 }

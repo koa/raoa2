@@ -7,38 +7,25 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 @Controller
 public class ViewController {
-  private final ViewerProperties viewerProperties;
+    private final ViewerProperties viewerProperties;
 
-  public ViewController(final ViewerProperties viewerProperties) {
-    this.viewerProperties = viewerProperties;
-  }
+    public ViewController(final ViewerProperties viewerProperties) {
+        this.viewerProperties = viewerProperties;
+    }
 
-  @RequestMapping({
-    "/",
-    "/album",
-    "/album/{id}",
-    "/album/{id}/manage",
-    "/album/{id}/media/{imageId}",
-    "/requestAccess",
-    "/admin/{page}",
-    "/manage-users",
-    "/manage-users/user/{id}",
-    "/manage-teams",
-    "/manage-teams/{id}",
-    "/sync",
-    "/import",
-    "/login",
-    "/welcome",
-    "/svps"
-  })
-  public String index() {
-    if (viewerProperties.isNewUi()) return "forward:/index-yew.html";
-    else return "forward:/index.html";
-  }
+    @RequestMapping({ "/", "/album", "/album/{id}", "/album/{id}/manage", "/album/{id}/media/{imageId}",
+            "/requestAccess", "/admin/{page}", "/manage-users", "/manage-users/user/{id}", "/manage-teams",
+            "/manage-teams/{id}", "/sync", "/import", "/login", "/welcome", "/svps" })
+    public String index() {
+        if (viewerProperties.isNewUi())
+            return "forward:/index-yew.html";
+        else
+            return "forward:/index.html";
+    }
 
-  @RequestMapping("/config")
-  @ResponseBody
-  public ViewerProperties.ClientProperties clientProperties() {
-    return viewerProperties.getClientProperties();
-  }
+    @RequestMapping("/config")
+    @ResponseBody
+    public ViewerProperties.ClientProperties clientProperties() {
+        return viewerProperties.getClientProperties();
+    }
 }

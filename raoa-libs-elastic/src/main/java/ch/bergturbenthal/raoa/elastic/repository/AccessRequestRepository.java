@@ -7,5 +7,5 @@ import reactor.core.publisher.Flux;
 
 public interface AccessRequestRepository extends ReactiveCrudRepository<RequestAccess, String> {
 
-  Flux<RequestAccess> findByAuthenticationId(AuthenticationId id);
+    Flux<RequestAccess> findByAuthenticationId(AuthenticationId id);
 }

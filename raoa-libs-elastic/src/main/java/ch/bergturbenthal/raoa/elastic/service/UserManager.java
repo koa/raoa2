@@ -13,26 +13,24 @@ import reactor.core.publisher.Mono;
 
 public interface UserManager {
 
-  Mono<User> createNewUser(RequestAccess baseRequest, final Updater.CommitContext context);
+    Mono<User> createNewUser(RequestAccess baseRequest, final Updater.CommitContext context);
 
-  Mono<Group> createNewGroup(String groupName, final Updater.CommitContext context);
+    Mono<Group> createNewGroup(String groupName, final Updater.CommitContext context);
 
-  Mono<ObjectId> getMetaVersion();
+    Mono<ObjectId> getMetaVersion();
 
-  Mono<Boolean> removeUser(UUID id, final Updater.CommitContext context);
+    Mono<Boolean> removeUser(UUID id, final Updater.CommitContext context);
 
-  void assignNewIdentity(
-      UUID existingId, AuthenticationId baseRequest, final Updater.CommitContext context);
+    void assignNewIdentity(UUID existingId, AuthenticationId baseRequest, final Updater.CommitContext context);
 
-  Flux<User> listUsers();
+    Flux<User> listUsers();
 
-  Flux<Group> listGroups();
+    Flux<Group> listGroups();
 
-  Mono<User> loadUser(UUID userId);
+    Mono<User> loadUser(UUID userId);
 
-  Mono<User> context(
-      UUID userId, Function<User, User> updater, final Updater.CommitContext updateDescription);
+    Mono<User> context(UUID userId, Function<User, User> updater, final Updater.CommitContext updateDescription);
 
-  Mono<Group> updateGroup(
-      UUID groupId, Function<Group, Group> updater, final Updater.CommitContext updateDescription);
+    Mono<Group> updateGroup(UUID groupId, Function<Group, Group> updater,
+            final Updater.CommitContext updateDescription);
 }

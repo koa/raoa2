@@ -7,9 +7,9 @@ import lombok.Value;
 
 @Value
 public class AlbumUpdate {
-  String newAlbumTitle;
-  String newTitleEntry;
-  List<LabelValueInput> newLabels;
-  List<String> removeLabels;
-  List<OffsetDateTime> autoadd;
+    String newAlbumTitle;
+    String newTitleEntry;
+    List<LabelValueInput> newLabels;
+    List<String> removeLabels;
+    List<OffsetDateTime> autoadd;
 }

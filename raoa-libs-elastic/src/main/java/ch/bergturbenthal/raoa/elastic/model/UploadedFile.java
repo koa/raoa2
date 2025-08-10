@@ -13,17 +13,18 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 @Builder(toBuilder = true)
 @Document(indexName = "uploaded-file-v1")
 public class UploadedFile {
-  @Id UUID fileId;
+    @Id
+    UUID fileId;
 
-  @Field(type = FieldType.Keyword)
-  String filename;
+    @Field(type = FieldType.Keyword)
+    String filename;
 
-  @Field(type = FieldType.Keyword)
-  UUID uploadedUser;
+    @Field(type = FieldType.Keyword)
+    UUID uploadedUser;
 
-  @Field(type = FieldType.Double)
-  Instant uploadTime;
+    @Field(type = FieldType.Double)
+    Instant uploadTime;
 
-  @Field(type = FieldType.Keyword)
-  UUID suggestedAlbum;
+    @Field(type = FieldType.Keyword)
+    UUID suggestedAlbum;
 }
