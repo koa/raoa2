@@ -46,12 +46,15 @@ spec:
               name: data
             - mountPath: /import
               name: shared-import
+            - mountPath: /cache
+              name: shared-cache
           command:
             - chown
             - -R
             - 1000:1000
             - /data
             - /import
+            - /cache
         {{ end }}
         - name: import-ca-certs
           image: eclipse-temurin:17-jre
