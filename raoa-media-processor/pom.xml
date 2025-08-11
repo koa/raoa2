@@ -9,8 +9,8 @@
     <modelVersion>4.0.0</modelVersion>
     <artifactId>raoa-media-processor</artifactId>
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
     </properties>
     <dependencies>
         <dependency>
@@ -37,7 +37,7 @@
         <dependency>
             <groupId>org.eclipse.jgit</groupId>
             <artifactId>org.eclipse.jgit</artifactId>
-            <version>6.2.0.202205251150-m3</version>
+            <version>7.3.0.202506031305-r</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -82,7 +82,7 @@
                 </executions>
                 <configuration>
                     <from>
-                        <image>ghcr.io/koa/raoa-processor-base/distroless-java-dcraw:latest@sha256:a6083ef3f66cefb92eda014942bc5a16fd96a3d484bc78daea324423c91c8b47</image>
+                        <image>ghcr.io/koa/raoa-processor-base/distroless-java-dcraw:latest@sha256:4b44a308753ab06d9339686d718f16fa5709126cebc3f0d4ab8d19302bcfe288</image>
                     </from>
                     <to>
                         <image>${docker.host}/raoa-media-processor</image>
