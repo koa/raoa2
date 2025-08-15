@@ -89,7 +89,6 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
         executorService.scheduleWithFixedDelay(() -> {
             try {
                 final List<Job> items = jobs.list(createListOptions()).getItems();
-                // log.info("Polled " + items.size());
                 items.forEach(jobStatusConsumer);
                 startWatch(jobStatusConsumer, executorService);
             } catch (Exception ex) {

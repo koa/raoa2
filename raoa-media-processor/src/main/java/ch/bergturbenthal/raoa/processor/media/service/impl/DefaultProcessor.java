@@ -7,11 +7,47 @@ import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
 import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
+import ch.bergturbenthal.raoa.libs.util.TikaUtil;
 import ch.bergturbenthal.raoa.processor.media.properties.JobProperties;
 import ch.bergturbenthal.raoa.processor.media.service.Processor;
 import com.adobe.internal.xmp.XMPMeta;
 import com.adobe.internal.xmp.XMPMetaFactory;
 import com.drew.lang.Charsets;
+import lombok.Cleanup;
+import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.imaging.ImageReadException;
+import org.apache.commons.imaging.ImageWriteException;
+import org.apache.commons.imaging.Imaging;
+import org.apache.commons.imaging.common.ImageMetadata;
+import org.apache.commons.imaging.formats.jpeg.JpegImageMetadata;
+import org.apache.commons.imaging.formats.jpeg.exif.ExifRewriter;
+import org.apache.commons.imaging.formats.tiff.constants.TiffTagConstants;
+import org.apache.commons.imaging.formats.tiff.write.TiffOutputDirectory;
+import org.apache.commons.imaging.formats.tiff.write.TiffOutputField;
+import org.apache.commons.imaging.formats.tiff.write.TiffOutputSet;
+import org.apache.tika.io.TikaInputStream;
+import org.apache.tika.metadata.HttpHeaders;
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.Property;
+import org.apache.tika.metadata.TIFF;
+import org.apache.tika.metadata.TikaCoreProperties;
+import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.sax.BodyContentHandler;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectStream;
+import org.eclipse.jgit.treewalk.filter.NotTreeFilter;
+import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
+import org.eclipse.jgit.treewalk.filter.PathFilter;
+import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.springframework.data.elasticsearch.core.geo.GeoPoint;
+import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
+
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
@@ -40,41 +76,6 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.imageio.ImageIO;
-import lombok.Cleanup;
-import lombok.Value;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.imaging.ImageReadException;
-import org.apache.commons.imaging.ImageWriteException;
-import org.apache.commons.imaging.Imaging;
-import org.apache.commons.imaging.common.ImageMetadata;
-import org.apache.commons.imaging.formats.jpeg.JpegImageMetadata;
-import org.apache.commons.imaging.formats.jpeg.exif.ExifRewriter;
-import org.apache.commons.imaging.formats.tiff.constants.TiffTagConstants;
-import org.apache.commons.imaging.formats.tiff.write.TiffOutputDirectory;
-import org.apache.commons.imaging.formats.tiff.write.TiffOutputField;
-import org.apache.commons.imaging.formats.tiff.write.TiffOutputSet;
-import org.apache.tika.io.TikaInputStream;
-import org.apache.tika.metadata.HttpHeaders;
-import org.apache.tika.metadata.Metadata;
-import org.apache.tika.metadata.Property;
-import org.apache.tika.metadata.TIFF;
-import org.apache.tika.metadata.TikaCoreProperties;
-import org.apache.tika.metadata.XMPDM;
-import org.apache.tika.parser.AutoDetectParser;
-import org.apache.tika.sax.BodyContentHandler;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectStream;
-import org.eclipse.jgit.treewalk.filter.NotTreeFilter;
-import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
-import org.eclipse.jgit.treewalk.filter.PathFilter;
-import org.eclipse.jgit.treewalk.filter.TreeFilter;
-import org.springframework.data.elasticsearch.core.geo.GeoPoint;
-import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.util.function.Tuple2;
-import reactor.util.function.Tuples;
 
 @Slf4j
 @Service
@@ -485,13 +486,20 @@ public class DefaultProcessor implements Processor {
 
     private Mono<Boolean> createVideoThumbnails(final String filename, final File file, final Metadata metadata,
             final List<ThumbnailFilenameService.FileAndScale> missingOutputs) {
-        double duration = Double.parseDouble(metadata.get(XMPDM.DURATION));
-        final Integer width = metadata.getInt(TIFF.IMAGE_WIDTH);
-        final Integer height = metadata.getInt(TIFF.IMAGE_LENGTH);
+        for (final String name : metadata.names()) {
+            log.info(name + ": " + metadata.get(name));
+        }
+        final long duration = TikaUtil.extractVideoDuration(metadata)
+                .orElseThrow(() -> new RuntimeException("No duration found")).toSeconds();
+        final double thumbnailPosNumber = duration / 3.0;
+        final Integer width = TikaUtil.extractTargetWidth(metadata)
+                .orElseThrow(() -> new IllegalStateException("Target width not specified"));
+        final Integer height = TikaUtil.extractTargetHeight(metadata)
+                .orElseThrow(() -> new IllegalStateException("Target height not specified"));
         final NumberFormat numberInstance = NumberFormat.getNumberInstance();
         numberInstance.setMaximumFractionDigits(3);
         numberInstance.setMinimumFractionDigits(3);
-        final String thumbnailPos = numberInstance.format(duration / 3);
+        final String thumbnailPos = numberInstance.format(thumbnailPosNumber);
 
         return Flux.fromIterable(missingOutputs).flatMap(fileAndScale -> {
             int targetLength = Math.min(fileAndScale.getSize(), Math.max(width, height));

@@ -21,6 +21,7 @@ import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
+import ch.bergturbenthal.raoa.libs.util.TikaUtil;
 import com.adobe.internal.xmp.XMPMeta;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
@@ -52,7 +53,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -135,48 +135,32 @@ public class ElasticSearchDataViewService implements DataViewService {
         }
     }
 
-    private static Optional<Integer> extractInteger(final Metadata m, final Property property) {
-        return Optional.ofNullable(m.getInt(property));
-    }
-
-    private static Optional<String> extractString(final Metadata m, final Property property) {
-        return Optional.ofNullable(m.get(property));
-    }
-
-    private static Optional<Instant> extractInstant(final Metadata m, final Property property) {
-        return Optional.ofNullable(m.getDate(property)).map(Date::toInstant);
-    }
-
-    private static Optional<Double> extractDouble(final Metadata m, final Property property) {
-        return Optional.ofNullable(m.get(property)).map(Double::valueOf);
-    }
-
     private static AlbumEntryData createAlbumEntry(final GitAccess.GitFileEntry gitFileEntry, final Metadata metadata,
             final XMPMeta xmpMeta, final UUID albumId) {
         final AlbumEntryData.AlbumEntryDataBuilder albumEntryDataBuilder = AlbumEntryData.builder()
                 .filename(gitFileEntry.getNameString()).entryId(gitFileEntry.getFileId()).albumId(albumId);
-        extractInstant(metadata, TikaCoreProperties.CREATED).ifPresent(albumEntryDataBuilder::createTime);
+        TikaUtil.extractCreateTime(metadata).ifPresent(albumEntryDataBuilder::createTime);
         extractTargetWidth(metadata).ifPresent(albumEntryDataBuilder::targetWidth);
         extractTargetHeight(metadata).ifPresent(albumEntryDataBuilder::targetHeight);
-        extractInteger(metadata, TIFF.IMAGE_WIDTH).ifPresent(albumEntryDataBuilder::width);
-        extractInteger(metadata, TIFF.IMAGE_LENGTH).ifPresent(albumEntryDataBuilder::height);
-        extractString(metadata, TIFF.EQUIPMENT_MODEL).ifPresent(albumEntryDataBuilder::cameraModel);
-        extractString(metadata, TIFF.EQUIPMENT_MAKE).ifPresent(albumEntryDataBuilder::cameraManufacturer);
-        extractDouble(metadata, TIFF.FOCAL_LENGTH).ifPresent(albumEntryDataBuilder::focalLength);
-        extractDouble(metadata, TIFF.F_NUMBER).ifPresent(albumEntryDataBuilder::fNumber);
-        extractDouble(metadata, TIFF.EXPOSURE_TIME).ifPresent(albumEntryDataBuilder::exposureTime);
-        extractInteger(metadata, TIFF.ISO_SPEED_RATINGS)
-                .or(() -> extractInteger(metadata, Property.internalInteger("ISO Speed Ratings")))
+        TikaUtil.extractTargetWidth(metadata).ifPresent(albumEntryDataBuilder::width);
+        TikaUtil.extractTargetHeight(metadata).ifPresent(albumEntryDataBuilder::height);
+        TikaUtil.extractString(metadata, TIFF.EQUIPMENT_MODEL).ifPresent(albumEntryDataBuilder::cameraModel);
+        TikaUtil.extractString(metadata, TIFF.EQUIPMENT_MAKE).ifPresent(albumEntryDataBuilder::cameraManufacturer);
+        TikaUtil.extractDouble(metadata, TIFF.FOCAL_LENGTH).ifPresent(albumEntryDataBuilder::focalLength);
+        TikaUtil.extractDouble(metadata, TIFF.F_NUMBER).ifPresent(albumEntryDataBuilder::fNumber);
+        TikaUtil.extractDouble(metadata, TIFF.EXPOSURE_TIME).ifPresent(albumEntryDataBuilder::exposureTime);
+        TikaUtil.extractInteger(metadata, TIFF.ISO_SPEED_RATINGS)
+                .or(() -> TikaUtil.extractInteger(metadata, Property.internalInteger("ISO Speed Ratings")))
                 .ifPresent(albumEntryDataBuilder::isoSpeedRatings);
 
-        extractString(metadata, Property.internalInteger("Focal Length 35")).map(v -> v.split(" ")[0]).map(String::trim)
-                .filter(v -> NUMBER_PATTERN.matcher(v).matches()).map(Double::valueOf)
+        TikaUtil.extractString(metadata, Property.internalInteger("Focal Length 35")).map(v -> v.split(" ")[0])
+                .map(String::trim).filter(v -> NUMBER_PATTERN.matcher(v).matches()).map(Double::valueOf)
                 .ifPresent(albumEntryDataBuilder::focalLength35);
 
-        extractString(metadata, Property.externalText(HttpHeaders.CONTENT_TYPE))
+        TikaUtil.extractString(metadata, Property.externalText(HttpHeaders.CONTENT_TYPE))
                 .ifPresent(albumEntryDataBuilder::contentType);
-        final Optional<Double> lat = extractDouble(metadata, TikaCoreProperties.LATITUDE);
-        final Optional<Double> lon = extractDouble(metadata, TikaCoreProperties.LONGITUDE);
+        final Optional<Double> lat = TikaUtil.extractDouble(metadata, TikaCoreProperties.LATITUDE);
+        final Optional<Double> lon = TikaUtil.extractDouble(metadata, TikaCoreProperties.LONGITUDE);
         if (lat.isPresent() && lon.isPresent()) {
             albumEntryDataBuilder.captureCoordinates(new GeoPoint(lat.get(), lon.get()));
         }

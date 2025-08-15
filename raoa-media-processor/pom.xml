@@ -81,7 +81,7 @@
                 </executions>
                 <configuration>
                     <from>
-                        <image>ghcr.io/koa/raoa-processor-base/distroless-java-dcraw:latest@sha256:4b44a308753ab06d9339686d718f16fa5709126cebc3f0d4ab8d19302bcfe288</image>
+                        <image>ghcr.io/koa/raoa-processor-base/distroless-java-dcraw:latest@sha256:78e6608e96d53ac7eb3a8da67bfee421dcba7dc6f71d41334bcbe034c972e53c</image>
                     </from>
                     <to>
                         <image>${docker.host}/raoa-media-processor</image>
