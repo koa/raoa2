@@ -484,7 +484,8 @@ public class BareGitAccess implements GitAccess {
                             case IO_FAILURE:
                             case REJECTED_CURRENT_BRANCH:
                             case REJECTED:
-                                log.warn("Error committing: " + updateResult);
+                                log.warn("Error committing " + context.getMessage() + " for " + context.getUsername()
+                                        + ": " + updateResult);
                                 return false;
 
                             case NO_CHANGE:
