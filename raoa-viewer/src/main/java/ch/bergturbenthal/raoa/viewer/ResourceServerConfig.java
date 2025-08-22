@@ -1,7 +1,6 @@
 package ch.bergturbenthal.raoa.viewer;
 
 import ch.bergturbenthal.raoa.elastic.service.impl.ElasticSearchDataViewService;
-import ch.bergturbenthal.raoa.viewer.properties.ViewerProperties;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.JWTParser;
@@ -40,12 +39,9 @@ import java.util.UUID;
 @EnableWebSecurity
 public class ResourceServerConfig {
 
-    private final ViewerProperties oAuthProperties;
     private final ElasticSearchDataViewService elasticSearchDataViewService;
 
-    public ResourceServerConfig(final ViewerProperties oAuthProperties,
-            final ElasticSearchDataViewService elasticSearchDataViewService) {
-        this.oAuthProperties = oAuthProperties;
+    public ResourceServerConfig(final ElasticSearchDataViewService elasticSearchDataViewService) {
         this.elasticSearchDataViewService = elasticSearchDataViewService;
     }
 
@@ -53,6 +49,7 @@ public class ResourceServerConfig {
     SecurityFilterChain webOAuth2FilterChain(final HttpSecurity httpSecurity) throws Exception {
         final DefaultBearerTokenResolver defaultBearerTokenResolver = new DefaultBearerTokenResolver();
         return httpSecurity.cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/git/**"))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .oauth2ResourceServer(
                         resourceServer -> resourceServer.jwt(Customizer.withDefaults()).bearerTokenResolver(request -> {
@@ -99,23 +96,6 @@ public class ResourceServerConfig {
                 })).build();
     }
 
-    /*
-     * @Bean public TokenStore tokenStore(ResourceServerProperties resource) { final DefaultAccessTokenConverter
-     * acccessTokenConverter = new DefaultAccessTokenConverter(); final UserAuthenticationConverter us = new
-     * UserAuthenticationConverter() {
-     * @Override public Map<String, ?> convertUserAuthentication(final Authentication userAuthentication) { return null;
-     * }
-     * @Override public Authentication extractAuthentication(final Map<String, ?> map) { final SimpleGrantedAuthority
-     * oidcUserAuthority = new SimpleGrantedAuthority("x"); final List<GrantedAuthority> authorities =
-     * Collections.singletonList(oidcUserAuthority); final OAuth2User principal = new DefaultOAuth2User(authorities,
-     * (Map<String, Object>) map, "name"); final String id = map.get("sub").toString(); final OAuth2AuthenticationToken
-     * oAuth2AuthenticationToken = new OAuth2AuthenticationToken(principal, authorities, "google"); return
-     * oAuth2AuthenticationToken; } }; acccessTokenConverter.setUserTokenConverter(us); return new
-     * JwkTokenStore(resource.getJwk().getKeySetUri(), acccessTokenConverter); }
-     * @Override public void configure(ResourceServerSecurityConfigurer resources) throws Exception {
-     * resources.resourceId(oAuthProperties.getClientProperties().getGoogleClientId()); }
-     */
-
     @Bean
     // @ConditionalOnProperty(prefix = "raoa.viewer", name = "allowAlsoDebugging", havingValue =
     // "true")
@@ -130,16 +110,4 @@ public class ResourceServerConfig {
         source.registerCorsConfiguration("/**", corsConfiguration); // you restrict your path here
         return source;
     }
-
-    /*
-     * @Bean public GraphQlHttpHandler overriddenGraphQlHttpHandler(WebGraphQlHandler webGraphQlHandler) { return new
-     * GraphQlHttpHandler(webGraphQlHandler); }
-     * @Bean public RouterFunction<ServerResponse> overriddenGraphQlRouterFunction( GraphQlHttpHandler handler) { String
-     * graphQLPath = "/graphql"; if (log.isInfoEnabled()) { log.info("GraphQL endpoint HTTP POST " + graphQLPath); }
-     * RouterFunctions.Builder builder = RouterFunctions.route() .GET( graphQLPath, request ->
-     * ServerResponse.status(HttpStatus.METHOD_NOT_ALLOWED) .headers( headers ->
-     * headers.setAllow(Collections.singleton(HttpMethod.POST))) .build()) .POST( graphQLPath,
-     * contentType(MediaType.APPLICATION_JSON).and(accept(MediaType.APPLICATION_JSON)), handler::handleRequest); return
-     * builder.build(); }
-     */
 }
