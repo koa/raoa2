@@ -1,6 +1,6 @@
 {
   "name": "raoa-viewer-client",
-  "version": "0.0.30-SNAPSHOT",
+  "version": "0.0.33-SNAPSHOT",
   "author": "Andreas König",
   "homepage": "https://ionicframework.com/",
   "scripts": {
