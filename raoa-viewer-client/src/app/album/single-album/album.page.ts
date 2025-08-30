@@ -19,7 +19,9 @@ import {
     updateSearchParams
 } from '../show-single-media/show-single-media.component';
 import {filter} from 'rxjs/operators';
-import {SingleAlbumRightPopoverMenuComponent} from './single-album-right-popover-menu/single-album-right-popover-menu.component';
+import {
+    SingleAlbumRightPopoverMenuComponent
+} from './single-album-right-popover-menu/single-album-right-popover-menu.component';
 import {MultiWindowService} from 'ngx-multi-window';
 
 
@@ -725,7 +727,13 @@ export class AlbumPage implements OnInit, OnDestroy {
                     const date = new Date(timestamp);
                     date.setHours(0, 0, 0, 0);
                     const imageDate = date.valueOf();
-                    const imageWidth = entry.targetWidth / entry.targetHeight;
+                    let imageWidth: number;
+                    if (entry.targetWidth > 0 && entry.targetHeight > 0) {
+                        imageWidth = entry.targetWidth / entry.targetHeight;
+
+                    } else {
+                        imageWidth = 1;
+                    }
                     const imageShape: Shape = {
                         width: imageWidth,
                         entry,
