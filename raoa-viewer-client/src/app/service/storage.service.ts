@@ -353,7 +353,19 @@ export class StorageService extends Dexie {
                                 finalList.push(adjustedEntry);
                             }
                         });
-                    return [foundAlbumData, finalList, foundAlbumSettings];
+                    return [foundAlbumData, finalList.sort((a, b) => {
+                        if (a?.created === b?.created) {
+                            return 0;
+                        }
+                        if (a?.created && b?.created) {
+                            return a.created - b.created;
+                        }
+                        if (a?.created) {
+                            return -1;
+                        } else {
+                            return 1;
+                        }
+                    }), foundAlbumSettings];
                 } catch (e) {
                     console.log('error', e);
                     throw e;
