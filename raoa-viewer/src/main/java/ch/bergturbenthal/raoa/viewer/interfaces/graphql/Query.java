@@ -24,7 +24,6 @@ import reactor.util.function.Tuple2;
 import java.io.File;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
 
 @Slf4j
 @Controller
@@ -138,9 +137,6 @@ public class Query {
     @QueryMapping
     public Mono<Album> previewImport(@Argument ImportFile file) {
         return queryContextSupplier.createContext().filter(QueryContext::canUserEditData).flatMap(context -> {
-            Function<UUID, Mono<Boolean>> authorizer = id -> authorizationManager
-                    .canUserModifyAlbum(context.getSecurityContext(), id);
-
             final File uploadFile = uploadFilenameService.createTempUploadFile(file.getFileId());
             if (!uploadFile.exists())
                 return Mono.empty();

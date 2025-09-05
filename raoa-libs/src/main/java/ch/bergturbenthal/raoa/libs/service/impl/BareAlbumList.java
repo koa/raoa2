@@ -7,13 +7,13 @@ import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.FileImporter;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.Updater;
+import ch.bergturbenthal.raoa.libs.util.TikaUtil;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
-import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.sax.BodyContentHandler;
 import org.eclipse.jgit.api.Git;
@@ -34,12 +34,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -176,7 +174,7 @@ public class BareAlbumList implements AlbumList {
                 return scanCache.get().getRepositories().flatMap(
                         reps -> asyncService.asyncMonoOptional(() -> detectTimestamp(file)).flatMap(createTimestamp -> {
                             final String prefix = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
-                                    .format(createTimestamp.atZone(ZoneId.systemDefault()));
+                                    .format(createTimestamp.atZone(properties.getTimeZone().toZoneId()));
                             final String targetFilename = prefix + "-" + originalFileName;
                             return repositorySelector.apply(createTimestamp).filterWhen(albumFilter)
                                     .flatMap(repositoryId -> pendingUpdaters
@@ -222,13 +220,7 @@ public class BareAlbumList implements AlbumList {
             log.info("Unsupported content type: " + mediaType);
             return Optional.empty();
         }
-        final Date createDate = metadata.getDate(TikaCoreProperties.CREATED);
-        if (createDate == null) {
-            log.info("No creation timestamp");
-            return Optional.empty();
-        }
-        final Instant createTimestamp = createDate.toInstant();
-        return Optional.of(createTimestamp);
+        return TikaUtil.extractCreateTime(metadata);
     }
 
     @Override

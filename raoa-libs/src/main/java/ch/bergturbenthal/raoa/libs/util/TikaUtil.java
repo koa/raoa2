@@ -1,35 +1,80 @@
 package ch.bergturbenthal.raoa.libs.util;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tika.metadata.HttpHeaders;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Property;
 import org.apache.tika.metadata.TIFF;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.metadata.XMPDM;
+import org.jetbrains.annotations.NotNull;
 
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Optional;
+import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Slf4j
 public class TikaUtil {
 
-    public static final Pattern MEDIA_DURATION_HMS_PATTERN = Pattern.compile("([0-9]{1,2}):([0-9]{1,2}):([0-9]{1,2})");
-    public static final Pattern MEDIA_DURATION_SECONDS_PATTERN = Pattern.compile("((?:[0-9]+)(?:\\.(?:[0-9]+))?) ?s");
+    private static final Pattern MEDIA_DURATION_HMS_PATTERN = Pattern.compile("([0-9]{1,2}):([0-9]{1,2}):([0-9]{1,2})");
+    private static final Pattern MEDIA_DURATION_SECONDS_PATTERN = Pattern.compile("((?:[0-9]+)(?:\\.(?:[0-9]+))?) ?s");
+    private static final Pattern FOCAL_LENGTH_PATTERN = Pattern.compile("((:?[0-9]+)(:?\\.(:?[0-9]+))?) mm");
+    private static final Property PROPERTY_VIDEO_CAMERA_MODEL = Property.internalText("Model");
+    private static final Property PROPERTY_EXIF_LENS = Property.internalText("Exif SubIFD:Lens Model");
+    private static final Property PROPERTY_VIDEO_LENS = Property.internalText("Lens Model");
+    private static final DateFormat MEDIA_CREATE_DATE_FORMAT = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss");
+    private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
+
+    static {
+        MEDIA_CREATE_DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
+    }
 
     public static Optional<Integer> extractTargetWidth(Metadata metadata) {
+        if (Optional.ofNullable(metadata.get(TIFF.ORIENTATION)).map(Integer::valueOf).orElse(0) <= 4) {
+            return extractWidth(metadata);
+        } else {
+            return extractHeight(metadata);
+        }
+    }
+
+    public static Optional<Integer> extractHeight(final Metadata metadata) {
+        return TikaUtil.extractInteger(metadata, TIFF.IMAGE_LENGTH, Property.internalInteger("Image Height"));
+    }
+
+    public static Optional<Integer> extractWidth(final Metadata metadata) {
         return TikaUtil.extractInteger(metadata, TIFF.IMAGE_WIDTH, Property.internalInteger("Image Width"));
     }
 
     public static Optional<Integer> extractTargetHeight(Metadata metadata) {
-        return TikaUtil.extractInteger(metadata, TIFF.IMAGE_LENGTH, Property.internalInteger("Image Height"));
+        if (Optional.ofNullable(metadata.get(TIFF.ORIENTATION)).map(Integer::valueOf).orElse(0) <= 4) {
+            return extractHeight(metadata);
+        } else {
+            return extractWidth(metadata);
+        }
     }
 
     public static Optional<Instant> extractCreateTime(Metadata metadata) {
-        return TikaUtil.extractInstant(metadata, TikaCoreProperties.CREATED);
+        final Optional<Instant> createdDate = TikaUtil.extractInstant(metadata, TikaCoreProperties.CREATED);
+        if (createdDate.isPresent()) {
+            return createdDate;
+        }
+        final String mediaCreateDate = metadata.get("Media Create Date");
+        if (mediaCreateDate != null) {
+            try {
+                final Date date = MEDIA_CREATE_DATE_FORMAT.parse(mediaCreateDate);
+                return Optional.ofNullable(date.toInstant());
+            } catch (ParseException e) {
+                log.warn("Could not parse create date {}", mediaCreateDate, e);
+            }
+        }
+        return Optional.empty();
     }
 
     public static Optional<Duration> extractVideoDuration(Metadata metadata) {
@@ -69,7 +114,7 @@ public class TikaUtil {
         return Optional.empty();
     }
 
-    public static Optional<Integer> extractInteger(final Metadata m, final Property... property) {
+    private static Optional<Integer> extractInteger(final Metadata m, final Property... property) {
         for (final Property p : property) {
             final Integer value = m.getInt(p);
             if (value != null) {
@@ -79,7 +124,7 @@ public class TikaUtil {
         return Optional.empty();
     }
 
-    public static Optional<String> extractString(final Metadata m, final Property... property) {
+    private static Optional<String> extractString(final Metadata m, final Property... property) {
         for (final Property p : property) {
             final String value = m.get(p);
             if (value != null) {
@@ -89,7 +134,7 @@ public class TikaUtil {
         return Optional.empty();
     }
 
-    public static Optional<Instant> extractInstant(final Metadata m, final Property... property) {
+    private static Optional<Instant> extractInstant(final Metadata m, final Property... property) {
         for (final Property p : property) {
             final Date value = m.getDate(p);
             if (value != null) {
@@ -99,7 +144,7 @@ public class TikaUtil {
         return Optional.empty();
     }
 
-    public static Optional<Double> extractDouble(final Metadata m, final Property... property) {
+    private static Optional<Double> extractDouble(final Metadata m, final Property... property) {
         for (final Property p : property) {
             final String value = m.get(p);
             if (value != null) {
@@ -107,5 +152,74 @@ public class TikaUtil {
             }
         }
         return Optional.empty();
+    }
+
+    public static Optional<String> extractCameraModel(final Metadata metadata) {
+        return TikaUtil.extractString(metadata, TIFF.EQUIPMENT_MODEL, PROPERTY_VIDEO_CAMERA_MODEL);
+    }
+
+    public static Optional<String> extractLensModel(final Metadata metadata) {
+        return TikaUtil.extractString(metadata, PROPERTY_EXIF_LENS, PROPERTY_VIDEO_LENS);
+    }
+
+    public static Optional<String> extractMake(final Metadata metadata) {
+        return TikaUtil.extractString(metadata, TIFF.EQUIPMENT_MAKE, Property.internalText("Make"));
+    }
+
+    public static Optional<Double> extractFocalLength(final Metadata metadata) {
+        final Optional<Double> exifLength = TikaUtil.extractDouble(metadata, TIFF.FOCAL_LENGTH);
+        if (exifLength.isPresent()) {
+            return exifLength;
+        }
+
+        return TikaUtil.extractString(metadata, Property.internalReal("Focal Length"))
+                .flatMap(TikaUtil::parseFocalLength);
+    }
+
+    private static @NotNull Optional<Double> parseFocalLength(final String input) {
+        final Matcher matcher = FOCAL_LENGTH_PATTERN.matcher(input);
+        if (matcher.matches()) {
+            try {
+                final double length = Double.parseDouble(matcher.group(1));
+                return Optional.of(length);
+            } catch (NumberFormatException e) {
+                log.warn("Cannot parse focal length {}", input, e);
+            }
+        }
+        return Optional.empty();
+    }
+
+    public static Optional<Double> extractFNumber(final Metadata metadata) {
+        return TikaUtil.extractDouble(metadata, TIFF.F_NUMBER, Property.internalReal("F Number"));
+    }
+
+    public static Optional<Double> extractExposureTime(final Metadata metadata) {
+        return TikaUtil.extractDouble(metadata, TIFF.EXPOSURE_TIME);
+    }
+
+    public static Optional<Integer> extractIsoSpeed(final Metadata metadata) {
+        return TikaUtil.extractInteger(metadata, TIFF.ISO_SPEED_RATINGS,
+                Property.internalInteger("exif:IsoSpeedRatings"), Property.internalInteger("ISO"));
+    }
+
+    public static Optional<Double> extractFocalLength35(final Metadata metadata) {
+        return TikaUtil.extractString(metadata, Property.internalReal("Exif SubIFD:Focal Length 35"))
+                .flatMap(TikaUtil::parseFocalLength);
+    }
+
+    public static Optional<String> extractContentType(final Metadata metadata) {
+        return TikaUtil.extractString(metadata, Property.externalText(HttpHeaders.CONTENT_TYPE));
+    }
+
+    public static Optional<Double> extractLatitude(final Metadata metadata) {
+        return TikaUtil.extractDouble(metadata, TikaCoreProperties.LATITUDE);
+    }
+
+    public static Optional<Double> extractLongitude(final Metadata metadata) {
+        return TikaUtil.extractDouble(metadata, TikaCoreProperties.LONGITUDE);
+    }
+
+    public static int extractOrientation(final Metadata metadata) {
+        return Optional.ofNullable(metadata.get(TIFF.ORIENTATION)).map(Integer::parseInt).orElse(1);
     }
 }

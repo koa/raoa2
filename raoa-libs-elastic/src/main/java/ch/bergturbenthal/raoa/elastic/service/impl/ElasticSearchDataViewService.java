@@ -25,11 +25,7 @@ import ch.bergturbenthal.raoa.libs.util.TikaUtil;
 import com.adobe.internal.xmp.XMPMeta;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
-import org.apache.tika.metadata.HttpHeaders;
 import org.apache.tika.metadata.Metadata;
-import org.apache.tika.metadata.Property;
-import org.apache.tika.metadata.TIFF;
-import org.apache.tika.metadata.TikaCoreProperties;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathSuffixFilter;
@@ -120,19 +116,11 @@ public class ElasticSearchDataViewService implements DataViewService {
     }
 
     private static Optional<Integer> extractTargetWidth(final Metadata m) {
-        if (Optional.ofNullable(m.get(TIFF.ORIENTATION)).map(Integer::valueOf).orElse(0) <= 4) {
-            return Optional.ofNullable(m.getInt(TIFF.IMAGE_WIDTH));
-        } else {
-            return Optional.ofNullable(m.getInt(TIFF.IMAGE_LENGTH));
-        }
+        return TikaUtil.extractTargetWidth(m);
     }
 
     private static Optional<Integer> extractTargetHeight(final Metadata m) {
-        if (Optional.ofNullable(m.get(TIFF.ORIENTATION)).map(Integer::valueOf).orElse(0) <= 4) {
-            return Optional.ofNullable(m.getInt(TIFF.IMAGE_LENGTH));
-        } else {
-            return Optional.ofNullable(m.getInt(TIFF.IMAGE_WIDTH));
-        }
+        return TikaUtil.extractTargetHeight(m);
     }
 
     private static AlbumEntryData createAlbumEntry(final GitAccess.GitFileEntry gitFileEntry, final Metadata metadata,
@@ -144,23 +132,19 @@ public class ElasticSearchDataViewService implements DataViewService {
         extractTargetHeight(metadata).ifPresent(albumEntryDataBuilder::targetHeight);
         TikaUtil.extractTargetWidth(metadata).ifPresent(albumEntryDataBuilder::width);
         TikaUtil.extractTargetHeight(metadata).ifPresent(albumEntryDataBuilder::height);
-        TikaUtil.extractString(metadata, TIFF.EQUIPMENT_MODEL).ifPresent(albumEntryDataBuilder::cameraModel);
-        TikaUtil.extractString(metadata, TIFF.EQUIPMENT_MAKE).ifPresent(albumEntryDataBuilder::cameraManufacturer);
-        TikaUtil.extractDouble(metadata, TIFF.FOCAL_LENGTH).ifPresent(albumEntryDataBuilder::focalLength);
-        TikaUtil.extractDouble(metadata, TIFF.F_NUMBER).ifPresent(albumEntryDataBuilder::fNumber);
-        TikaUtil.extractDouble(metadata, TIFF.EXPOSURE_TIME).ifPresent(albumEntryDataBuilder::exposureTime);
-        TikaUtil.extractInteger(metadata, TIFF.ISO_SPEED_RATINGS)
-                .or(() -> TikaUtil.extractInteger(metadata, Property.internalInteger("ISO Speed Ratings")))
-                .ifPresent(albumEntryDataBuilder::isoSpeedRatings);
+        TikaUtil.extractCameraModel(metadata).ifPresent(albumEntryDataBuilder::cameraModel);
+        TikaUtil.extractMake(metadata).ifPresent(albumEntryDataBuilder::cameraManufacturer);
+        TikaUtil.extractLensModel(metadata).ifPresent(albumEntryDataBuilder::lensModel);
+        TikaUtil.extractFocalLength(metadata).ifPresent(albumEntryDataBuilder::focalLength);
+        TikaUtil.extractFNumber(metadata).ifPresent(albumEntryDataBuilder::fNumber);
+        TikaUtil.extractExposureTime(metadata).ifPresent(albumEntryDataBuilder::exposureTime);
+        TikaUtil.extractIsoSpeed(metadata).ifPresent(albumEntryDataBuilder::isoSpeedRatings);
 
-        TikaUtil.extractString(metadata, Property.internalInteger("Focal Length 35")).map(v -> v.split(" ")[0])
-                .map(String::trim).filter(v -> NUMBER_PATTERN.matcher(v).matches()).map(Double::valueOf)
-                .ifPresent(albumEntryDataBuilder::focalLength35);
+        TikaUtil.extractFocalLength35(metadata).ifPresent(albumEntryDataBuilder::focalLength35);
 
-        TikaUtil.extractString(metadata, Property.externalText(HttpHeaders.CONTENT_TYPE))
-                .ifPresent(albumEntryDataBuilder::contentType);
-        final Optional<Double> lat = TikaUtil.extractDouble(metadata, TikaCoreProperties.LATITUDE);
-        final Optional<Double> lon = TikaUtil.extractDouble(metadata, TikaCoreProperties.LONGITUDE);
+        TikaUtil.extractContentType(metadata).ifPresent(albumEntryDataBuilder::contentType);
+        final Optional<Double> lat = TikaUtil.extractLatitude(metadata);
+        final Optional<Double> lon = TikaUtil.extractLongitude(metadata);
         if (lat.isPresent() && lon.isPresent()) {
             albumEntryDataBuilder.captureCoordinates(new GeoPoint(lat.get(), lon.get()));
         }

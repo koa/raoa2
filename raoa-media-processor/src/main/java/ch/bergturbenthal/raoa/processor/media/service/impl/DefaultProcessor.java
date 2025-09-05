@@ -29,9 +29,6 @@ import org.apache.commons.imaging.formats.tiff.write.TiffOutputSet;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.HttpHeaders;
 import org.apache.tika.metadata.Metadata;
-import org.apache.tika.metadata.Property;
-import org.apache.tika.metadata.TIFF;
-import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.sax.BodyContentHandler;
 import org.eclipse.jgit.lib.ObjectId;
@@ -64,23 +61,19 @@ import java.net.URLDecoder;
 import java.nio.file.Path;
 import java.text.NumberFormat;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
 @Service
 public class DefaultProcessor implements Processor {
-    private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
     private static final Set<String> RAW_ENDINGS = Set.of(".nef", ".dng", ".cr2", ".crw", ".cr3");
     private static final boolean HAS_DCRAW = hasDcraw();
     private static final Object dcrawLock = new Object();
@@ -119,28 +112,26 @@ public class DefaultProcessor implements Processor {
         final AlbumEntryData.AlbumEntryDataBuilder albumEntryDataBuilder = AlbumEntryData.builder().filename(filename)
                 .entryId(fileId).albumId(albumId);
         xmpFileId.ifPresent(albumEntryDataBuilder::xmpFileId);
-        extractInstant(metadata, TikaCoreProperties.CREATED).ifPresent(albumEntryDataBuilder::createTime);
-        extractTargetWidth(metadata).ifPresent(albumEntryDataBuilder::targetWidth);
-        extractTargetHeight(metadata).ifPresent(albumEntryDataBuilder::targetHeight);
-        extractInteger(metadata, TIFF.IMAGE_WIDTH).ifPresent(albumEntryDataBuilder::width);
-        extractInteger(metadata, TIFF.IMAGE_LENGTH).ifPresent(albumEntryDataBuilder::height);
-        extractString(metadata, TIFF.EQUIPMENT_MODEL).ifPresent(albumEntryDataBuilder::cameraModel);
-        extractString(metadata, TIFF.EQUIPMENT_MAKE).ifPresent(albumEntryDataBuilder::cameraManufacturer);
-        extractDouble(metadata, TIFF.FOCAL_LENGTH).ifPresent(albumEntryDataBuilder::focalLength);
-        extractDouble(metadata, TIFF.F_NUMBER).ifPresent(albumEntryDataBuilder::fNumber);
-        extractDouble(metadata, TIFF.EXPOSURE_TIME).ifPresent(albumEntryDataBuilder::exposureTime);
-        extractInteger(metadata, TIFF.ISO_SPEED_RATINGS)
-                .or(() -> extractInteger(metadata, Property.internalInteger("ISO Speed Ratings")))
-                .ifPresent(albumEntryDataBuilder::isoSpeedRatings);
+        TikaUtil.extractCreateTime(metadata).ifPresent(albumEntryDataBuilder::createTime);
+        TikaUtil.extractTargetWidth(metadata).ifPresent(albumEntryDataBuilder::targetWidth);
+        TikaUtil.extractTargetHeight(metadata).ifPresent(albumEntryDataBuilder::targetHeight);
+        TikaUtil.extractWidth(metadata).ifPresent(albumEntryDataBuilder::width);
+        TikaUtil.extractHeight(metadata).ifPresent(albumEntryDataBuilder::height);
+        TikaUtil.extractCameraModel(metadata).ifPresent(albumEntryDataBuilder::cameraModel);
+        TikaUtil.extractLensModel(metadata).ifPresent(albumEntryDataBuilder::lensModel);
+        TikaUtil.extractMake(metadata).ifPresent(albumEntryDataBuilder::cameraManufacturer);
+        TikaUtil.extractFocalLength(metadata).ifPresent(albumEntryDataBuilder::focalLength);
+        TikaUtil.extractFNumber(metadata).ifPresent(albumEntryDataBuilder::fNumber);
+        TikaUtil.extractExposureTime(metadata).ifPresent(albumEntryDataBuilder::exposureTime);
 
-        extractString(metadata, Property.internalInteger("Focal Length 35")).map(v -> v.split(" ")[0]).map(String::trim)
-                .filter(v -> NUMBER_PATTERN.matcher(v).matches()).map(Double::valueOf)
-                .ifPresent(albumEntryDataBuilder::focalLength35);
+        TikaUtil.extractIsoSpeed(metadata).ifPresent(albumEntryDataBuilder::isoSpeedRatings);
 
-        extractString(metadata, Property.externalText(HttpHeaders.CONTENT_TYPE))
-                .ifPresent(albumEntryDataBuilder::contentType);
-        final Optional<Double> lat = extractDouble(metadata, TikaCoreProperties.LATITUDE);
-        final Optional<Double> lon = extractDouble(metadata, TikaCoreProperties.LONGITUDE);
+        TikaUtil.extractFocalLength35(metadata).ifPresent(albumEntryDataBuilder::focalLength35);
+
+        TikaUtil.extractContentType(metadata).ifPresent(albumEntryDataBuilder::contentType);
+        final Optional<Double> lat = TikaUtil.extractLatitude(metadata);
+
+        final Optional<Double> lon = TikaUtil.extractLongitude(metadata);
         if (lat.isPresent() && lon.isPresent()) {
             albumEntryDataBuilder.captureCoordinates(new GeoPoint(lat.get(), lon.get()));
         }
@@ -150,38 +141,6 @@ public class DefaultProcessor implements Processor {
             albumEntryDataBuilder.keywords(new HashSet<>(xmpWrapper.readKeywords()));
         });
         return albumEntryDataBuilder.build();
-    }
-
-    private static Optional<Integer> extractTargetWidth(final Metadata m) {
-        if (Optional.ofNullable(m.get(TIFF.ORIENTATION)).map(Integer::valueOf).orElse(0) <= 4) {
-            return Optional.ofNullable(m.getInt(TIFF.IMAGE_WIDTH));
-        } else {
-            return Optional.ofNullable(m.getInt(TIFF.IMAGE_LENGTH));
-        }
-    }
-
-    private static Optional<Integer> extractTargetHeight(final Metadata m) {
-        if (Optional.ofNullable(m.get(TIFF.ORIENTATION)).map(Integer::valueOf).orElse(0) <= 4) {
-            return Optional.ofNullable(m.getInt(TIFF.IMAGE_LENGTH));
-        } else {
-            return Optional.ofNullable(m.getInt(TIFF.IMAGE_WIDTH));
-        }
-    }
-
-    private static Optional<Integer> extractInteger(final Metadata m, final Property property) {
-        return Optional.ofNullable(m.getInt(property));
-    }
-
-    private static Optional<String> extractString(final Metadata m, final Property property) {
-        return Optional.ofNullable(m.get(property));
-    }
-
-    private static Optional<Instant> extractInstant(final Metadata m, final Property property) {
-        return Optional.ofNullable(m.getDate(property)).map(Date::toInstant);
-    }
-
-    private static Optional<Double> extractDouble(final Metadata m, final Property property) {
-        return Optional.ofNullable(m.get(property)).map(Double::valueOf);
     }
 
     public static Tuple2<BufferedImage, Boolean> loadImage(File file) throws IOException {
@@ -210,6 +169,15 @@ public class DefaultProcessor implements Processor {
             }
         }
         return out;
+    }
+
+    private static TreeFilter findAny(final List<TreeFilter> filters) {
+        if (filters.isEmpty()) {
+            return NotTreeFilter.create(TreeFilter.ALL);
+        }
+        if (filters.size() == 1)
+            return filters.get(0);
+        return OrTreeFilter.create(filters);
     }
 
     @Override
@@ -303,9 +271,7 @@ public class DefaultProcessor implements Processor {
                                                             final Tuple2<BufferedImage, Boolean> loadedImage = loadImage(
                                                                     mediaFile);
                                                             final int orientation = loadedImage.getT2() ? 1
-                                                                    : Optional
-                                                                            .ofNullable(metadata.get(TIFF.ORIENTATION))
-                                                                            .map(Integer::parseInt).orElse(1);
+                                                                    : TikaUtil.extractOrientation(metadata);
                                                             return createImageThumbnails(albumId, imageFileId,
                                                                     loadedImage.getT1(), tiffOutputSet,
                                                                     missingThumbnails, orientation);
@@ -335,15 +301,6 @@ public class DefaultProcessor implements Processor {
                     log.error("Cannot process " + jobProperties, ex);
                     return Mono.just(Boolean.FALSE);
                 }).block());
-    }
-
-    private static TreeFilter findAny(final List<TreeFilter> filters) {
-        if (filters.isEmpty()) {
-            return NotTreeFilter.create(TreeFilter.ALL);
-        }
-        if (filters.size() == 1)
-            return filters.get(0);
-        return OrTreeFilter.create(filters);
     }
 
     private Mono<Tuple2<GitAccess.GitFileEntry, File>> readFileEntryToTemp(final GitAccess ga,
@@ -500,6 +457,7 @@ public class DefaultProcessor implements Processor {
         numberInstance.setMaximumFractionDigits(3);
         numberInstance.setMinimumFractionDigits(3);
         final String thumbnailPos = numberInstance.format(thumbnailPosNumber);
+        log.info("Video size: " + width + "x" + height);
 
         return Flux.fromIterable(missingOutputs).flatMap(fileAndScale -> {
             int targetLength = Math.min(fileAndScale.getSize(), Math.max(width, height));

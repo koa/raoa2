@@ -11,7 +11,7 @@ image:
   mediaProcessorRepository: docker.berg-turbenthal.ch/raoa-media-processor
   importerRepository: docker.berg-turbenthal.ch/raoa-importer
   pullPolicy: IfNotPresent
-
+timeZone: "Europe/Zurich"
 priorityClass:
   { }
 #coordinator: raoa-essential

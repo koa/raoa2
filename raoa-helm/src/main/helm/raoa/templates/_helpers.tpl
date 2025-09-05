@@ -118,6 +118,7 @@ raoa.repository: /data
 raoa.thumbnail-dir: /cache
 raoa.import-dir: /import
 raoa.max-concurrent: "20"
+raoa.time-zone: {{.Values.timeZone | quote}}
 server.use-forward-headers: "true"
 spring.elasticsearch.uris: https://{{ include "raoa.fullname" . }}-es-http:9200
 spring.elasticsearch.username: elastic

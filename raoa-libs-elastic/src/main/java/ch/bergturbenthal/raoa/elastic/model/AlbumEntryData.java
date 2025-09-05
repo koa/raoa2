@@ -4,9 +4,6 @@ import ch.bergturbenthal.raoa.elastic.model.serializer.ObjectIdSerializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import java.time.Instant;
-import java.util.Set;
-import java.util.UUID;
 import lombok.Builder;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +14,10 @@ import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 import org.springframework.data.elasticsearch.annotations.Setting;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
+
+import java.time.Instant;
+import java.util.Set;
+import java.util.UUID;
 
 @Slf4j
 @Document(indexName = "album-entry-1")
@@ -61,6 +62,9 @@ public class AlbumEntryData {
     String cameraModel;
 
     @Field(type = FieldType.Keyword)
+    String lensModel;
+
+    @Field(type = FieldType.Keyword)
     String cameraManufacturer;
 
     @Field(type = FieldType.Double)
@@ -96,10 +100,11 @@ public class AlbumEntryData {
     @Builder(toBuilder = true)
     public AlbumEntryData(final String documentId, final UUID albumId, final ObjectId entryId, final ObjectId xmpFileId,
             final Integer width, final Integer height, final Integer targetWidth, final Integer targetHeight,
-            final String filename, final Instant createTime, final String cameraModel, final String cameraManufacturer,
-            final Double focalLength, final Double focalLength35, final Double fNumber, final Double exposureTime,
-            final Integer isoSpeedRatings, final String contentType, final Set<String> keywords,
-            final String description, final Integer rating, final GeoPoint captureCoordinates) {
+            final String filename, final Instant createTime, final String cameraModel, final String lensModel,
+            final String cameraManufacturer, final Double focalLength, final Double focalLength35, final Double fNumber,
+            final Double exposureTime, final Integer isoSpeedRatings, final String contentType,
+            final Set<String> keywords, final String description, final Integer rating,
+            final GeoPoint captureCoordinates) {
         this.albumId = albumId;
         this.entryId = entryId;
         this.xmpFileId = xmpFileId;
@@ -110,6 +115,7 @@ public class AlbumEntryData {
         this.filename = filename;
         this.createTime = createTime;
         this.cameraModel = cameraModel;
+        this.lensModel = lensModel;
         this.cameraManufacturer = cameraManufacturer;
         this.focalLength = focalLength;
         this.focalLength35 = focalLength35;

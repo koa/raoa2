@@ -35,90 +35,83 @@ import java.util.stream.Stream;
 @Configuration
 @EnableReactiveElasticsearchRepositories(basePackageClasses = AlbumDataRepository.class)
 @EnableElasticsearchRepositories(basePackageClasses = SyncAlbumDataEntryRepository.class)
-@Import({RaoaLibConfiguration.class})
+@Import({ RaoaLibConfiguration.class })
 @ComponentScan(basePackageClasses = ElasticSearchDataViewService.class)
-@EnableConfigurationProperties({ElasticsearchProperties.class})
+@EnableConfigurationProperties({ ElasticsearchProperties.class })
 public class RaoaElasticConfiguration {
 
-  static {
-    try {
-      SSLContext sslContext = SSLContext.getInstance("TLS");
-      sslContext.init(null, new TrustManager[] {new DummyX509TrustManager()}, null);
-      SSLContext.setDefault(sslContext);
-    } catch (NoSuchAlgorithmException | KeyManagementException e) {
-      log.error("Cannot override TLS settings");
-      e.printStackTrace();
+    static {
+        try {
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[] { new DummyX509TrustManager() }, null);
+            SSLContext.setDefault(sslContext);
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            log.error("Cannot override TLS settings");
+            e.printStackTrace();
+        }
     }
-  }
 
-  @Bean
-  public ElasticsearchCustomConversions elasticsearchCustomConversions() {
-    Jsr310Converters.getConvertersToRegister();
-    return new ElasticsearchCustomConversions(
-        Stream.concat(
-                Stream.of(
-                    new ObjectIdToString(),
-                    new StringToObjectId(),
-                    new InstantLongReader(),
-                    new InstantIntegerReader(),
-                    new InstantDoubleReader()),
-                Jsr310Converters.getConvertersToRegister().stream())
-            .collect(Collectors.toList()));
-  }
-
-  @Bean
-  ElasticsearchConverter elasticsearchConverter(
-      SimpleElasticsearchMappingContext mappingContext,
-      ElasticsearchCustomConversions customConversions) {
-    final MappingElasticsearchConverter mappingElasticsearchConverter =
-        new MappingElasticsearchConverter(mappingContext);
-    mappingElasticsearchConverter.setConversions(customConversions);
-
-    return mappingElasticsearchConverter;
-  }
-
-  @WritingConverter
-  static class ObjectIdToString implements Converter<ObjectId, String> {
-
-    @Override
-    public String convert(final ObjectId source) {
-      return source.name();
+    @Bean
+    public ElasticsearchCustomConversions elasticsearchCustomConversions() {
+        Jsr310Converters.getConvertersToRegister();
+        return new ElasticsearchCustomConversions(Stream.concat(
+                Stream.of(new ObjectIdToString(), new StringToObjectId(), new InstantLongReader(),
+                        new InstantIntegerReader(), new InstantDoubleReader()),
+                Jsr310Converters.getConvertersToRegister().stream()).collect(Collectors.toList()));
     }
-  }
 
-  @ReadingConverter
-  static class StringToObjectId implements Converter<String, ObjectId> {
+    @Bean
+    ElasticsearchConverter elasticsearchConverter(SimpleElasticsearchMappingContext mappingContext,
+            ElasticsearchCustomConversions customConversions) {
+        final MappingElasticsearchConverter mappingElasticsearchConverter = new MappingElasticsearchConverter(
+                mappingContext);
+        mappingElasticsearchConverter.setConversions(customConversions);
 
-    @Override
-    public ObjectId convert(final String source) {
-      return ObjectId.fromString(source);
+        return mappingElasticsearchConverter;
     }
-  }
 
-  @ReadingConverter
-  static class InstantLongReader implements Converter<Long, Instant> {
+    @WritingConverter
+    static class ObjectIdToString implements Converter<ObjectId, String> {
 
-    @Override
-    public Instant convert(final Long source) {
-      return Instant.ofEpochMilli(source);
+        @Override
+        public String convert(final ObjectId source) {
+            return source.name();
+        }
     }
-  }
 
-  @ReadingConverter
-  static class InstantIntegerReader implements Converter<Integer, Instant> {
+    @ReadingConverter
+    static class StringToObjectId implements Converter<String, ObjectId> {
 
-    @Override
-    public Instant convert(final Integer source) {
-      return Instant.ofEpochSecond(source);
+        @Override
+        public ObjectId convert(final String source) {
+            return ObjectId.fromString(source);
+        }
     }
-  }
 
-  @ReadingConverter
-  static class InstantDoubleReader implements Converter<Double, Instant> {
+    @ReadingConverter
+    static class InstantLongReader implements Converter<Long, Instant> {
 
-    @Override
-    public Instant convert(final Double source) {
-      return Instant.ofEpochMilli(Math.round(source * 1000.0));
+        @Override
+        public Instant convert(final Long source) {
+            return Instant.ofEpochMilli(source);
+        }
     }
-  }
+
+    @ReadingConverter
+    static class InstantIntegerReader implements Converter<Integer, Instant> {
+
+        @Override
+        public Instant convert(final Integer source) {
+            return Instant.ofEpochSecond(source);
+        }
+    }
+
+    @ReadingConverter
+    static class InstantDoubleReader implements Converter<Double, Instant> {
+
+        @Override
+        public Instant convert(final Double source) {
+            return Instant.ofEpochMilli(Math.round(source * 1000.0));
+        }
+    }
 }

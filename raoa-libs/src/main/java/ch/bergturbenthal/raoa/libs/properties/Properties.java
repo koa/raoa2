@@ -7,6 +7,7 @@ import org.springframework.lang.NonNull;
 import org.springframework.validation.annotation.Validated;
 
 import java.io.File;
+import java.util.TimeZone;
 
 @Slf4j
 @ConfigurationProperties(prefix = "raoa")
@@ -22,4 +23,5 @@ public class Properties {
     private int maxConcurrent = 30;
     private int asyncThreadCount = 10;
     private String superuser = "107024483334418897627";
+    private TimeZone timeZone = TimeZone.getDefault();
 }
