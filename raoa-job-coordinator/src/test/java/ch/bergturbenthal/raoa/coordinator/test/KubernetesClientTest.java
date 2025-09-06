@@ -46,9 +46,8 @@ public class KubernetesClientTest {
         }).publish(flux -> Flux.merge(flux.filter(f -> f.toLowerCase(Locale.ROOT).endsWith(".jpg")).buffer(1000),
                 flux.filter(f1 -> f1.toLowerCase(Locale.ROOT).endsWith(".nef")).buffer(100),
                 flux.filter(f2 -> f2.toLowerCase(Locale.ROOT).endsWith(".mp4")).buffer(1)))
-                .flatMap(
-                        batch -> processor.processFiles(UUID.fromString("b033dda0-a33f-dc23-4ac5-c5d3e5208f26"), batch),
-                        20)
+                .flatMap(batch -> processor.processFiles(UUID.fromString("b033dda0-a33f-dc23-4ac5-c5d3e5208f26"), batch,
+                        ""), 20)
                 .log("batch").count().block();
         processor.close();
         executorService.shutdown();
