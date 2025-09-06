@@ -220,7 +220,7 @@ public class BareAlbumList implements AlbumList {
             log.info("Unsupported content type: " + mediaType);
             return Optional.empty();
         }
-        return TikaUtil.extractCreateTime(metadata);
+        return TikaUtil.extractCreateTime(metadata, properties.getTimeZone());
     }
 
     @Override

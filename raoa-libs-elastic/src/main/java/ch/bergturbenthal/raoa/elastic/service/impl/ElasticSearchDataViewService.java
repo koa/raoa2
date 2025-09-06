@@ -17,6 +17,7 @@ import ch.bergturbenthal.raoa.elastic.repository.TemporaryPasswordRepository;
 import ch.bergturbenthal.raoa.elastic.repository.UserRepository;
 import ch.bergturbenthal.raoa.elastic.service.DataViewService;
 import ch.bergturbenthal.raoa.elastic.service.UserManager;
+import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
@@ -33,7 +34,6 @@ import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.elasticsearch.client.elc.ReactiveElasticsearchTemplate;
 import org.springframework.data.elasticsearch.core.ReactiveIndexOperations;
-import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -66,12 +66,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class ElasticSearchDataViewService implements DataViewService {
-    public static final TreeFilter MEDIA_FILE_FILTER = OrTreeFilter
-            .create(new TreeFilter[] { PathSuffixFilter.create(".jpg"), PathSuffixFilter.create(".jpeg"),
-                    PathSuffixFilter.create(".JPG"), PathSuffixFilter.create(".JPEG"), PathSuffixFilter.create(".nef"),
-                    PathSuffixFilter.create(".NEF"), PathSuffixFilter.create(".mp4"), PathSuffixFilter.create(".MP4") // ,
-            // PathSuffixFilter.create(".mkv")
-            });
+    public static final TreeFilter MEDIA_FILE_FILTER = OrTreeFilter.create(new TreeFilter[] {
+            PathSuffixFilter.create(".jpg"), PathSuffixFilter.create(".jpeg"), PathSuffixFilter.create(".JPG"),
+            PathSuffixFilter.create(".JPEG"), PathSuffixFilter.create(".nef"), PathSuffixFilter.create(".NEF"),
+            PathSuffixFilter.create(".mp4"), PathSuffixFilter.create(".MP4"), PathSuffixFilter.create(".mkv") });
     public static final TreeFilter IMAGE_FILE_FILTER = OrTreeFilter.create(new TreeFilter[] {
             PathSuffixFilter.create(".jpg"), PathSuffixFilter.create(".jpeg"), PathSuffixFilter.create(".JPG"),
             PathSuffixFilter.create(".JPEG"), PathSuffixFilter.create(".nef"), PathSuffixFilter.create(".NEF") });
@@ -95,13 +93,15 @@ public class ElasticSearchDataViewService implements DataViewService {
     private final AtomicReference<ObjectId> lastMetaVersion = new AtomicReference<>();
     private final TemporaryPasswordRepository temporaryPasswordRepository;
     private final AsyncService asyncService;
+    private final Properties properties;
 
     public ElasticSearchDataViewService(final AlbumDataRepository albumDataRepository,
             final AlbumDataEntryRepository albumDataEntryRepository, final AlbumList albumList,
             final SyncAlbumDataEntryRepository syncAlbumDataEntryRepository, final UserRepository userRepository,
             final GroupRepository groupRepository, final AccessRequestRepository accessRequestRepository,
             final UserManager userManager, final ReactiveElasticsearchTemplate elasticsearchTemplate,
-            final TemporaryPasswordRepository temporaryPasswordRepository, final AsyncService asyncService) {
+            final TemporaryPasswordRepository temporaryPasswordRepository, final AsyncService asyncService,
+            final Properties properties) {
         this.albumDataRepository = albumDataRepository;
         this.albumDataEntryRepository = albumDataEntryRepository;
         this.albumList = albumList;
@@ -113,6 +113,7 @@ public class ElasticSearchDataViewService implements DataViewService {
         this.elasticsearchTemplate = elasticsearchTemplate;
         this.temporaryPasswordRepository = temporaryPasswordRepository;
         this.asyncService = asyncService;
+        this.properties = properties;
     }
 
     private static Optional<Integer> extractTargetWidth(final Metadata m) {
@@ -123,44 +124,15 @@ public class ElasticSearchDataViewService implements DataViewService {
         return TikaUtil.extractTargetHeight(m);
     }
 
-    private static AlbumEntryData createAlbumEntry(final GitAccess.GitFileEntry gitFileEntry, final Metadata metadata,
-            final XMPMeta xmpMeta, final UUID albumId) {
-        final AlbumEntryData.AlbumEntryDataBuilder albumEntryDataBuilder = AlbumEntryData.builder()
-                .filename(gitFileEntry.getNameString()).entryId(gitFileEntry.getFileId()).albumId(albumId);
-        TikaUtil.extractCreateTime(metadata).ifPresent(albumEntryDataBuilder::createTime);
-        extractTargetWidth(metadata).ifPresent(albumEntryDataBuilder::targetWidth);
-        extractTargetHeight(metadata).ifPresent(albumEntryDataBuilder::targetHeight);
-        TikaUtil.extractTargetWidth(metadata).ifPresent(albumEntryDataBuilder::width);
-        TikaUtil.extractTargetHeight(metadata).ifPresent(albumEntryDataBuilder::height);
-        TikaUtil.extractCameraModel(metadata).ifPresent(albumEntryDataBuilder::cameraModel);
-        TikaUtil.extractMake(metadata).ifPresent(albumEntryDataBuilder::cameraManufacturer);
-        TikaUtil.extractLensModel(metadata).ifPresent(albumEntryDataBuilder::lensModel);
-        TikaUtil.extractFocalLength(metadata).ifPresent(albumEntryDataBuilder::focalLength);
-        TikaUtil.extractFNumber(metadata).ifPresent(albumEntryDataBuilder::fNumber);
-        TikaUtil.extractExposureTime(metadata).ifPresent(albumEntryDataBuilder::exposureTime);
-        TikaUtil.extractIsoSpeed(metadata).ifPresent(albumEntryDataBuilder::isoSpeedRatings);
-
-        TikaUtil.extractFocalLength35(metadata).ifPresent(albumEntryDataBuilder::focalLength35);
-
-        TikaUtil.extractContentType(metadata).ifPresent(albumEntryDataBuilder::contentType);
-        final Optional<Double> lat = TikaUtil.extractLatitude(metadata);
-        final Optional<Double> lon = TikaUtil.extractLongitude(metadata);
-        if (lat.isPresent() && lon.isPresent()) {
-            albumEntryDataBuilder.captureCoordinates(new GeoPoint(lat.get(), lon.get()));
-        }
-        if (xmpMeta != null) {
-            final XmpWrapper xmpWrapper = new XmpWrapper(xmpMeta);
-            albumEntryDataBuilder.description(xmpWrapper.readDescription());
-            albumEntryDataBuilder.rating(xmpWrapper.readRating());
-            albumEntryDataBuilder.keywords(new HashSet<>(xmpWrapper.readKeywords()));
-        }
-
-        return albumEntryDataBuilder.build();
-    }
-
     @NotNull
     private static String createTemporaryPwKey(final UUID userId, final String title) {
         return userId.toString() + "-" + title;
+    }
+
+    private AlbumEntryData createAlbumEntry(final GitAccess.GitFileEntry gitFileEntry, final Metadata metadata,
+            final Optional<XMPMeta> xmpMeta, final Optional<ObjectId> metaFileId, final UUID albumId) {
+        return AlbumEntryData.createAlbumEntry(albumId, gitFileEntry.getFileId(), gitFileEntry.getNameString(),
+                metadata, metaFileId, xmpMeta, properties.getTimeZone());
     }
 
     // @Scheduled(fixedDelay = 5 * 60 * 1000, initialDelay = 5 * 1000)
@@ -253,7 +225,7 @@ public class ElasticSearchDataViewService implements DataViewService {
                                             .flatMap(xmpGitEntry -> access.readObject(xmpGitEntry.getFileId())
                                                     .flatMap(access::readXmpMeta)
                                                     .map(meta -> Tuples.of(stripXmpTail(xmpGitEntry.getNameString()),
-                                                            meta)))
+                                                            Tuples.of(xmpGitEntry.getFileId(), meta))))
                                             .collectMap(Tuple2::getT1, Tuple2::getT2)
                                             // .log("xmp meta")
                                             .flatMap(xmpMetadata -> access.listFiles(MEDIA_FILE_FILTER)
@@ -264,11 +236,15 @@ public class ElasticSearchDataViewService implements DataViewService {
                                                             return Mono.just(Tuples.of(true, data));
                                                         } else {
                                                             return access.entryMetdata(gitFileEntry.getFileId())
-                                                                    .map(metadata -> createAlbumEntry(gitFileEntry,
-                                                                            metadata,
-                                                                            xmpMetadata
-                                                                                    .get(gitFileEntry.getNameString()),
-                                                                            album.getAlbumId()))
+                                                                    .map(metadata -> {
+                                                                        final Optional<Tuple2<ObjectId, XMPMeta>> foundMeta = Optional
+                                                                                .ofNullable(xmpMetadata.get(
+                                                                                        gitFileEntry.getNameString()));
+                                                                        return createAlbumEntry(gitFileEntry, metadata,
+                                                                                foundMeta.map(Tuple2::getT2),
+                                                                                foundMeta.map(Tuple2::getT1),
+                                                                                album.getAlbumId());
+                                                                    })
                                                                     /*
                                                                      * .doOnNext( d -> log.info( "Loaded metadata of " +
                                                                      * d.getFilename()))

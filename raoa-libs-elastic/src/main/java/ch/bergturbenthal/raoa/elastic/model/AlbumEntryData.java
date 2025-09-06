@@ -1,12 +1,16 @@
 package ch.bergturbenthal.raoa.elastic.model;
 
 import ch.bergturbenthal.raoa.elastic.model.serializer.ObjectIdSerializer;
+import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
+import ch.bergturbenthal.raoa.libs.util.TikaUtil;
+import com.adobe.internal.xmp.XMPMeta;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.Builder;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tika.metadata.Metadata;
 import org.eclipse.jgit.lib.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
@@ -16,7 +20,10 @@ import org.springframework.data.elasticsearch.annotations.Setting;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.UUID;
 
 @Slf4j
@@ -132,6 +139,43 @@ public class AlbumEntryData {
 
     public static String createDocumentId(final UUID albumId, final ObjectId entryId) {
         return albumId + "-" + entryId.name();
+    }
+
+    public static AlbumEntryData createAlbumEntry(final UUID albumId, final ObjectId fileId, final String filename,
+            final Metadata metadata, final Optional<ObjectId> xmpFileId, final Optional<XMPMeta> xmpMeta,
+            TimeZone defaultTimezone) {
+        final AlbumEntryData.AlbumEntryDataBuilder albumEntryDataBuilder = AlbumEntryData.builder().filename(filename)
+                .entryId(fileId).albumId(albumId);
+        xmpFileId.ifPresent(albumEntryDataBuilder::xmpFileId);
+        TikaUtil.extractCreateTime(metadata, defaultTimezone).ifPresent(albumEntryDataBuilder::createTime);
+        TikaUtil.extractTargetWidth(metadata).ifPresent(albumEntryDataBuilder::targetWidth);
+        TikaUtil.extractTargetHeight(metadata).ifPresent(albumEntryDataBuilder::targetHeight);
+        TikaUtil.extractWidth(metadata).ifPresent(albumEntryDataBuilder::width);
+        TikaUtil.extractHeight(metadata).ifPresent(albumEntryDataBuilder::height);
+        TikaUtil.extractCameraModel(metadata).ifPresent(albumEntryDataBuilder::cameraModel);
+        TikaUtil.extractLensModel(metadata).ifPresent(albumEntryDataBuilder::lensModel);
+        TikaUtil.extractMake(metadata).ifPresent(albumEntryDataBuilder::cameraManufacturer);
+        TikaUtil.extractFocalLength(metadata).ifPresent(albumEntryDataBuilder::focalLength);
+        TikaUtil.extractFNumber(metadata).ifPresent(albumEntryDataBuilder::fNumber);
+        TikaUtil.extractExposureTime(metadata).ifPresent(albumEntryDataBuilder::exposureTime);
+
+        TikaUtil.extractIsoSpeed(metadata).ifPresent(albumEntryDataBuilder::isoSpeedRatings);
+
+        TikaUtil.extractFocalLength35(metadata).ifPresent(albumEntryDataBuilder::focalLength35);
+
+        TikaUtil.extractContentType(metadata).ifPresent(albumEntryDataBuilder::contentType);
+        final Optional<Double> lat = TikaUtil.extractLatitude(metadata);
+
+        final Optional<Double> lon = TikaUtil.extractLongitude(metadata);
+        if (lat.isPresent() && lon.isPresent()) {
+            albumEntryDataBuilder.captureCoordinates(new GeoPoint(lat.get(), lon.get()));
+        }
+        xmpMeta.map(XmpWrapper::new).ifPresent(xmpWrapper -> {
+            albumEntryDataBuilder.description(xmpWrapper.readDescription());
+            albumEntryDataBuilder.rating(xmpWrapper.readRating());
+            albumEntryDataBuilder.keywords(new HashSet<>(xmpWrapper.readKeywords()));
+        });
+        return albumEntryDataBuilder.build();
     }
 
     @JsonPOJOBuilder(withPrefix = "")

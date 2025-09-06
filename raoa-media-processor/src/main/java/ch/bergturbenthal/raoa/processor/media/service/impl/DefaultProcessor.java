@@ -2,11 +2,11 @@ package ch.bergturbenthal.raoa.processor.media.service.impl;
 
 import ch.bergturbenthal.raoa.elastic.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.elastic.repository.AlbumDataEntryRepository;
+import ch.bergturbenthal.raoa.libs.properties.Properties;
 import ch.bergturbenthal.raoa.libs.service.AlbumList;
 import ch.bergturbenthal.raoa.libs.service.AsyncService;
 import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
-import ch.bergturbenthal.raoa.libs.service.impl.XmpWrapper;
 import ch.bergturbenthal.raoa.libs.util.TikaUtil;
 import ch.bergturbenthal.raoa.processor.media.properties.JobProperties;
 import ch.bergturbenthal.raoa.processor.media.service.Processor;
@@ -37,7 +37,6 @@ import org.eclipse.jgit.treewalk.filter.NotTreeFilter;
 import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
-import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -62,7 +61,6 @@ import java.nio.file.Path;
 import java.text.NumberFormat;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -84,15 +82,17 @@ public class DefaultProcessor implements Processor {
     private final AutoDetectParser parser;
     private final ThumbnailFilenameService thumbnailFilenameService;
     private final AlbumDataEntryRepository albumDataEntryRepository;
+    private final Properties properties;
 
     public DefaultProcessor(final JobProperties jobProperties, final AlbumList albumList,
             final AsyncService asyncService, final ThumbnailFilenameService thumbnailFilenameService,
-            final AlbumDataEntryRepository albumDataEntryRepository) {
+            final AlbumDataEntryRepository albumDataEntryRepository, final Properties properties) {
         this.jobProperties = jobProperties;
         this.albumList = albumList;
         this.asyncService = asyncService;
         this.thumbnailFilenameService = thumbnailFilenameService;
         this.albumDataEntryRepository = albumDataEntryRepository;
+        this.properties = properties;
         parser = new AutoDetectParser();
     }
 
@@ -105,42 +105,6 @@ public class DefaultProcessor implements Processor {
             log.warn("dcraw not found", ex);
             return false;
         }
-    }
-
-    private static AlbumEntryData createAlbumEntry(final UUID albumId, final ObjectId fileId, final String filename,
-            final Metadata metadata, final Optional<ObjectId> xmpFileId, final Optional<XMPMeta> xmpMeta) {
-        final AlbumEntryData.AlbumEntryDataBuilder albumEntryDataBuilder = AlbumEntryData.builder().filename(filename)
-                .entryId(fileId).albumId(albumId);
-        xmpFileId.ifPresent(albumEntryDataBuilder::xmpFileId);
-        TikaUtil.extractCreateTime(metadata).ifPresent(albumEntryDataBuilder::createTime);
-        TikaUtil.extractTargetWidth(metadata).ifPresent(albumEntryDataBuilder::targetWidth);
-        TikaUtil.extractTargetHeight(metadata).ifPresent(albumEntryDataBuilder::targetHeight);
-        TikaUtil.extractWidth(metadata).ifPresent(albumEntryDataBuilder::width);
-        TikaUtil.extractHeight(metadata).ifPresent(albumEntryDataBuilder::height);
-        TikaUtil.extractCameraModel(metadata).ifPresent(albumEntryDataBuilder::cameraModel);
-        TikaUtil.extractLensModel(metadata).ifPresent(albumEntryDataBuilder::lensModel);
-        TikaUtil.extractMake(metadata).ifPresent(albumEntryDataBuilder::cameraManufacturer);
-        TikaUtil.extractFocalLength(metadata).ifPresent(albumEntryDataBuilder::focalLength);
-        TikaUtil.extractFNumber(metadata).ifPresent(albumEntryDataBuilder::fNumber);
-        TikaUtil.extractExposureTime(metadata).ifPresent(albumEntryDataBuilder::exposureTime);
-
-        TikaUtil.extractIsoSpeed(metadata).ifPresent(albumEntryDataBuilder::isoSpeedRatings);
-
-        TikaUtil.extractFocalLength35(metadata).ifPresent(albumEntryDataBuilder::focalLength35);
-
-        TikaUtil.extractContentType(metadata).ifPresent(albumEntryDataBuilder::contentType);
-        final Optional<Double> lat = TikaUtil.extractLatitude(metadata);
-
-        final Optional<Double> lon = TikaUtil.extractLongitude(metadata);
-        if (lat.isPresent() && lon.isPresent()) {
-            albumEntryDataBuilder.captureCoordinates(new GeoPoint(lat.get(), lon.get()));
-        }
-        xmpMeta.map(XmpWrapper::new).ifPresent(xmpWrapper -> {
-            albumEntryDataBuilder.description(xmpWrapper.readDescription());
-            albumEntryDataBuilder.rating(xmpWrapper.readRating());
-            albumEntryDataBuilder.keywords(new HashSet<>(xmpWrapper.readKeywords()));
-        });
-        return albumEntryDataBuilder.build();
     }
 
     public static Tuple2<BufferedImage, Boolean> loadImage(File file) throws IOException {
@@ -277,7 +241,8 @@ public class DefaultProcessor implements Processor {
                                                                     missingThumbnails, orientation);
                                                         });
                                                     }
-                                                } else if (contentType.startsWith("video")) {
+                                                } else if (contentType.startsWith("video")
+                                                        || contentType.equals("application/x-matroska")) {
                                                     final List<ThumbnailFilenameService.FileAndScale> missingThumbnails = fileAndScaleStream
                                                             .filter(fas -> !fas.getFile().exists()
                                                                     || !fas.getVideoFile().exists())
@@ -290,10 +255,12 @@ public class DefaultProcessor implements Processor {
                                             }).flatMap(params -> {
                                                 final Metadata metadata = params.getT3();
                                                 final ObjectId imageFileId = params.getT1().getFileId();
+                                                final Optional<ObjectId> xmpFileId = params.getT4();
+                                                final Optional<XMPMeta> xmpMeta = params.getT5();
                                                 return albumDataEntryRepository
-                                                        .save(createAlbumEntry(albumId, imageFileId,
-                                                                params.getT1().getNameString(), metadata,
-                                                                params.getT4(), params.getT5()))
+                                                        .save(AlbumEntryData.createAlbumEntry(albumId, imageFileId,
+                                                                params.getT1().getNameString(), metadata, xmpFileId,
+                                                                xmpMeta, properties.getTimeZone()))
                                                         .doOnNext(f -> log.info("stored " + filename));
                                             });
                                 }, 1).count().map(processedCount -> jobFiles.size() == processedCount.intValue())))

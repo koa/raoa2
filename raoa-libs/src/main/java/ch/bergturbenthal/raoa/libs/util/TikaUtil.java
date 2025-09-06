@@ -36,19 +36,17 @@ public class TikaUtil {
     private static final DateFormat MEDIA_CREATE_DATE_FORMAT = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss");
     private static final DateFormat MEDIA_CREATE_DATE_FORMAT2 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
     private static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9.]+");
-    private static Map<String, DateFormat> MEDIA_CREATE_DATE_FORMATS = Collections.synchronizedMap(new HashMap<>());
+    private static Map<TimeZone, DateFormat> MEDIA_CREATE_DATE_FORMATS = Collections.synchronizedMap(new HashMap<>());
 
     static {
         MEDIA_CREATE_DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
         MEDIA_CREATE_DATE_FORMAT2.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
-    private static DateFormat createFomat2AtZone(String zone) {
+    private static DateFormat createFomat2AtZone(TimeZone zone) {
         return MEDIA_CREATE_DATE_FORMATS.computeIfAbsent(zone, k -> {
             final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-            final ZoneId zoneId = ZoneId.of(zone);
-            TimeZone timeZone = TimeZone.getTimeZone(zoneId);
-            dateFormat.setTimeZone(timeZone);
+            dateFormat.setTimeZone(zone);
             return dateFormat;
         });
     }
@@ -77,15 +75,20 @@ public class TikaUtil {
         }
     }
 
-    public static Optional<Instant> extractCreateTime(Metadata metadata) {
+    public static Optional<Instant> extractCreateTime(Metadata metadata, TimeZone defaultTimeZone) {
         final String timezone = metadata.get("Exif SubIFD:Time Zone");
+        final TimeZone timeZone;
         if (timezone != null) {
-            final Optional<Instant> createdDate = TikaUtil.extractInstant(metadata, timezone,
-                    TikaCoreProperties.CREATED);
-            if (createdDate.isPresent()) {
-                return createdDate;
-            }
+            final ZoneId zoneId = ZoneId.of(timezone);
+            timeZone = TimeZone.getTimeZone(zoneId);
+        } else {
+            timeZone = defaultTimeZone;
         }
+        final Optional<Instant> createdDate = TikaUtil.extractInstant(metadata, timeZone, TikaCoreProperties.CREATED);
+        if (createdDate.isPresent()) {
+            return createdDate;
+        }
+
         final String mediaCreateDate = metadata.get("Media Create Date");
         if (mediaCreateDate != null) {
             try {
@@ -156,7 +159,7 @@ public class TikaUtil {
         return Optional.empty();
     }
 
-    private static Optional<Instant> extractInstant(final Metadata m, final String timezone,
+    private static Optional<Instant> extractInstant(final Metadata m, final TimeZone timezone,
             final Property... property) {
         for (final Property p : property) {
             final String s = m.get(p);
