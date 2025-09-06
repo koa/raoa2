@@ -97,6 +97,13 @@ data:
     volumes:
       - name: elasticsearch-data
         emptyDir: { }
+    resources:
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
 viewerResources:
   limits:
     cpu: "8"

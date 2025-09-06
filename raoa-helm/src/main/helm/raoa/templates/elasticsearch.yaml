@@ -28,6 +28,8 @@ spec:
               securityContext:
                 capabilities:
                   add: [ "SYS_CHROOT" ]
+              resources:
+                {{- toYaml .Values.data.elasticsearch.resources | nindent 16 }}
       {{ if .Values.data.elasticsearch.volumesOverride }}
       volumeClaimTemplates:
         {{- toYaml .Values.data.elasticsearch.volumes | nindent 8 }}
