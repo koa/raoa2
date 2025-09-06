@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 @Slf4j
 @Service
 public class DefaultThumbnailFilenameService implements ThumbnailFilenameService, UploadFilenameService {
-    public static int[] SCALES = { 25, 50, 100, 200, 400, 800, 1600, 3200 };
+    public static int[] SCALES = { 100, 800, 1600, 3200 };
     private final Properties properties;
 
     public DefaultThumbnailFilenameService(final Properties properties) {

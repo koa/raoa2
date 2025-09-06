@@ -60,6 +60,7 @@ import java.net.URLDecoder;
 import java.nio.file.Path;
 import java.text.NumberFormat;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -413,30 +414,30 @@ public class DefaultProcessor implements Processor {
         for (final String name : metadata.names()) {
             log.info(name + ": " + metadata.get(name));
         }
-        final long duration = TikaUtil.extractVideoDuration(metadata)
-                .orElseThrow(() -> new RuntimeException("No duration found")).toSeconds();
-        final double thumbnailPosNumber = duration / 3.0;
-        final Integer width = TikaUtil.extractTargetWidth(metadata)
-                .orElseThrow(() -> new IllegalStateException("Target width not specified"));
-        final Integer height = TikaUtil.extractTargetHeight(metadata)
-                .orElseThrow(() -> new IllegalStateException("Target height not specified"));
-        final NumberFormat numberInstance = NumberFormat.getNumberInstance();
-        numberInstance.setMaximumFractionDigits(3);
-        numberInstance.setMinimumFractionDigits(3);
-        final String thumbnailPos = numberInstance.format(thumbnailPosNumber);
+        final Optional<String> thumbnailPos = TikaUtil.extractVideoDuration(metadata).map(duration -> {
+            final double thumbnailPosNumber = duration.toSeconds() / 3.0;
+            final NumberFormat numberInstance = NumberFormat.getNumberInstance();
+            numberInstance.setMaximumFractionDigits(3);
+            numberInstance.setMinimumFractionDigits(3);
+            return numberInstance.format(thumbnailPosNumber);
+        });
+
+        final Optional<Integer> width = TikaUtil.extractTargetWidth(metadata);
+        final Optional<Integer> height = TikaUtil.extractTargetHeight(metadata);
         log.info("Video size: " + width + "x" + height);
 
         return Flux.fromIterable(missingOutputs).flatMap(fileAndScale -> {
-            int targetLength = Math.min(fileAndScale.getSize(), Math.max(width, height));
-            int adjustedLength = targetLength - targetLength % 2;
-            final String scale;
-            if (width > height) {
-                int targetHeight = targetLength * height / width;
-                scale = adjustedLength + ":" + (targetHeight - targetHeight % 2);
-            } else {
-                int targetWidth = targetLength * width / height;
-                scale = (targetWidth - targetWidth % 2) + ":" + adjustedLength;
-            }
+            final String scale = width.flatMap(w -> height.map(h -> {
+                int targetLength = Math.min(fileAndScale.getSize(), Math.max(w, h));
+                int adjustedLength = targetLength - targetLength % 2;
+                if (w > h) {
+                    int targetHeight = targetLength * h / w;
+                    return adjustedLength + ":" + (targetHeight - targetHeight % 2);
+                } else {
+                    int targetWidth = targetLength * w / h;
+                    return (targetWidth - targetWidth % 2) + ":" + adjustedLength;
+                }
+            })).orElse(fileAndScale.getSize() + ":-1");
 
             final File imgTargetFile = fileAndScale.getFile();
 
@@ -448,17 +449,23 @@ public class DefaultProcessor implements Processor {
                 if (!imgTargetFile.getParentFile().exists())
                     imgTargetFile.getParentFile().mkdirs();
                 final File tempFile = new File(imgTargetFile.getParentFile(), imgTargetFile.getName() + "-tmp.jpg");
-                imgResult = Mono.defer(() -> execute(new String[] { "ffmpeg", "-y", "-i", file.getAbsolutePath(), "-ss",
-                        thumbnailPos, "-vframes", "1", "-vf", "scale=" + scale, tempFile.getAbsolutePath() })
-                                // .log("thumb " + scale)
-                                .map(r -> {
-                                    if (r.getCode() == 0) {
-                                        return Tuples.of(r, tempFile.renameTo(imgTargetFile));
-                                    } else {
-                                        tempFile.delete();
-                                        return Tuples.of(r, false);
-                                    }
-                                }).timeout(Duration.ofHours(1))
+
+                final List<String> cmd = new ArrayList<>(List.of("ffmpeg", "-y", "-i", file.getAbsolutePath()));
+                thumbnailPos.ifPresent(pos -> cmd.addAll(List.of("-ss", pos)));
+                cmd.addAll(List.of("-vframes", "1", "-vf", "scale=" + scale, tempFile.getAbsolutePath()));
+                imgResult = Mono.defer(() -> {
+                    final String[] cmdarray = cmd.toArray(new String[0]);
+                    return execute(cmdarray)
+                            // .log("thumb " + scale)
+                            .map(r -> {
+                                if (r.getCode() == 0) {
+                                    return Tuples.of(r, tempFile.renameTo(imgTargetFile));
+                                } else {
+                                    tempFile.delete();
+                                    return Tuples.of(r, false);
+                                }
+                            }).timeout(Duration.ofHours(1));
+                }
                 // .log("img " + scale)
                 );
             }

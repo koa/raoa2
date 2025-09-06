@@ -56,7 +56,7 @@ type ImportingFile {
 }
 
 enum CommitPhase {
-    READY,ADD_FILES,WRITE_TREE,DONE
+    READY, ADD_FILES, WRITE_TREE, DONE, FAILED
 }
 
 input CommitData {

@@ -46,14 +46,5 @@ function findNextStep(maxLength: number): number {
     if (maxLength > 400) {
         return 800;
     }
-    if (maxLength > 200) {
-        return 400;
-    }
-    if (maxLength > 100) {
-        return 200;
-    }
-    if (maxLength > 50) {
-        return 100;
-    }
-    return 50;
+    return 100;
 }

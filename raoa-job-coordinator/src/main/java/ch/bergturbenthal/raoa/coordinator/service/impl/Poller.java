@@ -99,6 +99,8 @@ public class Poller {
             return 100;
         if (lowerFilename.endsWith(".mp4"))
             return 1;
+        if (lowerFilename.endsWith(".mkv"))
+            return 1;
         return 0;
     }
 
