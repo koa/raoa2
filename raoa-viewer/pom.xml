@@ -4,10 +4,10 @@
     <parent>
         <groupId>ch.bergturbenthal.raoa2</groupId>
         <artifactId>parent</artifactId>
-        <version>0.0.36</version>
+        <version>0.0.37-SNAPSHOT</version>
     </parent>
     <artifactId>raoa-viewer</artifactId>
-    <version>0.0.36</version>
+    <version>0.0.37-SNAPSHOT</version>
     <name>raoa-viewer</name>
     <description>Viewer for RAoA</description>
 
@@ -68,7 +68,7 @@
         <dependency>
             <groupId>ch.bergturbenthal.raoa2</groupId>
             <artifactId>raoa-libs-elastic</artifactId>
-            <version>0.0.36</version>
+            <version>0.0.37-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -103,12 +103,12 @@
         <dependency>
             <groupId>ch.bergturbenthal.raoa2</groupId>
             <artifactId>raoa-viewer-client</artifactId>
-            <version>0.0.36</version>
+            <version>0.0.37-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>ch.bergturbenthal.raoa2</groupId>
             <artifactId>raoa-viewer-client-rust</artifactId>
-            <version>0.0.36</version>
+            <version>0.0.37-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
