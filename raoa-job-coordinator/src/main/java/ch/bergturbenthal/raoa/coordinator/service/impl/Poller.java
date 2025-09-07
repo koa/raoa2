@@ -18,6 +18,7 @@ import ch.bergturbenthal.raoa.libs.service.GitAccess;
 import ch.bergturbenthal.raoa.libs.service.ThumbnailFilenameService;
 import ch.bergturbenthal.raoa.libs.service.Updater;
 import ch.bergturbenthal.raoa.libs.service.UploadFilenameService;
+import io.fabric8.kubernetes.api.model.Quantity;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.LRUMap;
@@ -91,17 +92,19 @@ public class Poller {
         resetJobStates = resetJobStates().cache();
     }
 
-    private Tuple2<Integer, String> batchSizeByFilename(final String nameString) {
+    private Tuple2<Integer, Map<String, Quantity>> batchSizeByFilename(final String nameString) {
         final String lowerFilename = nameString.toLowerCase(Locale.ROOT);
         if (lowerFilename.endsWith(".jpg"))
-            return Tuples.of(1000, "");
+            return Tuples.of(1000, Map.of());
         if (lowerFilename.endsWith(".nef"))
-            return Tuples.of(100, "");
+            return Tuples.of(100, Map.of());
         if (lowerFilename.endsWith(".mp4"))
-            return Tuples.of(1, coordinatorProperties.getVideoResource());
+            return Tuples.of(1, coordinatorProperties.getVideoResource().entrySet().stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> new Quantity(e.getValue()))));
         if (lowerFilename.endsWith(".mkv"))
-            return Tuples.of(1, coordinatorProperties.getVideoResource());
-        return Tuples.of(0, "");
+            return Tuples.of(1, coordinatorProperties.getVideoResource().entrySet().stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> new Quantity(e.getValue()))));
+        return Tuples.of(0, Map.of());
     }
 
     @Scheduled(fixedDelay = 5 * 1000, initialDelay = 500)

@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -47,7 +48,7 @@ public class KubernetesClientTest {
                 flux.filter(f1 -> f1.toLowerCase(Locale.ROOT).endsWith(".nef")).buffer(100),
                 flux.filter(f2 -> f2.toLowerCase(Locale.ROOT).endsWith(".mp4")).buffer(1)))
                 .flatMap(batch -> processor.processFiles(UUID.fromString("b033dda0-a33f-dc23-4ac5-c5d3e5208f26"), batch,
-                        ""), 20)
+                        Map.of()), 20)
                 .log("batch").count().block();
         processor.close();
         executorService.shutdown();

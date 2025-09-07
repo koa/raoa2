@@ -4,6 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
+import java.util.Map;
 
 @ConfigurationProperties(prefix = "raoa.coordinator")
 @Data
@@ -13,5 +14,5 @@ public class CoordinatorProperties {
     private Duration processTimeout = Duration.ofMinutes(15);
     private String imageProcessorUrl = "discovery://image-processor";
     private String mediaProcessorTemplate;
-    private String videoResource = "squat.ai/video";
+    private Map<String, String> videoResource = Map.of("squat.ai/video", "1");
 }

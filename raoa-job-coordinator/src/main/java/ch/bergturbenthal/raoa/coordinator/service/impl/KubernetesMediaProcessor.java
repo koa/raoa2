@@ -3,8 +3,12 @@ package ch.bergturbenthal.raoa.coordinator.service.impl;
 import ch.bergturbenthal.raoa.coordinator.model.CoordinatorProperties;
 import ch.bergturbenthal.raoa.coordinator.service.RemoteMediaProcessor;
 import com.drew.lang.Charsets;
+import io.fabric8.kubernetes.api.model.Container;
+import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.ListOptions;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.PodSpec;
+import io.fabric8.kubernetes.api.model.Quantity;
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import io.fabric8.kubernetes.api.model.batch.v1.JobList;
 import io.fabric8.kubernetes.api.model.batch.v1.JobStatus;
@@ -14,6 +18,7 @@ import io.fabric8.kubernetes.client.Watcher;
 import io.fabric8.kubernetes.client.WatcherException;
 import io.fabric8.kubernetes.client.dsl.MixedOperation;
 import io.fabric8.kubernetes.client.dsl.ScalableResource;
+import io.fabric8.kubernetes.client.utils.KubernetesSerialization;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
@@ -22,10 +27,8 @@ import reactor.core.publisher.MonoSink;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
-import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,10 +51,12 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
     private final AtomicLong idCounter = new AtomicLong();
     private final Map<Long, MonoSink<Boolean>> waitingForCompletion = Collections.synchronizedMap(new HashMap<>());
     private final Scheduler scheduler;
+    private final KubernetesSerialization kubernetesSerialization;
     private Watch watch;
 
     public KubernetesMediaProcessor(final KubernetesClient kubernetesClient, final CoordinatorProperties properties,
             ScheduledExecutorService executorService) {
+        kubernetesSerialization = kubernetesClient.getKubernetesSerialization();
         jobs = kubernetesClient.batch().v1().jobs();
         mediaProcessorTemplate = properties.getMediaProcessorTemplate();
         final List<Job> initItems = jobs.list(createListOptions()).getItems();
@@ -137,30 +142,42 @@ public class KubernetesMediaProcessor implements RemoteMediaProcessor, Closeable
     }
 
     @Override
-    public Mono<Boolean> processFiles(final UUID album, final Collection<String> files, String additionalResource) {
+    public Mono<Boolean> processFiles(final UUID album, final Collection<String> files,
+            Map<String, Quantity> additionalResources) {
 
         // log.info("Created " + createdJob);
         return Mono.<Boolean> create(sink -> {
             final String fileList = files.stream().map(s -> URLEncoder.encode(s, Charsets.UTF_8))
                     .collect(Collectors.joining(","));
             final long jobId = idCounter.incrementAndGet();
-            final String filledTemplate = mediaProcessorTemplate.replace("$repoId$", album.toString())
-                    .replace("$fileList$", fileList).replace("$jobId$", String.valueOf(jobId))
-                    .replace("$additionalResource$: $value$", additionalResource);
-            final ScalableResource<Job> expandedJob = jobs
-                    .load(new ByteArrayInputStream(filledTemplate.getBytes(StandardCharsets.UTF_8)));
-            /*
-             * final UnaryOperator<Job> coordinator = (Job job) -> { log.info("jobRef: " + job);
-             * job.getMetadata().setLabels( Map.of("coordinator", "raoa-jobRef-coordinator", "jobRef-id",
-             * String.valueOf(jobId))); job.getMetadata().setName("raoa-jobRef-" + jobId); return job; };
-             * expandedJob.edit(coordinator);
-             */
+            final Job jobData = kubernetesSerialization.unmarshal(mediaProcessorTemplate, Job.class);
+            // log.info("Created " + createdJob);
+            final ObjectMeta metadata = jobData.getMetadata();
+            metadata.setLabels(Map.of("coordinator", "raoa-job-coordinator", "job-id", String.valueOf(jobId)));
+            metadata.setName("raoa-job-ref-" + jobId);
+            final PodSpec podSpec = jobData.getSpec().getTemplate().getSpec();
+            podSpec.getSecurityContext().getSupplementalGroups().add(44l);
+            final Container processorContainer = podSpec.getContainers().stream()
+                    .filter(container -> container.getName().equals("media-processor")).findFirst()
+                    .orElseThrow(() -> new RuntimeException("No container named media-processor"));
+            final Map<String, Quantity> limits = processorContainer.getResources().getLimits();
+            limits.putAll(additionalResources);
+            final List<EnvVar> env = processorContainer.getEnv();
+            env.removeIf(envVar -> {
+                final String name = envVar.getName();
+                return name.equals("RAOA_JOB_REPOSITORY") || name.equals("RAOA_JOB_FILES");
+            });
+            env.add(new EnvVar("RAOA_JOB_REPOSITORY", album.toString(), null));
+            env.add(new EnvVar("RAOA_JOB_FILES", fileList, null));
+
+            final ScalableResource<Job> expandedJob = jobs.resource(jobData);
 
             AtomicBoolean started = new AtomicBoolean(false);
             waitingForCompletion.put(jobId, sink);
             sink.onRequest(count -> {
                 if (count > 0) {
                     if (started.compareAndSet(false, true)) {
+                        log.info("Started waiting for job {}", jobId);
                         expandedJob.create();
                     }
                 }

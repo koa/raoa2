@@ -11,10 +11,10 @@ data:
     apiVersion: batch/v1
     kind: Job
     metadata:
-      name: processor-job-$jobId$
+      name: processor-job-template
       labels:
         coordinator: raoa-job-coordinator
-        job-id: $jobId$
+        job-id: unset
         {{- include "raoa.labels" . | nindent 8 }}
     spec:
         template:
@@ -90,10 +90,6 @@ data:
                       secretKeyRef:
                         key: elastic
                         name: {{ include "raoa.fullname" . }}-es-elastic-user
-                  - name: RAOA_JOB_REPOSITORY
-                    value: $repoId$
-                  - name: RAOA_JOB_FILES
-                    value: $fileList$
                   - name: JAVA_TOOL_OPTION
                     value: "-Dfile.encoding=UTF8"
                   - name: LANG
