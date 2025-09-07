@@ -2,8 +2,8 @@ const HttpsProxyAgent = require('https-proxy-agent');
 const proxyConfig = [
         {
             context: '/graphql',
-             target: 'https://photos.lkw.teamkoenig.ch/',
-             headers: {host: 'photos.lkw.teamkoenig.ch'},
+            // target: 'https://photos.lkw.teamkoenig.ch/',
+            // headers: {host: 'photos.lkw.teamkoenig.ch'},
             target: 'https://photos.teamkoenig.ch/',
             headers: {host: 'photos.teamkoenig.ch'},
             // target: 'https://photos.berg-turbenthal.ch/',
@@ -24,8 +24,8 @@ const proxyConfig = [
         },
         {
             context: '/rest',
-            target: 'https://photos.lkw.teamkoenig.ch/',
-            headers: {host: 'photos.lkw.teamkoenig.ch'},
+            // target: 'https://photos.lkw.teamkoenig.ch/',
+            // headers: {host: 'photos.lkw.teamkoenig.ch'},
             target: 'https://photos.teamkoenig.ch/',
             headers: {host: 'photos.teamkoenig.ch'},
             // target: 'https://photos.berg-turbenthal.ch/',
@@ -36,10 +36,10 @@ const proxyConfig = [
         ,
         {
             context: '/config',
-            target: 'https://photos.lkw.teamkoenig.ch/',
-            headers: {host: 'photos.lkw.teamkoenig.ch'},
-             target: 'https://photos.teamkoenig.ch/',
-             headers: {host: 'photos.teamkoenig.ch'},
+            // target: 'https://photos.lkw.teamkoenig.ch/',
+            // headers: {host: 'photos.lkw.teamkoenig.ch'},
+            target: 'https://photos.teamkoenig.ch/',
+            headers: {host: 'photos.teamkoenig.ch'},
             // target: 'https://photos.berg-turbenthal.ch/',
             // headers: {host: 'photos.berg-turbenthal.ch'},
             // target: 'http://localhost:8080/',
