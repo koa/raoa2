@@ -474,9 +474,9 @@ public class DefaultProcessor implements Processor {
                 videoResult = Mono.empty();
             else {
                 final File tempFile = new File(videoTargetFile.getParentFile(), videoTargetFile.getName() + "-tmp.mp4");
-                videoResult = Mono.defer(() -> execute(new String[] { "ffmpeg", "-y", "-hwaccel", "auto", "-i",
-                        file.getAbsolutePath(), "-preset", "faster", "-movflags", "+faststart", "-vf", "scale=" + scale,
-                        tempFile.getAbsolutePath() })
+                videoResult = Mono.defer(() -> execute(new String[] { "ffmpeg", "-y", "-hwaccel", "vaapi",
+                        "-hwaccel_output_format", "vaapi", "-i", file.getAbsolutePath(), "-preset", "faster",
+                        "-movflags", "+faststart", "-vf", "scale=" + scale, tempFile.getAbsolutePath() })
                                 // .log("vid " + scale)
                                 .map(r -> {
                                     if (r.getCode() == 0) {
