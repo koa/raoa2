@@ -29,6 +29,7 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       initContainers:
+        {{ if .Values.data.repository.cleanRepos}}
         - name: clean-repos
           image: library/busybox:1.32.0
           volumeMounts:
@@ -38,6 +39,7 @@ spec:
             - sh
             - -c
             - find /data -name .probe-* -print0 | xargs -0 -n 1 -r rm
+        {{ end }}
         {{ if .Values.data.repository.initStorage}}
         - name: fix-permissions
           image: library/busybox:1.32.0

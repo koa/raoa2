@@ -84,7 +84,8 @@ ingress:
 data:
   repository:
     override: false
-    initStorage: true
+    initStorage: false
+    cleanRepos: false
   cache:
     size: 10Gi
   import:
