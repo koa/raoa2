@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "raoa.fullname" . }}-el-monitor
+  labels:
+  {{- include "raoa.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+  {{- include "raoa.elMonitorSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "raoa.elMonitorSelectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: elasticsearch-monitor
+          image: {{.Values.elasticsearchMonitor.image}}
+          command: [ "elasticsearch_exporter",
+                     "--log.format=logfmt",
+                     "--log.level=info",
+                    {{ printf  "--es.uri=https://elastic-internal-monitoring:$(ES_PASSWORD)@%s-es-http:9200" (include "raoa.fullname" .)  | quote}},
+                     "--es.all",
+                     "--es.indices",
+                     "--es.indices_settings",
+                     "--es.indices_mappings",
+                     "--no-es.aliases",
+                     "--es.shards",
+                     "--collector.snapshots",
+                     "--es.timeout=30s",
+                     "--es.ca=/ssl/ca.crt",
+                     "--web.listen-address=:9108",
+                     "--web.telemetry-path=/metrics" ]
+          env:
+            - name: ES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "raoa.fullname" . }}-es-elastic-user
+                  key: elastic
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          resources:
+            {{- .Values.elasticsearchMonitor.resources | toYaml | nindent 12}}
+          ports:
+            - containerPort: 9108
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+          volumeMounts:
+            - mountPath: /ssl
+              name: elastic-certs
+      restartPolicy: Always
+      volumes:
+        - name: elastic-certs
+          secret:
+            secretName: {{include "raoa.fullname" .}}-es-http-certs-public

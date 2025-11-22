@@ -64,6 +64,11 @@ app.kubernetes.io/name: {{ include "raoa.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/part: image-processor
 {{- end -}}
+{{- define "raoa.elMonitorSelectorLabels" -}}
+app.kubernetes.io/name: {{ include "raoa.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/part: el-monitor
+{{- end -}}
 {{/*
 Create the name of the service account to use
 */}}

@@ -14,7 +14,6 @@ import com.adobe.internal.xmp.XMPMeta;
 import com.adobe.internal.xmp.XMPMetaFactory;
 import com.drew.lang.Charsets;
 import lombok.Cleanup;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.imaging.ImageReadException;
 import org.apache.commons.imaging.ImageWriteException;
@@ -37,6 +36,7 @@ import org.eclipse.jgit.treewalk.filter.NotTreeFilter;
 import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -66,7 +66,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -74,6 +77,7 @@ import java.util.stream.Stream;
 @Service
 public class DefaultProcessor implements Processor {
     private static final Set<String> RAW_ENDINGS = Set.of(".nef", ".dng", ".cr2", ".crw", ".cr3");
+    private static Pattern HEIGHT_ERROR_PATTERN = Pattern.compile("height not divisible by 2 \\(([0-9]+)x([0-9])+\\)$");
     private static final boolean HAS_DCRAW = hasDcraw();
     private static final Object dcrawLock = new Object();
 
@@ -458,7 +462,7 @@ public class DefaultProcessor implements Processor {
                     return execute(cmdarray)
                             // .log("thumb " + scale)
                             .map(r -> {
-                                if (r.getCode() == 0) {
+                                if (r.code() == 0) {
                                     return Tuples.of(r, tempFile.renameTo(imgTargetFile));
                                 } else {
                                     tempFile.delete();
@@ -469,26 +473,13 @@ public class DefaultProcessor implements Processor {
                 // .log("img " + scale)
                 );
             }
-            final Mono<Tuple2<ExecuteResult, Boolean>> videoResult;
-            if (videoTargetFile.exists())
-                videoResult = Mono.empty();
-            else {
-                final File tempFile = new File(videoTargetFile.getParentFile(), videoTargetFile.getName() + "-tmp.mp4");
-                videoResult = Mono.defer(() -> execute(new String[] { "ffmpeg", "-y", "-hwaccel", "auto",
-                        "-hwaccel_output_format", "auto", "-i", file.getAbsolutePath(), "-preset", "faster",
-                        "-movflags", "+faststart", "-vf", "scale=" + scale, tempFile.getAbsolutePath() })
-                                // .log("vid " + scale)
-                                .map(r -> {
-                                    if (r.getCode() == 0) {
-                                        return Tuples.of(r, tempFile.renameTo(videoTargetFile));
-                                    } else {
-                                        tempFile.delete();
-                                        return Tuples.of(r, false);
-                                    }
-                                }).timeout(Duration.ofHours(5))
-                // .log("vid " + scale)
-                );
-            }
+            final Mono<Tuple2<ExecuteResult, Boolean>> videoResult = scaleVideo(file, videoTargetFile, null, scale)
+                    .flatMap(t -> {
+                        if (t.getT1().adjustDimension() != null) {
+                            return scaleVideo(file, videoTargetFile, t.getT1().adjustDimension(), scale);
+                        }
+                        return Mono.just(t);
+                    });
 
             return Flux.concat(imgResult, videoResult).map(Tuple2::getT2).all(ok -> ok).defaultIfEmpty(true)
             // .log("all :" + targetLength)
@@ -496,6 +487,34 @@ public class DefaultProcessor implements Processor {
         }, 1).all(ok -> ok)
         // .log("all")
         ;
+    }
+
+    private @NotNull Mono<Tuple2<ExecuteResult, Boolean>> scaleVideo(final File file, final File videoTargetFile,
+            final AdjustDimension adjustDimension, final String scale) {
+        final Mono<Tuple2<ExecuteResult, Boolean>> videoResult;
+        if (videoTargetFile.exists())
+            videoResult = Mono.empty();
+        else {
+            final File tempFile = new File(videoTargetFile.getParentFile(), videoTargetFile.getName() + "-tmp.mp4");
+            videoResult = Mono.defer(() -> execute(new String[] { "ffmpeg", "-y", "-hwaccel", "auto",
+                    "-hwaccel_output_format", "auto", "-i", file.getAbsolutePath(), "-preset", "faster", "-movflags",
+                    "+faststart", "-vf",
+                    "scale=" + (adjustDimension == null ? scale
+                            : (adjustDimension.width() + ":" + adjustDimension.height())),
+                    tempFile.getAbsolutePath() })
+                            // .log("vid " + scale)
+                            .map(r -> {
+                                if (r.code() == 0) {
+                                    return Tuples.of(r, tempFile.renameTo(videoTargetFile));
+                                } else {
+                                    tempFile.delete();
+                                    return Tuples.of(r, false);
+                                }
+                            }).timeout(Duration.ofHours(5))
+            // .log("vid " + scale)
+            );
+        }
+        return videoResult;
     }
 
     private Mono<ExecuteResult> execute(final String[] cmdarray) {
@@ -520,6 +539,7 @@ public class DefaultProcessor implements Processor {
                     log.warn("Cannot read stdout", e);
                 }
             }).start();
+            AtomicReference<AdjustDimension> adjustDimension = new AtomicReference<>();
             new Thread(() -> {
                 try {
                     final BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
@@ -528,6 +548,18 @@ public class DefaultProcessor implements Processor {
                         final String line = reader.readLine();
                         if (line == null)
                             break;
+                        try {
+                            final Matcher errorMessageMatcher = HEIGHT_ERROR_PATTERN.matcher(line);
+                            if (errorMessageMatcher.find()) {
+                                final int width = Integer.parseInt(errorMessageMatcher.group(1));
+                                final int height = Integer.parseInt(errorMessageMatcher.group(2));
+                                if (height % 2 == 1) {
+                                    adjustDimension.set(new AdjustDimension(width, height + 1));
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.error("Cannot parse line: {}", line, e);
+                        }
                         stdErrBuffer.append(line);
                         stdErrBuffer.append('\n');
                         log.info("STDERR: " + line);
@@ -540,7 +572,7 @@ public class DefaultProcessor implements Processor {
             return Mono.fromFuture(process.onExit()).map(p -> {
                 final Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
                 log.info("Processed in " + duration + ": " + String.join(" ", cmdarray));
-                return new ExecuteResult(p.exitValue());
+                return new ExecuteResult(p.exitValue(), adjustDimension.get());
             });
 
         } catch (IOException e) {
@@ -548,10 +580,9 @@ public class DefaultProcessor implements Processor {
         }
     }
 
-    @Value
-    private static class ExecuteResult {
-        // String stdErr;
-        // String stdOut;
-        int code;
+    private record ExecuteResult(int code, AdjustDimension adjustDimension) {
+    }
+
+    private record AdjustDimension(int width, int height) {
     }
 }
