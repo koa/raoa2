@@ -36,8 +36,8 @@ spec:
             - name: ES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "raoa.fullname" . }}-es-elastic-user
-                  key: elastic
+                  name: {{ include "raoa.fullname" . }}-es-internal-users
+                  key: elastic-internal-monitoring
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
