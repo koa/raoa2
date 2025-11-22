@@ -81,6 +81,16 @@ ingress:
   #  - secretName: chart-example-tls
   #    hosts:
   #      - chart-example.local
+hpa:
+  enable: true
+  maxReplicas: 5
+  metrics:
+    - resource:
+        name: cpu
+        target:
+          averageUtilization: 20
+          type: Utilization
+      type: Resource
 data:
   repository:
     override: false

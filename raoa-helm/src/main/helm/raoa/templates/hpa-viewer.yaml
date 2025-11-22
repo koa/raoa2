@@ -1,0 +1,17 @@
+{{ if and (hasKey .Values "hpa") .Values.hpa.enable -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "raoa.fullname" . }}-viewer
+  labels:
+  {{- include "raoa.labels" . | nindent 4 }}
+spec:
+  maxReplicas: {{ default 3 .Values.hpa.maxReplicas }}
+  metrics:
+    {{- toYaml .Values.hpa.metrics | nindent 4}}
+  minReplicas: {{ default 1 .Values.hpa.minReplicas }}
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "raoa.fullname" . }}-viewer
+{{- end}}

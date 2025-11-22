@@ -5,7 +5,10 @@ metadata:
   labels:
   {{- include "raoa.labels" . | nindent 4 }}
 spec:
+  {{ if and (hasKey .Values "hpa") .Values.hpa.enable -}}
+  {{ else }}
   replicas: {{ .Values.replicaCount }}
+  {{ end }}
   selector:
     matchLabels:
   {{- include "raoa.viewerSelectorLabels" . | nindent 6 }}
