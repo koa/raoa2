@@ -3,7 +3,7 @@
     <parent>
         <artifactId>parent</artifactId>
         <groupId>ch.bergturbenthal.raoa2</groupId>
-        <version>0.0.40</version>
+        <version>0.0.41-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <artifactId>raoa-media-processor</artifactId>
@@ -15,7 +15,7 @@
         <dependency>
             <groupId>ch.bergturbenthal.raoa2</groupId>
             <artifactId>raoa-libs-elastic</artifactId>
-            <version>0.0.40</version>
+            <version>0.0.41-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.springframework</groupId>
