@@ -82,7 +82,7 @@ function createStoreEntry(albumEntry: { __typename?: 'AlbumEntry' } &
         albumEntryId: albumEntry.id,
         albumId,
         created: Date.parse(albumEntry.created),
-        entryType: albumEntry.contentType.startsWith('video') ? 'video' : 'image',
+        entryType: (albumEntry.contentType.startsWith('video') || albumEntry.contentType === 'application/x-matroska') ? 'video' : 'image',
         keywords: albumEntry.keywords,
         name: albumEntry.name,
         targetHeight: albumEntry.targetHeight,
