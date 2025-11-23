@@ -12,3 +12,4 @@ pom.xml.versionsBackup
 /raoa-viewer-client-rust/src/main/rust/client/graphql/schema.graphql
 /raoa-viewer-client-rust/src/main/rust/client/dist/
 /target/
+/raoa-viewer-client-rust/graphql/schema.graphql
