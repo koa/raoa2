@@ -77,10 +77,16 @@ ingress:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-
-  #  - secretName: chart-example-tls
-  #    hosts:
-  #      - chart-example.local
+gateway:
+  enabled: false
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public-gateway
+      namespace: public-gateway
+  hostnames: [ ]
+  httproute:
+    annotations: [ ]
 hpa:
   enable: true
   maxReplicas: 5
