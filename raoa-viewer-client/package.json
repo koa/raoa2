@@ -23,7 +23,7 @@
     "@angular/service-worker": "15.2.9",
     "@apollo/client": "3.7.14",
     "@ionic/angular": "^7.0.7",
-    "@sentry/angular-ivy": "^7.52.1",
+    "@sentry/angular-ivy": "^7.119.1",
     "@sentry/tracing": "7.9.0",
     "@types/node-forge": "1.0.2",
     "@types/shell-quote": "1.7.1",
